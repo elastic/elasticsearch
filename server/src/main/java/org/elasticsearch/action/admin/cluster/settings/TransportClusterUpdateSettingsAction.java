@@ -13,23 +13,27 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 
@@ -47,7 +52,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
     private static final Logger logger = LogManager.getLogger(TransportClusterUpdateSettingsAction.class);
 
-    private final ClusterSettings clusterSettings;
+    private final MasterServiceTaskQueue<ClusterUpdateSettingsTask> taskQueue;
 
     @Inject
     public TransportClusterUpdateSettingsAction(
@@ -70,7 +75,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             ClusterUpdateSettingsResponse::new,
             ThreadPool.Names.SAME
         );
-        this.clusterSettings = clusterSettings;
+        this.taskQueue = clusterService.createTaskQueue("cluster-update-settings", Priority.IMMEDIATE, new Executor());
     }
 
     /**
@@ -152,113 +157,118 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
-        submitUnbatchedTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(clusterSettings, Priority.IMMEDIATE, request, listener) {
-            @Override
-            protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
-                return new ClusterUpdateSettingsResponse(acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
-            }
-
-            @Override
-            public void onAllNodesAcked() {
-                if (reroute) {
-                    reroute(true);
-                } else {
-                    super.onAllNodesAcked();
-                }
-            }
-
-            @Override
-            public void onAckFailure(Exception e) {
-                if (reroute) {
-                    reroute(false);
-                } else {
-                    super.onAckFailure(e);
-                }
-            }
-
-            @Override
-            public void onAckTimeout() {
-                if (reroute) {
-                    reroute(false);
-                } else {
-                    super.onAckTimeout();
-                }
-            }
-
-            private void reroute(final boolean updateSettingsAcked) {
-                // The reason the reroute needs to be sent as separate update task, is that all the *cluster* settings are encapsulated in
-                // the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible to the components
-                // until the ClusterStateListener instances have been invoked, but are visible after the first update task has been
-                // completed.
-                clusterService.getRerouteService().reroute(REROUTE_TASK_SOURCE, Priority.URGENT, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void ignored) {
-                        listener.onResponse(
-                            new ClusterUpdateSettingsResponse(
-                                updateSettingsAcked,
-                                updater.getTransientUpdates(),
-                                updater.getPersistentUpdate()
-                            )
-                        );
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug(() -> "failed to perform [" + REROUTE_TASK_SOURCE + "]", e);
-                        if (MasterService.isPublishFailureException(e)) {
-                            listener.onResponse(
-                                new ClusterUpdateSettingsResponse(
-                                    updateSettingsAcked,
-                                    updater.getTransientUpdates(),
-                                    updater.getPersistentUpdate()
-                                )
-                            );
-                        } else {
-                            listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
-                        }
-                    }
-                });
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug(() -> "failed to perform [" + UPDATE_TASK_SOURCE + "]", e);
-                super.onFailure(e);
-            }
-        });
+        taskQueue.submitTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(request, listener), request.masterNodeTimeout());
     }
 
-    private static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
-        protected volatile boolean reroute = false;
-        protected final SettingsUpdater updater;
-        protected final ClusterUpdateSettingsRequest request;
-
-        ClusterUpdateSettingsTask(
-            final ClusterSettings clusterSettings,
-            Priority priority,
-            ClusterUpdateSettingsRequest request,
-            ActionListener<? extends AcknowledgedResponse> listener
-        ) {
-            super(priority, request, listener);
-            this.updater = new SettingsUpdater(clusterSettings);
-            this.request = request;
-        }
-
+    private class Executor implements ClusterStateTaskExecutor<ClusterUpdateSettingsTask> {
         @Override
-        public ClusterState execute(final ClusterState currentState) {
-            final ClusterState clusterState = updater.updateSettings(
-                currentState,
-                request.transientSettings(),
-                request.persistentSettings(),
-                logger
-            );
-            reroute = clusterState != currentState;
+        public ClusterState execute(BatchExecutionContext<ClusterUpdateSettingsTask> batchExecutionContext) throws Exception {
+            var clusterState = batchExecutionContext.initialState();
+
+            final var rerouteListener = new SubscribableListener<Void>();
+            boolean reroutePending = false;
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                final var request = taskContext.getTask().request();
+                final var updater = new SettingsUpdater(clusterService.getClusterSettings());
+                final ClusterState updatedState;
+
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    updatedState = updater.updateSettings(clusterState, request.transientSettings(), request.persistentSettings(), logger);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                    continue;
+                }
+
+                final Runnable publicationSuccessHandler;
+                if (updatedState != clusterState && reroutePending == false) {
+                    // this is the first task in the batch which changed the cluster state, so if the publication succeeds then we must
+                    // submit a followup reroute which will complete the rerouteListener when it finishes
+                    reroutePending = true;
+                    publicationSuccessHandler = () -> clusterService.getRerouteService()
+                        .reroute(REROUTE_TASK_SOURCE, Priority.URGENT, rerouteListener.delegateResponse((l, e) -> {
+                            logger.debug(() -> "failed to perform [" + REROUTE_TASK_SOURCE + "]", e);
+                            if (MasterService.isPublishFailureException(e)) {
+                                l.onResponse(null);
+                            } else {
+                                l.onFailure(new ElasticsearchException("reroute after update settings failed", e));
+                            }
+                        }));
+                } else {
+                    // either this task did not change the cluster state, or we're already submitting a reroute
+                    publicationSuccessHandler = () -> {};
+                }
+
+                taskContext.success(
+                    publicationSuccessHandler,
+                    new PublicationSuccessHandler(
+                        request.ackTimeout(),
+                        updater.getTransientUpdates(),
+                        updater.getPersistentUpdate(),
+                        // when acking finishes, subscribe to the reroute listener
+                        response -> rerouteListener.addListener(
+                            taskContext.getTask().listener().map(ignored -> response),
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                            threadPool.getThreadContext()
+                        )
+                    )
+                );
+
+                clusterState = updatedState;
+            }
+
+            assert (reroutePending == false) == (clusterState == batchExecutionContext.initialState());
+            if (reroutePending == false) {
+                // none of the tasks changed the cluster state so there's no reroute to do, but we must still complete the reroute listener
+                rerouteListener.onResponse(null);
+            }
+
             return clusterState;
         }
     }
 
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    private record PublicationSuccessHandler(
+        TimeValue ackTimeout,
+        Settings transientUpdate,
+        Settings persistentUpdate,
+        Consumer<ClusterUpdateSettingsResponse> responseConsumer
+    ) implements ClusterStateAckListener {
+
+        @Override
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return ackTimeout;
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            onCompletion(false);
+        }
+
+        @Override
+        public void onAckTimeout() {
+            onCompletion(false);
+        }
+
+        @Override
+        public void onAllNodesAcked() {
+            onCompletion(true);
+        }
+
+        private void onCompletion(boolean updateSettingsAcked) {
+            responseConsumer.accept(new ClusterUpdateSettingsResponse(updateSettingsAcked, transientUpdate, persistentUpdate));
+        }
+    }
+
+    private record ClusterUpdateSettingsTask(ClusterUpdateSettingsRequest request, ActionListener<ClusterUpdateSettingsResponse> listener)
+        implements
+            ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

@@ -455,6 +455,7 @@ public abstract class BucketedSort implements Releasable {
     public abstract static class ForDoubles extends BucketedSort {
         private DoubleArray values;
 
+        @SuppressWarnings("this-escape")
         public ForDoubles(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
             boolean success = false;
@@ -555,6 +556,7 @@ public abstract class BucketedSort implements Releasable {
 
         private FloatArray values;
 
+        @SuppressWarnings("this-escape")
         public ForFloats(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
             if (bucketSize > MAX_BUCKET_SIZE) {
@@ -646,6 +648,7 @@ public abstract class BucketedSort implements Releasable {
     public abstract static class ForLongs extends BucketedSort {
         private LongArray values;
 
+        @SuppressWarnings("this-escape")
         public ForLongs(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
             boolean success = false;

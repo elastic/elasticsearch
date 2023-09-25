@@ -153,6 +153,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public QueryStringQueryBuilder(StreamInput in) throws IOException {
         super(in);
         queryString = in.readString();

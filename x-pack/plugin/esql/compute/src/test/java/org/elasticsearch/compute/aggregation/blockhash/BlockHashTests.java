@@ -10,25 +10,28 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.inject.name.Named;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanArrayVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,14 +47,26 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class BlockHashTests extends ESTestCase {
+
+    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         params.add(new Object[] { false });
         params.add(new Object[] { true });
         return params;
+    }
+
+    @After
+    public void checkBreaker() {
+        // assertThat(breaker.getUsed(), is(0L)); // TODO: enable once all blocks are released
     }
 
     private final boolean forcePackedHash;
@@ -62,7 +77,7 @@ public class BlockHashTests extends ESTestCase {
 
     public void testIntHash() {
         int[] values = new int[] { 1, 2, 3, 1, 2, 3, 1, 2, 3 };
-        IntBlock block = new IntArrayVector(values, values.length).asBlock();
+        IntBlock block = blockFactory.newIntArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
@@ -75,6 +90,7 @@ public class BlockHashTests extends ESTestCase {
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 4)));
         }
         assertKeys(ordsAndKeys.keys, 1, 2, 3);
+        Releasables.closeExpectNoException(block);
     }
 
     public void testIntHashWithNulls() {
@@ -150,7 +166,7 @@ public class BlockHashTests extends ESTestCase {
 
     public void testLongHash() {
         long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
-        LongBlock block = new LongArrayVector(values, values.length).asBlock();
+        LongBlock block = blockFactory.newLongArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
@@ -163,6 +179,7 @@ public class BlockHashTests extends ESTestCase {
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 5)));
         }
         assertKeys(ordsAndKeys.keys, 2L, 1L, 4L, 3L);
+        Releasables.closeExpectNoException(block);
     }
 
     public void testLongHashWithNulls() {
@@ -207,7 +224,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendLong(1);
         builder.endPositionEntry();
 
-        OrdsAndKeys ordsAndKeys = hash(builder.build());
+        Block block = builder.build();
+        OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:LONG], entries=4, size="));
             assertOrds(
@@ -234,11 +252,12 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, null, 1L, 2L, 3L);
         }
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        Releasables.closeExpectNoException(block);
     }
 
     public void testDoubleHash() {
         double[] values = new double[] { 2.0, 1.0, 4.0, 2.0, 4.0, 1.0, 3.0, 4.0 };
-        DoubleBlock block = new DoubleArrayVector(values, values.length).asBlock();
+        DoubleBlock block = blockFactory.newDoubleArrayVector(values, values.length).asBlock();
         OrdsAndKeys ordsAndKeys = hash(block);
 
         if (forcePackedHash) {
@@ -251,6 +270,7 @@ public class BlockHashTests extends ESTestCase {
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 5)));
         }
         assertKeys(ordsAndKeys.keys, 2.0, 1.0, 4.0, 3.0);
+        Releasables.closeExpectNoException(block);
     }
 
     public void testDoubleHashWithNulls() {
@@ -260,7 +280,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendDouble(2);
         builder.appendNull();
 
-        OrdsAndKeys ordsAndKeys = hash(builder.build());
+        Block block = builder.build();
+        OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=3, size="));
             assertOrds(ordsAndKeys.ords, 0, 1, 2, 1);
@@ -271,6 +292,7 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, null, 0.0, 2.0);
         }
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        Releasables.closeExpectNoException(block);
     }
 
     public void testDoubleHashWithMultiValuedFields() {
@@ -294,7 +316,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendDouble(2);
         builder.endPositionEntry();
 
-        OrdsAndKeys ordsAndKeys = hash(builder.build());
+        Block block = builder.build();
+        OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=4, size="));
             assertOrds(
@@ -321,10 +344,11 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, null, 1.0, 2.0, 3.0);
         }
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBasicBytesRefHash() {
-        var builder = BytesRefBlock.newBlockBuilder(8);
+        var builder = blockFactory.newBytesRefBlockBuilder(8);
         builder.appendBytesRef(new BytesRef("item-2"));
         builder.appendBytesRef(new BytesRef("item-1"));
         builder.appendBytesRef(new BytesRef("item-4"));
@@ -334,7 +358,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBytesRef(new BytesRef("item-3"));
         builder.appendBytesRef(new BytesRef("item-4"));
 
-        OrdsAndKeys ordsAndKeys = hash(builder.build());
+        Block block = builder.build();
+        OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
             assertThat(ordsAndKeys.description, endsWith("b}"));
@@ -347,6 +372,7 @@ public class BlockHashTests extends ESTestCase {
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 5)));
         }
         assertKeys(ordsAndKeys.keys, "item-2", "item-1", "item-4", "item-3");
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBytesRefHashWithNulls() {
@@ -356,7 +382,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBytesRef(new BytesRef("dog"));
         builder.appendNull();
 
-        OrdsAndKeys ordsAndKeys = hash(builder.build());
+        Block block = builder.build();
+        OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
             assertThat(ordsAndKeys.description, endsWith("b}"));
@@ -369,6 +396,7 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, null, "cat", "dog");
         }
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBytesRefHashWithMultiValuedFields() {
@@ -393,7 +421,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBytesRef(new BytesRef("bar"));
         builder.endPositionEntry();
 
-        OrdsAndKeys ordsAndKeys = hash(builder.build());
+        Block block = builder.build();
+        OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
             assertThat(ordsAndKeys.description, endsWith("b}"));
@@ -422,11 +451,12 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, null, "foo", "bar", "bort");
         }
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBooleanHashFalseFirst() {
         boolean[] values = new boolean[] { false, true, true, true, true };
-        BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
+        BooleanBlock block = blockFactory.newBooleanArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
@@ -439,11 +469,12 @@ public class BlockHashTests extends ESTestCase {
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 3)));
         }
         assertKeys(ordsAndKeys.keys, false, true);
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBooleanHashTrueFirst() {
         boolean[] values = new boolean[] { true, false, false, true, true };
-        BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
+        BooleanBlock block = blockFactory.newBooleanArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
@@ -457,11 +488,12 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, false, true);
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(1, 3)));
         }
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBooleanHashTrueOnly() {
         boolean[] values = new boolean[] { true, true, true, true };
-        BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
+        BooleanBlock block = blockFactory.newBooleanArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
@@ -475,11 +507,12 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, true);
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(2).build()));
         }
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBooleanHashFalseOnly() {
         boolean[] values = new boolean[] { false, false, false, false };
-        BooleanBlock block = new BooleanArrayVector(values, values.length).asBlock();
+        BooleanBlock block = blockFactory.newBooleanArrayVector(values, values.length).asBlock();
 
         OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
@@ -492,6 +525,7 @@ public class BlockHashTests extends ESTestCase {
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.newVectorBuilder(1).appendInt(1).build()));
         }
         assertKeys(ordsAndKeys.keys, false);
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBooleanHashWithNulls() {
@@ -501,7 +535,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBoolean(true);
         builder.appendNull();
 
-        OrdsAndKeys ordsAndKeys = hash(builder.build());
+        Block block = builder.build();
+        OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=3, size="));
             assertOrds(ordsAndKeys.ords, 0, 1, 2, 1);
@@ -512,6 +547,7 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, null, false, true);
         }
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        Releasables.closeExpectNoException(block);
     }
 
     public void testBooleanHashWithMultiValuedFields() {
@@ -535,7 +571,8 @@ public class BlockHashTests extends ESTestCase {
         builder.appendBoolean(false);
         builder.endPositionEntry();
 
-        OrdsAndKeys ordsAndKeys = hash(builder.build());
+        Block block = builder.build();
+        OrdsAndKeys ordsAndKeys = hash(block);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=3, size="));
             assertOrds(
@@ -562,13 +599,14 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, null, false, true);
         }
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+        Releasables.closeExpectNoException(block);
     }
 
     public void testLongLongHash() {
         long[] values1 = new long[] { 0, 1, 0, 1, 0, 1 };
-        LongBlock block1 = new LongArrayVector(values1, values1.length).asBlock();
+        LongBlock block1 = blockFactory.newLongArrayVector(values1, values1.length).asBlock();
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
-        LongBlock block2 = new LongArrayVector(values2, values2.length).asBlock();
+        LongBlock block2 = blockFactory.newLongArrayVector(values2, values2.length).asBlock();
         Object[][] expectedKeys = { new Object[] { 0L, 0L }, new Object[] { 1L, 0L }, new Object[] { 1L, 1L }, new Object[] { 0L, 1L } };
 
         OrdsAndKeys ordsAndKeys = hash(block1, block2);
@@ -581,6 +619,7 @@ public class BlockHashTests extends ESTestCase {
         assertOrds(ordsAndKeys.ords, 0, 1, 0, 2, 3, 2);
         assertKeys(ordsAndKeys.keys, expectedKeys);
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        Releasables.closeExpectNoException(block1, block2);
     }
 
     private void append(LongBlock.Builder b1, LongBlock.Builder b2, long[] v1, long[] v2) {
@@ -621,7 +660,9 @@ public class BlockHashTests extends ESTestCase {
         append(b1, b2, new long[] { 1, 1, 2, 2 }, new long[] { 10, 20, 20 });
         append(b1, b2, new long[] { 1, 2, 3 }, new long[] { 30, 30, 10 });
 
-        OrdsAndKeys ordsAndKeys = hash(b1.build(), b2.build());
+        Block block1 = b1.build();
+        Block block2 = b2.build();
+        OrdsAndKeys ordsAndKeys = hash(block1, block2);
         if (forcePackedHash) {
             assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=10, size="));
             assertOrds(
@@ -678,6 +719,7 @@ public class BlockHashTests extends ESTestCase {
                     new Object[] { 3L, 10L }, }
             );
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 8)));
+            Releasables.closeExpectNoException(block1, block2);
         }
     }
 
@@ -715,9 +757,9 @@ public class BlockHashTests extends ESTestCase {
 
     public void testIntLongHash() {
         int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
-        IntBlock block1 = new IntArrayVector(values1, values1.length).asBlock();
+        IntBlock block1 = blockFactory.newIntArrayVector(values1, values1.length).asBlock();
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
-        LongBlock block2 = new LongArrayVector(values2, values2.length).asBlock();
+        LongBlock block2 = blockFactory.newLongArrayVector(values2, values2.length).asBlock();
         Object[][] expectedKeys = { new Object[] { 0, 0L }, new Object[] { 1, 0L }, new Object[] { 1, 1L }, new Object[] { 0, 1L } };
 
         OrdsAndKeys ordsAndKeys = hash(block1, block2);
@@ -725,13 +767,14 @@ public class BlockHashTests extends ESTestCase {
         assertThat(ordsAndKeys.description, endsWith("b}"));
         assertOrds(ordsAndKeys.ords, 0, 1, 0, 2, 3, 2);
         assertKeys(ordsAndKeys.keys, expectedKeys);
+        Releasables.closeExpectNoException(block1, block2);
     }
 
     public void testLongDoubleHash() {
         long[] values1 = new long[] { 0, 1, 0, 1, 0, 1 };
-        LongBlock block1 = new LongArrayVector(values1, values1.length).asBlock();
+        LongBlock block1 = blockFactory.newLongArrayVector(values1, values1.length).asBlock();
         double[] values2 = new double[] { 0, 0, 0, 1, 1, 1 };
-        DoubleBlock block2 = new DoubleArrayVector(values2, values2.length).asBlock();
+        DoubleBlock block2 = blockFactory.newDoubleArrayVector(values2, values2.length).asBlock();
         Object[][] expectedKeys = { new Object[] { 0L, 0d }, new Object[] { 1L, 0d }, new Object[] { 1L, 1d }, new Object[] { 0L, 1d } };
         OrdsAndKeys ordsAndKeys = hash(block1, block2);
         assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:DOUBLE], entries=4, size="));
@@ -742,9 +785,9 @@ public class BlockHashTests extends ESTestCase {
 
     public void testIntBooleanHash() {
         int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
-        IntBlock block1 = new IntArrayVector(values1, values1.length).asBlock();
+        IntBlock block1 = blockFactory.newIntArrayVector(values1, values1.length).asBlock();
         boolean[] values2 = new boolean[] { false, false, false, true, true, true };
-        BooleanBlock block2 = new BooleanArrayVector(values2, values2.length).asBlock();
+        BooleanBlock block2 = blockFactory.newBooleanArrayVector(values2, values2.length).asBlock();
         Object[][] expectedKeys = {
             new Object[] { 0, false },
             new Object[] { 1, false },
@@ -796,8 +839,8 @@ public class BlockHashTests extends ESTestCase {
 
     public void testLongBytesRefHash() {
         long[] values1 = new long[] { 0, 1, 0, 1, 0, 1 };
-        LongBlock block1 = new LongArrayVector(values1, values1.length).asBlock();
-        BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(8);
+        LongBlock block1 = blockFactory.newLongArrayVector(values1, values1.length).asBlock();
+        BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(8);
         builder.appendBytesRef(new BytesRef("cat"));
         builder.appendBytesRef(new BytesRef("cat"));
         builder.appendBytesRef(new BytesRef("cat"));
@@ -824,6 +867,7 @@ public class BlockHashTests extends ESTestCase {
         assertOrds(ordsAndKeys.ords, 0, 1, 0, 2, 3, 2);
         assertKeys(ordsAndKeys.keys, expectedKeys);
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 4)));
+        Releasables.closeExpectNoException(block1, block2);
     }
 
     public void testLongBytesRefHashWithNull() {
@@ -1028,7 +1072,7 @@ public class BlockHashTests extends ESTestCase {
         for (int c = 0; c < values.length; c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
         }
-        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
         try (
             BlockHash blockHash = forcePackedHash
                 ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
@@ -1068,6 +1112,7 @@ public class BlockHashTests extends ESTestCase {
                     }
                 }
                 callback.accept(result);
+                // Releasables.closeExpectNoException(result.keys()); // TODO: who should release the keys?
             }
 
             @Override
@@ -1147,5 +1192,12 @@ public class BlockHashTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        return breakerService;
     }
 }

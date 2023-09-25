@@ -25,6 +25,7 @@ public class SnapshotIndexCommit extends AbstractRefCounted {
     private final Runnable releaseInitialRef;
     private final SubscribableListener<Void> completionListeners = new SubscribableListener<>();
 
+    @SuppressWarnings("this-escape")
     public SnapshotIndexCommit(Engine.IndexCommitRef commitRef) {
         this.commitRef = commitRef;
         this.releaseInitialRef = new RunOnce(this::decRef);

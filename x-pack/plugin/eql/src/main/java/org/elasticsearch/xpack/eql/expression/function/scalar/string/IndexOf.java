@@ -40,6 +40,7 @@ public class IndexOf extends CaseInsensitiveScalarFunction implements OptionalAr
 
     private final Expression input, substring, start;
 
+    @SuppressWarnings("this-escape")
     public IndexOf(Source source, Expression input, Expression substring, Expression start, boolean caseInsensitive) {
         super(source, asList(input, substring, start != null ? start : new Literal(source, null, DataTypes.NULL)), caseInsensitive);
         this.input = input;

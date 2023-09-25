@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -26,7 +26,7 @@ public class Cast {
             return in;
         }
         if (current == DataTypes.NULL || required == DataTypes.NULL) {
-            return dvrCtx -> page -> Block.constantNullBlock(page.getPositionCount());
+            return dvrCtx -> EvalOperator.CONSTANT_NULL;
         }
         if (required == DataTypes.DOUBLE) {
             if (current == DataTypes.LONG) {

@@ -12,7 +12,11 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
+
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Types used by the code generator.
@@ -112,6 +116,8 @@ public class Types {
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.ql.tree", "Source");
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
+
+    static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
     static ClassName blockType(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
@@ -265,4 +271,16 @@ public class Types {
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }
 
+    static boolean extendsSuper(javax.lang.model.util.Types types, TypeMirror c, String superName) {
+        Deque<TypeMirror> mirrors = new ArrayDeque<>();
+        mirrors.add(c);
+        while (mirrors.isEmpty() == false) {
+            TypeMirror m = mirrors.pop();
+            if (m.toString().equals(superName)) {
+                return true;
+            }
+            mirrors.addAll(types.directSupertypes(m));
+        }
+        return false;
+    }
 }

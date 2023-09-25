@@ -92,6 +92,9 @@ POST /_query?format=txt
 ----
 // TEST[setup:library]
 
+NOTE: if no {esql-limit} command is provided within the query, this will only
+return up to 500 rows.
+
 [discrete]
 ==== {kib}
 
@@ -120,6 +123,10 @@ with the time filter.
 - `unsigned_long`
 - `version`
 --
+
+There is a global limitation on how many rows a query can return. This applies
+irrespective of the user-provided argument to a {esql-limit} command.
+The limit is set to a default of 10000.
 
 include::esql-get-started.asciidoc[]
 

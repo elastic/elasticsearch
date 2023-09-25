@@ -7,3 +7,6 @@ The `LIMIT` processing command enables you to limit the number of rows:
 ----
 include::{esql-specs}/docs.csv-spec[tag=limit]
 ----
+
+NOTE: if the query contains no `LIMIT` command, an implicit limit of 500 will
+be applied.

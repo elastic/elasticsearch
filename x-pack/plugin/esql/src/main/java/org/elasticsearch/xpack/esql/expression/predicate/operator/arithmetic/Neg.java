@@ -69,7 +69,7 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
     @Override
     public final Object fold() {
         DataType dataType = field().dataType();
-        // For date periods and time durations, we need to handle folding especially. These types are unrepresentable, so there is no
+        // For date periods and time durations, we need to treat folding differently. These types are unrepresentable, so there is no
         // evaluator for them - but the default folding requires an evaluator.
         if (dataType == DATE_PERIOD) {
             Period fieldValue = (Period) field().fold();

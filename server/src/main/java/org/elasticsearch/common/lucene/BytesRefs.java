@@ -61,7 +61,7 @@ public class BytesRefs {
      * @param input an input BytesRef
      * @return a String prefix
      */
-    public static String safeStringPrefix(BytesRef input, int prefixLength) {
+    private static String safeStringPrefix(BytesRef input, int prefixLength) {
         BytesRef prefix = new BytesRef(input.bytes, input.offset, prefixLength);
         try {
             return prefix.utf8ToString();

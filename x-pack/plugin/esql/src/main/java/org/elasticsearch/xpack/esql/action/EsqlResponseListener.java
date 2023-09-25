@@ -122,12 +122,12 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         if (mediaType instanceof TextFormat format) {
             restResponse = RestResponse.chunked(
                 RestStatus.OK,
-                ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse))
+                ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse), null)
             );
         } else {
             restResponse = RestResponse.chunked(
                 RestStatus.OK,
-                ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel)
+                ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel, null)
             );
         }
         long tookNanos = stopWatch.stop().getNanos();

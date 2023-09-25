@@ -94,15 +94,21 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntegerTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        Query indexQuery = IntPoint.newSetQuery("field", 1);
+        Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery("field", 1);
+        Query indexOrDocValuesQuery = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+        assertEquals(indexOrDocValuesQuery, ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(indexOrDocValuesQuery, ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        Query indexQuery = LongPoint.newSetQuery("field", 1);
+        Query dvQuery = SortedNumericDocValuesField.newSlowSetQuery("field", 1);
+        Query indexOrDocValuesQuery = new IndexOrDocValuesQuery(indexQuery, dvQuery);
+        assertEquals(indexOrDocValuesQuery, ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(indexOrDocValuesQuery, ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
@@ -145,7 +151,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
+        Query indexQuery = LongPoint.newExactQuery("field", 42);
+        Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("field", 42);
+        assertEquals(new IndexOrDocValuesQuery(indexQuery, dvQuery), ft.termQuery("42", MOCK_CONTEXT));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
         assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));

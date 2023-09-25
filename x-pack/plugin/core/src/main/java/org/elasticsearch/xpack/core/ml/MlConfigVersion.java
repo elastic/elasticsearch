@@ -278,13 +278,6 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         return fromId(version.id);
     }
 
-    public static Version toVersion(MlConfigVersion mlConfigVersion) {
-        if (mlConfigVersion.before(FIRST_ML_VERSION) || mlConfigVersion.onOrAfter(V_8_10_0)) {
-            throw new IllegalArgumentException("Cannot convert " + mlConfigVersion + ". Incompatible version");
-        }
-        return Version.fromId(mlConfigVersion.id);
-    }
-
     public static MlConfigVersion getMinMlConfigVersion(DiscoveryNodes nodes) {
         return getMinMaxMlConfigVersion(nodes).v1();
     }

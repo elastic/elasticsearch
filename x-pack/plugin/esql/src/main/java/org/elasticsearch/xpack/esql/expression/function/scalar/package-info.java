@@ -137,7 +137,7 @@
  *          Build the docs by cloning the <a href="https://github.com/elastic/docs">docs repo</a>
  *          and running:
  *          <pre>{@code
- * ../docs/build_docs --doc docs/reference/index.asciidoc --resource docs/ --open --chunk 1
+ * ../docs/build_docs --doc docs/reference/index.asciidoc --open --chunk 1
  *          }</pre>
  *          from the elasticsearch directory. The first time you run the docs build it does a bunch
  *          of things with docker to get itself ready. Hopefully you can sit back and watch the show.

@@ -17,7 +17,7 @@ GET /_snapshot/my_repository/my_snapshot/_global_state
 `GET /_snapshot/<repository>/<snapshot>/_global_state`
 
 [[get-snapshot-globalstate-api-path-params]]
-==== {api-path-parms-title}
+==== {api-path-params-title}
 
 `<repository>`::
 (Required, string) Name of the repository under which snapshot has been created. No wildcard `*` is supported.

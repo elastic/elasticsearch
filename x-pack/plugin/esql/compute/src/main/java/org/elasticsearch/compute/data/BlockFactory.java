@@ -46,7 +46,7 @@ public class BlockFactory {
 
     private final BigArrays bigArrays;
 
-    private BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
         this.breaker = breaker;
         this.bigArrays = bigArrays;
     }

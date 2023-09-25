@@ -192,7 +192,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         /*
-         * This is called on the Transport tread so we can check the indexing
+         * This is called on the Transport thread so we can check the indexing
          * memory pressure *quickly* but we don't want to keep the transport
          * thread busy. Then, as soon as we have the indexing pressure in we fork
          * to one of the write thread pools. We do this because juggling the
@@ -212,6 +212,52 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
+        ensureClusterStateThenForkAndExecute(task, bulkRequest, executorName, releasingListener);
+    }
+
+    private void ensureClusterStateThenForkAndExecute(
+        Task task,
+        BulkRequest bulkRequest,
+        String executorName,
+        ActionListener<BulkResponse> releasingListener
+    ) {
+        final ClusterState initialState = clusterService.state();
+        final ClusterBlockException blockException = initialState.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+        if (blockException != null) {
+            if (false == blockException.retryable()) {
+                releasingListener.onFailure(blockException);
+                return;
+            }
+            logger.trace("cluster is blocked, waiting for it to recover", blockException);
+            final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(
+                initialState,
+                clusterService,
+                bulkRequest.timeout(),
+                logger,
+                threadPool.getThreadContext()
+            );
+            clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    forkAndExecute(task, bulkRequest, executorName, releasingListener);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    releasingListener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    releasingListener.onFailure(blockException);
+                }
+            }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
+        } else {
+            forkAndExecute(task, bulkRequest, executorName, releasingListener);
+        }
+    }
+
+    private void forkAndExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> releasingListener) {
         threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {

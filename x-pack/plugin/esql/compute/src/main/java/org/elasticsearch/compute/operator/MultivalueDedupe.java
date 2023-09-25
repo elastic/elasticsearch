@@ -152,6 +152,9 @@ public final class MultivalueDedupe {
         public String toString() {
             return "MvDedupe[field=" + field + "]";
         }
+
+        @Override
+        public void close() {}
     }
 
     private MultivalueDedupe() {}

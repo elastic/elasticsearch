@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -59,20 +61,23 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         BigArrays bigArrays
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, ThreadPool.Names.SAME);
+        super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
         this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays);
+        EsqlBlockFactoryParams.init(bigArrays);
+        var blockFactory = BlockFactory.getGlobalInstance();
+        this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.computeService = new ComputeService(
             searchService,
             transportService,
             exchangeService,
             enrichLookupService,
             threadPool,
-            bigArrays
+            bigArrays,
+            blockFactory
         );
         this.settings = settings;
     }

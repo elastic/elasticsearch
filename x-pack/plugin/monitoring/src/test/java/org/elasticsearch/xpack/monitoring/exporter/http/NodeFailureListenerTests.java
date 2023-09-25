@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 public class NodeFailureListenerTests extends ESTestCase {
 
     private final Sniffer sniffer = mock(Sniffer.class);
+    @SuppressWarnings("this-escape")
     private final HttpResource resource = new MockHttpResource(getTestName(), false);
     private final Node node = new Node(new HttpHost("localhost", 9200));
 

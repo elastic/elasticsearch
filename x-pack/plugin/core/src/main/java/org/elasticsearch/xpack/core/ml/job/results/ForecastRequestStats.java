@@ -147,6 +147,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.status = forecastRequestStats.status;
     }
 
+    @SuppressWarnings("this-escape")
     public ForecastRequestStats(StreamInput in) throws IOException {
         jobId = in.readString();
         forecastId = in.readString();

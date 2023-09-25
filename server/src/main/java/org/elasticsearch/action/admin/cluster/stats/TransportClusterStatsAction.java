@@ -96,7 +96,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             actionFilters,
             ClusterStatsRequest::new,
             ClusterStatsNodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;

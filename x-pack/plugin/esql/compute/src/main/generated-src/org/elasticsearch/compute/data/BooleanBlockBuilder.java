@@ -17,8 +17,11 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
 
     private boolean[] values;
 
-    BooleanBlockBuilder(int estimatedSize) {
-        values = new boolean[Math.max(estimatedSize, 2)];
+    BooleanBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
+        values = new boolean[initialSize];
     }
 
     @Override
@@ -29,6 +32,11 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Byte.BYTES;
     }
 
     @Override
@@ -171,17 +179,21 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
     @Override
     public BooleanBlock build() {
         finish();
+        BooleanBlock block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            return new ConstantBooleanVector(values[0], 1).asBlock();
+            block = new ConstantBooleanVector(values[0], 1, blockFactory).asBlock();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
             if (isDense() && singleValued()) {
-                return new BooleanArrayVector(values, positionCount).asBlock();
+                block = new BooleanArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                return new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                block = new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }
+        // update the breaker with the actual bytes used.
+        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
+        return block;
     }
 }

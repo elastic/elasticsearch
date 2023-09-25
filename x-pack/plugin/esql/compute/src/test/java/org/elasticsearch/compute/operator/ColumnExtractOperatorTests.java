@@ -47,7 +47,19 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         Supplier<ColumnExtractOperator.Evaluator> expEval = () -> new FirstWord(0);
-        return new ColumnExtractOperator.Factory(new ElementType[] { ElementType.BYTES_REF }, dvrCtx -> page -> page.getBlock(0), expEval);
+        return new ColumnExtractOperator.Factory(
+            new ElementType[] { ElementType.BYTES_REF },
+            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    return page.getBlock(0);
+                }
+
+                @Override
+                public void close() {}
+            },
+            expEval
+        );
     }
 
     @Override

@@ -383,6 +383,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.telemetry.tracing;
+    exports org.elasticsearch.telemetry;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -399,6 +400,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
+    uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

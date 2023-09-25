@@ -92,8 +92,10 @@ POST /_query?format=txt
 ----
 // TEST[setup:library]
 
-NOTE: if no {esql-limit} command is provided within the query, this will only
-return up to 500 rows.
+The above query's `LIMIT` command limits results to 5 rows.
+
+If not specified, `LIMIT` defaults to `500`. A single query can't return more
+than 10,000 rows, regardless of the `LIMIT` value.
 
 [discrete]
 ==== {kib}
@@ -108,25 +110,24 @@ with the time filter.
 [[esql-limitations]]
 === Limitations
 
-{esql} currently supports the following <<mapping-types,field types>>:
+* {esql} currently supports the following <<mapping-types,field types>>:
 
-- `alias`
-- `boolean`
-- `date`
-- `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
-- `ip`
-- `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
-- `int` (`short` and `byte` are represented as `int`)
-- `long`
-- `null`
-- `text`
-- `unsigned_long`
-- `version`
+** `alias`
+** `boolean`
+** `date`
+** `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+** `ip`
+** `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+** `int` (`short` and `byte` are represented as `int`)
+** `long`
+** `null`
+** `text`
+** `unsigned_long`
+** `version`
+
+* A single query can't return more than 10,000 rows, regardless of the `LIMIT`
+command's value.
 --
-
-There is a global limitation on how many rows a query can return. This applies
-irrespective of the user-provided argument to a {esql-limit} command.
-The limit is set to a default of 10000.
 
 include::esql-get-started.asciidoc[]
 

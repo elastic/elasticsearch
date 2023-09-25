@@ -231,6 +231,19 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         return primaryShardsActive() == shards.length;
     }
 
+    /**
+     * @return <code>true</code> if all search shards are active. This is useful to determine if an index is available to service queries.
+     */
+    public boolean allSearchShardsActive() {
+        int counter = 0;
+        for (IndexShardRoutingTable shardRoutingTable : this.shards) {
+            if (shardRoutingTable.allShards().anyMatch(s -> s.active() && s.role().isSearchable())) {
+                counter++;
+            }
+        }
+        return counter == shards.length;
+    }
+
     public boolean allShardsActive() {
         return this.allShardsActive;
     }

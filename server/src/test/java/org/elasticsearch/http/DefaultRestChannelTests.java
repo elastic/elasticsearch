@@ -541,6 +541,9 @@ public class DefaultRestChannelTests extends ESTestCase {
                 public String getResponseContentTypeString() {
                     return RestResponse.TEXT_CONTENT_TYPE;
                 }
+
+                @Override
+                public void close() {}
             }));
             verify(httpChannel, times(2)).sendResponse(requestCaptor.capture(), any());
             HttpResponse response = requestCaptor.getValue();
@@ -711,7 +714,6 @@ public class DefaultRestChannelTests extends ESTestCase {
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,
                 () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
-
                     boolean isDone;
 
                     @Override
@@ -730,6 +732,9 @@ public class DefaultRestChannelTests extends ESTestCase {
                     public String getResponseContentTypeString() {
                         return RestResponse.TEXT_CONTENT_TYPE;
                     }
+
+                    @Override
+                    public void close() {}
                 }))
             )
         );

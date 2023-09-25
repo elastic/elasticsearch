@@ -29,6 +29,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class ChunkedRestResponseBodyTests extends ESTestCase {
 
@@ -50,6 +53,7 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
         }
         final var bytesDirect = BytesReference.bytes(builderDirect);
 
+        final boolean[] released = new boolean[1];
         final var chunkedResponse = ChunkedRestResponseBody.fromXContent(
             chunkedToXContent,
             ToXContent.EMPTY_PARAMS,
@@ -57,7 +61,8 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
                 new FakeRestRequest.Builder(xContentRegistry()).withContent(BytesArray.EMPTY, randomXContent.type()).build(),
                 randomBoolean(),
                 1
-            )
+            ),
+            () -> released[0] = true
         );
 
         final List<BytesReference> refsGenerated = new ArrayList<>();
@@ -66,11 +71,20 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
         }
 
         assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
+
+        assertThat(released[0], equalTo(false));
+        chunkedResponse.close();
+        assertThat(released[0], equalTo(true));
     }
 
     public void testFromTextChunks() throws IOException {
         final var chunks = randomList(1000, () -> randomUnicodeOfLengthBetween(1, 100));
-        final var body = ChunkedRestResponseBody.fromTextChunks("text/plain", Iterators.map(chunks.iterator(), s -> w -> w.write(s)));
+        final boolean[] released = new boolean[1];
+        final var body = ChunkedRestResponseBody.fromTextChunks(
+            "text/plain",
+            Iterators.map(chunks.iterator(), s -> w -> w.write(s)),
+            () -> released[0] = true
+        );
 
         final List<BytesReference> refsGenerated = new ArrayList<>();
         while (body.isDone() == false) {
@@ -85,5 +99,9 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
             writer.flush();
             assertEquals(new BytesArray(outputStream.toByteArray()), chunkedBytes);
         }
+
+        assertThat(released[0], equalTo(false));
+        body.close();
+        assertThat(released[0], equalTo(true));
     }
 }

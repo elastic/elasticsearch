@@ -118,20 +118,32 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
 
     @Override
     public RestResponse buildResponse(EsqlQueryResponse esqlResponse) throws Exception {
+        boolean success = false;
         try {
             RestResponse restResponse;
             if (mediaType instanceof TextFormat format) {
-                restResponse = RestResponse.chunked(RestStatus.OK, ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)));
+                restResponse = RestResponse.chunked(
+                    RestStatus.OK,
+                    ChunkedRestResponseBody.fromTextChunks(
+                        format.contentType(restRequest),
+                        format.format(restRequest, esqlResponse),
+                        esqlResponse
+                    )
+                );
             } else {
-                restResponse =
-                    RestResponse.chunked(RestStatus.OK, ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel));
+                restResponse = RestResponse.chunked(
+                    RestStatus.OK,
+                    ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel, esqlResponse)
+                );
             }
             long tookNanos = stopWatch.stop().getNanos();
             restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
-
+            success = true;
             return restResponse;
         } finally {
-            esqlResponse.close();  // NOCOMMIT this ain't right. We need RestResponse to own the esqlResponse and close when done
+            if (success == false) {
+                esqlResponse.close();
+            }
         }
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.function.Supplier;
 
@@ -91,4 +92,8 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
         void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare);
     }
 
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(inputEvaluator);
+    }
 }

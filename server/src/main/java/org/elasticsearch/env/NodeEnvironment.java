@@ -209,6 +209,7 @@ public final class NodeEnvironment implements Closeable {
          * Tries to acquire a node lock for a node id, throws {@code IOException} if it is unable to acquire it
          * @param pathFunction function to check node path before attempt of acquiring a node lock
          */
+        @SuppressWarnings("this-escape")
         public NodeLock(
             final Logger logger,
             final Environment environment,

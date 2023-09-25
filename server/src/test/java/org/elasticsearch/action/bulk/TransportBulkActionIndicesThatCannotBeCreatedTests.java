@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -95,6 +96,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
+        when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
         when(clusterService.state()).thenReturn(state);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 

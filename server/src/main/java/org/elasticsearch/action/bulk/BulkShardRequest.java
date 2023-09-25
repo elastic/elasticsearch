@@ -35,6 +35,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
     }
 
+    @SuppressWarnings("this-escape")
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;

@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -108,6 +109,7 @@ public class LocalExecutionPlanner {
     private final String sessionId;
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
+    private final BlockFactory blockFactory;
     private final EsqlConfiguration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
@@ -118,6 +120,7 @@ public class LocalExecutionPlanner {
         String sessionId,
         CancellableTask parentTask,
         BigArrays bigArrays,
+        BlockFactory blockFactory,
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
@@ -127,6 +130,7 @@ public class LocalExecutionPlanner {
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
+        this.blockFactory = blockFactory;
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
@@ -144,14 +148,15 @@ public class LocalExecutionPlanner {
             configuration.pragmas().taskConcurrency(),
             configuration.pragmas().dataPartitioning(),
             configuration.pragmas().pageSize(),
-            bigArrays
+            bigArrays,
+            blockFactory
         );
 
         PhysicalOperation physicalOperation = plan(node, context);
 
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(context.bigArrays, physicalOperation, configuration.pragmas().statusInterval()),
+                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, configuration.pragmas().statusInterval()),
                 context.driverParallelism().get()
             )
         );
@@ -659,7 +664,8 @@ public class LocalExecutionPlanner {
         int taskConcurrency,
         DataPartitioning dataPartitioning,
         int configuredPageSize,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        BlockFactory blockFactory
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -683,7 +689,7 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation, TimeValue statusInterval)
+    record DriverSupplier(BigArrays bigArrays, BlockFactory blockFactory, PhysicalOperation physicalOperation, TimeValue statusInterval)
         implements
             Function<String, Driver>,
             Describable {
@@ -693,7 +699,7 @@ public class LocalExecutionPlanner {
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            var driverContext = new DriverContext(bigArrays);
+            var driverContext = new DriverContext(bigArrays, blockFactory);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

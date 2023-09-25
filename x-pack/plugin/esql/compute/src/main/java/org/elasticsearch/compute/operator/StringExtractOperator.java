@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -137,7 +138,8 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
         return "StringExtractOperator[fields=[" + Arrays.stream(fieldNames).collect(Collectors.joining(", ")) + "]]";
     }
 
-    public interface ExtractEvaluator {
-        Map<String, Object> computeRow(Page page, int position);
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(inputEvaluator);
     }
 }

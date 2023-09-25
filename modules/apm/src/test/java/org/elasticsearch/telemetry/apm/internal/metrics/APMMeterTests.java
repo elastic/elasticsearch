@@ -16,14 +16,12 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 public class APMMeterTests extends ESTestCase {
     Meter testOtel = OpenTelemetry.noop().getMeter("test");
 
     Meter noopOtel = OpenTelemetry.noop().getMeter("noop");
 
-    @Test
     public void testMeterIsSetUponConstruction() {
         // test default
         APMMeter apmMeter = new APMMeter(Settings.EMPTY, () -> testOtel, () -> noopOtel);
@@ -46,7 +44,6 @@ public class APMMeterTests extends ESTestCase {
         assertThat(meter, Matchers.sameInstance(noopOtel));
     }
 
-    @Test
     public void testMeterIsOverridden() {
         // test default
         APMMeter apmMeter = new APMMeter(Settings.EMPTY, () -> testOtel, () -> noopOtel);
@@ -60,7 +57,6 @@ public class APMMeterTests extends ESTestCase {
         assertThat(meter, Matchers.sameInstance(testOtel));
     }
 
-    @Test
     public void testLookupByName() {
         var settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
 

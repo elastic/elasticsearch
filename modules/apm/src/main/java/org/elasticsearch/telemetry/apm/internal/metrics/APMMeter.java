@@ -79,7 +79,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     protected void doClose() {}
 
     @Override
-    public <T> DoubleCounter registerDoubleCounter(String name, String description, String unit) {
+    public DoubleCounter registerDoubleCounter(String name, String description, String unit) {
         return instruments.registerDoubleCounter(name, description, unit);
     }
 
@@ -89,7 +89,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
-    public <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
+    public DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
         return instruments.registerDoubleUpDownCounter(name, description, unit);
     }
 
@@ -99,7 +99,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
-    public <T> DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+    public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
         return instruments.registerDoubleGauge(name, description, unit);
     }
 
@@ -109,7 +109,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
-    public <T> DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
+    public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
         return instruments.registerDoubleHistogram(name, description, unit);
     }
 
@@ -119,7 +119,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
-    public <T> LongCounter registerLongCounter(String name, String description, String unit) {
+    public LongCounter registerLongCounter(String name, String description, String unit) {
         return instruments.registerLongCounter(name, description, unit);
     }
 
@@ -129,7 +129,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
-    public <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
+    public LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
         return instruments.registerLongUpDownCounter(name, description, unit);
     }
 
@@ -139,7 +139,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
-    public <T> LongGauge registerLongGauge(String name, String description, String unit) {
+    public LongGauge registerLongGauge(String name, String description, String unit) {
         return instruments.registerLongGauge(name, description, unit);
     }
 
@@ -149,7 +149,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
-    public <T> LongHistogram registerLongHistogram(String name, String description, String unit) {
+    public LongHistogram registerLongHistogram(String name, String description, String unit) {
         return instruments.registerLongHistogram(name, description, unit);
     }
 

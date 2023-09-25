@@ -8,42 +8,146 @@
 
 package org.elasticsearch.telemetry.metric;
 
+/**
+ * Container for metering instruments.  Meters with the same name and type (DoubleCounter, etc) can
+ * only be registered once.
+ * TODO(stu): describe name, unit and description
+ */
 public interface Meter {
-    <T> DoubleCounter registerDoubleCounter(String name, String description, String unit);
+    /**
+     * Register a {@link DoubleCounter}.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    DoubleCounter registerDoubleCounter(String name, String description, String unit);
 
+    /**
+     * Retrieved a previously registered {@link DoubleCounter}.
+     * @param name name of the counter
+     * @return the registered meter.
+     */
     DoubleCounter getDoubleCounter(String name);
 
-    <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit);
+    /**
+     * Register a {@link DoubleUpDownCounter}.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit);
 
+    /**
+     * Retrieved a previously registered {@link DoubleUpDownCounter}.
+     * @param name name of the counter
+     * @return the registered meter.
+     */
     DoubleUpDownCounter getDoubleUpDownCounter(String name);
 
-    <T> DoubleGauge registerDoubleGauge(String name, String description, String unit);
+    /**
+     * Register a {@link DoubleGauge}.  The returned object may be reused.
+     * @param name name of the gauge
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    DoubleGauge registerDoubleGauge(String name, String description, String unit);
 
+    /**
+     * Retrieved a previously registered {@link DoubleGauge}.
+     * @param name name of the gauge
+     * @return the registered meter.
+     */
     DoubleGauge getDoubleGauge(String name);
 
-    <T> DoubleHistogram registerDoubleHistogram(String name, String description, String unit);
+    /**
+     * Register a {@link DoubleHistogram}.  The returned object may be reused.
+     * @param name name of the histogram
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    DoubleHistogram registerDoubleHistogram(String name, String description, String unit);
 
+    /**
+     * Retrieved a previously registered {@link DoubleHistogram}.
+     * @param name name of the histogram
+     * @return the registered meter.
+     */
     DoubleHistogram getDoubleHistogram(String name);
 
-    <T> LongCounter registerLongCounter(String name, String description, String unit);
+    /**
+     * Register a {@link LongCounter}.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    LongCounter registerLongCounter(String name, String description, String unit);
 
+    /**
+     * Retrieved a previously registered {@link LongCounter}.
+     * @param name name of the counter
+     * @return the registered meter.
+     */
     LongCounter getLongCounter(String name);
 
-    <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit);
+    /**
+     * Register a {@link LongUpDownCounter}.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit);
 
+    /**
+     * Retrieved a previously registered {@link LongUpDownCounter}.
+     * @param name name of the counter
+     * @return the registered meter.
+     */
     LongUpDownCounter getLongUpDownCounter(String name);
 
-    <T> LongGauge registerLongGauge(String name, String description, String unit);
+    /**
+     * Register a {@link LongGauge}.  The returned object may be reused.
+     * @param name name of the gauge
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    LongGauge registerLongGauge(String name, String description, String unit);
 
+    /**
+     * Retrieved a previously registered {@link LongGauge}.
+     * @param name name of the gauge
+     * @return the registered meter.
+     */
     LongGauge getLongGauge(String name);
 
-    <T> LongHistogram registerLongHistogram(String name, String description, String unit);
+    /**
+     * Register a {@link LongHistogram}.  The returned object may be reused.
+     * @param name name of the histogram
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @return the registered meter.
+     */
+    LongHistogram registerLongHistogram(String name, String description, String unit);
 
+    /**
+     * Retrieved a previously registered {@link LongHistogram}.
+     * @param name name of the histogram
+     * @return the registered meter.
+     */
     LongHistogram getLongHistogram(String name);
 
+    /**
+     * Noop implementation for tests
+     */
     Meter NOOP = new Meter() {
         @Override
-        public <T> DoubleCounter registerDoubleCounter(String name, String description, String unit) {
+        public DoubleCounter registerDoubleCounter(String name, String description, String unit) {
             return DoubleCounter.NOOP;
         }
 
@@ -52,7 +156,7 @@ public interface Meter {
             return DoubleCounter.NOOP;
         }
 
-        public <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
+        public DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
             return DoubleUpDownCounter.NOOP;
         }
 
@@ -62,7 +166,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+        public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
             return DoubleGauge.NOOP;
         }
 
@@ -72,7 +176,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
+        public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
             return DoubleHistogram.NOOP;
         }
 
@@ -82,7 +186,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> LongCounter registerLongCounter(String name, String description, String unit) {
+        public LongCounter registerLongCounter(String name, String description, String unit) {
             return LongCounter.NOOP;
         }
 
@@ -92,7 +196,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
+        public LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
             return LongUpDownCounter.NOOP;
         }
 
@@ -102,7 +206,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> LongGauge registerLongGauge(String name, String description, String unit) {
+        public LongGauge registerLongGauge(String name, String description, String unit) {
             return LongGauge.NOOP;
         }
 
@@ -112,7 +216,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> LongHistogram registerLongHistogram(String name, String description, String unit) {
+        public LongHistogram registerLongHistogram(String name, String description, String unit) {
             return LongHistogram.NOOP;
         }
 

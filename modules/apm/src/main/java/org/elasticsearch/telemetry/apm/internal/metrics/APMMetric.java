@@ -27,19 +27,28 @@ import org.elasticsearch.telemetry.metric.MetricName;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
 public class APMMetric extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
-    private static final Meter NOOP = OpenTelemetry.noop().getMeter("noop");
-    private final Instruments instruments = new Instruments(NOOP);
-    private volatile boolean enabled;
-    private final AtomicReference<APMServices> services = new AtomicReference<>();
 
-    record APMServices(Meter meter, OpenTelemetry openTelemetry) {}
+    private final Instruments instruments;
+    private final Supplier<Meter> otelMeterSupplier;
+    private final Supplier<Meter> noopMeterSupplier;
+    private volatile boolean enabled;
+
 
     public APMMetric(Settings settings) {
+        this(settings, APMMetric::otelMeter, APMMetric::noopMeter);
+    }
+
+    public APMMetric(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
         this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.otelMeterSupplier = otelMeterSupplier;
+        this.noopMeterSupplier = noopMeterSupplier;
+        this.instruments = new Instruments(noopMeterSupplier.get());
+        setEnabled(enabled);
     }
 
     public void setEnabled(boolean enabled) {
@@ -64,7 +73,8 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    protected void doClose() {}
+    protected void doClose() {
+    }
 
     @Override
     public <T> DoubleCounter registerDoubleCounter(MetricName name, String description, T unit) {
@@ -148,21 +158,29 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
 
     void createApmServices() {
         assert this.enabled;
-        assert this.services.get() == null;
 
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            var openTelemetry = GlobalOpenTelemetry.get();
-            var meter = openTelemetry.getMeter("elasticsearch");
-
-            this.services.set(new APMServices(meter, openTelemetry));
-            instruments.setProvider(meter);
-
+            instruments.setProvider(otelMeterSupplier.get());
             return null;
         });
     }
 
     private void destroyApmServices() {
-        instruments.setProvider(NOOP);
-        this.services.set(null);
+        instruments.setProvider(noopMeterSupplier.get());
+    }
+
+    private static Meter noopMeter() {
+        return OpenTelemetry.noop().getMeter("noop");
+    }
+
+    private static Meter otelMeter() {
+        var openTelemetry = GlobalOpenTelemetry.get();
+        var meter = openTelemetry.getMeter("elasticsearch");
+        return meter;
+    }
+
+    // scope for testing
+    Instruments getInstruments() {
+        return instruments;
     }
 }

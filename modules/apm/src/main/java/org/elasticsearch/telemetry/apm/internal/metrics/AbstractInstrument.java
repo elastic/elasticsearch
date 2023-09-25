@@ -24,10 +24,10 @@ public abstract class AbstractInstrument<T, I> implements Instrument {
     private final T unit;
 
     public AbstractInstrument(Meter meter, MetricName name, String description, T unit) {
-        this.instrumentRef = new AtomicReference<>(buildInstrument(meter));
         this.name = Objects.requireNonNull(name);
         this.description = Objects.requireNonNull(description);
         this.unit = Objects.requireNonNull(unit);
+        this.instrumentRef = new AtomicReference<>(buildInstrument(meter));
     }
 
     public MetricName getMetricName() {

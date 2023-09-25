@@ -32,8 +32,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -58,6 +56,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.lookup.SyntheticSourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -398,14 +397,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            SourceLoader loader = newSourceLoader(false);
-            SourceProvider sourceProvider = isSourceSynthetic() ? (ctx, doc) -> {
-                int[] docs = new int[] { doc };
-                LeafStoredFieldLoader leafStoredFieldLoader = (loader.requiredStoredFields().isEmpty())
-                    ? StoredFieldLoader.empty().getLoader(ctx, docs)
-                    : StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(ctx, docs);
-                return loader.leaf((ctx == null) ? null : ctx.reader(), docs).source(leafStoredFieldLoader, doc);
-            } : SourceProvider.fromStoredFields();
+            SourceProvider sourceProvider = isSourceSynthetic()
+                ? new SyntheticSourceProvider(mappingLookup.getMapping())
+                : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;

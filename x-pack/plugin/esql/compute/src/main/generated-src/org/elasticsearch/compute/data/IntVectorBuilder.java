@@ -17,7 +17,10 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
 
     private int[] values;
 
-    IntVectorBuilder(int estimatedSize) {
+    IntVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new int[Math.max(estimatedSize, 2)];
     }
 
@@ -27,6 +30,11 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
         values[valueCount] = value;
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Integer.BYTES;
     }
 
     @Override
@@ -41,12 +49,17 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
 
     @Override
     public IntVector build() {
+        IntVector vector;
         if (valueCount == 1) {
-            return new ConstantIntVector(values[0], 1);
+            vector = new ConstantIntVector(values[0], 1, blockFactory);
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = new IntArrayVector(values, valueCount, blockFactory);
         }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
-        return new IntArrayVector(values, valueCount);
+        // update the breaker with the actual bytes used.
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        return vector;
     }
 }

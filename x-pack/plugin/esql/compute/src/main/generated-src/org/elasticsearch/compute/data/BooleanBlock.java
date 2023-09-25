@@ -157,12 +157,24 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new BooleanBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBooleanBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static BooleanBlock newConstantBlockWith(boolean value, int positions) {
-        return new ConstantBooleanVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static BooleanBlock newConstantBlockWith(boolean value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantBooleanBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {

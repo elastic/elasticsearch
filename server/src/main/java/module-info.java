@@ -383,6 +383,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.telemetry.tracing;
+    exports org.elasticsearch.telemetry;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;

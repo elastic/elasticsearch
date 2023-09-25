@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -148,9 +149,15 @@ public class CaseTests extends AbstractFunctionTestCase {
         assertEquals(1, toJavaObject(caseExpr.toEvaluator(child -> {
             Object value = child.fold();
             if (value != null && value.equals(2)) {
-                return dvrCtx -> page -> {
-                    fail("Unexpected evaluation of 4th argument");
-                    return null;
+                return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                    @Override
+                    public Block eval(Page page) {
+                        fail("Unexpected evaluation of 4th argument");
+                        return null;
+                    }
+
+                    @Override
+                    public void close() {}
                 };
             }
             return evaluator(child);

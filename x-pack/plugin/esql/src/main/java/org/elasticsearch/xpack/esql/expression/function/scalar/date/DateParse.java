@@ -45,7 +45,7 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
     @FunctionInfo(returnType = "date", description = "Parses a string into a date value")
     public DateParse(
         Source source,
-        @Param(name = "datePattern", type = { "keyword", "text" }, description = "A valid date pattern", optional = true) Expression first,
+        @Param(name = "datePattern", type = { "keyword" }, description = "A valid date pattern", optional = true) Expression first,
         @Param(name = "dateString", type = { "keyword", "text" }, description = "A string representing a date") Expression second
     ) {
         super(source, second != null ? List.of(first, second) : List.of(first));

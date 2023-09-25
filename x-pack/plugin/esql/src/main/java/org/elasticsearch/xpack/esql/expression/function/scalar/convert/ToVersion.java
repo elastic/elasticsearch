@@ -34,7 +34,7 @@ public class ToVersion extends AbstractConvertFunction {
             Map.entry(TEXT, ToVersionFromStringEvaluator::new)
         );
 
-    public ToVersion(Source source, @Param(name = "v", type = { "keyword", "text" }) Expression v) {
+    public ToVersion(Source source, @Param(name = "v", type = { "keyword", "text", "version" }) Expression v) {
         super(source, v);
     }
 

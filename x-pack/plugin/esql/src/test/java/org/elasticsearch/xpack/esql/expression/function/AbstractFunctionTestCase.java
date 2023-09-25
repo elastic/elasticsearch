@@ -51,6 +51,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -283,6 +284,45 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public void testSerializationOfSimple() {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         assertSerialization(buildFieldExpression(testCase));
+    }
+
+    @AfterClass
+    public static void testFunctionInfo() {
+        FunctionDefinition definition = definition();
+        if (definition == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping function info checks because the function isn't registered");
+            return;
+        }
+        EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
+        List<EsqlFunctionRegistry.ArgSignature> args = description.args();
+
+        List<Set<String>> typesFromSignature = new ArrayList<>();
+        Set<String> returnFromSignature = new HashSet<>();
+        for (int i = 0; i < args.size(); i++) {
+            typesFromSignature.add(new HashSet<>());
+        }
+        for (Map.Entry<List<DataType>, DataType> entry : signatures.entrySet()) {
+            List<DataType> types = entry.getKey();
+            for (int i = 0; i < args.size() && i < types.size(); i++) {
+                typesFromSignature.get(i).add(types.get(i).typeName());
+            }
+            returnFromSignature.add(entry.getValue().esType());
+        }
+
+        // TODO the signatures don't seem to contain all the possible type combinations
+        // for (int i = 0; i < args.size(); i++) {
+        // Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toSet());
+        // if (annotationTypes.equals(Set.of("?"))) {
+        // continue;
+        // }
+        // Set<String> signatureTypes = typesFromSignature.get(i);
+        // assertEquals(annotationTypes, signatureTypes);
+        // }
+
+        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toSet());
+        if (returnTypes.equals(Set.of("?")) == false) {
+            assertEquals(returnTypes, returnFromSignature);
+        }
     }
 
     /**

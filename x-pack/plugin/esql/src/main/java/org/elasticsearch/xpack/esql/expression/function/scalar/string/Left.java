@@ -44,8 +44,8 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     public Left(
         Source source,
-        @Param(name = "string", type = { "keyword", "text" }) Expression str,
-        @Param(name = "length", type = { "integer", "long" }) Expression length
+        @Param(name = "string", type = { "keyword" }) Expression str,
+        @Param(name = "length", type = { "integer" }) Expression length
     ) {
         super(source, Arrays.asList(str, length));
         this.source = source;

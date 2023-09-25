@@ -66,7 +66,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Source source,
         @Param(
             name = "v",
-            type = { "integer", "long", "double", "unsigned_long", "boolean", "date", "keyword", "text", "ip", "version" }
+            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
         ) Expression v
     ) {
         super(source, v);

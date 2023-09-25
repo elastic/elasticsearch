@@ -2,4 +2,5 @@
 |===
 datePattern | dateString | result
 keyword | keyword | datetime
+keyword | text | datetime
 |===

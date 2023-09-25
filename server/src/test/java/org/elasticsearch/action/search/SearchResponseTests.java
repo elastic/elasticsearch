@@ -252,19 +252,15 @@ public class SearchResponseTests extends ESTestCase {
             List<ShardSearchFailure> finalFailureList = failureList;
             clusters.compute(
                 cluster.getClusterAlias(),
-                (k, v) -> new SearchResponse.Cluster(
-                    k,
-                    v.getIndexExpression(),
-                    false,
-                    status,
-                    totalShards,
-                    successfulShards,
-                    skippedShards,
-                    failedShards,
-                    finalFailureList,
-                    took,
-                    false
-                )
+                (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status)
+                    .setTotalShards(totalShards)
+                    .setSuccessfulShards(successfulShards)
+                    .setSkippedShards(skippedShards)
+                    .setFailedShards(failedShards)
+                    .setFailures(finalFailureList)
+                    .setTook(took)
+                    .setTimedOut(false)
+                    .build()
             );
         }
         return clusters;

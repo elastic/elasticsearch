@@ -461,38 +461,30 @@ public class AsyncSearchResponseTests extends ESTestCase {
 
         SearchResponse.Cluster updated = clusters.compute(
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            (k, v) -> new SearchResponse.Cluster(
-                k,
-                v.getIndexExpression(),
-                false,
-                SearchResponse.Cluster.Status.SUCCESSFUL,
-                10,
-                10,
-                3,
-                0,
-                Collections.emptyList(),
-                new TimeValue(11111),
-                false
-            )
+            (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                .setTotalShards(10)
+                .setSuccessfulShards(10)
+                .setSkippedShards(3)
+                .setFailedShards(0)
+                .setFailures(Collections.emptyList())
+                .setTook(new TimeValue(11111))
+                .setTimedOut(false)
+                .build()
         );
         assertNotNull("Set cluster failed for cluster " + RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, updated);
 
         SearchResponse.Cluster cluster0 = clusters.getCluster("cluster_0");
         updated = clusters.compute(
             cluster0.getClusterAlias(),
-            (k, v) -> new SearchResponse.Cluster(
-                k,
-                v.getIndexExpression(),
-                false,
-                SearchResponse.Cluster.Status.SUCCESSFUL,
-                8,
-                8,
-                1,
-                0,
-                Collections.emptyList(),
-                new TimeValue(7777),
-                false
-            )
+            (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                .setTotalShards(8)
+                .setSuccessfulShards(8)
+                .setSkippedShards(1)
+                .setFailedShards(0)
+                .setFailures(Collections.emptyList())
+                .setTook(new TimeValue(7777))
+                .setTimedOut(false)
+                .build()
         );
         assertNotNull("Set cluster failed for cluster " + cluster0.getClusterAlias(), updated);
 
@@ -507,38 +499,31 @@ public class AsyncSearchResponseTests extends ESTestCase {
         );
         updated = clusters.compute(
             cluster1.getClusterAlias(),
-            (k, v) -> new SearchResponse.Cluster(
-                k,
-                v.getIndexExpression(),
-                false,
-                SearchResponse.Cluster.Status.SKIPPED,
-                2,
-                0,
-                0,
-                2,
-                List.of(failure1, failure2),
-                null,
-                false
-            )
+            (k, v) -> new SearchResponse.Cluster.Builder(v) // TODO-MP what about skip unavailable = false?
+                .setStatus(SearchResponse.Cluster.Status.SKIPPED)
+                .setTotalShards(2)
+                .setSuccessfulShards(0)
+                .setSkippedShards(0)
+                .setFailedShards(2)
+                .setFailures(List.of(failure1, failure2))
+                .setTook(null)
+                .setTimedOut(false)
+                .build()
         );
         assertNotNull("Set cluster failed for cluster " + cluster1.getClusterAlias(), updated);
 
         SearchResponse.Cluster cluster2 = clusters.getCluster("cluster_2");
         updated = clusters.compute(
             cluster2.getClusterAlias(),
-            (k, v) -> new SearchResponse.Cluster(
-                k,
-                v.getIndexExpression(),
-                false,
-                SearchResponse.Cluster.Status.PARTIAL,
-                8,
-                8,
-                0,
-                0,
-                Collections.emptyList(),
-                new TimeValue(17322),
-                true
-            )
+            (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.PARTIAL)
+                .setTotalShards(8)
+                .setSuccessfulShards(8)
+                .setSkippedShards(0)
+                .setFailedShards(0)
+                .setFailures(Collections.emptyList())
+                .setTook(new TimeValue(17322))
+                .setTimedOut(true)
+                .build()
         );
         assertNotNull("Set cluster failed for cluster " + cluster2.getClusterAlias(), updated);
 
@@ -797,55 +782,43 @@ public class AsyncSearchResponseTests extends ESTestCase {
             if (successful > 0) {
                 updated = clusters.compute(
                     localAlias,
-                    (k, v) -> new SearchResponse.Cluster(
-                        k,
-                        v.getIndexExpression(),
-                        false,
-                        SearchResponse.Cluster.Status.SUCCESSFUL,
-                        5,
-                        5,
-                        0,
-                        0,
-                        Collections.emptyList(),
-                        new TimeValue(1000),
-                        false
-                    )
+                    (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                        .setTotalShards(5)
+                        .setSuccessfulShards(5)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .setFailures(Collections.emptyList())
+                        .setTook(new TimeValue(1000))
+                        .setTimedOut(true)
+                        .build()
                 );
                 successful--;
             } else if (skipped > 0) {
                 updated = clusters.compute(
                     localAlias,
-                    (k, v) -> new SearchResponse.Cluster(
-                        k,
-                        v.getIndexExpression(),
-                        false,
-                        SearchResponse.Cluster.Status.SKIPPED,
-                        5,
-                        0,
-                        0,
-                        5,
-                        Collections.emptyList(),
-                        new TimeValue(1000),
-                        false
-                    )
+                    (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SKIPPED)
+                        .setTotalShards(5)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(5)
+                        .setFailures(Collections.emptyList())
+                        .setTook(new TimeValue(1000))
+                        .setTimedOut(false)
+                        .build()
                 );
                 skipped--;
             } else {
                 updated = clusters.compute(
                     localAlias,
-                    (k, v) -> new SearchResponse.Cluster(
-                        k,
-                        v.getIndexExpression(),
-                        false,
-                        SearchResponse.Cluster.Status.PARTIAL,
-                        5,
-                        2,
-                        1,
-                        3,
-                        Collections.emptyList(),
-                        new TimeValue(1000),
-                        false
-                    )
+                    (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.PARTIAL)
+                        .setTotalShards(5)
+                        .setSuccessfulShards(2)
+                        .setSkippedShards(1)
+                        .setFailedShards(3)
+                        .setFailures(Collections.emptyList())
+                        .setTook(new TimeValue(1000))
+                        .setTimedOut(false)
+                        .build()
                 );
                 partial--;
             }
@@ -861,55 +834,43 @@ public class AsyncSearchResponseTests extends ESTestCase {
             if (successful > 0) {
                 updated = clusters.compute(
                     clusterAlias,
-                    (k, v) -> new SearchResponse.Cluster(
-                        k,
-                        v.getIndexExpression(),
-                        false,
-                        SearchResponse.Cluster.Status.SUCCESSFUL,
-                        5,
-                        5,
-                        0,
-                        0,
-                        Collections.emptyList(),
-                        new TimeValue(1000),
-                        false
-                    )
+                    (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                        .setTotalShards(5)
+                        .setSuccessfulShards(5)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .setFailures(Collections.emptyList())
+                        .setTook(new TimeValue(1000))
+                        .setTimedOut(false)
+                        .build()
                 );
                 successful--;
             } else if (skipped > 0) {
                 updated = clusters.compute(
                     clusterAlias,
-                    (k, v) -> new SearchResponse.Cluster(
-                        k,
-                        v.getIndexExpression(),
-                        false,
-                        SearchResponse.Cluster.Status.SKIPPED,
-                        5,
-                        0,
-                        0,
-                        5,
-                        Collections.emptyList(),
-                        new TimeValue(1000),
-                        false
-                    )
+                    (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SKIPPED)
+                        .setTotalShards(5)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(5)
+                        .setFailures(Collections.emptyList())
+                        .setTook(new TimeValue(1000))
+                        .setTimedOut(false)
+                        .build()
                 );
                 skipped--;
             } else {
                 updated = clusters.compute(
                     clusterAlias,
-                    (k, v) -> new SearchResponse.Cluster(
-                        k,
-                        v.getIndexExpression(),
-                        false,
-                        SearchResponse.Cluster.Status.PARTIAL,
-                        5,
-                        2,
-                        1,
-                        3,
-                        Collections.emptyList(),
-                        new TimeValue(1000),
-                        false
-                    )
+                    (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.PARTIAL)
+                        .setTotalShards(5)
+                        .setSuccessfulShards(2)
+                        .setSkippedShards(1)
+                        .setFailedShards(3)
+                        .setFailures(Collections.emptyList())
+                        .setTook(new TimeValue(1000))
+                        .setTimedOut(false)
+                        .build()
                 );
                 partial--;
             }

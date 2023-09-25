@@ -40,10 +40,15 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
 
     public APMMetric(Settings settings) {
         this.enabled = APM_ENABLED_SETTING.get(settings);
+        setupApmServices(this.enabled);
     }
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+        setupApmServices(this.enabled);
+    }
+
+    private void setupApmServices(boolean enabled) {
         if (enabled) {
             createApmServices();
         } else {

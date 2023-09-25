@@ -311,7 +311,7 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
         }
         return fromId(version.id);
     }
-    
+
     public static TransformConfigVersion getMinTransformConfigVersion(DiscoveryNodes nodes) {
         return getMinMaxTransformConfigVersion(nodes).v1();
     }

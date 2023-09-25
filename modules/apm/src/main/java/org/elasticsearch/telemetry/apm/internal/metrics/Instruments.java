@@ -177,8 +177,8 @@ public class Instruments {
         }
     }
 
-    //scope for testing
-     Meter getMeter() {
+    // scope for testing
+    Meter getMeter() {
         return meter;
     }
 }

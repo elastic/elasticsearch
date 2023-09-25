@@ -13,7 +13,6 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.apache.lucene.util.SetOnce;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
@@ -31,7 +30,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
-public class APMMetric extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
+public class APMMeter extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Meter {
     private final Instruments instruments;
 
     private final Supplier<Meter> otelMeterSupplier;
@@ -39,13 +38,11 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
 
     private volatile boolean enabled;
 
-    record APMServices(Meter meter, OpenTelemetry openTelemetry) {}
-
-    public APMMetric(Settings settings) {
-        this(settings, APMMetric::otelMeter, APMMetric::noopMeter);
+    public APMMeter(Settings settings) {
+        this(settings, APMMeter::otelMeter, APMMeter::noopMeter);
     }
 
-    public APMMetric(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
+    public APMMeter(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
         this.enabled = APM_ENABLED_SETTING.get(settings);
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;

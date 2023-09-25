@@ -28,7 +28,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class MLPlatformArchitecturesUtil {
+public class MlPlatformArchitecturesUtil {
 
     public static void getNodesOsArchitectures(ThreadPool threadPool, Client client, ActionListener<Set<String>> architecturesListener) {
 

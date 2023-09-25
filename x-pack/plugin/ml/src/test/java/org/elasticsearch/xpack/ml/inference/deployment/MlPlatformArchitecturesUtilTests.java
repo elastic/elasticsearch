@@ -25,7 +25,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
 
     public void testVerifyArchitectureOfMLNodesIsHomogenous_GivenZeroArches() {
         var architectures = new HashSet<String>();
-        MLPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(
+        MlPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(
             architectures,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10)
@@ -34,7 +34,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
 
     public void testVerifyArchitectureOfMLNodesIsHomogenous_GivenOneArch() {
         var architectures = nArchitectures(1);
-        MLPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(
+        MlPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(
             architectures,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10)
@@ -60,7 +60,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
         Throwable exception = expectThrows(
             IllegalStateException.class,
             "Expected IllegalStateException but no exception was thrown",
-            () -> MLPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(architectures, requiredArch, modelId)
+            () -> MlPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(architectures, requiredArch, modelId)
         );
         assertEquals(exception.getMessage(), message);
     }
@@ -87,7 +87,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
             + architecturesStr
             + "]";
 
-        MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
+        MlPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
             new HashSet<>(Collections.singleton(architecturesStr)),
             requiredArch,
             modelId
@@ -111,7 +111,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
         Throwable exception = expectThrows(
             IllegalArgumentException.class,
             "Expected IllegalArgumentException but no exception was thrown",
-            () -> MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
+            () -> MlPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
                 new HashSet<>(Collections.singleton(architecturesStr)),
                 requiredArch,
                 modelId
@@ -139,7 +139,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
         Throwable exception = expectThrows(
             IllegalArgumentException.class,
             "Expected IllegalArgumentException but no exception was thrown",
-            () -> MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(architectures, requiredArch, modelId)
+            () -> MlPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(architectures, requiredArch, modelId)
         );
         assertEquals(exception.getMessage(), message);
     }

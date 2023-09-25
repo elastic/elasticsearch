@@ -676,7 +676,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexName);
             DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
             if (indexAbstraction == null || parentDataStream == null) {
-                logger.trace("Clearing recorded error for index [{}] because the index doesn't exist anymore", indexName);
+                logger.trace(
+                    "Clearing recorded error for index [{}] because the index doesn't exist or is not a data stream backing index anymore",
+                    indexName
+                );
                 errorStore.clearRecordedError(indexName);
             } else if (parentDataStream.getName().equals(dataStream.getName())) {
                 // we're only verifying the indices that pertain to this data stream

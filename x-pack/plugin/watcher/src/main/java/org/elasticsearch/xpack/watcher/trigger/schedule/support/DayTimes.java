@@ -36,10 +36,12 @@ public class DayTimes implements Times {
         this(new int[] { hour }, new int[] { minute });
     }
 
+    @SuppressWarnings("this-escape")
     public DayTimes(int[] hour, int[] minute) {
         this(null, hour, minute);
     }
 
+    @SuppressWarnings("this-escape")
     DayTimes(String time, int[] hour, int[] minute) {
         this.time = time;
         this.hour = hour;

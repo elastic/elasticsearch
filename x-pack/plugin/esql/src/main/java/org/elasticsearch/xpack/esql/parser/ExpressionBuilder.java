@@ -233,7 +233,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
                 case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
 
-                default -> throw new ParsingException(source, "Unexpected numeric qualifier '{}'", qualifier);
+                default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
             };
             return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
         } catch (QlIllegalArgumentException | ArithmeticException e) {

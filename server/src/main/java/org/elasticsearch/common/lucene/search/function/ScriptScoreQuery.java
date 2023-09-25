@@ -67,6 +67,10 @@ public class ScriptScoreQuery extends Query {
         this.indexVersion = indexVersion;
     }
 
+    public Query getSubQuery() {
+        return subQuery;
+    }
+
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         Query newQ = subQuery.rewrite(searcher);

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -80,9 +81,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      */
     public final void testSimpleCircuitBreaking() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak());
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
         Exception e = expectThrows(
             CircuitBreakingException.class,
-            () -> assertSimple(new DriverContext(bigArrays), between(1_000, 10_000))
+            () -> assertSimple(new DriverContext(bigArrays, blockFactory), between(1_000, 10_000))
         );
         assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
@@ -97,8 +100,9 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     public final void testSimpleWithCranky() {
         CrankyCircuitBreakerService breaker = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker).withCircuitBreaking();
+        BlockFactory blockFactory = BlockFactory.getInstance(breaker.getBreaker("request"), bigArrays);
         try {
-            assertSimple(new DriverContext(bigArrays), between(1_000, 10_000));
+            assertSimple(new DriverContext(bigArrays, blockFactory), between(1_000, 10_000));
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
@@ -173,7 +177,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             drivers.add(
                 new Driver(
                     "dummy-session",
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE),
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BlockFactory.getNonBreakingInstance()),
                     () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(LongStream.range(0, between(1, 100)), between(1, 100)),
                     List.of(),

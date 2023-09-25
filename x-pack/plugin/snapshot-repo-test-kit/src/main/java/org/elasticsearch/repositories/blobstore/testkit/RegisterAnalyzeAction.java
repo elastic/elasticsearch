@@ -65,7 +65,13 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.SNAPSHOT);
+            super(
+                NAME,
+                transportService,
+                actionFilters,
+                Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
+            );
             this.repositoriesService = repositoriesService;
             this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT);
         }

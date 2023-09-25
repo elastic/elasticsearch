@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValueSources;
@@ -98,18 +99,21 @@ public class EnrichLookupService {
     private final TransportService transportService;
     private final Executor executor;
     private final BigArrays bigArrays;
+    private final BlockFactory blockFactory;
 
     public EnrichLookupService(
         ClusterService clusterService,
         SearchService searchService,
         TransportService transportService,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        BlockFactory blockFactory
     ) {
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.transportService = transportService;
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         this.bigArrays = bigArrays;
+        this.blockFactory = blockFactory;
         transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
     }
 
@@ -208,7 +212,7 @@ public class EnrichLookupService {
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
             Driver driver = new Driver(
                 "enrich-lookup:" + sessionId,
-                new DriverContext(bigArrays),
+                new DriverContext(bigArrays, blockFactory),
                 () -> lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount()),
                 queryOperator,
                 intermediateOperators,

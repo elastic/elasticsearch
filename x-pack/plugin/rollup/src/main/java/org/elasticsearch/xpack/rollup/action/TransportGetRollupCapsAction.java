@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,7 +40,13 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
     @Inject
     public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(GetRollupCapsAction.NAME, transportService, actionFilters, GetRollupCapsAction.Request::new, ThreadPool.Names.SAME);
+        super(
+            GetRollupCapsAction.NAME,
+            transportService,
+            actionFilters,
+            GetRollupCapsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.clusterService = clusterService;
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
     }

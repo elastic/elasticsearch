@@ -100,8 +100,14 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newVectorBuilder(int estimatedSize) {
-        return new IntVectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    }
+
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newIntVectorBuilder(estimatedSize);
     }
 
     /** Create a vector for a range of ints. */

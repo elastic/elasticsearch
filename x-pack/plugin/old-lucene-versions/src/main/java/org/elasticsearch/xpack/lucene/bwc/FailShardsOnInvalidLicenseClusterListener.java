@@ -38,6 +38,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
 
     private boolean allowed;
 
+    @SuppressWarnings("this-escape")
     public FailShardsOnInvalidLicenseClusterListener(XPackLicenseState xPackLicenseState, RerouteService rerouteService) {
         this.xPackLicenseState = xPackLicenseState;
         this.rerouteService = rerouteService;

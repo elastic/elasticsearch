@@ -42,7 +42,19 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
-        return new StringExtractOperator.StringExtractOperatorFactory(new String[] { "test" }, dvrCtx -> page -> page.getBlock(0), expEval);
+        return new StringExtractOperator.StringExtractOperatorFactory(
+            new String[] { "test" },
+            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    return page.getBlock(0);
+                }
+
+                @Override
+                public void close() {}
+            },
+            expEval
+        );
     }
 
     @Override
@@ -77,11 +89,15 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
     public void testMultivalueDissectInput() {
 
-        StringExtractOperator operator = new StringExtractOperator(
-            new String[] { "test" },
-            (page) -> page.getBlock(0),
-            new FirstWord("test")
-        );
+        StringExtractOperator operator = new StringExtractOperator(new String[] { "test" }, new EvalOperator.ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                return page.getBlock(0);
+            }
+
+            @Override
+            public void close() {}
+        }, new FirstWord("test"));
 
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
         builder.beginPositionEntry();

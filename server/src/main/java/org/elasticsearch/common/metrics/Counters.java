@@ -32,6 +32,7 @@ public class Counters implements Writeable {
 
     private final ConcurrentMap<String, CounterMetric> counters = new ConcurrentHashMap<>();
 
+    @SuppressWarnings("this-escape")
     public Counters(StreamInput in) throws IOException {
         int numCounters = in.readVInt();
         for (int i = 0; i < numCounters; i++) {

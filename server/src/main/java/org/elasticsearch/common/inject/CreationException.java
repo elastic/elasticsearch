@@ -33,6 +33,7 @@ public class CreationException extends RuntimeException {
     /**
      * Creates a CreationException containing {@code messages}.
      */
+    @SuppressWarnings("this-escape")
     public CreationException(Collection<Message> messages) {
         this.messages = messages;
         if (this.messages.isEmpty()) {

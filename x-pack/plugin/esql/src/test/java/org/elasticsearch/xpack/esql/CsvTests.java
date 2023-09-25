@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -334,6 +335,7 @@ public class CsvTests extends ESTestCase {
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             bigArrays,
+            BlockFactory.getGlobalInstance(),
             configuration,
             exchangeSource,
             exchangeSink,
@@ -391,7 +393,7 @@ public class CsvTests extends ESTestCase {
                 }
             };
             PlainActionFuture<Void> future = new PlainActionFuture<>();
-            runner.runToCompletion(drivers, future);
+            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)));
             future.actionGet(TimeValue.timeValueSeconds(30));
             var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
             return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);

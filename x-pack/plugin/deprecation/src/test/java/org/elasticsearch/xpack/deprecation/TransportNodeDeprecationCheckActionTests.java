@@ -19,25 +19,40 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
+
+    private static ThreadPool threadPool;
+
+    @Before
+    public void setup() {
+        threadPool = new TestThreadPool("TransportNodeDeprecationCheckActionTests");
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
+    }
 
     public void testNodeOperation() {
         Settings.Builder settingsBuilder = Settings.builder();
@@ -53,7 +68,6 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder = Settings.builder();
         settingsBuilder.put("some.bad.dynamic.property", "someValue1");
         Settings dynamicSettings = settingsBuilder.build();
-        ThreadPool threadPool = Mockito.mock(ThreadPool.class);
         final XPackLicenseState licenseState = null;
         Metadata metadata = Metadata.builder().transientSettings(dynamicSettings).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
@@ -64,11 +78,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
         when(node.getId()).thenReturn("mock-node");
         TransportService transportService = Mockito.mock(TransportService.class);
-
-        // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
         when(transportService.getLocalNode()).thenReturn(node);
         PluginsService pluginsService = Mockito.mock(PluginsService.class);
         ActionFilters actionFilters = Mockito.mock(ActionFilters.class);

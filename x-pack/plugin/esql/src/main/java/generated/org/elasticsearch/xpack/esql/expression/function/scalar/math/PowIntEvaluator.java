@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -98,5 +99,10 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public String toString() {
     return "PowIntEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(base, exponent);
   }
 }

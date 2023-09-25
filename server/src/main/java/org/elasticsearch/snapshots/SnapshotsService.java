@@ -197,6 +197,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private volatile int maxConcurrentOperations;
 
+    @SuppressWarnings("this-escape")
     public SnapshotsService(
         Settings settings,
         ClusterService clusterService,

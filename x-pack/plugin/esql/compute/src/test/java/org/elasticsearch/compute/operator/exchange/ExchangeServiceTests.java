@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -478,7 +479,8 @@ public class ExchangeServiceTests extends ESTestCase {
      */
     DriverContext driverContext() {
         return new DriverContext(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking()
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+            BlockFactory.getNonBreakingInstance()
         );
     }
 }

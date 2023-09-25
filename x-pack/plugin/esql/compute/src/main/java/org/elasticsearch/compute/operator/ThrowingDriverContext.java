@@ -13,15 +13,21 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 
 public class ThrowingDriverContext extends DriverContext {
     public ThrowingDriverContext() {
-        super(new ThrowingBigArrays());
+        super(new ThrowingBigArrays(), BlockFactory.getNonBreakingInstance());
     }
 
     @Override
     public BigArrays bigArrays() {
+        throw new AssertionError("should not reach here");
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
         throw new AssertionError("should not reach here");
     }
 

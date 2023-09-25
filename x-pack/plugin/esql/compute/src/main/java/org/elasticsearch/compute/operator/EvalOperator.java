@@ -9,8 +9,8 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-
-import java.util.function.Supplier;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
@@ -18,16 +18,17 @@ import java.util.function.Supplier;
  */
 public class EvalOperator extends AbstractPageMappingOperator {
 
-    public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator) implements OperatorFactory {
+    public record EvalOperatorFactory(ExpressionEvaluator.Factory evaluator) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get());
+            return new EvalOperator(evaluator.get(driverContext));
         }
 
         @Override
         public String describe() {
-            return "EvalOperator[evaluator=" + evaluator.get() + "]";
+            // TODO ThrowingDriverContext blows up when combined with Concat
+            return "EvalOperator[evaluator=" + evaluator.get(new ThrowingDriverContext()) + "]";
         }
     }
 
@@ -47,7 +48,23 @@ public class EvalOperator extends AbstractPageMappingOperator {
         return getClass().getSimpleName() + "[evaluator=" + evaluator + "]";
     }
 
-    public interface ExpressionEvaluator {
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(evaluator);
+    }
+
+    /**
+     * Evaluates an expression {@code a + b} or {@code log(c)} one {@link Page} at a time.
+     */
+    public interface ExpressionEvaluator extends Releasable {
+        /** A Factory for creating ExpressionEvaluators. */
+        interface Factory {
+            ExpressionEvaluator get(DriverContext driverContext);
+        }
+
+        /**
+         * Evaluate the expression.
+         */
         Block eval(Page page);
     }
 
@@ -61,5 +78,8 @@ public class EvalOperator extends AbstractPageMappingOperator {
         public String toString() {
             return "ConstantNull";
         }
+
+        @Override
+        public void close() {}
     };
 }

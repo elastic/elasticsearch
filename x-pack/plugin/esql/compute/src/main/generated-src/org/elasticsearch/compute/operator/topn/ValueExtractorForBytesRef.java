@@ -8,9 +8,9 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 abstract class ValueExtractorForBytesRef implements ValueExtractor {
     static ValueExtractorForBytesRef extractorFor(TopNEncoder encoder, boolean inKey, BytesRefBlock block) {
@@ -32,11 +32,11 @@ abstract class ValueExtractorForBytesRef implements ValueExtractor {
         this.inKey = inKey;
     }
 
-    protected final void writeCount(BytesRefBuilder values, int count) {
+    protected final void writeCount(BreakingBytesRefBuilder values, int count) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
     }
 
-    protected final void actualWriteValue(BytesRefBuilder values, BytesRef value) {
+    protected final void actualWriteValue(BreakingBytesRefBuilder values, BytesRef value) {
         encoder.encodeBytesRef(value, values);
     }
 
@@ -49,7 +49,7 @@ abstract class ValueExtractorForBytesRef implements ValueExtractor {
         }
 
         @Override
-        public void writeValue(BytesRefBuilder values, int position) {
+        public void writeValue(BreakingBytesRefBuilder values, int position) {
             writeCount(values, 1);
             if (inKey) {
                 // will read results from the key
@@ -68,7 +68,7 @@ abstract class ValueExtractorForBytesRef implements ValueExtractor {
         }
 
         @Override
-        public void writeValue(BytesRefBuilder values, int position) {
+        public void writeValue(BreakingBytesRefBuilder values, int position) {
             int size = block.getValueCount(position);
             writeCount(values, size);
             if (size == 1 && inKey) {

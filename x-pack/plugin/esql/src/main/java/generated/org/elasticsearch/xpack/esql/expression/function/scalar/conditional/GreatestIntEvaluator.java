@@ -11,7 +11,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Greatest}.
@@ -20,8 +22,12 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator[] values;
 
-  public GreatestIntEvaluator(EvalOperator.ExpressionEvaluator[] values) {
+  private final DriverContext driverContext;
+
+  public GreatestIntEvaluator(EvalOperator.ExpressionEvaluator[] values,
+      DriverContext driverContext) {
     this.values = values;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -80,5 +86,10 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public String toString() {
     return "GreatestIntEvaluator[" + "values=" + Arrays.toString(values) + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(() -> Releasables.close(values));
   }
 }

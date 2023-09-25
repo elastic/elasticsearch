@@ -283,10 +283,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     if (isManagedSystemIndex) {
                         final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                            currentState.nodes().getSmallestNonClientNodeVersion()
+                            currentState.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
                         );
                         if (descriptor == null) {
-                            final String message = mainDescriptor.getMinimumNodeVersionMessage("auto-create index");
+                            final String message = mainDescriptor.getMinimumMappingsVersionMessage("auto-create index");
                             logger.warn(message);
                             throw new IllegalStateException(message);
                         }

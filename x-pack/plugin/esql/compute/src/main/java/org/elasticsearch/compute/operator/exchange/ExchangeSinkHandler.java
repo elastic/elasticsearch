@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Queue;
@@ -35,14 +35,13 @@ public final class ExchangeSinkHandler {
     // listeners are notified by only one thread.
     private final Semaphore promised = new Semaphore(1);
 
-    private final ListenableActionFuture<Void> completionFuture;
+    private final SubscribableListener<Void> completionFuture;
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
 
     public ExchangeSinkHandler(int maxBufferSize, LongSupplier nowInMillis) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
-        this.completionFuture = new ListenableActionFuture<>();
-        this.buffer.addCompletionListener(completionFuture);
+        this.completionFuture = SubscribableListener.newForked(buffer::addCompletionListener);
         this.nowInMillis = nowInMillis;
         this.lastUpdatedInMillis = new AtomicLong(nowInMillis.getAsLong());
     }
@@ -79,7 +78,7 @@ public final class ExchangeSinkHandler {
         }
 
         @Override
-        public ListenableActionFuture<Void> waitForWriting() {
+        public SubscribableListener<Void> waitForWriting() {
             return buffer.waitForWriting();
         }
     }

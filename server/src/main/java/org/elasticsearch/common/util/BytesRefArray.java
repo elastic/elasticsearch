@@ -32,6 +32,7 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
     private ByteArray bytes;
     private long size;
 
+    @SuppressWarnings("this-escape")
     public BytesRefArray(long capacity, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
         boolean success = false;
@@ -48,6 +49,7 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
         size = 0;
     }
 
+    @SuppressWarnings("this-escape")
     public BytesRefArray(StreamInput in, BigArrays bigArrays) throws IOException {
         this.bigArrays = bigArrays;
         // we allocate big arrays so we have to `close` if we fail here or we'll leak them.

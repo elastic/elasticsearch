@@ -207,6 +207,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         return NAME + "-" + transformId;
     }
 
+    @SuppressWarnings("this-escape")
     public TransformConfig(
         final String id,
         final SourceConfig source,
@@ -242,6 +243,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         this.transformVersion = version == null ? null : TransformConfigVersion.fromString(version);
     }
 
+    @SuppressWarnings("this-escape")
     public TransformConfig(final StreamInput in) throws IOException {
         id = in.readString();
         source = new SourceConfig(in);

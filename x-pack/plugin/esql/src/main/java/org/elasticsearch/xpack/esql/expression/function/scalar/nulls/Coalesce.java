@@ -11,6 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -26,7 +28,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -117,13 +118,10 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        List<Supplier<EvalOperator.ExpressionEvaluator>> evaluatorSuppliers = children().stream().map(toEvaluator).toList();
-        return () -> new CoalesceEvaluator(
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        return dvrCxt -> new CoalesceEvaluator(
             LocalExecutionPlanner.toElementType(dataType()),
-            evaluatorSuppliers.stream().map(Supplier::get).toList()
+            children().stream().map(toEvaluator).map(x -> x.get(dvrCxt)).toList()
         );
     }
 
@@ -164,6 +162,11 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
         @Override
         public String toString() {
             return "CoalesceEvaluator[values=" + evaluators + ']';
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
         }
     }
 }

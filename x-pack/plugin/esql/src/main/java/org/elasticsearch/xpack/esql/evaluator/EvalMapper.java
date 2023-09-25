@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 
 import java.util.List;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 public final class EvalMapper {
 
@@ -59,7 +59,7 @@ public final class EvalMapper {
     private EvalMapper() {}
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public static Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
+    public static ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(e -> toEvaluator(e, layout));
         }
@@ -73,9 +73,9 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public Supplier<ExpressionEvaluator> map(BinaryLogic bc, Layout layout) {
-            Supplier<ExpressionEvaluator> leftEval = toEvaluator(bc.left(), layout);
-            Supplier<ExpressionEvaluator> rightEval = toEvaluator(bc.right(), layout);
+        public ExpressionEvaluator.Factory map(BinaryLogic bc, Layout layout) {
+            var leftEval = toEvaluator(bc.left(), layout);
+            var rightEval = toEvaluator(bc.right(), layout);
             /**
              * Evaluator for the <href a="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</href>.
              * We can't generate these with the {@link Evaluator} annotation because that
@@ -139,42 +139,55 @@ public final class EvalMapper {
                     return result.build().asBlock();
                 }
 
+                @Override
+                public void close() {
+                    Releasables.closeExpectNoException(leftEval, rightEval);
+                }
             }
-            return () -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(), rightEval.get());
+            return driverContext -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
         }
     }
 
     static class Nots extends ExpressionMapper<Not> {
         @Override
-        public Supplier<ExpressionEvaluator> map(Not not, Layout layout) {
-            Supplier<ExpressionEvaluator> expEval = toEvaluator(not.field(), layout);
-            return () -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(expEval.get());
+        public ExpressionEvaluator.Factory map(Not not, Layout layout) {
+            var expEval = toEvaluator(not.field(), layout);
+            return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
+                expEval.get(dvrCtx),
+                dvrCtx
+            );
         }
     }
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public Supplier<ExpressionEvaluator> map(Attribute attr, Layout layout) {
+        public ExpressionEvaluator.Factory map(Attribute attr, Layout layout) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
                     return page.getBlock(channel);
                 }
+
+                @Override
+                public void close() {}
             }
             int channel = layout.get(attr.id()).channel();
-            return () -> new Attribute(channel);
+            return driverContext -> new Attribute(channel);
         }
     }
 
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public Supplier<ExpressionEvaluator> map(Literal lit, Layout layout) {
+        public ExpressionEvaluator.Factory map(Literal lit, Layout layout) {
             record LiteralsEvaluator(IntFunction<Block> block) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
                     return block.apply(page.getPositionCount());
                 }
+
+                @Override
+                public void close() {}
             }
             // wrap the closure to provide a nice toString (used by tests)
             var blockClosure = new IntFunction<Block>() {
@@ -188,7 +201,7 @@ public final class EvalMapper {
                     return lit.toString();
                 }
             };
-            return () -> new LiteralsEvaluator(blockClosure);
+            return driverContext -> new LiteralsEvaluator(blockClosure);
         }
 
         private IntFunction<Block> block(Literal lit) {
@@ -214,9 +227,9 @@ public final class EvalMapper {
     static class IsNulls extends ExpressionMapper<IsNull> {
 
         @Override
-        public Supplier<ExpressionEvaluator> map(IsNull isNull, Layout layout) {
-            Supplier<ExpressionEvaluator> field = toEvaluator(isNull.field(), layout);
-            return () -> new IsNullEvaluator(field.get());
+        public ExpressionEvaluator.Factory map(IsNull isNull, Layout layout) {
+            var field = toEvaluator(isNull.field(), layout);
+            return driverContext -> new IsNullEvaluator(field.get(driverContext));
         }
 
         record IsNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
@@ -232,15 +245,20 @@ public final class EvalMapper {
                 }
                 return new BooleanArrayVector(result, result.length).asBlock();
             }
+
+            @Override
+            public void close() {
+                Releasables.closeExpectNoException(field);
+            }
         }
     }
 
     static class IsNotNulls extends ExpressionMapper<IsNotNull> {
 
         @Override
-        public Supplier<ExpressionEvaluator> map(IsNotNull isNotNull, Layout layout) {
-            Supplier<ExpressionEvaluator> field = toEvaluator(isNotNull.field(), layout);
-            return () -> new IsNotNullEvaluator(field.get());
+        public ExpressionEvaluator.Factory map(IsNotNull isNotNull, Layout layout) {
+            var field = toEvaluator(isNotNull.field(), layout);
+            return driverContext -> new IsNotNullEvaluator(field.get(driverContext));
         }
 
         record IsNotNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
@@ -255,6 +273,11 @@ public final class EvalMapper {
                     result[p] = fieldBlock.isNull(p) == false;
                 }
                 return new BooleanArrayVector(result, result.length).asBlock();
+            }
+
+            @Override
+            public void close() {
+                Releasables.closeExpectNoException(field);
             }
         }
     }

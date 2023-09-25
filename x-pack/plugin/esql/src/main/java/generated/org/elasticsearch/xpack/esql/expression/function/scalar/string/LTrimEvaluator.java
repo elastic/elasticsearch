@@ -11,7 +11,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link LTrim}.
@@ -20,8 +22,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
-  public LTrimEvaluator(EvalOperator.ExpressionEvaluator val) {
+  private final DriverContext driverContext;
+
+  public LTrimEvaluator(EvalOperator.ExpressionEvaluator val, DriverContext driverContext) {
     this.val = val;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -63,5 +68,10 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public String toString() {
     return "LTrimEvaluator[" + "val=" + val + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

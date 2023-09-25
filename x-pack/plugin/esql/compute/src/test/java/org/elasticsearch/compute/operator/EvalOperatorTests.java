@@ -36,11 +36,14 @@ public class EvalOperatorTests extends OperatorTestCase {
             }
             return result.build().asBlock();
         }
+
+        @Override
+        public void close() {}
     }
 
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return new EvalOperator.EvalOperatorFactory(() -> new Addition(0, 1));
+        return new EvalOperator.EvalOperatorFactory(dvrCtx -> new Addition(0, 1));
     }
 
     @Override

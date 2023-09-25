@@ -11,7 +11,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Split}.
@@ -24,11 +26,14 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
 
   private final BytesRef scratch;
 
+  private final DriverContext driverContext;
+
   public SplitSingleByteEvaluator(EvalOperator.ExpressionEvaluator str, byte delim,
-      BytesRef scratch) {
+      BytesRef scratch, DriverContext driverContext) {
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -70,5 +75,10 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   @Override
   public String toString() {
     return "SplitSingleByteEvaluator[" + "str=" + str + ", delim=" + delim + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(str);
   }
 }

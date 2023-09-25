@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
@@ -27,11 +29,14 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final Locale locale;
 
+  private final DriverContext driverContext;
+
   public DateFormatEvaluator(EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter, Locale locale) {
+      EvalOperator.ExpressionEvaluator formatter, Locale locale, DriverContext driverContext) {
     this.val = val;
     this.formatter = formatter;
     this.locale = locale;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -87,5 +92,10 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "DateFormatEvaluator[" + "val=" + val + ", formatter=" + formatter + ", locale=" + locale + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val, formatter);
   }
 }

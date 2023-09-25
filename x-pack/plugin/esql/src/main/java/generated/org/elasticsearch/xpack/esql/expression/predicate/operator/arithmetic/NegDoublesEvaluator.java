@@ -10,7 +10,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Neg}.
@@ -19,8 +21,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator v;
 
-  public NegDoublesEvaluator(EvalOperator.ExpressionEvaluator v) {
+  private final DriverContext driverContext;
+
+  public NegDoublesEvaluator(EvalOperator.ExpressionEvaluator v, DriverContext driverContext) {
     this.v = v;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -60,5 +65,10 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "NegDoublesEvaluator[" + "v=" + v + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(v);
   }
 }

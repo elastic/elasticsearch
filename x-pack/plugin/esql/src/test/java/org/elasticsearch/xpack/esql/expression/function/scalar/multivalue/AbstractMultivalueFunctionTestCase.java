@@ -444,7 +444,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             builder.copyFrom(oneRowBlock, 0, 1);
         }
         Block input = builder.build();
-        Block result = evaluator(buildFieldExpression(testCase)).get().eval(new Page(input));
+        Block result = evaluator(buildFieldExpression(testCase)).get(driverContext()).eval(new Page(input));
 
         assertThat(result.getPositionCount(), equalTo(result.getPositionCount()));
         for (int p = 0; p < input.getPositionCount(); p++) {

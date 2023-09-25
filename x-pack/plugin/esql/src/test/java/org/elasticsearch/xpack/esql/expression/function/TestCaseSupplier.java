@@ -633,7 +633,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> stringCases(DataType type) {
+    public static List<TypedDataSupplier> stringCases(DataType type) {
         List<TypedDataSupplier> result = new ArrayList<>();
         result.add(new TypedDataSupplier("<empty " + type + ">", () -> new BytesRef(""), type));
         result.add(

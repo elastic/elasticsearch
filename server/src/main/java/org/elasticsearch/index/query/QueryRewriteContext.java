@@ -20,7 +20,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -50,7 +50,7 @@ public class QueryRewriteContext {
     protected final NamedWriteableRegistry writeableRegistry;
     protected final ValuesSourceRegistry valuesSourceRegistry;
     protected final BooleanSupplier allowExpensiveQueries;
-    protected final ScriptService scriptService;
+    protected final ScriptCompiler scriptService;
     private final XContentParserConfiguration parserConfiguration;
     protected final Client client;
     protected final LongSupplier nowInMillis;
@@ -73,7 +73,7 @@ public class QueryRewriteContext {
         final NamedWriteableRegistry namedWriteableRegistry,
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
-        final ScriptService scriptService
+        final ScriptCompiler scriptService
     ) {
 
         this.parserConfiguration = parserConfiguration;

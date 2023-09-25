@@ -13,7 +13,9 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link GreaterThan}.
@@ -24,10 +26,13 @@ public final class GreaterThanKeywordsEvaluator implements EvalOperator.Expressi
 
   private final EvalOperator.ExpressionEvaluator rhs;
 
+  private final DriverContext driverContext;
+
   public GreaterThanKeywordsEvaluator(EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs) {
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
     this.lhs = lhs;
     this.rhs = rhs;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -84,5 +89,10 @@ public final class GreaterThanKeywordsEvaluator implements EvalOperator.Expressi
   @Override
   public String toString() {
     return "GreaterThanKeywordsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(lhs, rhs);
   }
 }

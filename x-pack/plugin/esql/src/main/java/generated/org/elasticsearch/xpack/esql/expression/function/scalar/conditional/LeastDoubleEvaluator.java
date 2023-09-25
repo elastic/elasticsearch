@@ -11,7 +11,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
@@ -20,8 +22,12 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator[] values;
 
-  public LeastDoubleEvaluator(EvalOperator.ExpressionEvaluator[] values) {
+  private final DriverContext driverContext;
+
+  public LeastDoubleEvaluator(EvalOperator.ExpressionEvaluator[] values,
+      DriverContext driverContext) {
     this.values = values;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -80,5 +86,10 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public String toString() {
     return "LeastDoubleEvaluator[" + "values=" + Arrays.toString(values) + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(() -> Releasables.close(values));
   }
 }

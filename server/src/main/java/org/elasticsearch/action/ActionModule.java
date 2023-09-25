@@ -276,7 +276,6 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -308,6 +307,7 @@ import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
@@ -460,8 +460,8 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.time.Instant;
@@ -473,6 +473,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -510,7 +511,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
-    private final boolean serverlessEnabled;
+    private final RestExtension restExtension;
 
     public ActionModule(
         Settings settings,
@@ -526,7 +527,8 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
+        RestExtension restExtension
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -535,7 +537,6 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.serverlessEnabled = DiscoveryNode.isServerless();
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -573,6 +574,7 @@ public class ActionModule extends AbstractModule {
             restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
         }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+        this.restExtension = restExtension;
     }
 
     private static <T> T getRestServerComponent(
@@ -853,10 +855,12 @@ public class ActionModule extends AbstractModule {
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
+        Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
+        Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (shouldKeepRestHandler(handler)) {
-                if (handler instanceof AbstractCatAction) {
-                    catActions.add((AbstractCatAction) handler);
+            if (restFilter.test(handler)) {
+                if (handler instanceof AbstractCatAction catAction && catActionsFilter.test(catAction)) {
+                    catActions.add(catAction);
                 }
                 restController.registerHandler(handler);
             } else {
@@ -1060,16 +1064,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
-    }
-
-    /**
-     * This method is used to determine whether a RestHandler ought to be kept in memory or not. Returns true if serverless mode is
-     * disabled, or if there is any ServlerlessScope annotation on the RestHandler.
-     * @param handler
-     * @return
-     */
-    private boolean shouldKeepRestHandler(final RestHandler handler) {
-        return serverlessEnabled == false || handler.getServerlessScope() != null;
     }
 
     @Override

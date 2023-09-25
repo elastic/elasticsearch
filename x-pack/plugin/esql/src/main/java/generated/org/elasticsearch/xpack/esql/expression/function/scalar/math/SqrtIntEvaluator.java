@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -25,9 +27,13 @@ public final class SqrtIntEvaluator implements EvalOperator.ExpressionEvaluator 
 
   private final EvalOperator.ExpressionEvaluator val;
 
-  public SqrtIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val) {
+  private final DriverContext driverContext;
+
+  public SqrtIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
+      DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.val = val;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -77,5 +83,10 @@ public final class SqrtIntEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public String toString() {
     return "SqrtIntEvaluator[" + "val=" + val + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

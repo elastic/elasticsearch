@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -20,8 +21,12 @@ import org.elasticsearch.compute.operator.EvalOperator;
  * This class is generated. Do not edit it.
  */
 public final class MvMaxBytesRefEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvMaxBytesRefEvaluator(EvalOperator.ExpressionEvaluator field) {
+  private final DriverContext driverContext;
+
+  public MvMaxBytesRefEvaluator(EvalOperator.ExpressionEvaluator field,
+      DriverContext driverContext) {
     super(field);
+    this.driverContext = driverContext;
   }
 
   @Override

@@ -194,7 +194,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
     @Override
     public void close() {
-        Releasables.close(pages.stream().map(p -> (Releasable) () -> p.releaseBlocks()).toArray(Releasable[]::new));
+        Releasables.close(Releasables.wrap(() -> Iterators.map(pages.iterator(), p -> () -> p.releaseBlocks())));
     }
 
     public static Iterator<Iterator<Object>> pagesToValues(List<String> dataTypes, List<Page> pages) {

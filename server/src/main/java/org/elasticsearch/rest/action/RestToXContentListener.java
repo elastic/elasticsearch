@@ -32,7 +32,7 @@ public class RestToXContentListener<Response extends ToXContentObject> extends R
 
     public RestToXContentListener(RestChannel channel, Function<Response, RestStatus> statusFunction) {
         this(channel, statusFunction, r -> {
-            assert false : "Returned a 201 CREATED but not set up to support a Location header";
+            assert false : "Returned a 201 CREATED but not set up to support a Location header from " + r.getClass();
             return null;
         });
     }

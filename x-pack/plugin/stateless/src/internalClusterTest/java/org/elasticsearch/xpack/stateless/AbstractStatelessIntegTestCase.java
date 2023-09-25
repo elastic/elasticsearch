@@ -448,6 +448,19 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         );
     }
 
+    protected static IndexShard findIndexShard(Index index, int shardId, String nodeName) {
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+        IndexService indexService = indicesService.indexService(index);
+        if (indexService != null) {
+            IndexShard shard = indexService.getShardOrNull(shardId);
+            if (shard != null && shard.isActive()) {
+                assertThat("Unexpected shard role", shard.routingEntry().role(), equalTo(ShardRouting.Role.INDEX_ONLY));
+                return shard;
+            }
+        }
+        throw new AssertionError("IndexShard instance not found for shard " + new ShardId(index, shardId) + " on node [" + nodeName + ']');
+    }
+
     protected static Map<Index, Integer> resolveIndices() {
         return client().admin()
             .indices()

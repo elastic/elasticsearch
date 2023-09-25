@@ -27,6 +27,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.function.Consumer;
 
 /**
  * The body of a rest response that uses chunked HTTP encoding. Implementations are used to avoid materializing full responses on heap and
@@ -55,6 +56,10 @@ public interface ChunkedRestResponseBody {
      */
     String getResponseContentTypeString();
 
+    default void setChunkedSizeListener(Consumer<Integer> sizeConsumer) {
+        throw new UnsupportedOperationException("not supported");
+    }
+
     /**
      * Create a chunked response body to be written to a specific {@link RestChannel} from a {@link ChunkedToXContent}.
      *
@@ -67,6 +72,9 @@ public interface ChunkedRestResponseBody {
         throws IOException {
 
         return new ChunkedRestResponseBody() {
+
+            private int size = 0;
+            private Consumer<Integer> sizeConsumer = null;
 
             private final OutputStream out = new OutputStream() {
                 @Override
@@ -95,7 +103,12 @@ public interface ChunkedRestResponseBody {
 
             @Override
             public boolean isDone() {
-                return serialization.hasNext() == false;
+                var result = serialization.hasNext() == false;
+                if (result && sizeConsumer != null) {
+                    sizeConsumer.accept(size);
+                    sizeConsumer = null;
+                }
+                return result;
             }
 
             @Override
@@ -118,6 +131,7 @@ public interface ChunkedRestResponseBody {
                         () -> Releasables.closeExpectNoException(chunkStream)
                     );
                     target = null;
+                    size += result.length();
                     return result;
                 } finally {
                     if (target != null) {
@@ -132,6 +146,11 @@ public interface ChunkedRestResponseBody {
             public String getResponseContentTypeString() {
                 return builder.getResponseContentTypeString();
             }
+
+            @Override
+            public void setChunkedSizeListener(Consumer<Integer> sizeConsumer) {
+                this.sizeConsumer = sizeConsumer;
+            }
         };
     }
 
@@ -141,6 +160,8 @@ public interface ChunkedRestResponseBody {
      */
     static ChunkedRestResponseBody fromTextChunks(String contentType, Iterator<CheckedConsumer<Writer, IOException>> chunkIterator) {
         return new ChunkedRestResponseBody() {
+            private int size = 0;
+            private Consumer<Integer> sizeConsumer = null;
             private RecyclerBytesStreamOutput currentOutput;
             private final Writer writer = new OutputStreamWriter(new OutputStream() {
                 @Override
@@ -170,7 +191,12 @@ public interface ChunkedRestResponseBody {
 
             @Override
             public boolean isDone() {
-                return chunkIterator.hasNext() == false;
+                var result = chunkIterator.hasNext() == false;
+                if (result && sizeConsumer != null) {
+                    sizeConsumer.accept(size);
+                    sizeConsumer = null;
+                }
+                return result;
             }
 
             @Override
@@ -208,6 +234,11 @@ public interface ChunkedRestResponseBody {
             @Override
             public String getResponseContentTypeString() {
                 return contentType;
+            }
+
+            @Override
+            public void setChunkedSizeListener(Consumer<Integer> sizeConsumer) {
+                this.sizeConsumer = sizeConsumer;
             }
         };
     }

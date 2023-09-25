@@ -26,6 +26,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.http.HttpHeadersValidationException;
+import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
@@ -46,9 +47,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -352,8 +356,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler, ThreadContext threadContext)
-        throws Exception {
+    @Override
+    public Map<String, HttpRouteStats> getStats() {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(handlers.allNodeValues(), Spliterator.ORDERED), false)
+            .filter(mh -> mh.getStats().requestCount() > 0 || mh.getStats().responseCount() > 0)
+            .collect(Maps.toUnmodifiableSortedMap(MethodHandlers::getPath, MethodHandlers::getStats));
+    }
+
+    private void dispatchRequest(
+        RestRequest request,
+        RestChannel channel,
+        RestHandler handler,
+        MethodHandlers methodHandlers,
+        ThreadContext threadContext
+    ) throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
             if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
@@ -390,7 +406,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength, methodHandlers);
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -410,7 +426,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
-
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
             responseChannel.sendResponse(new RestResponse(responseChannel, e));
@@ -540,7 +555,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     }
                 } else {
                     startTrace(threadContext, channel, handlers.getPath());
-                    dispatchRequest(request, channel, handler, threadContext);
+                    dispatchRequest(request, channel, handler, handlers, threadContext);
                     return;
                 }
             }
@@ -686,12 +701,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
+        private final MethodHandlers methodHandlers;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+        ResourceHandlingHttpChannel(
+            RestChannel delegate,
+            CircuitBreakerService circuitBreakerService,
+            int contentLength,
+            MethodHandlers methodHandlers
+        ) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
+            this.methodHandlers = methodHandlers;
+            this.methodHandlers.addRequestStats(contentLength);
         }
 
         @Override
@@ -750,6 +773,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             boolean success = false;
             try {
                 close();
+                if (response.isChunked() == false) {
+                    methodHandlers.addResponseStats(response.content().length());
+                } else {
+                    response.chunkedContent().setChunkedSizeListener(methodHandlers::addResponseStats);
+                }
                 delegate.sendResponse(response);
                 success = true;
             } finally {

@@ -859,7 +859,7 @@ public class NodeStatsTests extends ESTestCase {
                 );
                 clientStats.add(cs);
             }
-            httpStats = new HttpStats(randomNonNegativeLong(), randomNonNegativeLong(), clientStats);
+            httpStats = new HttpStats(randomNonNegativeLong(), randomNonNegativeLong(), clientStats, Map.of());
         }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {

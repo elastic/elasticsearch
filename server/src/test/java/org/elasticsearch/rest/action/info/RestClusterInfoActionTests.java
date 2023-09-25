@@ -89,7 +89,8 @@ public class RestClusterInfoActionTests extends ESTestCase {
                     .map(HttpStats::clientStats)
                     .map(Collection::stream)
                     .reduce(Stream.of(), Stream::concat)
-                    .toList()
+                    .toList(),
+                Map.of()
             )
         );
     }

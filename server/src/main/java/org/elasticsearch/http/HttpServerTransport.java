@@ -15,6 +15,8 @@ import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 
+import java.util.Map;
+
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
     String HTTP_PROFILE_NAME = ".http";
@@ -52,5 +54,8 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
+        default Map<String, HttpRouteStats> getStats() {
+            return Map.of();
+        }
     }
 }

@@ -1,0 +1,22 @@
+# This test needs multiple nodes, because a single-node cluster does not send any transport actions so these stats are empty
+---
+"http stats":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      search:
+        index: "*"
+        body:
+          query:
+            match_all: {}
+
+  - do:
+      nodes.stats:
+        metric: [ http ]
+        human: true
+
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: "nodes.$node_id.http.routes./_cat/nodes"

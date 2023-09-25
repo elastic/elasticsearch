@@ -86,6 +86,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final ConcurrentMap<String, AtomicBoolean> pipelineCreationsInProgress = new ConcurrentHashMap<>();
     protected final List<LifecyclePolicy> lifecyclePolicies;
 
+    @SuppressWarnings("this-escape")
     public IndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,

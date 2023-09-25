@@ -47,6 +47,9 @@ public interface Vector extends Accountable, Releasable {
      */
     boolean isConstant();
 
+    /** The block factory associated with this vector. */
+    BlockFactory blockFactory();
+
     interface Builder {
         /**
          * Builds the block. This method can be called multiple times.

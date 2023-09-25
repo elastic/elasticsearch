@@ -9,6 +9,7 @@ package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
@@ -43,7 +44,18 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ChildrenIT extends AbstractParentChildTestCase {
 
-    public void testChildrenAggs() throws Exception {
+    public void testSimpleChildrenAgg() {
+        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
+            .setQuery(matchQuery("randomized", true))
+            .addAggregation(children("to_comment", "comment"));
+        final SearchResponse searchResponse = searchRequest.get();
+        long count = categoryToControl.values().stream().mapToLong(control -> control.commentIds.size()).sum();
+        assertSearchResponse(searchResponse);
+        Children childrenAgg = searchResponse.getAggregations().get("to_comment");
+        assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n", childrenAgg.getDocCount(), equalTo(count));
+    }
+
+    public void testChildrenAggs() {
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
@@ -86,7 +98,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         }
     }
 
-    public void testParentWithMultipleBuckets() throws Exception {
+    public void testParentWithMultipleBuckets() {
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(matchQuery("randomized", false))
             .addAggregation(

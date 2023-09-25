@@ -51,6 +51,7 @@ public class Exporters extends AbstractLifecycleComponent {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
 
+    @SuppressWarnings("this-escape")
     public Exporters(
         Settings settings,
         Map<String, Exporter.Factory> factories,

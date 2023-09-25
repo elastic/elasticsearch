@@ -44,6 +44,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     protected final DocCountProvider docCountProvider;
     private int callCount;
 
+    @SuppressWarnings("this-escape")
     public BucketsAggregator(
         String name,
         AggregatorFactories factories,

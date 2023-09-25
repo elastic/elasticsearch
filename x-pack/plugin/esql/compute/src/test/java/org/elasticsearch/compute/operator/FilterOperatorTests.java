@@ -38,6 +38,9 @@ public class FilterOperatorTests extends OperatorTestCase {
             }
             return result.build().asBlock();
         }
+
+        @Override
+        public void close() {}
     }
 
     @Override

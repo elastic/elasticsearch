@@ -22,6 +22,7 @@ import java.util.Map;
 
 public class RestDeleteActionTests extends RestActionTestCase {
 
+    @SuppressWarnings("this-escape")
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     @Before

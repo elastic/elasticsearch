@@ -40,6 +40,7 @@ public class NodeSeenService implements ClusterStateListener {
 
     private final MasterServiceTaskQueue<SetSeenNodesShutdownTask> setSeenTaskQueue;
 
+    @SuppressWarnings("this-escape")
     public NodeSeenService(ClusterService clusterService) {
         this.clusterService = clusterService;
         this.setSeenTaskQueue = clusterService.createTaskQueue(

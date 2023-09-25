@@ -17,8 +17,11 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
 
     private int[] values;
 
-    IntBlockBuilder(int estimatedSize) {
-        values = new int[Math.max(estimatedSize, 2)];
+    IntBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
+        values = new int[initialSize];
     }
 
     @Override
@@ -29,6 +32,11 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Integer.BYTES;
     }
 
     @Override
@@ -171,17 +179,21 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     @Override
     public IntBlock build() {
         finish();
+        IntBlock block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            return new ConstantIntVector(values[0], 1).asBlock();
+            block = new ConstantIntVector(values[0], 1, blockFactory).asBlock();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
             if (isDense() && singleValued()) {
-                return new IntArrayVector(values, positionCount).asBlock();
+                block = new IntArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                return new IntArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                block = new IntArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }
+        // update the breaker with the actual bytes used.
+        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
+        return block;
     }
 }

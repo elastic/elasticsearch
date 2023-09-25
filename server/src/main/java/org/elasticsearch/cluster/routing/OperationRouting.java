@@ -44,6 +44,7 @@ public class OperationRouting {
     private boolean useAdaptiveReplicaSelection;
     private final boolean isStateless;
 
+    @SuppressWarnings("this-escape")
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         this.isStateless = DiscoveryNode.isStateless(settings);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);

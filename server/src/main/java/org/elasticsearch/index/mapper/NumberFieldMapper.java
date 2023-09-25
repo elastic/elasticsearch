@@ -144,6 +144,7 @@ public class NumberFieldMapper extends FieldMapper {
             return builder;
         }
 
+        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             NumberType type,

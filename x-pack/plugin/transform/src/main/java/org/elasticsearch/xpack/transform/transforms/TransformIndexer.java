@@ -127,6 +127,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected volatile boolean indexerThreadShuttingDown = false;
     protected volatile boolean saveStateRequestedDuringIndexerThreadShutdown = false;
 
+    @SuppressWarnings("this-escape")
     public TransformIndexer(
         ThreadPool threadPool,
         TransformServices transformServices,

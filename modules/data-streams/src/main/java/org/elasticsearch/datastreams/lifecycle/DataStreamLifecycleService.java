@@ -15,14 +15,19 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
@@ -231,6 +236,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 cancelJob();
                 // clear the deduplicator on master failover so we could re-send the requests in case we're re-elected
                 transportActionsDeduplicator.clear();
+                logger.trace("Clearing the error store as we are not the elected master anymore");
                 errorStore.clearStore();
             }
         }
@@ -242,6 +248,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         if (engine != null) {
             engine.stop();
         }
+        logger.trace("Clearing the error store as we are closing");
         errorStore.clearStore();
     }
 
@@ -477,6 +484,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         transportActionsDeduplicator.executeOnce(
             request,
             new ErrorRecordingActionListener(
+                DownsampleAction.NAME,
                 sourceIndex,
                 errorStore,
                 Strings.format(
@@ -567,12 +575,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Issues a request to replace the backing index with the downsample index through the cluster state changes deduplicator.
      */
     private void replaceBackingIndexWithDownsampleIndexOnce(DataStream dataStream, String backingIndexName, String downsampleIndexName) {
+        String requestName = "dsl-replace-" + dataStream.getName() + "-" + backingIndexName + "-" + downsampleIndexName;
         clusterStateChangesDeduplicator.executeOnce(
             // we use a String key here as otherwise it's ... awkward as we have to create the DeleteSourceAndAddDownsampleToDS as the
             // key _without_ a listener (passing in null) and then below we create it again with the `reqListener`. We're using a String
             // as it seems to be clearer.
-            "dsl-replace-" + dataStream.getName() + "-" + backingIndexName + "-" + downsampleIndexName,
+            requestName,
             new ErrorRecordingActionListener(
+                requestName,
                 backingIndexName,
                 errorStore,
                 Strings.format(
@@ -612,6 +622,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         transportActionsDeduplicator.executeOnce(
             deleteIndexRequest,
             new ErrorRecordingActionListener(
+                DeleteIndexAction.NAME,
                 indexName,
                 errorStore,
                 Strings.format("Data stream lifecycle encountered an error trying to delete index [%s]", indexName)
@@ -628,6 +639,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         transportActionsDeduplicator.executeOnce(
             addIndexBlockRequest,
             new ErrorRecordingActionListener(
+                AddIndexBlockAction.NAME,
                 indexName,
                 errorStore,
                 Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName)
@@ -662,8 +674,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (String indexName : errorStore.getAllIndices()) {
             IndexMetadata indexMeta = metadata.index(indexName);
             if (indexMeta == null) {
+                logger.trace("Clearing recorded error for index [{}] because the index doesn't exist anymore", indexName);
                 errorStore.clearRecordedError(indexName);
             } else if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), metadata::index) == false) {
+                logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", indexName);
                 errorStore.clearRecordedError(indexName);
             }
         }
@@ -680,6 +694,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
                 new ErrorRecordingActionListener(
+                    RolloverAction.NAME,
                     writeIndex.getName(),
                     errorStore,
                     Strings.format("Data stream lifecycle encountered an error trying to rollover data steam [%s]", dataStream.getName())
@@ -752,6 +767,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 transportActionsDeduplicator.executeOnce(
                     updateMergePolicySettingsRequest,
                     new ErrorRecordingActionListener(
+                        UpdateSettingsAction.NAME,
                         indexName,
                         errorStore,
                         Strings.format(
@@ -769,6 +785,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 transportActionsDeduplicator.executeOnce(
                     new ForceMergeRequestWrapper(forceMergeRequest),
                     new ErrorRecordingActionListener(
+                        ForceMergeAction.NAME,
                         indexName,
                         errorStore,
                         Strings.format(
@@ -853,6 +870,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             public void onFailure(Exception e) {
                 if (e instanceof IndexNotFoundException) {
                     // index was already deleted, treat this as a success
+                    logger.trace("Clearing recorded error for index [{}] because the index was deleted", targetIndex);
                     errorStore.clearRecordedError(targetIndex);
                     listener.onResponse(null);
                     return;
@@ -935,6 +953,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             public void onFailure(Exception e) {
                 if (e instanceof IndexNotFoundException) {
                     // index was already deleted, treat this as a success
+                    logger.trace("Clearing recorded error for index [{}] because the index was deleted", targetIndex);
                     errorStore.clearRecordedError(targetIndex);
                     listener.onResponse(null);
                     return;
@@ -1087,11 +1106,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * target index using the clearErrorRecord callback.
      */
     static class ErrorRecordingActionListener implements ActionListener<Void> {
+
+        private final String actionName;
         private final String targetIndex;
         private final DataStreamLifecycleErrorStore errorStore;
         private final String errorLogMessage;
 
-        ErrorRecordingActionListener(String targetIndex, DataStreamLifecycleErrorStore errorStore, String errorLogMessage) {
+        ErrorRecordingActionListener(
+            String actionName,
+            String targetIndex,
+            DataStreamLifecycleErrorStore errorStore,
+            String errorLogMessage
+        ) {
+            this.actionName = actionName;
             this.targetIndex = targetIndex;
             this.errorStore = errorStore;
             this.errorLogMessage = errorLogMessage;
@@ -1099,6 +1126,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
         @Override
         public void onResponse(Void unused) {
+            logger.trace("Clearing recorded error for index [{}] because the [{}] action was successful", targetIndex, actionName);
             errorStore.clearRecordedError(targetIndex);
         }
 

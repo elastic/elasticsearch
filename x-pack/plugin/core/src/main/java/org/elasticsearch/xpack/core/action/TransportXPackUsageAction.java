@@ -30,6 +30,7 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     private final NodeClient client;
     private final List<XPackUsageFeatureAction> usageActions;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportXPackUsageAction(
         ThreadPool threadPool,

@@ -393,6 +393,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param metadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
      */
+    @SuppressWarnings("this-escape")
     protected BlobStoreRepository(
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,

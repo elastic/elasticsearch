@@ -79,6 +79,7 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
         );
     }
 
+    @SuppressWarnings("this-escape")
     public HistoBackedRangeAggregator(
         String name,
         AggregatorFactories factories,

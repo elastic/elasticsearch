@@ -74,6 +74,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         this(settings, new AwsEc2ServiceImpl());
     }
 
+    @SuppressWarnings("this-escape")
     protected Ec2DiscoveryPlugin(Settings settings, AwsEc2ServiceImpl ec2Service) {
         this.settings = settings;
         this.ec2Service = ec2Service;

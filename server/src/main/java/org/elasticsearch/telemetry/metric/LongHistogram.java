@@ -22,7 +22,7 @@ public interface LongHistogram extends Instrument {
     LongHistogram NOOP = new LongHistogram() {
         @Override
         public String getName() {
-            return MetricName.EMPTY.getRawName();
+            return "noop";
         }
 
         @Override

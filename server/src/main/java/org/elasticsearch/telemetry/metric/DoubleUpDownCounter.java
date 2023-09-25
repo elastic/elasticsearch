@@ -23,7 +23,7 @@ public interface DoubleUpDownCounter extends Instrument {
     DoubleUpDownCounter NOOP = new DoubleUpDownCounter() {
         @Override
         public String getName() {
-            return MetricName.EMPTY.getRawName();
+            return "noop";
         }
 
         @Override

@@ -24,7 +24,7 @@ public interface LongCounter extends Instrument {
     LongCounter NOOP = new LongCounter() {
         @Override
         public String getName() {
-            return MetricName.EMPTY.getRawName();
+            return "noop";
         }
 
         @Override

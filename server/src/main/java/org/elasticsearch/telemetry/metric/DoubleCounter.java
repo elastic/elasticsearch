@@ -24,7 +24,7 @@ public interface DoubleCounter extends Instrument {
     DoubleCounter NOOP = new DoubleCounter() {
         @Override
         public String getName() {
-            return MetricName.EMPTY.getRawName();
+            return "noop";
         }
 
         @Override

@@ -12,7 +12,6 @@ import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.telemetry.metric.MetricName;
 
 import java.util.Map;
 import java.util.Objects;
@@ -21,7 +20,7 @@ public class DoubleUpDownCounterAdapter<T> extends AbstractInstrument<T, DoubleU
     implements
         org.elasticsearch.telemetry.metric.DoubleUpDownCounter {
 
-    public DoubleUpDownCounterAdapter(Meter meter, MetricName name, String description, T unit) {
+    public DoubleUpDownCounterAdapter(Meter meter, String name, String description, T unit) {
         super(meter, name, description, unit);
     }
 

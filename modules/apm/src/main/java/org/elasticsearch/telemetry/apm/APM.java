@@ -98,7 +98,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         apmAgentSettings.syncAgentSystemProperties(settings);
         apmAgentSettings.addClusterSettingsListeners(clusterService, telemetryProvider.get());
 
-        final APMMeter apmMeter = telemetryProvider.get().getMetric();
+        final APMMeter apmMeter = telemetryProvider.get().getMeter();
 
         return List.of(apmTracer, apmMeter);
     }

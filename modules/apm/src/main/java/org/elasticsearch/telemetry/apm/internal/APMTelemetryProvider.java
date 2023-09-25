@@ -30,7 +30,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
     }
 
     @Override
-    public APMMeter getMetric() {
+    public APMMeter getMeter() {
         return apmMeter;
     }
 }

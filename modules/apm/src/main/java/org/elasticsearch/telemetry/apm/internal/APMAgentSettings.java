@@ -51,7 +51,7 @@ public class APMAgentSettings {
     public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
-        final APMMeter apmMeter = apmTelemetryProvider.getMetric();
+        final APMMeter apmMeter = apmTelemetryProvider.getMeter();
 
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);

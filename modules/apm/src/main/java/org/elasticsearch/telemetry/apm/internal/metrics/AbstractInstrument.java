@@ -12,31 +12,26 @@ import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.metric.Instrument;
-import org.elasticsearch.telemetry.metric.MetricName;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class AbstractInstrument<T, I> implements Instrument {
     private final AtomicReference<I> instrumentRef;
-    private final MetricName name;
+    private final String name;
     private final String description;
     private final T unit;
 
-    public AbstractInstrument(Meter meter, MetricName name, String description, T unit) {
+    public AbstractInstrument(Meter meter, String name, String description, T unit) {
         this.name = Objects.requireNonNull(name);
         this.description = Objects.requireNonNull(description);
         this.unit = Objects.requireNonNull(unit);
         this.instrumentRef = new AtomicReference<>(buildInstrument(meter));
     }
 
-    public MetricName getMetricName() {
-        return name;
-    }
-
     @Override
     public String getName() {
-        return name.getRawName();
+        return name;
     }
 
     public String getUnit() {

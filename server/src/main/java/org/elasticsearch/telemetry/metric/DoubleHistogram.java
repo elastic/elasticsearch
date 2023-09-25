@@ -22,7 +22,7 @@ public interface DoubleHistogram extends Instrument {
     DoubleHistogram NOOP = new DoubleHistogram() {
         @Override
         public String getName() {
-            return MetricName.EMPTY.getRawName();
+            return "noop";
         }
 
         @Override

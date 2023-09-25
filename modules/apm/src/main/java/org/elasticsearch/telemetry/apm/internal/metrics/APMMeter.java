@@ -22,7 +22,6 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.MetricName;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -30,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
-public class APMMeter extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
+public class APMMeter extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Meter {
     private static final Meter NOOP = OpenTelemetry.noop().getMeter("noop");
     private final Instruments instruments = new Instruments(NOOP);
     private volatile boolean enabled;
@@ -72,82 +71,82 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     protected void doClose() {}
 
     @Override
-    public <T> DoubleCounter registerDoubleCounter(MetricName name, String description, T unit) {
+    public <T> DoubleCounter registerDoubleCounter(String name, String description, T unit) {
         return instruments.registerDoubleCounter(name, description, unit);
     }
 
     @Override
-    public DoubleCounter getDoubleCounter(MetricName name) {
+    public DoubleCounter getDoubleCounter(String name) {
         return instruments.getDoubleCounter(name);
     }
 
     @Override
-    public <T> DoubleUpDownCounter registerDoubleUpDownCounter(MetricName name, String description, T unit) {
+    public <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, T unit) {
         return instruments.registerDoubleUpDownCounter(name, description, unit);
     }
 
     @Override
-    public DoubleUpDownCounter getDoubleUpDownCounter(MetricName name) {
+    public DoubleUpDownCounter getDoubleUpDownCounter(String name) {
         return instruments.getDoubleUpDownCounter(name);
     }
 
     @Override
-    public <T> DoubleGauge registerDoubleGauge(MetricName name, String description, T unit) {
+    public <T> DoubleGauge registerDoubleGauge(String name, String description, T unit) {
         return instruments.registerDoubleGauge(name, description, unit);
     }
 
     @Override
-    public DoubleGauge getDoubleGauge(MetricName name) {
+    public DoubleGauge getDoubleGauge(String name) {
         return instruments.getDoubleGauge(name);
     }
 
     @Override
-    public <T> DoubleHistogram registerDoubleHistogram(MetricName name, String description, T unit) {
+    public <T> DoubleHistogram registerDoubleHistogram(String name, String description, T unit) {
         return instruments.registerDoubleHistogram(name, description, unit);
     }
 
     @Override
-    public DoubleHistogram getDoubleHistogram(MetricName name) {
+    public DoubleHistogram getDoubleHistogram(String name) {
         return instruments.getDoubleHistogram(name);
     }
 
     @Override
-    public <T> LongCounter registerLongCounter(MetricName name, String description, T unit) {
+    public <T> LongCounter registerLongCounter(String name, String description, T unit) {
         return instruments.registerLongCounter(name, description, unit);
     }
 
     @Override
-    public LongCounter getLongCounter(MetricName name) {
+    public LongCounter getLongCounter(String name) {
         return instruments.getLongCounter(name);
     }
 
     @Override
-    public <T> LongUpDownCounter registerLongUpDownCounter(MetricName name, String description, T unit) {
+    public <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, T unit) {
         return instruments.registerLongUpDownCounter(name, description, unit);
     }
 
     @Override
-    public LongUpDownCounter getLongUpDownCounter(MetricName name) {
+    public LongUpDownCounter getLongUpDownCounter(String name) {
         return instruments.getLongUpDownCounter(name);
     }
 
     @Override
-    public <T> LongGauge registerLongGauge(MetricName name, String description, T unit) {
+    public <T> LongGauge registerLongGauge(String name, String description, T unit) {
         return instruments.registerLongGauge(name, description, unit);
     }
 
     @Override
-    public LongGauge getLongGauge(MetricName name) {
+    public LongGauge getLongGauge(String name) {
         return instruments.getLongGauge(name);
     }
 
     @Override
-    public <T> LongHistogram registerLongHistogram(MetricName name, String description, T unit) {
+    public <T> LongHistogram registerLongHistogram(String name, String description, T unit) {
         return instruments.registerLongHistogram(name, description, unit);
     }
 
     @Override
-    public LongHistogram getLongHistogram(MetricName name) {
+    public LongHistogram getLongHistogram(String name) {
         return instruments.getLongHistogram(name);
     }
 

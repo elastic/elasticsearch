@@ -12,7 +12,6 @@ import io.opentelemetry.api.metrics.LongHistogram;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.telemetry.metric.MetricName;
 
 import java.util.Map;
 import java.util.Objects;
@@ -21,7 +20,7 @@ public class LongHistogramAdapter<T> extends AbstractInstrument<T, LongHistogram
     implements
         org.elasticsearch.telemetry.metric.LongHistogram {
 
-    public LongHistogramAdapter(Meter meter, MetricName name, String description, T unit) {
+    public LongHistogramAdapter(Meter meter, String name, String description, T unit) {
         super(meter, name, description, unit);
     }
 

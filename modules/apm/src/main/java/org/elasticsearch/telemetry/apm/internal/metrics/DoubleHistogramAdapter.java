@@ -12,7 +12,6 @@ import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.telemetry.metric.MetricName;
 
 import java.util.Map;
 import java.util.Objects;
@@ -21,7 +20,7 @@ public class DoubleHistogramAdapter<T> extends AbstractInstrument<T, DoubleHisto
     implements
         org.elasticsearch.telemetry.metric.DoubleHistogram {
 
-    public DoubleHistogramAdapter(Meter meter, MetricName name, String description, T unit) {
+    public DoubleHistogramAdapter(Meter meter, String name, String description, T unit) {
         super(meter, name, description, unit);
     }
 

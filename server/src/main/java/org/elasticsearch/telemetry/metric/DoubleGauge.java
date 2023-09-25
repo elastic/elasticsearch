@@ -21,7 +21,7 @@ public interface DoubleGauge extends Instrument {
     DoubleGauge NOOP = new DoubleGauge() {
         @Override
         public String getName() {
-            return MetricName.EMPTY.getRawName();
+            return "noop";
         }
 
         @Override

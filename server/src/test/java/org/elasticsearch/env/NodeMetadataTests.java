@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
@@ -111,7 +112,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            startsWith("cannot upgrade a node from version [" + Version.V_EMPTY + "] directly to version [" + Version.CURRENT + "]")
+            startsWith("cannot upgrade a node from version [" + Version.V_EMPTY + "] directly to version [" + Build.current().version() + "]")
         );
     }
 
@@ -122,7 +123,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]"))
+            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Build.current().version() + "]"))
         );
     }
 
@@ -137,7 +138,7 @@ public class NodeMetadataTests extends ESTestCase {
                 startsWith("cannot upgrade a node from version ["),
                 endsWith(
                     "] directly to version ["
-                        + Version.CURRENT
+                        + Build.current().version()
                         + "], upgrade to version ["
                         + Version.CURRENT.minimumCompatibilityVersion()
                         + "] first."

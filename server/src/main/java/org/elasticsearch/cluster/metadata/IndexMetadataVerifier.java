@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -113,10 +113,8 @@ public class IndexMetadataVerifier {
                     + indexMetadata.getCompatibilityVersion()
                     + "] but the minimum compatible version is ["
                     + minimumIndexCompatibilityVersion
-                    + "]. It should be re-indexed in Elasticsearch "
-                    + (Version.CURRENT.major - 1)
-                    + ".x before upgrading to "
-                    + Version.CURRENT
+                    + "]. It should be re-indexed using the previous major version of Elasticsearch before upgrading to "
+                    + Build.current().version()
                     + "."
             );
         }

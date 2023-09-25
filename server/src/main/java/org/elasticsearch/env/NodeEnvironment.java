@@ -20,6 +20,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -313,8 +314,8 @@ public final class NodeEnvironment implements Closeable {
             for (Path dataPath : environment.dataFiles()) {
                 final Path legacyNodesPath = dataPath.resolve("nodes");
                 if (Files.isRegularFile(legacyNodesPath) == false) {
-                    final String content = "written by Elasticsearch v"
-                        + Version.CURRENT
+                    final String content = "written by Elasticsearch "
+                        + Build.current().version()
                         + " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
                     Files.writeString(legacyNodesPath, content);
                     IOUtils.fsync(legacyNodesPath, false);

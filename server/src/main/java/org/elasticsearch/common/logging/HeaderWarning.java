@@ -9,7 +9,6 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 
@@ -88,7 +87,7 @@ public class HeaderWarning {
     private static final String WARNING_PREFIX = String.format(
         Locale.ROOT,
         "299 Elasticsearch-%s%s-%s",
-        Version.CURRENT.toString(),
+        Build.current().version(),
         Build.current().isSnapshot() ? "-SNAPSHOT" : "",
         Build.current().hash()
     );

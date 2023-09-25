@@ -8,26 +8,27 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Concat}.
  * This class is generated. Do not edit it.
  */
 public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final BytesRefBuilder scratch;
+  private final BreakingBytesRefBuilder scratch;
 
   private final EvalOperator.ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
-  public ConcatEvaluator(BytesRefBuilder scratch, EvalOperator.ExpressionEvaluator[] values,
+  public ConcatEvaluator(BreakingBytesRefBuilder scratch, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
     this.scratch = scratch;
     this.values = values;
@@ -98,5 +99,10 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public String toString() {
     return "ConcatEvaluator[" + "values=" + Arrays.toString(values) + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(scratch, () -> Releasables.close(values));
   }
 }

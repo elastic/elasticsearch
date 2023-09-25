@@ -90,6 +90,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -204,7 +205,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -221,7 +222,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 namedWriteableRegistry,
                 expressionResolver,
                 repositoriesServiceSupplier,
-                tracer,
+                telemetryProvider,
                 allocationService,
                 indicesService
             )
@@ -241,7 +242,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     namedWriteableRegistry,
                     expressionResolver,
                     repositoriesServiceSupplier,
-                    tracer,
+                    telemetryProvider,
                     allocationService,
                     indicesService
                 )

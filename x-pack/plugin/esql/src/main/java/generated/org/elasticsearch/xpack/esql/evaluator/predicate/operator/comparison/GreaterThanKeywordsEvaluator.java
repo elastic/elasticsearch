@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link GreaterThan}.
@@ -88,5 +89,10 @@ public final class GreaterThanKeywordsEvaluator implements EvalOperator.Expressi
   @Override
   public String toString() {
     return "GreaterThanKeywordsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(lhs, rhs);
   }
 }

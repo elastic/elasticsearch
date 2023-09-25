@@ -14,6 +14,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -174,7 +176,12 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         }
     }
 
-    record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value) {}
+    record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value) implements Releasable {
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(condition, value);
+        }
+    }
 
     private record CaseEvaluator(ElementType resultType, List<ConditionEvaluator> conditions, EvalOperator.ExpressionEvaluator elseVal)
         implements
@@ -215,6 +222,11 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
                 result.copyFrom(elseVal.eval(limited), 0, 1);
             }
             return result.build();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(() -> Releasables.close(conditions), elseVal);
         }
     }
 }

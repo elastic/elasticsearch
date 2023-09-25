@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link GreaterThanOrEqual}.
@@ -83,5 +84,10 @@ public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.Expre
   @Override
   public String toString() {
     return "GreaterThanOrEqualIntsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(lhs, rhs);
   }
 }

@@ -50,9 +50,9 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
@@ -112,7 +112,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
-        ScriptService scriptService,
+        ScriptCompiler scriptService,
         XContentParserConfiguration parserConfiguration,
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,
@@ -185,7 +185,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
-        ScriptService scriptService,
+        ScriptCompiler scriptService,
         XContentParserConfiguration parserConfig,
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,

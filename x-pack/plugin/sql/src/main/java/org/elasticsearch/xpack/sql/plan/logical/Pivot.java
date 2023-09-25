@@ -45,6 +45,7 @@ public class Pivot extends UnaryPlan {
         this(source, child, column, values, aggregates, null);
     }
 
+    @SuppressWarnings("this-escape")
     public Pivot(
         Source source,
         LogicalPlan child,

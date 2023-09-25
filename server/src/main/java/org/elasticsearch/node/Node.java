@@ -179,7 +179,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.plugins.TracerPlugin;
+import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
@@ -213,6 +213,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -349,6 +350,7 @@ public class Node implements Closeable {
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
+    @SuppressWarnings("this-escape")
     protected Node(
         final Environment initialEnvironment,
         final Function<Settings, PluginsService> pluginServiceCtor,
@@ -456,7 +458,8 @@ public class Node implements Closeable {
                 Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet());
 
-            final Tracer tracer = getTracer(pluginsService, settings);
+            final TelemetryProvider telemetryProvider = getTelemetryProvider(pluginsService, settings);
+            final Tracer tracer = telemetryProvider.getTracer();
 
             final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
@@ -756,7 +759,7 @@ public class Node implements Closeable {
                     namedWriteableRegistry,
                     clusterModule.getIndexNameExpressionResolver(),
                     repositoriesServiceReference::get,
-                    tracer,
+                    telemetryProvider,
                     clusterModule.getAllocationService(),
                     indicesService
                 )
@@ -1287,14 +1290,14 @@ public class Node implements Closeable {
         };
     }
 
-    private Tracer getTracer(PluginsService pluginsService, Settings settings) {
-        final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
+    private TelemetryProvider getTelemetryProvider(PluginsService pluginsService, Settings settings) {
+        final List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
 
-        if (tracerPlugins.size() > 1) {
-            throw new IllegalStateException("A single TracerPlugin was expected but got: " + tracerPlugins);
+        if (telemetryPlugins.size() > 1) {
+            throw new IllegalStateException("A single TelemetryPlugin was expected but got: " + telemetryPlugins);
         }
 
-        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(settings);
+        return telemetryPlugins.isEmpty() ? TelemetryProvider.NOOP : telemetryPlugins.get(0).getTelemetryProvider(settings);
     }
 
     private HealthService createHealthService(

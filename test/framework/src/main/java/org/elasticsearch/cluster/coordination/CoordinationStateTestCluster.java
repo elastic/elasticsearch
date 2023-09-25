@@ -183,6 +183,7 @@ public class CoordinationStateTestCluster {
     final CoordinationMetadata.VotingConfiguration initialConfiguration;
     final long initialValue;
 
+    @SuppressWarnings("this-escape")
     public CoordinationStateTestCluster(List<DiscoveryNode> nodes, ElectionStrategy electionStrategy) {
         this.electionStrategy = electionStrategy;
         messages = new ArrayList<>();

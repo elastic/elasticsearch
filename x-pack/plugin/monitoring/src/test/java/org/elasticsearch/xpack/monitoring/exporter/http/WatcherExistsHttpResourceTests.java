@@ -38,6 +38,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     private final MultiHttpResource mockWatches = mock(MultiHttpResource.class);
 
     private final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, mockWatches);
+    @SuppressWarnings("this-escape")
     private final Map<String, String> expectedParameters = getParameters(resource.getDefaultParameters(), GET_EXISTS, XPACK_DOES_NOT_EXIST);
 
     public void testDoCheckIgnoresClientWhenNotElectedMaster() {

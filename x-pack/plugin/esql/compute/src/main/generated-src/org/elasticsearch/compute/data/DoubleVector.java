@@ -101,8 +101,14 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newVectorBuilder(int estimatedSize) {
-        return new DoubleVectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    }
+
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newDoubleVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder {

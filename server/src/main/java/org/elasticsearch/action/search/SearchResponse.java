@@ -503,8 +503,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             assert remoteClusterIndices.size() > 0 : "At least one remote cluster must be passed into this Cluster constructor";
             this.total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
             assert total >= 1 : "No local indices or remote clusters passed in";
-            this.successful = 0;    // calculated from clusterInfo map for minimize_roundtrips
-            this.skipped = 0;       // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             Map<String, AtomicReference<Cluster>> m = new HashMap<>();
             if (localIndices != null) {
@@ -519,6 +517,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 m.put(clusterAlias, new AtomicReference<>(c));
             }
             this.clusterInfo = Collections.unmodifiableMap(m);
+            this.successful = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL);
+            this.skipped = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SKIPPED);
             this.running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
             this.partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
             this.failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);

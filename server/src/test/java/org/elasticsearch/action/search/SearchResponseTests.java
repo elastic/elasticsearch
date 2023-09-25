@@ -264,7 +264,8 @@ public class SearchResponseTests extends ESTestCase {
             );
             assertTrue(clusterRef.compareAndSet(cluster, update));
         }
-        return clusters;
+        // here a new Cluster object is needed to update counters
+        return new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips, alias -> false);
     }
 
     /**

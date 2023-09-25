@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -161,6 +162,11 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
         @Override
         public String toString() {
             return "CoalesceEvaluator[values=" + evaluators + ']';
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
         }
     }
 }

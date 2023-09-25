@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper;
@@ -138,6 +139,10 @@ public final class EvalMapper {
                     return result.build().asBlock();
                 }
 
+                @Override
+                public void close() {
+                    Releasables.closeExpectNoException(leftEval, rightEval);
+                }
             }
             return driverContext -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
         }
@@ -162,6 +167,9 @@ public final class EvalMapper {
                 public Block eval(Page page) {
                     return page.getBlock(channel);
                 }
+
+                @Override
+                public void close() {}
             }
             int channel = layout.get(attr.id()).channel();
             return driverContext -> new Attribute(channel);
@@ -177,6 +185,9 @@ public final class EvalMapper {
                 public Block eval(Page page) {
                     return block.apply(page.getPositionCount());
                 }
+
+                @Override
+                public void close() {}
             }
             // wrap the closure to provide a nice toString (used by tests)
             var blockClosure = new IntFunction<Block>() {
@@ -234,6 +245,11 @@ public final class EvalMapper {
                 }
                 return new BooleanArrayVector(result, result.length).asBlock();
             }
+
+            @Override
+            public void close() {
+                Releasables.closeExpectNoException(field);
+            }
         }
     }
 
@@ -257,6 +273,11 @@ public final class EvalMapper {
                     result[p] = fieldBlock.isNull(p) == false;
                 }
                 return new BooleanArrayVector(result, result.length).asBlock();
+            }
+
+            @Override
+            public void close() {
+                Releasables.closeExpectNoException(field);
             }
         }
     }

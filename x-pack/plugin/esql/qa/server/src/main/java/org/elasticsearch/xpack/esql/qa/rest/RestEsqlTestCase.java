@@ -348,7 +348,6 @@ public class RestEsqlTestCase extends ESRestTestCase {
             "306783378 week + 1 week",
             "2147483647 month + 1 month",
             "2147483647 year + 1 year",
-            "-(-2147483647 year - 1 year)",
             // We cannot easily force an overflow using just milliseconds, since these are divided by 1000 and then the resulting seconds
             // are stored in a long. But combining with seconds works.
             "9223372036854775807 second + 1000 millisecond",
@@ -362,6 +361,10 @@ public class RestEsqlTestCase extends ESRestTestCase {
             assertDateMathException(overflowExp, "overflow");
         }
 
+    }
+
+    public void testErrorMessageForLiteralDateMathOverflowOnNegation() throws IOException {
+        assertDateMathException("-(-2147483647 year - 1 year)", "overflow");
         assertDateMathException("-(-9223372036854775807 second - 1 second)", "Exceeds capacity of Duration");
     }
 

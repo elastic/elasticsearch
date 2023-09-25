@@ -9,5 +9,4 @@ include::{esql-specs}/docs.csv-spec[tag=limit]
 ----
 
 If not specified, `LIMIT` defaults to `500`. A single query can't return more
-than 10,000 rows, regardless of the `LIMIT` value. {es} ignores `LIMIT` values
-exceeding `10000`.
+than 10,000 rows, regardless of the `LIMIT` value.

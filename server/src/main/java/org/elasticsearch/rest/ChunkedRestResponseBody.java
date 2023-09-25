@@ -15,6 +15,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
@@ -32,7 +33,7 @@ import java.util.Iterator;
  * The body of a rest response that uses chunked HTTP encoding. Implementations are used to avoid materializing full responses on heap and
  * instead serialize only as much of the response as can be flushed to the network right away.
  */
-public interface ChunkedRestResponseBody {
+public interface ChunkedRestResponseBody extends Releasable {
 
     /**
      * @return true once this response has been written fully.
@@ -132,6 +133,9 @@ public interface ChunkedRestResponseBody {
             public String getResponseContentTypeString() {
                 return builder.getResponseContentTypeString();
             }
+
+            @Override
+            public void close() {}
         };
     }
 
@@ -209,6 +213,9 @@ public interface ChunkedRestResponseBody {
             public String getResponseContentTypeString() {
                 return contentType;
             }
+
+            @Override
+            public void close() {}
         };
     }
 }

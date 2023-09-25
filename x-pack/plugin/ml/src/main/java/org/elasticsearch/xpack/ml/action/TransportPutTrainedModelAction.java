@@ -71,7 +71,7 @@ import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPack
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
-import org.elasticsearch.xpack.ml.inference.deployment.MLPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.ml.inference.deployment.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
@@ -257,7 +257,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                             @Override
                             public void onResponse(Set<String> nodesArchitectures) {
                                 try {
-                                    MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
+                                    MlPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
                                         nodesArchitectures,
                                         configToReturn.getPlatformArchitecture(),
                                         configToReturn.getModelId()
@@ -273,7 +273,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                             }
                         };
 
-                        MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architecturesListener);
+                        MlPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architecturesListener);
                     }, listener::onFailure)
                 );
             } else {

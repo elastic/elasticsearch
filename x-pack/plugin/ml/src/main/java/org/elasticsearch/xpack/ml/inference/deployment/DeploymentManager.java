@@ -231,18 +231,18 @@ public class DeploymentManager {
     ) {
         ActionListener<Set<String>> architectureValidationListener = ActionListener.wrap(architectures -> {
             try {
-                MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
+                MlPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
                     architectures,
                     modelPlatformArchitecture,
                     modelId
                 );
             } catch (IllegalArgumentException iae) {
-                MLPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(architectures, modelPlatformArchitecture, modelId);
+                MlPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(architectures, modelPlatformArchitecture, modelId);
                 throw iae;
             }
         }, failedDeploymentListener::onFailure);
 
-        MLPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architectureValidationListener);
+        MlPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architectureValidationListener);
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {

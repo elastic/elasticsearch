@@ -16,6 +16,7 @@ subprojects {
         archiveVersion.set("${versionFromBranch}-SNAPSHOT")
         archiveClassifier.set("darwin-x86_64")
         archiveExtension.set('tar.gz')
+        exclude('build')
     }
 
     tasks.register('extracted', Copy) {

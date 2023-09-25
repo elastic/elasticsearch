@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -144,7 +145,10 @@ public class DriverContextTests extends ESTestCase {
         volatile Thread thread;
 
         AssertingDriverContext() {
-            super(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()));
+            super(
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()),
+                BlockFactory.getNonBreakingInstance()
+            );
         }
 
         @Override

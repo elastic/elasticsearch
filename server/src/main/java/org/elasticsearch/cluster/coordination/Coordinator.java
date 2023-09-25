@@ -189,6 +189,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
      * @param onJoinValidators A collection of join validators to restrict which nodes may join the cluster.
      */
+    @SuppressWarnings("this-escape")
     public Coordinator(
         String nodeName,
         Settings settings,

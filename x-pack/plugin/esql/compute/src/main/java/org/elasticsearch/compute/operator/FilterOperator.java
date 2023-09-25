@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
@@ -78,5 +79,10 @@ public class FilterOperator extends AbstractPageMappingOperator {
     @Override
     public String toString() {
         return "FilterOperator[" + "evaluator=" + evaluator + ']';
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(evaluator);
     }
 }

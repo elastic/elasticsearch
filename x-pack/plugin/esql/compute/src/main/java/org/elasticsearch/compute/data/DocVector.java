@@ -47,7 +47,7 @@ public class DocVector extends AbstractVector implements Vector {
     private int[] shardSegmentDocMapBackwards;
 
     public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
-        super(shards.getPositionCount());
+        super(shards.getPositionCount(), null);
         this.shards = shards;
         this.segments = segments;
         this.docs = docs;

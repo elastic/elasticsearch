@@ -252,6 +252,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
 
+        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             Resolution resolution,

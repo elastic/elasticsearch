@@ -43,7 +43,7 @@ public class TransportClearSearchableSnapshotsCacheAction extends AbstractTransp
             actionFilters,
             indexNameExpressionResolver,
             ClearSearchableSnapshotsCacheRequest::new,
-            ThreadPool.Names.MANAGEMENT,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT),
             indicesService,
             licenseState,
             false

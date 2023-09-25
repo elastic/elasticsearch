@@ -59,6 +59,7 @@ public class HashAggregationOperator implements Operator {
 
     private final List<GroupingAggregator> aggregators;
 
+    @SuppressWarnings("this-escape")
     public HashAggregationOperator(
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,

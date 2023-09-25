@@ -72,15 +72,12 @@ import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
-import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -396,16 +393,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         LeafReaderContext leafReaderContext = mi.createSearcher().getIndexReader().leaves().get(0);
 
         SearchLookup searchLookup = sec.lookup();
-        assertNotNull(searchLookup.getSource(null, 0));
         assertNotNull(searchLookup.getSource(leafReaderContext, 0));
-
-        // Setting the source provider explicitly then gives us a new SearchLookup that can use source
-        Source source1 = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
-        sec.setLookupProviders((ctx, doc) -> source1, LeafFieldLookupProvider.fromStoredFields());
-        SearchLookup searchLookup1 = sec.lookup();
-        assertNotSame(searchLookup, searchLookup1);
-        assertSame(source1, searchLookup1.getSource(null, 0));
-
     }
 
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {

@@ -23,7 +23,7 @@ import java.io.IOException;
 public class SyntheticSourceProvider implements SourceProvider {
 
     private final SourceLoader sourceLoader;
-    private volatile SyntheticSourceLeafLoader[] leaveLoaders;
+    private volatile SyntheticSourceLeafLoader[] leafLoaders;
 
     public SyntheticSourceProvider(Mapping mapping) {
         sourceLoader = new SourceLoader.Synthetic(mapping);
@@ -31,24 +31,20 @@ public class SyntheticSourceProvider implements SourceProvider {
 
     @Override
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
-        if (ctx == null) {
-            return Source.empty(null);
-        }
-
-        MaybeInit(ctx);
-        if (leaveLoaders[ctx.ord] == null) {
+        maybeInit(ctx);
+        if (leafLoaders[ctx.ord] == null) {
             // individual segments are currently only accessed on one thread so there's no need
             // for locking here.
-            leaveLoaders[ctx.ord] = new SyntheticSourceLeafLoader(ctx);
+            leafLoaders[ctx.ord] = new SyntheticSourceLeafLoader(ctx);
         }
-        return leaveLoaders[ctx.ord].getSource(doc);
+        return leafLoaders[ctx.ord].getSource(doc);
     }
 
-    private void MaybeInit(LeafReaderContext ctx) {
-        if (leaveLoaders == null) {
+    private void maybeInit(LeafReaderContext ctx) {
+        if (leafLoaders == null) {
             synchronized (this) {
-                if (leaveLoaders == null) {
-                    leaveLoaders = new SyntheticSourceLeafLoader[findParentContext(ctx).leaves().size()];
+                if (leafLoaders == null) {
+                    leafLoaders = new SyntheticSourceLeafLoader[findParentContext(ctx).leaves().size()];
                 }
             }
         }
@@ -75,6 +71,7 @@ public class SyntheticSourceProvider implements SourceProvider {
         }
 
         Source getSource(int doc) throws IOException {
+            leafLoader.advanceTo(doc);
             return leaf.source(leafLoader, doc);
         }
     }

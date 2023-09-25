@@ -8,19 +8,34 @@
 
 package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-
 import java.util.Map;
 
+/**
+ * A monotonically increasing metric that uses a double.
+ * Useful for capturing the number of bytes received, number of requests, etc.
+ */
 public interface DoubleCounter extends Instrument {
+    /**
+     * Add one to the current counter.
+     */
     void increment();
 
+    /**
+     * Increment the counter.
+     * @param inc amount to increment, non-negative
+     */
     void incrementBy(double inc);
 
+    /**
+     * Increment the counter.
+     * @param inc amount to increment, non-negative
+     * @param attributes key-value pairs to associate with this increment
+     */
     void incrementBy(double inc, Map<String, Object> attributes);
 
-    void incrementBy(double inc, Map<String, Object> attributes, ThreadContext threadContext);
-
+    /**
+     * Noop counter for use in tests.
+     */
     DoubleCounter NOOP = new DoubleCounter() {
         @Override
         public String getName() {
@@ -39,11 +54,6 @@ public interface DoubleCounter extends Instrument {
 
         @Override
         public void incrementBy(double inc, Map<String, Object> attributes) {
-
-        }
-
-        @Override
-        public void incrementBy(double inc, Map<String, Object> attributes, ThreadContext threadContext) {
 
         }
     };

@@ -8,24 +8,24 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.LongUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
-
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class LongUpDownCounterAdapter<T> extends AbstractInstrument<T, LongUpDownCounter>
+/**
+ * LongUpDownCounterAdapter wraps an otel LongUpDownCounter
+ */
+public class LongUpDownCounterAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.LongUpDownCounter>
     implements
         org.elasticsearch.telemetry.metric.LongUpDownCounter {
 
-    public LongUpDownCounterAdapter(Meter meter, String name, String description, T unit) {
+    public LongUpDownCounterAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
     }
 
     @Override
-    LongUpDownCounter buildInstrument(Meter meter) {
+    io.opentelemetry.api.metrics.LongUpDownCounter buildInstrument(Meter meter) {
         var builder = Objects.requireNonNull(meter).upDownCounterBuilder(getName());
         return builder.setDescription(getDescription()).setUnit(getUnit()).build();
     }
@@ -38,10 +38,5 @@ public class LongUpDownCounterAdapter<T> extends AbstractInstrument<T, LongUpDow
     @Override
     public void add(long inc, Map<String, Object> attributes) {
         getInstrument().add(inc, OtelHelper.fromMap(attributes));
-    }
-
-    @Override
-    public void add(long inc, Map<String, Object> attributes, ThreadContext threadContext) {
-        throw new UnsupportedOperationException("unimplemented");
     }
 }

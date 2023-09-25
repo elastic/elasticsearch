@@ -8,24 +8,24 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.Meter;
-
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class DoubleHistogramAdapter<T> extends AbstractInstrument<T, DoubleHistogram>
+/**
+ * DoubleHistogramAdapter wraps an otel DoubleHistogram
+ */
+public class DoubleHistogramAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.DoubleHistogram>
     implements
         org.elasticsearch.telemetry.metric.DoubleHistogram {
 
-    public DoubleHistogramAdapter(Meter meter, String name, String description, T unit) {
+    public DoubleHistogramAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
     }
 
     @Override
-    DoubleHistogram buildInstrument(Meter meter) {
+    io.opentelemetry.api.metrics.DoubleHistogram buildInstrument(Meter meter) {
         var builder = Objects.requireNonNull(meter).histogramBuilder(getName());
         return builder.setDescription(getDescription()).setUnit(getUnit()).build();
     }
@@ -38,10 +38,5 @@ public class DoubleHistogramAdapter<T> extends AbstractInstrument<T, DoubleHisto
     @Override
     public void record(double value, Map<String, Object> attributes) {
         getInstrument().record(value, OtelHelper.fromMap(attributes));
-    }
-
-    @Override
-    public void record(double value, Map<String, Object> attributes, ThreadContext threadContext) {
-        throw new UnsupportedOperationException("unimplemented");
     }
 }

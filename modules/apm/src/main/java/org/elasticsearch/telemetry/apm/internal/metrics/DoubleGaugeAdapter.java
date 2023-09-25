@@ -9,21 +9,23 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class DoubleGaugeAdapter<T> extends AbstractInstrument<T, ObservableDoubleMeasurement>
+/**
+ * DoubleGaugeAdapter wraps an otel ObservableDoubleMeasurement
+ */
+public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableDoubleMeasurement>
     implements
         org.elasticsearch.telemetry.metric.DoubleGauge {
 
-    public DoubleGaugeAdapter(Meter meter, String name, String description, T unit) {
+    public DoubleGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
     }
 
     @Override
-    ObservableDoubleMeasurement buildInstrument(Meter meter) {
+    io.opentelemetry.api.metrics.ObservableDoubleMeasurement buildInstrument(Meter meter) {
         var builder = Objects.requireNonNull(meter).gaugeBuilder(getName());
         return builder.setDescription(getDescription()).setUnit(getUnit()).buildObserver();
     }

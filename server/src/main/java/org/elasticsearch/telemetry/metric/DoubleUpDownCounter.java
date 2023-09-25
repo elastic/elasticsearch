@@ -8,18 +8,29 @@
 
 package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-
 import java.util.Map;
 
+/**
+ * A counter that supports decreasing and increasing values.
+ * Useful for capturing the number of requests in a queue.
+ */
 public interface DoubleUpDownCounter extends Instrument {
-    // inc may be negative
+    /**
+     * Add to the counter
+     * @param inc may be negative.
+     */
     void add(double inc);
 
+    /**
+     * Add to the counter
+     * @param inc may be negative.
+     * @param attributes key-value pairs to associate with this increment
+     */
     void add(double inc, Map<String, Object> attributes);
 
-    void add(double inc, Map<String, Object> attributes, ThreadContext threadContext);
-
+    /**
+     * Noop counter for use in tests
+     */
     DoubleUpDownCounter NOOP = new DoubleUpDownCounter() {
         @Override
         public String getName() {
@@ -33,11 +44,6 @@ public interface DoubleUpDownCounter extends Instrument {
 
         @Override
         public void add(double inc, Map<String, Object> attributes) {
-
-        }
-
-        @Override
-        public void add(double inc, Map<String, Object> attributes, ThreadContext threadContext) {
 
         }
     };

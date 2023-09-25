@@ -9,21 +9,23 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class LongGaugeAdapter<T> extends AbstractInstrument<T, ObservableLongMeasurement>
+/**
+ * LongGaugeAdapter wraps an otel ObservableLongMeasurement
+ */
+public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableLongMeasurement>
     implements
         org.elasticsearch.telemetry.metric.LongGauge {
 
-    public LongGaugeAdapter(Meter meter, String name, String description, T unit) {
+    public LongGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
     }
 
     @Override
-    ObservableLongMeasurement buildInstrument(Meter meter) {
+    io.opentelemetry.api.metrics.ObservableLongMeasurement buildInstrument(Meter meter) {
         return Objects.requireNonNull(meter)
             .gaugeBuilder(getName())
             .ofLongs()

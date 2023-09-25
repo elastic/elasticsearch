@@ -8,17 +8,27 @@
 
 package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-
 import java.util.Map;
 
+/**
+ * Record arbitrary values that are summarized statistically, useful for percentiles and histograms.
+ */
 public interface LongHistogram extends Instrument {
+    /**
+     * Record a sample for the measured item
+     * @param value
+     */
     void record(long value);
 
+    /**
+     * Record a sample for the measured item
+     * @param attributes key-value pairs to associate with the current sample
+     */
     void record(long value, Map<String, Object> attributes);
 
-    void record(long value, Map<String, Object> attributes, ThreadContext threadContext);
-
+    /**
+     * Noop histogram for tests
+     */
     LongHistogram NOOP = new LongHistogram() {
         @Override
         public String getName() {
@@ -32,11 +42,6 @@ public interface LongHistogram extends Instrument {
 
         @Override
         public void record(long value, Map<String, Object> attributes) {
-
-        }
-
-        @Override
-        public void record(long value, Map<String, Object> attributes, ThreadContext threadContext) {
 
         }
     };

@@ -16,17 +16,23 @@ import org.elasticsearch.telemetry.metric.Instrument;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-public abstract class AbstractInstrument<T, I> implements Instrument {
-    private final AtomicReference<I> instrumentRef;
+/**
+ * An instrument that contains the name, description and unit.  The delegate may be replaced when
+ * the provider is updated.
+ * Subclasses should implement the builder, which is used on initialization and provider updates.
+ * @param <T> delegated instrument
+ */
+public abstract class AbstractInstrument<T> implements Instrument {
+    private final AtomicReference<T> delegate;
     private final String name;
     private final String description;
-    private final T unit;
+    private final String unit;
 
-    public AbstractInstrument(Meter meter, String name, String description, T unit) {
+    public AbstractInstrument(Meter meter, String name, String description, String unit) {
         this.name = Objects.requireNonNull(name);
         this.description = Objects.requireNonNull(description);
         this.unit = Objects.requireNonNull(unit);
-        this.instrumentRef = new AtomicReference<>(buildInstrument(meter));
+        this.delegate = new AtomicReference<>(buildInstrument(meter));
     }
 
     @Override
@@ -38,8 +44,8 @@ public abstract class AbstractInstrument<T, I> implements Instrument {
         return unit.toString();
     }
 
-    I getInstrument() {
-        return instrumentRef.get();
+    T getInstrument() {
+        return delegate.get();
     }
 
     String getDescription() {
@@ -47,8 +53,8 @@ public abstract class AbstractInstrument<T, I> implements Instrument {
     }
 
     void setProvider(@Nullable Meter meter) {
-        instrumentRef.set(buildInstrument(Objects.requireNonNull(meter)));
+        delegate.set(buildInstrument(Objects.requireNonNull(meter)));
     }
 
-    abstract I buildInstrument(Meter meter);
+    abstract T buildInstrument(Meter meter);
 }

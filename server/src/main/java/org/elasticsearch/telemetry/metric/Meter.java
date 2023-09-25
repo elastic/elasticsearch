@@ -9,41 +9,41 @@
 package org.elasticsearch.telemetry.metric;
 
 public interface Meter {
-    <T> DoubleCounter registerDoubleCounter(String name, String description, T unit);
+    <T> DoubleCounter registerDoubleCounter(String name, String description, String unit);
 
     DoubleCounter getDoubleCounter(String name);
 
-    <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, T unit);
+    <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit);
 
     DoubleUpDownCounter getDoubleUpDownCounter(String name);
 
-    <T> DoubleGauge registerDoubleGauge(String name, String description, T unit);
+    <T> DoubleGauge registerDoubleGauge(String name, String description, String unit);
 
     DoubleGauge getDoubleGauge(String name);
 
-    <T> DoubleHistogram registerDoubleHistogram(String name, String description, T unit);
+    <T> DoubleHistogram registerDoubleHistogram(String name, String description, String unit);
 
     DoubleHistogram getDoubleHistogram(String name);
 
-    <T> LongCounter registerLongCounter(String name, String description, T unit);
+    <T> LongCounter registerLongCounter(String name, String description, String unit);
 
     LongCounter getLongCounter(String name);
 
-    <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, T unit);
+    <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit);
 
     LongUpDownCounter getLongUpDownCounter(String name);
 
-    <T> LongGauge registerLongGauge(String name, String description, T unit);
+    <T> LongGauge registerLongGauge(String name, String description, String unit);
 
     LongGauge getLongGauge(String name);
 
-    <T> LongHistogram registerLongHistogram(String name, String description, T unit);
+    <T> LongHistogram registerLongHistogram(String name, String description, String unit);
 
     LongHistogram getLongHistogram(String name);
 
     Meter NOOP = new Meter() {
         @Override
-        public <T> DoubleCounter registerDoubleCounter(String name, String description, T unit) {
+        public <T> DoubleCounter registerDoubleCounter(String name, String description, String unit) {
             return DoubleCounter.NOOP;
         }
 
@@ -52,7 +52,7 @@ public interface Meter {
             return DoubleCounter.NOOP;
         }
 
-        public <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, T unit) {
+        public <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
             return DoubleUpDownCounter.NOOP;
         }
 
@@ -62,7 +62,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> DoubleGauge registerDoubleGauge(String name, String description, T unit) {
+        public <T> DoubleGauge registerDoubleGauge(String name, String description, String unit) {
             return DoubleGauge.NOOP;
         }
 
@@ -72,7 +72,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> DoubleHistogram registerDoubleHistogram(String name, String description, T unit) {
+        public <T> DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
             return DoubleHistogram.NOOP;
         }
 
@@ -82,7 +82,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> LongCounter registerLongCounter(String name, String description, T unit) {
+        public <T> LongCounter registerLongCounter(String name, String description, String unit) {
             return LongCounter.NOOP;
         }
 
@@ -92,7 +92,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, T unit) {
+        public <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
             return LongUpDownCounter.NOOP;
         }
 
@@ -102,7 +102,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> LongGauge registerLongGauge(String name, String description, T unit) {
+        public <T> LongGauge registerLongGauge(String name, String description, String unit) {
             return LongGauge.NOOP;
         }
 
@@ -112,7 +112,7 @@ public interface Meter {
         }
 
         @Override
-        public <T> LongHistogram registerLongHistogram(String name, String description, T unit) {
+        public <T> LongHistogram registerLongHistogram(String name, String description, String unit) {
             return LongHistogram.NOOP;
         }
 

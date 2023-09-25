@@ -8,17 +8,29 @@
 
 package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-
 import java.util.Map;
 
+/**
+ * A counter that supports decreasing and increasing values.
+ * Useful for capturing the number of requests in a queue.
+ */
 public interface LongUpDownCounter extends Instrument {
+    /**
+     * Add to the counter
+     * @param inc may be negative.
+     */
     void add(long inc);
 
+    /**
+     * Add to the counter
+     * @param inc may be negative.
+     * @param attributes key-value pairs to associate with this increment
+     */
     void add(long inc, Map<String, Object> attributes);
 
-    void add(long inc, Map<String, Object> attributes, ThreadContext threadContext);
-
+    /**
+     * Noop counter for use in tests
+     */
     LongUpDownCounter NOOP = new LongUpDownCounter() {
         @Override
         public String getName() {
@@ -32,11 +44,6 @@ public interface LongUpDownCounter extends Instrument {
 
         @Override
         public void add(long inc, Map<String, Object> attributes) {
-
-        }
-
-        @Override
-        public void add(long inc, Map<String, Object> attributes, ThreadContext threadContext) {
 
         }
     };

@@ -8,19 +8,34 @@
 
 package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-
 import java.util.Map;
 
+/**
+ * A monotonically increasing metric that uses a long.  Useful for integral values such as the number of bytes received,
+ * number of requests, etc.
+ */
 public interface LongCounter extends Instrument {
+    /**
+     * Add one to the current counter
+     */
     void increment();
 
+    /**
+     * Increment the counter
+     * @param inc amount to increment
+     */
     void incrementBy(long inc);
 
+    /**
+     * Increment the counter.
+     * @param inc amount to increment
+     * @param attributes key-value pairs to associate with this increment
+     */
     void incrementBy(long inc, Map<String, Object> attributes);
 
-    void incrementBy(double inc, Map<String, Object> attributes, ThreadContext threadContext);
-
+    /**
+     * Noop counter for use in tests.
+     */
     LongCounter NOOP = new LongCounter() {
         @Override
         public String getName() {
@@ -39,11 +54,6 @@ public interface LongCounter extends Instrument {
 
         @Override
         public void incrementBy(long inc, Map<String, Object> attributes) {
-
-        }
-
-        @Override
-        public void incrementBy(double inc, Map<String, Object> attributes, ThreadContext threadContext) {
 
         }
     };

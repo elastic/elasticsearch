@@ -8,24 +8,24 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.LongHistogram;
 import io.opentelemetry.api.metrics.Meter;
-
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class LongHistogramAdapter<T> extends AbstractInstrument<T, LongHistogram>
+/**
+ * LongHistogramAdapter wraps an otel LongHistogram
+ */
+public class LongHistogramAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.LongHistogram>
     implements
         org.elasticsearch.telemetry.metric.LongHistogram {
 
-    public LongHistogramAdapter(Meter meter, String name, String description, T unit) {
+    public LongHistogramAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
     }
 
     @Override
-    LongHistogram buildInstrument(Meter meter) {
+    io.opentelemetry.api.metrics.LongHistogram buildInstrument(Meter meter) {
         return Objects.requireNonNull(meter)
             .histogramBuilder(getName())
             .ofLongs()
@@ -42,10 +42,5 @@ public class LongHistogramAdapter<T> extends AbstractInstrument<T, LongHistogram
     @Override
     public void record(long value, Map<String, Object> attributes) {
         getInstrument().record(value, OtelHelper.fromMap(attributes));
-    }
-
-    @Override
-    public void record(long value, Map<String, Object> attributes, ThreadContext threadContext) {
-        throw new UnsupportedOperationException("unimplemented");
     }
 }

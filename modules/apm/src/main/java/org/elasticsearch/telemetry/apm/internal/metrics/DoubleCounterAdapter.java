@@ -8,23 +8,23 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.Meter;
-
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class DoubleCounterAdapter<T> extends AbstractInstrument<T, DoubleCounter>
+/**
+ * DoubleGaugeAdapter wraps an otel ObservableDoubleMeasurement
+ */
+public class DoubleCounterAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.DoubleCounter>
     implements
         org.elasticsearch.telemetry.metric.DoubleCounter {
 
-    public DoubleCounterAdapter(Meter meter, String name, String description, T unit) {
+    public DoubleCounterAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
     }
 
-    DoubleCounter buildInstrument(Meter meter) {
+    io.opentelemetry.api.metrics.DoubleCounter buildInstrument(Meter meter) {
         return Objects.requireNonNull(meter)
             .counterBuilder(getName())
             .ofDoubles()
@@ -48,10 +48,5 @@ public class DoubleCounterAdapter<T> extends AbstractInstrument<T, DoubleCounter
     public void incrementBy(double inc, Map<String, Object> attributes) {
         assert inc >= 0;
         getInstrument().add(inc, OtelHelper.fromMap(attributes));
-    }
-
-    @Override
-    public void incrementBy(double inc, Map<String, Object> attributes, ThreadContext threadContext) {
-        throw new UnsupportedOperationException("unimplemented");
     }
 }

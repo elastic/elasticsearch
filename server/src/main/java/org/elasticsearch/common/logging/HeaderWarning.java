@@ -46,44 +46,42 @@ public class HeaderWarning {
         : getPatternWithoutSemanticVersion();
 
     private static Pattern getPatternWithSemanticVersion() {
-        return
-            Pattern.compile("299 " + // log level code
-                    "Elasticsearch-" + // warn agent
-                    semanticVersionPattern + "-" + // warn agent: semantic version
-                    "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
-                    // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
-                    "\"(?<quotedStringValue>.*)\"( " +
-                    // quoted RFC 1123 date format
-                    "\"" + // opening quote
-                    "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
-                    "\\d{2} " + // 2-digit day
-                    "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
-                    "\\d{4} " + // 4-digit year
-                    "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
-                    "GMT" + // GMT
-                    "\")?",// closing quote (optional, since an older version can still send a warn-date)
-                Pattern.DOTALL
-            ); // in order to parse new line inside the qdText
+        return Pattern.compile("299 " + // log level code
+            "Elasticsearch-" + // warn agent
+            semanticVersionPattern + "-" + // warn agent: semantic version
+            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+            // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
+            "\"(?<quotedStringValue>.*)\"( " +
+            // quoted RFC 1123 date format
+            "\"" + // opening quote
+            "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+            "\\d{2} " + // 2-digit day
+            "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+            "\\d{4} " + // 4-digit year
+            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+            "GMT" + // GMT
+            "\")?",// closing quote (optional, since an older version can still send a warn-date)
+            Pattern.DOTALL
+        ); // in order to parse new line inside the qdText
     }
 
     private static Pattern getPatternWithoutSemanticVersion() {
-        return
-            Pattern.compile("299 " + // log level code
-                    "Elasticsearch-" + // warn agent
-                    "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
-                    // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
-                    "\"(?<quotedStringValue>.*)\"( " +
-                    // quoted RFC 1123 date format
-                    "\"" + // opening quote
-                    "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
-                    "\\d{2} " + // 2-digit day
-                    "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
-                    "\\d{4} " + // 4-digit year
-                    "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
-                    "GMT" + // GMT
-                    "\")?",// closing quote (optional, since an older version can still send a warn-date)
-                Pattern.DOTALL
-            ); // in order to parse new line inside the qdText
+        return Pattern.compile("299 " + // log level code
+            "Elasticsearch-" + // warn agent
+            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash
+            // quoted warning value, captured. Do not add more greedy qualifiers later to avoid excessive backtracking
+            "\"(?<quotedStringValue>.*)\"( " +
+            // quoted RFC 1123 date format
+            "\"" + // opening quote
+            "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+            "\\d{2} " + // 2-digit day
+            "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+            "\\d{4} " + // 4-digit year
+            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+            "GMT" + // GMT
+            "\")?",// closing quote (optional, since an older version can still send a warn-date)
+            Pattern.DOTALL
+        ); // in order to parse new line inside the qdText
     }
 
     /**

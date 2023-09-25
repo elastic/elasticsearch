@@ -8,8 +8,10 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -262,6 +264,9 @@ public class EvalBenchmark {
     }
 
     static DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE);
+        return new DriverContext(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE)
+        );
     }
 }

@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -118,6 +119,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "test",
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
+            BlockFactory.getGlobalInstance(),
             config(),
             null,
             null,

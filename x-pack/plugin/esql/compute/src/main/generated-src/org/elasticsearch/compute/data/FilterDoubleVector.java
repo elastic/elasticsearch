@@ -21,7 +21,7 @@ public final class FilterDoubleVector extends AbstractFilterVector implements Do
     private final DoubleVector vector;
 
     FilterDoubleVector(DoubleVector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
     }
 
@@ -88,6 +88,11 @@ public final class FilterDoubleVector extends AbstractFilterVector implements Do
             }
             sb.append(getDouble(i));
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 
     @Override

@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
 import java.util.Arrays;
@@ -23,23 +24,25 @@ $endif$
 final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Block.Builder {
 
 $if(BytesRef)$
-    private static final BytesRef NULL_VALUE = new BytesRef();
-
     private BytesRefArray values;
 
-    BytesRefBlockBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 
-    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
 $else$
     private $type$[] values;
 
-    $Type$BlockBuilder(int estimatedSize) {
-        values = new $type$[Math.max(estimatedSize, 2)];
+    $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
+        values = new $type$[initialSize];
     }
 $endif$
 
@@ -55,6 +58,11 @@ $endif$
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return $if(BytesRef)$-1$else$$BYTES$$endif$;
     }
 
     @Override
@@ -96,7 +104,7 @@ $endif$
 $if(BytesRef)$
     @Override
     protected void writeNullValue() {
-        values.append(NULL_VALUE);
+        values.append(BytesRefBlock.NULL_VALUE);
     }
 $endif$
 
@@ -237,22 +245,28 @@ $endif$
     @Override
     public $Type$Block build() {
         finish();
+        $Type$Block block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
 $if(BytesRef)$
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
+            block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            Releasables.closeExpectNoException(values);
         } else {
+            estimatedBytes += values.ramBytesUsed();
 $else$
-            return new Constant$Type$Vector(values[0], 1).asBlock();
+            block = new Constant$Type$Vector(values[0], 1, blockFactory).asBlock();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
 $endif$
             if (isDense() && singleValued()) {
-                return new $Type$ArrayVector(values, positionCount).asBlock();
+                block = new $Type$ArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                return new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                block = new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }
+        // update the breaker with the actual bytes used.
+        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
+        return block;
     }
 }

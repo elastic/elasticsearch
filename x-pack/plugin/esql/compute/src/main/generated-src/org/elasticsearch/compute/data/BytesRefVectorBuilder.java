@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block build of BytesRefBlocks.
@@ -19,11 +20,12 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
 
     private BytesRefArray values;
 
-    BytesRefVectorBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 
-    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
@@ -33,6 +35,11 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
         values.append(value);
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return -1;
     }
 
     @Override
@@ -47,9 +54,16 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
 
     @Override
     public BytesRefVector build() {
+        BytesRefVector vector;
         if (valueCount == 1) {
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1);
+            vector = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory);
+            Releasables.closeExpectNoException(values);
+        } else {
+            estimatedBytes = values.ramBytesUsed();
+            vector = new BytesRefArrayVector(values, valueCount, blockFactory);
         }
-        return new BytesRefArrayVector(values, valueCount);
+        // update the breaker with the actual bytes used.
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        return vector;
     }
 }

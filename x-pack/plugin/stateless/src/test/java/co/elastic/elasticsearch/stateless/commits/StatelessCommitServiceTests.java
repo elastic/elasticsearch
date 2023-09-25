@@ -70,7 +70,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -415,7 +414,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             uploadedBlobs.clear();
 
-            Tuple<StatelessCompoundCommit, Set<BlobFile>> indexingShardState = ObjectStoreService.readIndexingShardState(
+            var indexingShardState = ObjectStoreService.readIndexingShardState(
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
                 primaryTerm
             );
@@ -958,7 +957,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 );
             }
 
-            Tuple<StatelessCompoundCommit, Set<BlobFile>> indexingShardState = ObjectStoreService.readIndexingShardState(
+            var indexingShardState = ObjectStoreService.readIndexingShardState(
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
                 primaryTerm
             );
@@ -1045,7 +1044,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             testHarness.commitService.unregister(testHarness.shardId);
 
-            Tuple<StatelessCompoundCommit, Set<BlobFile>> indexingShardState = ObjectStoreService.readIndexingShardState(
+            var indexingShardState = ObjectStoreService.readIndexingShardState(
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
                 primaryTerm
             );

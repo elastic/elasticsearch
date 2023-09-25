@@ -168,6 +168,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markRecoveredCommit(ShardId shardId, StatelessCompoundCommit recoveredCommit, Set<BlobFile> unreferencedFiles) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         assert recoveredCommit != null;
+        assert recoveredCommit.shardId().equals(shardId) : recoveredCommit.shardId() + " vs " + shardId;
         commitState.markCommitRecovered(recoveredCommit, unreferencedFiles);
     }
 
@@ -582,12 +583,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void markCommitRecovered(StatelessCompoundCommit recoveredCommit, Set<BlobFile> nonRecoveredBlobs) {
             assert recoveredCommit != null;
+            assert nonRecoveredBlobs != null;
             assert blobReferences.isEmpty() : blobReferences;
             assert blobLocations.isEmpty() : blobLocations;
 
             Map<PrimaryTermAndGeneration, Map<String, BlobLocation>> referencedBlobs = new HashMap<>();
+            final var recoveredInternalFiles = recoveredCommit.getInternalFiles();
             for (Map.Entry<String, BlobLocation> referencedBlob : recoveredCommit.commitFiles().entrySet()) {
-                if (recoveredCommit.getInternalFiles().contains(referencedBlob.getKey()) == false) {
+                if (recoveredInternalFiles.contains(referencedBlob.getKey()) == false) {
                     referencedBlobs.computeIfAbsent(
                         new PrimaryTermAndGeneration(
                             referencedBlob.getValue().primaryTerm(),
@@ -680,7 +683,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             recoveredPrimaryTerm = recoveredCommit.primaryTerm();
             recoveredGeneration = recoveredCommit.generation();
-
+            assert assertRecoveredCommitFilesHaveBlobLocations(Map.copyOf(recoveredCommit.commitFiles()), Map.copyOf(blobLocations));
             handleUploadedCommit(recoveredCommit);
         }
 
@@ -1281,5 +1284,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private void waitForClusterStateProcessed(long clusterStateVersion, Runnable whenDone) {
         waitForClusterStateVersion.waitUntilVersion(clusterStateVersion, () -> threadPool.generic().execute(whenDone));
+    }
+
+    private static boolean assertRecoveredCommitFilesHaveBlobLocations(
+        Map<String, BlobLocation> recoveredCommitFiles,
+        Map<String, CommitAndBlobLocation> blobLocations
+    ) {
+        for (var commitFile : recoveredCommitFiles.entrySet()) {
+            var commitFileName = commitFile.getKey();
+            assert blobLocations.containsKey(commitFileName)
+                : "Missing blob location for file ["
+                    + commitFile
+                    + "] referenced at location ["
+                    + commitFile.getValue()
+                    + "] in recovered commit";
+        }
+        return true;
     }
 }

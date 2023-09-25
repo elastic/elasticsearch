@@ -29,6 +29,7 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
 
     private final HistogramValuesSource.Histogram valuesSource;
 
+    @SuppressWarnings("this-escape")
     public HistoBackedHistogramAggregator(
         String name,
         AggregatorFactories factories,

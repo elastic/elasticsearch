@@ -154,6 +154,7 @@ public class SystemIndices {
      *                                These features come from plugins and modules. Non-plugin system
      *                                features such as Tasks will be added automatically.
      */
+    @SuppressWarnings("this-escape")
     public SystemIndices(List<Feature> pluginAndModuleFeatures) {
         featureDescriptors = buildFeatureMap(pluginAndModuleFeatures);
         indexDescriptors = featureDescriptors.values()

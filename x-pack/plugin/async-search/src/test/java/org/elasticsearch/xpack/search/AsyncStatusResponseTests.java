@@ -46,7 +46,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         }
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
-            case 2 -> new SearchResponse.Clusters(1, 1, 0, 0, 0, 0);
+            case 2 -> new SearchResponse.Clusters(1, 1, 0);
             case 3 -> AsyncSearchResponseTests.createCCSClusterObjects(4, 3, true);
             default -> null;  // case 0
         };
@@ -79,7 +79,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         RestStatus completionStatus = isRunning ? null : randomBoolean() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         SearchResponse.Clusters clusters = switch (randomIntBetween(0, 3)) {
             case 1 -> SearchResponse.Clusters.EMPTY;
-            case 2 -> new SearchResponse.Clusters(1, 1, 0, 0, 0, 0);
+            case 2 -> new SearchResponse.Clusters(1, 1, 0);
             case 3 -> AsyncSearchResponseTests.createCCSClusterObjects(4, 3, true); // new SearchResponse.Clusters(4, 1, 0, 3, true);
             default -> null;  // case 0
         };
@@ -317,7 +317,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
-        SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 99, 1, 0, 0, 0);
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(100, 99, 1);
         SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             null,
@@ -381,7 +381,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             totalClusters = 1;
             successfulClusters = 1;
             skippedClusters = 0;
-            clusters = new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, 0, 0, 0);
+            clusters = new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
         } else {
             // CCS search
             totalClusters = 80;

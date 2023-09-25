@@ -172,7 +172,7 @@ public class SearchResponseTests extends ESTestCase {
             int totalClusters = 1;
             int successfulClusters = randomIntBetween(0, totalClusters);
             int skippedClusters = totalClusters - successfulClusters;
-            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters, 0, 0, 0);
+            return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
         }
     }
 
@@ -415,7 +415,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2, 0, 0, 0)
+                new SearchResponse.Clusters(5, 3, 2)
             );
             String expectedString = XContentHelper.stripWhitespace("""
                 {
@@ -637,12 +637,12 @@ public class SearchResponseTests extends ESTestCase {
     public void testClustersHasRemoteCluster() {
         // local cluster search Clusters objects
         assertFalse(SearchResponse.Clusters.EMPTY.hasRemoteClusters());
-        assertFalse(new SearchResponse.Clusters(1, 1, 0, 0, 0, 0).hasRemoteClusters());
+        assertFalse(new SearchResponse.Clusters(1, 1, 0).hasRemoteClusters());
 
         // CCS search Cluster objects
 
         // TODO: this variant of Clusters should not be allowed in a future ticket, but adding to test for now
-        assertTrue(new SearchResponse.Clusters(3, 2, 1, 0, 0, 0).hasRemoteClusters());
+        assertTrue(new SearchResponse.Clusters(3, 2, 1).hasRemoteClusters());
         {
             Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
             remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));

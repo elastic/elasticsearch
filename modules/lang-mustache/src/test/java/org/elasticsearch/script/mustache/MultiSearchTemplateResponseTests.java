@@ -58,29 +58,10 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     }
 
     private static SearchResponse.Clusters randomClusters() {
-        int totalClusters = randomIntBetween(30, 50);
-        int sum = 0;
-
-        int successfulClusters = randomIntBetween(1, 5);
-        sum += successfulClusters;
-        int skippedClusters = randomIntBetween(1, 5);
-        sum += skippedClusters;
-        int runningClusters = randomIntBetween(1, 5);
-        sum += runningClusters;
-        int partialClusters = randomIntBetween(1, 5);
-        sum += partialClusters;
-        int failedClusters = totalClusters - (runningClusters + successfulClusters + partialClusters + skippedClusters);
-        sum += failedClusters;
-        assert sum == totalClusters;
-        assert sum == (runningClusters + successfulClusters + partialClusters + skippedClusters + failedClusters);
-        return new SearchResponse.Clusters(
-            totalClusters,
-            successfulClusters,
-            skippedClusters,
-            runningClusters,
-            partialClusters,
-            failedClusters
-        );
+        int totalClusters = randomIntBetween(0, 10);
+        int successfulClusters = randomIntBetween(0, totalClusters);
+        int skippedClusters = totalClusters - successfulClusters;
+        return new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters);
     }
 
     private static MultiSearchTemplateResponse createTestInstanceWithFailures() {

@@ -457,7 +457,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     public static class Clusters implements ToXContentFragment, Writeable {
 
-        public static final Clusters EMPTY = new Clusters(0, 0, 0, 0, 0, 0);
+        public static final Clusters EMPTY = new Clusters(0, 0, 0);
 
         static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
         static final ParseField TOTAL_FIELD = new ParseField("total");
@@ -530,33 +530,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @param total total number of clusters in the search
          * @param successful number of successful clusters in the search
          * @param skipped number of skipped clusters (skipped can only happen for remote clusters with skip_unavailable=true)
-         * @param running number of running clusters in the search
-         * @param partial number of partial response from clusters in the search
-         * @param failed number of failed clusters
          */
-        public Clusters(int total, int successful, int skipped, int running, int partial, int failed) {
-            assert total >= 0 && running >= 0 && successful >= 0 && partial >= 0 && skipped >= 0 && failed >= 0;
+        public Clusters(int total, int successful, int skipped) {
+            // TODO: change assert to total == 1 or total = 0 - this should probably only be used for local searches now
             assert total >= 0 && successful >= 0 && skipped >= 0 && successful <= total
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-            assert 0 == total - (running + successful + partial + skipped + failed)
-                : "total: "
-                    + total
-                    + "successful: "
-                    + successful
-                    + " skipped: "
-                    + skipped
-                    + " running: "
-                    + running
-                    + " partial: "
-                    + partial
-                    + " failed: "
-                    + failed;
+            assert skipped == total - successful : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
-            this.running = running;
-            this.partial = partial;
-            this.failed = failed;
+            this.running = 0;
+            this.partial = 0;
+            this.failed = 0;
             this.ccsMinimizeRoundtrips = false;
             this.clusterInfo = Collections.emptyMap();  // will never be used if created from this constructor
         }
@@ -577,19 +562,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else {
                 this.clusterInfo = Collections.emptyMap();
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_CLUSTERS_COUNTERS_ADDED)) {
-                this.successful = successful;
-                this.skipped = skipped;
-                this.running = in.readVInt();
-                this.partial = in.readVInt();
-                this.failed = in.readVInt();
-            } else {
-                this.successful = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL);
-                this.skipped = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SKIPPED);
-                this.running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
-                this.partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
-                this.failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);
-            }
+            this.successful = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL);
+            this.skipped = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SKIPPED);
+            this.running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
+            this.partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
+            this.failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);
             this.ccsMinimizeRoundtrips = false;
             assert total >= 0 : "total is negative: " + total;
             assert total >= successful + skipped + running + partial + failed
@@ -623,15 +600,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_CLUSTERS_COUNTERS_ADDED)) {
-                // bwc prior to version 'SEARCH_RESPONSE_CLUSTERS_COUNTERS_ADDED'
-                // successful = successful + partial and skipped = skipped + failed
-                out.writeVInt(successful + partial);
-                out.writeVInt(skipped + failed);
-            } else {
-                out.writeVInt(successful);
-                out.writeVInt(skipped);
-            }
+            out.writeVInt(successful + partial);
+            out.writeVInt(skipped + failed);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().map(AtomicReference::get).toList();
@@ -639,11 +609,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 } else {
                     out.writeCollection(Collections.emptyList());
                 }
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESPONSE_CLUSTERS_COUNTERS_ADDED)) {
-                out.writeVInt(running);
-                out.writeVInt(partial);
-                out.writeVInt(failed);
             }
         }
 
@@ -720,7 +685,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 }
             }
             if (clusterInfoMap.isEmpty()) {
-                return new Clusters(total, successful, skipped, running, partial, failed);
+                assert running == 0 && partial == 0 && failed == 0
+                    : "Non cross-cluster should have counter for running, partial and failed equal to 0";
+                return new Clusters(total, successful, skipped);
             } else {
                 return new Clusters(clusterInfoMap);
             }

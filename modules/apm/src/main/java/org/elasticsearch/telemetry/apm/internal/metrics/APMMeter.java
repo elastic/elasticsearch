@@ -12,6 +12,7 @@ import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
@@ -25,21 +26,17 @@ import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
 public class APMMeter extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Meter {
     private static final Meter NOOP = OpenTelemetry.noop().getMeter("noop");
-    private final Instruments instruments = new Instruments(NOOP);
+    private final Instruments instruments;
     private volatile boolean enabled;
-    private final AtomicReference<APMServices> services = new AtomicReference<>();
-
-    record APMServices(Meter meter, OpenTelemetry openTelemetry) {}
 
     public APMMeter(Settings settings) {
-        this.enabled = APM_ENABLED_SETTING.get(settings);
-        setupApmServices(this.enabled);
+        enabled = APM_ENABLED_SETTING.get(settings);
+        instruments = new Instruments(enabled ? createApmServices() : NOOP);
     }
 
     public void setEnabled(boolean enabled) {
@@ -49,7 +46,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
 
     private void setupApmServices(boolean enabled) {
         if (enabled) {
-            createApmServices();
+            instruments.setProvider(createApmServices());
         } else {
             destroyApmServices();
         }
@@ -150,23 +147,17 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
         return instruments.getLongHistogram(name);
     }
 
-    void createApmServices() {
+    Meter createApmServices() {
         assert this.enabled;
-        assert this.services.get() == null;
-
+        SetOnce<Meter> provider = new SetOnce<>();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            var openTelemetry = GlobalOpenTelemetry.get();
-            var meter = openTelemetry.getMeter("elasticsearch");
-
-            this.services.set(new APMServices(meter, openTelemetry));
-            instruments.setProvider(meter);
-
+            provider.set(GlobalOpenTelemetry.get().getMeter("elasticsearch"));
             return null;
         });
+        return provider.get();
     }
 
     private void destroyApmServices() {
         instruments.setProvider(NOOP);
-        this.services.set(null);
     }
 }

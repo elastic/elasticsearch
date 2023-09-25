@@ -505,9 +505,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             assert total >= 1 : "No local indices or remote clusters passed in";
             this.successful = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.skipped = 0;       // calculated from clusterInfo map for minimize_roundtrips
-            this.running = 0;       // calculated from clusterInfo map for minimize_roundtrips
-            this.partial = 0;       // calculated from clusterInfo map for minimize_roundtrips
-            this.failed = 0;        // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             Map<String, AtomicReference<Cluster>> m = new HashMap<>();
             if (localIndices != null) {
@@ -522,6 +519,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 m.put(clusterAlias, new AtomicReference<>(c));
             }
             this.clusterInfo = Collections.unmodifiableMap(m);
+            this.running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
+            this.partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
+            this.failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);
         }
 
         /**
@@ -548,8 +548,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         public Clusters(StreamInput in) throws IOException {
             this.total = in.readVInt();
-            int successful = in.readVInt();
-            int skipped = in.readVInt();
+            this.successful = in.readVInt();
+            this.skipped = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
@@ -562,8 +562,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else {
                 this.clusterInfo = Collections.emptyMap();
             }
-            this.successful = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL);
-            this.skipped = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SKIPPED);
             this.running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
             this.partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
             this.failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);
@@ -600,8 +598,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
-            out.writeVInt(successful + partial);
-            out.writeVInt(skipped + failed);
+            out.writeVInt(successful);
+            out.writeVInt(skipped);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().map(AtomicReference::get).toList();

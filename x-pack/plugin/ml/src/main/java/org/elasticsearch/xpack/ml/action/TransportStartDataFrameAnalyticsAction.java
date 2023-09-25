@@ -810,19 +810,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                     + TaskParams.VERSION_INTRODUCED
                     + "] or higher";
             }
-            if (node.getVersion().before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
-                && params.getVersion().onOrAfter(MlConfigVersion.fromVersion(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED))) {
-                return "Not opening job ["
-                    + id
-                    + "] on node ["
-                    + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics created for version ["
-                    + params.getVersion()
-                    + "] requires a node of version "
-                    + "["
-                    + TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED
-                    + "] or higher";
-            }
 
             return null;
         }

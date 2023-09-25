@@ -400,7 +400,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
         );
-        // put all backing indices are in the error store
+        // put all backing indices in the error store
         for (Index index : dslManagedDataStream.getIndices()) {
             dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("dsl managed index"));
         }

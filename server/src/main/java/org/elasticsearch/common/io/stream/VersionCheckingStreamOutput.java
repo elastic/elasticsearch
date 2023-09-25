@@ -19,6 +19,7 @@ import java.io.IOException;
  */
 public class VersionCheckingStreamOutput extends StreamOutput {
 
+    @SuppressWarnings("this-escape")
     public VersionCheckingStreamOutput(TransportVersion version) {
         setTransportVersion(version);
     }

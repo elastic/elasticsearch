@@ -25,7 +25,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;

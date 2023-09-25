@@ -26,7 +26,8 @@ public class DoubleHistogramAdapter<T> extends AbstractInstrument<T, DoubleHisto
 
     @Override
     DoubleHistogram buildInstrument(Meter meter) {
-        return Objects.requireNonNull(meter).histogramBuilder(getName()).setDescription(getDescription()).setUnit(getUnit()).build();
+        var builder = Objects.requireNonNull(meter).histogramBuilder(getName());
+        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
     }
 
     @Override

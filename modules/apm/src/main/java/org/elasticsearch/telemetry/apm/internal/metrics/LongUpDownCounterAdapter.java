@@ -26,7 +26,8 @@ public class LongUpDownCounterAdapter<T> extends AbstractInstrument<T, LongUpDow
 
     @Override
     LongUpDownCounter buildInstrument(Meter meter) {
-        return Objects.requireNonNull(meter).upDownCounterBuilder(getName()).setDescription(getDescription()).setUnit(getUnit()).build();
+        var builder = Objects.requireNonNull(meter).upDownCounterBuilder(getName());
+        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
     }
 
     @Override

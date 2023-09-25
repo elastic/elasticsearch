@@ -24,7 +24,8 @@ public class LongCounterAdapter<T> extends AbstractInstrument<T, LongCounter> im
 
     @Override
     LongCounter buildInstrument(Meter meter) {
-        return Objects.requireNonNull(meter).counterBuilder(getName()).setDescription(getDescription()).setUnit(getUnit()).build();
+        var builder = Objects.requireNonNull(meter).counterBuilder(getName());
+        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
     }
 
     @Override

@@ -24,7 +24,8 @@ public class DoubleGaugeAdapter<T> extends AbstractInstrument<T, ObservableDoubl
 
     @Override
     ObservableDoubleMeasurement buildInstrument(Meter meter) {
-        return Objects.requireNonNull(meter).gaugeBuilder(getName()).setDescription(getDescription()).setUnit(getUnit()).buildObserver();
+        var builder = Objects.requireNonNull(meter).gaugeBuilder(getName());
+        return builder.setDescription(getDescription()).setUnit(getUnit()).buildObserver();
     }
 
     @Override

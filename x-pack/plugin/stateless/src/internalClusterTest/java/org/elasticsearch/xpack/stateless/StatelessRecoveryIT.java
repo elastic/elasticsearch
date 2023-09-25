@@ -36,6 +36,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.CountDownActionListener;
@@ -47,6 +48,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -79,8 +81,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -136,6 +140,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1497,6 +1502,74 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(repository.getFailureCount(), greaterThan(0L));
         assertNodeHasNoCurrentRecoveries(indexNodeB);
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
+    }
+
+    public void testWaitForClusterStateToBeAppliedOnSourceNodeInPrimaryRelocation() throws Exception {
+        final var sourceNode = startIndexNode();
+        String indexName = "test-index";
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .toList();
+        indexRandom(randomBoolean(), true, true, indexRequests);
+        assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
+
+        final var targetNode = startIndexNode();
+
+        final long initialClusterStateVersion = clusterService().state().version();
+
+        try (var recoveryClusterStateDelayListeners = new RecoveryClusterStateDelayListeners(initialClusterStateVersion)) {
+            final var sourceNodeTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, sourceNode);
+            sourceNodeTransportService.addRequestHandlingBehavior(
+                Coordinator.COMMIT_STATE_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    assertThat(request, instanceOf(ApplyCommitRequest.class));
+                    recoveryClusterStateDelayListeners.getClusterStateDelayListener(((ApplyCommitRequest) request).getVersion())
+                        .addListener(ActionListener.wrap(ignored -> {
+                            handler.messageReceived(request, channel, task);
+                        }, e -> fail(e, "unexpected")));
+                }
+            );
+            sourceNodeTransportService.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+                assertThat(request, instanceOf(StatelessPrimaryRelocationAction.Request.class));
+                assertThat(
+                    ((StatelessPrimaryRelocationAction.Request) request).clusterStateVersion(),
+                    greaterThan(initialClusterStateVersion)
+                );
+                handler.messageReceived(
+                    request,
+                    new TestTransportChannel(
+                        new ChannelActionListener<>(channel).delegateResponse((l, e) -> fail(e, "recovery should succeed on first attempt"))
+                    ),
+                    task
+                );
+                recoveryClusterStateDelayListeners.onStartRecovery();
+            });
+            recoveryClusterStateDelayListeners.addCleanup(sourceNodeTransportService::clearInboundRules);
+
+            final var targetClusterService = internalCluster().getInstance(ClusterService.class, targetNode);
+            final var startedRelocation = new AtomicBoolean();
+            final ClusterStateListener clusterStateListener = event -> {
+                final var sourceProceedListener = recoveryClusterStateDelayListeners.getClusterStateDelayListener(event.state().version());
+                final var indexRoutingTable = event.state().routingTable().index(indexName);
+                assertNotNull(indexRoutingTable);
+                final var indexShardRoutingTable = indexRoutingTable.shard(0);
+                if (indexShardRoutingTable.primaryShard().relocating() && startedRelocation.compareAndSet(false, true)) {
+                    // this is the cluster state update which starts the recovery, so delay the primary node application until recovery
+                    // has started
+                    recoveryClusterStateDelayListeners.delayUntilRecoveryStart(sourceProceedListener);
+                } else {
+                    // this is some other cluster state update, so we must let it proceed now
+                    sourceProceedListener.onResponse(null);
+                }
+            };
+            targetClusterService.addListener(clusterStateListener);
+            recoveryClusterStateDelayListeners.addCleanup(() -> targetClusterService.removeListener(clusterStateListener));
+
+            updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexName);
+            ensureGreen(indexName);
+        }
     }
 
     public void testIndexShardRecoveryDoesNotUseTranslogOperationsBeforeFlush() throws Exception {

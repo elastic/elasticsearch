@@ -267,6 +267,7 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.addStateApplier(timestampFieldMapperService);
     }
 
+    @SuppressWarnings("this-escape")
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,

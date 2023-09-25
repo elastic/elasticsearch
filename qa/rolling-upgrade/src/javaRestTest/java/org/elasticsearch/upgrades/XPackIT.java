@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.junit.Before;
@@ -20,7 +22,12 @@ import static org.junit.Assume.assumeThat;
  * Basic tests for simple xpack functionality that are only run if the
  * cluster is the on the default distribution.
  */
-public class XPackIT extends AbstractRollingTestCase {
+public class XPackIT extends ParameterizedRollingUpgradeTestCase {
+
+    public XPackIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
     @Before
     public void skipIfNotXPack() {
         assumeThat(
@@ -28,10 +35,9 @@ public class XPackIT extends AbstractRollingTestCase {
             System.getProperty("tests.distribution"),
             equalTo("default")
         );
-        assumeThat(
+        assumeTrue(
             "running this on the unupgraded cluster would change its state and it wouldn't work prior to 6.3 anyway",
-            CLUSTER_TYPE,
-            equalTo(ClusterType.UPGRADED)
+            isUpgradedCluster()
         );
         /*
          * *Mostly* we want this for when we're upgrading from pre-6.3's

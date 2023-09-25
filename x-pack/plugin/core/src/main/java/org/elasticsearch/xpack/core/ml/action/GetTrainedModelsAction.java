@@ -136,6 +136,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             this(id, null, null);
         }
 
+        @SuppressWarnings("this-escape")
         public Request(String id, List<String> tags, Set<String> includes) {
             setResourceId(id);
             setAllowNoResources(true);

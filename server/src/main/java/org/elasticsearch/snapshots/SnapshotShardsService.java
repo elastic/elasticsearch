@@ -88,6 +88,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     // Runs the tasks that promptly notify shards of aborted snapshots so that resources can be released ASAP
     private final ThrottledTaskRunner notifyOnAbortTaskRunner;
 
+    @SuppressWarnings("this-escape")
     public SnapshotShardsService(
         Settings settings,
         ClusterService clusterService,

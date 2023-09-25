@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -54,6 +55,13 @@ public class DriverContext {
 
     public BigArrays bigArrays() {
         return bigArrays;
+    }
+
+    /**
+     * The {@link CircuitBreaker} to use to track memory.
+     */
+    public CircuitBreaker breaker() {
+        return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
     public BlockFactory blockFactory() {

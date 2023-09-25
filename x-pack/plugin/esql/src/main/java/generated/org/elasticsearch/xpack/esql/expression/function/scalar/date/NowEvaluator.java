@@ -43,4 +43,8 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   public String toString() {
     return "NowEvaluator[" + "now=" + now + "]";
   }
+
+  @Override
+  public void close() {
+  }
 }

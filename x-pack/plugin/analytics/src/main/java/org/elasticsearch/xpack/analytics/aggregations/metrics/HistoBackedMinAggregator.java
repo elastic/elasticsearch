@@ -32,6 +32,7 @@ public class HistoBackedMinAggregator extends NumericMetricsAggregator.SingleVal
     final DocValueFormat format;
     DoubleArray mins;
 
+    @SuppressWarnings("this-escape")
     public HistoBackedMinAggregator(
         String name,
         ValuesSourceConfig config,

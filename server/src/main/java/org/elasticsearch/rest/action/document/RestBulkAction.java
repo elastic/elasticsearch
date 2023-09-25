@@ -10,7 +10,6 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -94,7 +93,7 @@ public class RestBulkAction extends BaseRestHandler {
             request.getRestApiVersion()
         );
 
-        return channel -> client.bulk(bulkRequest, new RestToXContentListener<>(channel, BulkResponse::status));
+        return channel -> client.bulk(bulkRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.time.DateFormatter;
@@ -24,7 +26,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TsdbIT extends AbstractRollingTestCase {
+public class TsdbIT extends ParameterizedRollingUpgradeTestCase {
+
+    public TsdbIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     private static final String TEMPLATE = """
         {
@@ -88,21 +94,21 @@ public class TsdbIT extends AbstractRollingTestCase {
     private static final String BULK =
         """
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507","ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "hamster", "uid":"947e4ced-1786-4e53-9e0c-5c447e959508","ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "hamster", "uid":"947e4ced-1786-4e53-9e0c-5c447e959508", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"947e4ced-1786-4e53-9e0c-5c447e959509","ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"947e4ced-1786-4e53-9e0c-5c447e959509", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "rat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959510","ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "rat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959510", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9","ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "tiger", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea10","ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "tiger", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea10", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "lion", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876e11","ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "lion", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876e11", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}
             {"create": {}}
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876eb4","ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
+            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "elephant", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876eb4", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}
             """;
 
     private static final String DOC = """
@@ -125,11 +131,11 @@ public class TsdbIT extends AbstractRollingTestCase {
 
     public void testTsdbDataStream() throws Exception {
         assumeTrue(
-            "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0",
-            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0)
+            "Skipping version [" + getOldClusterVersion() + "], because TSDB was GA-ed in 8.7.0",
+            getOldClusterVersion().onOrAfter(Version.V_8_7_0)
         );
         String dataStreamName = "k8s";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             final String INDEX_TEMPLATE = """
                 {
                     "index_patterns": ["$PATTERN"],
@@ -144,20 +150,20 @@ public class TsdbIT extends AbstractRollingTestCase {
             assertOK(client().performRequest(putIndexTemplateRequest));
 
             performOldClustertOperations(templateName, dataStreamName);
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+        } else if (isMixedCluster()) {
             performMixedClusterOperations(dataStreamName);
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             performUpgradedClusterOperations(dataStreamName);
         }
     }
 
     public void testTsdbDataStreamWithComponentTemplate() throws Exception {
         assumeTrue(
-            "Skipping version [" + UPGRADE_FROM_VERSION + "], because TSDB was GA-ed in 8.7.0 and bug was fixed in 8.11.0",
-            UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_7_0) && UPGRADE_FROM_VERSION.before(Version.V_8_11_0)
+            "Skipping version [" + getOldClusterVersion() + "], because TSDB was GA-ed in 8.7.0 and bug was fixed in 8.11.0",
+            getOldClusterVersion().onOrAfter(Version.V_8_7_0) && getOldClusterVersion().before(Version.V_8_11_0)
         );
         String dataStreamName = "template-with-component-template";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             final String COMPONENT_TEMPLATE = """
                     {
                         "template": $TEMPLATE
@@ -181,9 +187,9 @@ public class TsdbIT extends AbstractRollingTestCase {
             assertOK(client().performRequest(putIndexTemplateRequest));
 
             performOldClustertOperations(templateName, dataStreamName);
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+        } else if (isMixedCluster()) {
             performMixedClusterOperations(dataStreamName);
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             performUpgradedClusterOperations(dataStreamName);
 
             var dataStreams = getDataStream(dataStreamName);
@@ -242,7 +248,7 @@ public class TsdbIT extends AbstractRollingTestCase {
 
     private static void performMixedClusterOperations(String dataStreamName) throws IOException {
         ensureHealth(dataStreamName, request -> request.addParameter("wait_for_status", "yellow"));
-        if (FIRST_MIXED_ROUND) {
+        if (isFirstMixedCluster()) {
             indexDoc(dataStreamName);
         }
         assertSearch(dataStreamName, 9);

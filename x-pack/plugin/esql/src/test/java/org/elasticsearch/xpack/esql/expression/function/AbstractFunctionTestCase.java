@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -20,7 +22,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -184,7 +185,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType));
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
-        Object result = toJavaObject(evaluator(expression).get(driverContext()).eval(row(testCase.getDataValues())), 0);
+        Object result;
+        try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
+            result = toJavaObject(evaluator.eval(row(testCase.getDataValues())), 0);
+        }
         assertThat(result, not(equalTo(Double.NaN)));
         assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
         assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
@@ -198,21 +202,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
-        EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext());
-        Block[] orig = BlockUtils.fromListRow(simpleData);
-        for (int i = 0; i < orig.length; i++) {
-            List<Object> data = new ArrayList<>();
-            Block[] blocks = new Block[orig.length];
-            for (int b = 0; b < blocks.length; b++) {
-                if (b == i) {
-                    blocks[b] = orig[b].elementType().newBlockBuilder(1).appendNull().build();
-                    data.add(null);
-                } else {
-                    blocks[b] = orig[b];
-                    data.add(simpleData.get(b));
+        try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
+            Block[] orig = BlockUtils.fromListRow(simpleData);
+            for (int i = 0; i < orig.length; i++) {
+                List<Object> data = new ArrayList<>();
+                Block[] blocks = new Block[orig.length];
+                for (int b = 0; b < blocks.length; b++) {
+                    if (b == i) {
+                        blocks[b] = orig[b].elementType().newBlockBuilder(1).appendNull().build();
+                        data.add(null);
+                    } else {
+                        blocks[b] = orig[b];
+                        data.add(simpleData.get(b));
+                    }
                 }
+                assertSimpleWithNulls(data, eval.eval(new Page(blocks)), i);
             }
-            assertSimpleWithNulls(data, eval.eval(new Page(blocks)), i);
         }
     }
 
@@ -235,9 +240,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 Page page = row(simpleData);
 
                 futures.add(exec.submit(() -> {
-                    EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext());
-                    for (int c = 0; c < count; c++) {
-                        assertThat(toJavaObject(eval.eval(page), 0), testCase.getMatcher());
+                    try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
+                        for (int c = 0; c < count; c++) {
+                            assertThat(toJavaObject(eval.eval(page), 0), testCase.getMatcher());
+                        }
                     }
                 }));
             }
@@ -253,8 +259,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         var supplier = evaluator(buildFieldExpression(testCase));
-        var ev = supplier.get(driverContext());
-        assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
+        try (ExpressionEvaluator ev = supplier.get(driverContext())) {
+            assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
+        }
     }
 
     public final void testFold() {
@@ -395,7 +402,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * cases.
              */
             .filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
-            .map(types -> typeErrorSupplier(validPerPosition, types))
+            .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types))
             .forEach(suppliers::add);
         return suppliers;
     }
@@ -439,13 +446,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Build a test case that asserts that the combination of parameter types is an error.
      */
-    private static TestCaseSupplier typeErrorSupplier(List<Set<DataType>> validPerPosition, List<DataType> types) {
+    protected static TestCaseSupplier typeErrorSupplier(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> types
+    ) {
         return new TestCaseSupplier(
             "type error for " + TestCaseSupplier.nameFromTypes(types),
             types,
             () -> TestCaseSupplier.TestCase.typeError(
                 types.stream().map(type -> new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, type.typeName())).toList(),
-                typeErrorMessage(validPerPosition, types)
+                typeErrorMessage(includeOrdinal, validPerPosition, types)
             )
         );
     }
@@ -453,7 +464,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Build the expected error message for an invalid type signature.
      */
-    private static String typeErrorMessage(List<Set<DataType>> validPerPosition, List<DataType> types) {
+    private static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         int badArgPosition = -1;
         for (int i = 0; i < types.size(); i++) {
             if (validPerPosition.get(i).contains(types.get(i)) == false) {
@@ -464,9 +475,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (badArgPosition == -1) {
             throw new IllegalStateException("can't find badArgPosition");
         }
-        String ordinal = validPerPosition.size() == 1
-            ? ""
-            : TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " ";
+        String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
         String expectedType = expectedType(validPerPosition.get(badArgPosition));
         String name = types.get(badArgPosition).typeName();
         return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
@@ -477,6 +486,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "keyword, text or version"),
+        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
         Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.NULL), "ip or keyword")
     );
 
@@ -614,13 +624,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Files.writeString(file, str);
     }
 
+    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
     /**
      * A {@link DriverContext} with a BigArrays that does not circuit break.
      */
     protected DriverContext driverContext() {
-        return new DriverContext(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            BlockFactory.getGlobalInstance()
-        );
+        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return new DriverContext(bigArrays.withCircuitBreaking(), BlockFactory.getGlobalInstance());
+    }
+
+    @After
+    public void allMemoryReleased() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
     }
 }

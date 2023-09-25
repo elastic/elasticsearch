@@ -205,14 +205,7 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public TopNOperator get(DriverContext driverContext) {
-            return new TopNOperator(
-                driverContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST),
-                topCount,
-                elementTypes,
-                encoders,
-                sortOrders,
-                maxPageSize
-            );
+            return new TopNOperator(driverContext.breaker(), topCount, elementTypes, encoders, sortOrders, maxPageSize);
         }
 
         @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayBlock;
@@ -62,7 +63,7 @@ final class LongBlockHash extends BlockHash {
         for (int i = 0; i < vector.getPositionCount(); i++) {
             groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getLong(i))));
         }
-        return vector.blockFactory().newIntArrayVector(groups, groups.length);
+        return new IntArrayVector(groups, groups.length);
     }
 
     private IntBlock add(LongBlock block) {

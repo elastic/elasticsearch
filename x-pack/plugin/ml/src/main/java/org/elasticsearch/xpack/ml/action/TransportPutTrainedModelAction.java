@@ -259,7 +259,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                 try {
                                     MLPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
                                         nodesArchitectures,
-                                        configToReturn.getPlatformArchitecture()
+                                        configToReturn.getPlatformArchitecture(),
+                                        configToReturn.getModelId()
                                     );
                                 } catch (Exception e) {
                                     HeaderWarning.addWarning(e.getMessage());

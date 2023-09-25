@@ -61,35 +61,47 @@ public class MLPlatformArchitecturesUtil {
     public static void verifyArchitectureOfMLNodesIsHomogenous(Set<String> architectures, String requiredArch, String modelId)
         throws IllegalStateException {
         if (architectures.size() > 1) {
+            String architecturesStr = architectures.toString();
+            architecturesStr = architecturesStr.substring(1, architecturesStr.length() - 1); // Remove the brackets
             throw new IllegalStateException(
                 format(
                     "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
                         + "expected [%s]; "
                         + "but was [%s]",
                     modelId,
-                    architectures.toString(),
-                    requiredArch
+                    requiredArch,
+                    architecturesStr
                 )
             );
         }
     }
 
-    public static void verifyArchitectureMatchesModelPlatformArchitecture(Set<String> architectures, String modelPlatformArchitecture)
-        throws IllegalArgumentException {
+    public static void verifyArchitectureMatchesModelPlatformArchitecture(
+        Set<String> architectures,
+        String modelPlatformArchitecture,
+        String modelID
+    ) throws IllegalArgumentException {
+
         String architecture = null;
         Iterator<String> architecturesIterator = architectures.iterator();
+
         if (architecturesIterator.hasNext()) {
             architecture = architectures.iterator().next();
             if (architectures.size() > 1
                 || (Objects.isNull(modelPlatformArchitecture) == false
                     && Objects.equals(architecture, modelPlatformArchitecture) == false)) {
+
+                String architecturesStr = architectures.toString();
+                architecturesStr = architecturesStr.substring(1, architecturesStr.length() - 1); // Remove the brackets
+
                 throw new IllegalArgumentException(
                     format(
-                        "The model being deployed is platform specific and incompatible with ML nodes in the cluster; "
+                        "The model being deployed ([%s]) is platform specific and incompatible with ML nodes in the cluster; "
                             + "expected [%s]; "
                             + "but was [%s]",
+                        modelID,
                         modelPlatformArchitecture,
-                        architectures.toString()
+                        architecturesStr
                     )
                 );
             }

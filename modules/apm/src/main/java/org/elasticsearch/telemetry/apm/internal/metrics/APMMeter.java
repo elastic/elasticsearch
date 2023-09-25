@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
-public class APMMetric extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
+public class APMMeter extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
     private static final Meter NOOP = OpenTelemetry.noop().getMeter("noop");
     private final Instruments instruments = new Instruments(NOOP);
     private volatile boolean enabled;
@@ -38,7 +38,7 @@ public class APMMetric extends AbstractLifecycleComponent implements org.elastic
 
     record APMServices(Meter meter, OpenTelemetry openTelemetry) {}
 
-    public APMMetric(Settings settings) {
+    public APMMeter(Settings settings) {
         this.enabled = APM_ENABLED_SETTING.get(settings);
         setupApmServices(this.enabled);
     }

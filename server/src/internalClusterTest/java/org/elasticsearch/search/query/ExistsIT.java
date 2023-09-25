@@ -112,7 +112,7 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("bar.bar", 1);
         expected.put("bar.bar.bar", 1);
         expected.put("foobar", 0);
-        expected.put("vec", 1);
+        expected.put("vec", 2);
 
         final long numDocs = sources.length;
         SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();

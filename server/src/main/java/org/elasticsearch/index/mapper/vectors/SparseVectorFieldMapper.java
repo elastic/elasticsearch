@@ -46,6 +46,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final IndexVersion PREVIOUS_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_0_0;
 
     static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_500_001;
+    static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersion.V_8_500_002;
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -110,7 +111,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             // No support for exists queries prior to this version
-            if (context.getIndexSettings().getIndexVersionCreated().before(NEW_SPARSE_VECTOR_INDEX_VERSION)) {
+            if (context.getIndexSettings().getIndexVersionCreated().before(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
                 throw new IllegalArgumentException("[sparse_vector] fields do not support [exists] queries");
             }
             return super.existsQuery(context);
@@ -165,7 +166,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         String feature = null;
-        boolean wroteField = false;
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
@@ -189,9 +189,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
                                 + "] in the same document"
                         );
                     }
-                    if (wroteField == false) {
-                        wroteField = true;
-                    }
                     context.doc().addWithKey(key, new FeatureField(name(), feature, value));
                 } else {
                     throw new IllegalArgumentException(
@@ -201,7 +198,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     );
                 }
             }
-            if (wroteField) {
+            if (context.indexSettings().getIndexVersionCreated().onOrAfter(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
                 context.addToFieldNames(fieldType().name());
             }
         } finally {

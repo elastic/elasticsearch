@@ -129,7 +129,7 @@
           query:
             exists:
               field: ml.tokens
-  - match: { hits.total: 2 }
+  - match: { hits.total: 3 }
 
   - do:
       search:

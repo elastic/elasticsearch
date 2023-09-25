@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceClusterStateDelay;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
@@ -56,6 +58,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.INSTANCE;
 
@@ -69,18 +72,21 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
     public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = INSTANCE.name() + "/primary_context_handoff";
 
     private final TransportService transportService;
+    private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
         TransportService transportService,
+        ClusterService clusterService,
         ActionFilters actionFilters,
         IndicesService indicesService,
         PeerRecoveryTargetService peerRecoveryTargetService
     ) {
         super(INSTANCE.name(), transportService, actionFilters, StatelessPrimaryRelocationAction.Request::new);
         this.transportService = transportService;
+        this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
 
@@ -127,6 +133,31 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
     }
 
     private void handleStartRelocation(
+        Task task,
+        StatelessPrimaryRelocationAction.Request request,
+        ActionListener<ActionResponse.Empty> listener
+    ) {
+        PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
+            request.clusterStateVersion(),
+            clusterService,
+            transportService.getThreadPool().generic(),
+            transportService.getThreadPool().getThreadContext(),
+            listener,
+            new Consumer<>() {
+                @Override
+                public void accept(ActionListener<ActionResponse.Empty> l) {
+                    handleStartRelocationWithFreshClusterState(task, request, l);
+                }
+
+                @Override
+                public String toString() {
+                    return "recovery [" + request + "]";
+                }
+            }
+        );
+    }
+
+    private void handleStartRelocationWithFreshClusterState(
         Task task,
         StatelessPrimaryRelocationAction.Request request,
         ActionListener<ActionResponse.Empty> listener

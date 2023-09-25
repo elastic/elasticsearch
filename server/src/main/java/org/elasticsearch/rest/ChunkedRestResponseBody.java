@@ -63,15 +63,29 @@ public interface ChunkedRestResponseBody extends Releasable {
      * @param chunkedToXContent chunked x-content instance to serialize
      * @param params parameters to use for serialization
      * @param channel channel the response will be written to
-     * @param release optional {@link Releasable} which is {@link Releasable#close() released} after
-     *                the response is finished, success or failure.
+     * @return chunked rest response body
+     * @deprecated Use {@link #fromXContent(ChunkedToXContent, ToXContent.Params, RestChannel, Releasable)} instead.
+     */
+    @Deprecated(forRemoval = true)
+    static ChunkedRestResponseBody fromXContent(ChunkedToXContent chunkedToXContent, ToXContent.Params params, RestChannel channel)
+        throws IOException {
+        return fromXContent(chunkedToXContent, params, channel, null);
+    }
+
+    /**
+     * Create a chunked response body to be written to a specific {@link RestChannel} from a {@link ChunkedToXContent}.
+     *
+     * @param chunkedToXContent chunked x-content instance to serialize
+     * @param params parameters to use for serialization
+     * @param channel channel the response will be written to
+     * @param releasable resource to release when the response is fully sent, or {@code null} if nothing to release
      * @return chunked rest response body
      */
     static ChunkedRestResponseBody fromXContent(
         ChunkedToXContent chunkedToXContent,
         ToXContent.Params params,
         RestChannel channel,
-        @Nullable Releasable release
+        @Nullable Releasable releasable
     ) throws IOException {
 
         return new ChunkedRestResponseBody() {
@@ -143,7 +157,7 @@ public interface ChunkedRestResponseBody extends Releasable {
 
             @Override
             public void close() {
-                Releasables.close(release);
+                Releasables.closeExpectNoException(releasable);
             }
         };
     }
@@ -151,13 +165,22 @@ public interface ChunkedRestResponseBody extends Releasable {
     /**
      * Create a chunked response body to be written to a specific {@link RestChannel} from a stream of text chunks, each represented as a
      * consumer of a {@link Writer}. The last chunk that the iterator yields must write at least one byte.
-     * @param release optional {@link Releasable} which is {@link Releasable#close() released} after
-     *                the response is finished, success or failure.
+     *
+     * @deprecated Use {@link #fromTextChunks(String, Iterator, Releasable)} instead.
+     */
+    @Deprecated(forRemoval = true)
+    static ChunkedRestResponseBody fromTextChunks(String contentType, Iterator<CheckedConsumer<Writer, IOException>> chunkIterator) {
+        return fromTextChunks(contentType, chunkIterator, null);
+    }
+
+    /**
+     * Create a chunked response body to be written to a specific {@link RestChannel} from a stream of text chunks, each represented as a
+     * consumer of a {@link Writer}. The last chunk that the iterator yields must write at least one byte.
      */
     static ChunkedRestResponseBody fromTextChunks(
         String contentType,
         Iterator<CheckedConsumer<Writer, IOException>> chunkIterator,
-        @Nullable Releasable release
+        @Nullable Releasable releasable
     ) {
         return new ChunkedRestResponseBody() {
             private RecyclerBytesStreamOutput currentOutput;
@@ -231,7 +254,7 @@ public interface ChunkedRestResponseBody extends Releasable {
 
             @Override
             public void close() {
-                Releasables.close(release);
+                Releasables.closeExpectNoException(releasable);
             }
         };
     }

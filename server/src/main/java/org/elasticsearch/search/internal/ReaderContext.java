@@ -53,6 +53,7 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
+    @SuppressWarnings("this-escape")
     public ReaderContext(
         ShardSearchContextId id,
         IndexService indexService,

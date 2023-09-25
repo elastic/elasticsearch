@@ -25,6 +25,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     private volatile long expirationTimeMillis;
     private final List<ActionListener<Response>> completionListeners;
 
+    @SuppressWarnings("this-escape")
     public StoredAsyncTask(
         long id,
         String type,

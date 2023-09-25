@@ -57,6 +57,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -525,6 +526,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
         {
             // chunked response
+            final var isClosed = new AtomicBoolean();
             channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
 
                 @Override
@@ -543,12 +545,26 @@ public class DefaultRestChannelTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() {}
+                public void close() {
+                    assertTrue(isClosed.compareAndSet(false, true));
+                }
             }));
-            verify(httpChannel, times(2)).sendResponse(requestCaptor.capture(), any());
+            @SuppressWarnings("unchecked")
+            Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class<?>) ActionListener.class;
+            ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+            verify(httpChannel, times(2)).sendResponse(requestCaptor.capture(), listenerCaptor.capture());
             HttpResponse response = requestCaptor.getValue();
             assertThat(response, instanceOf(TestHttpResponse.class));
             assertThat(((TestHttpResponse) response).content().length(), equalTo(0));
+
+            ActionListener<Void> listener = listenerCaptor.getValue();
+            assertFalse(isClosed.get());
+            if (randomBoolean()) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new ClosedChannelException());
+            }
+            assertTrue(isClosed.get());
         }
     }
 
@@ -706,6 +722,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             )
         );
 
+        final var isClosed = new AtomicBoolean();
         assertEquals(
             responseBody,
             ChunkedLoggingStreamTests.getDecodedLoggedBody(
@@ -714,6 +731,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,
                 () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
+
                     boolean isDone;
 
                     @Override
@@ -734,11 +752,14 @@ public class DefaultRestChannelTests extends ESTestCase {
                     }
 
                     @Override
-                    public void close() {}
+                    public void close() {
+                        assertTrue(isClosed.compareAndSet(false, true));
+                    }
                 }))
             )
         );
 
+        assertTrue(isClosed.get());
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String host) {

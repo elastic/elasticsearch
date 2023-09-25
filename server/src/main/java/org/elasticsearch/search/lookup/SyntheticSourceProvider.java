@@ -25,7 +25,7 @@ class SyntheticSourceProvider implements SourceProvider {
     private final SourceLoader sourceLoader;
     private volatile SyntheticSourceLeafLoader[] leafLoaders;
 
-    public SyntheticSourceProvider(Mapping mapping) {
+    SyntheticSourceProvider(Mapping mapping) {
         sourceLoader = new SourceLoader.Synthetic(mapping);
     }
 

@@ -35,7 +35,12 @@ public final class SingleResultDeduplicator<T> {
      * progress currently, otherwise an execution is in progress and will trigger another execution that will resolve any listeners queued
      * up here once done.
      */
-    private List<ListenerWithContext<T>> waitingListOfListenerWithContext;
+    private List<ActionListener<T>> waitingListeners;
+    /**
+     * The threadContext associated with the first listener in the waitingListeners. This context will be restored right before
+     * we perform the {@code executeAction}.
+     */
+    private ThreadContext.StoredContext waitingStoredContext;
 
     private final Consumer<ActionListener<T>> executeAction;
 
@@ -52,19 +57,19 @@ public final class SingleResultDeduplicator<T> {
      */
     public void execute(ActionListener<T> listener) {
         synchronized (this) {
-            if (waitingListOfListenerWithContext == null) {
+            if (waitingListeners == null) {
                 // no queued up listeners, just execute this one directly without deduplication and instantiate the list so that
                 // subsequent executions will wait
-                waitingListOfListenerWithContext = new ArrayList<>();
+                waitingListeners = new ArrayList<>();
+                waitingStoredContext = null;
             } else {
                 // already running an execution, queue this one up
-                waitingListOfListenerWithContext.add(
-                    new ListenerWithContext<>(
-                        ContextPreservingActionListener.wrapPreservingContext(listener, threadContext),
-                        // Only the first listener in queue needs the stored context which is used for running executeAction
-                        waitingListOfListenerWithContext.isEmpty() ? threadContext.newStoredContext() : null
-                    )
-                );
+                if (waitingListeners.isEmpty()) {
+                    // Only the first listener in queue needs the stored context which is used for running executeAction
+                    assert waitingStoredContext == null;
+                    waitingStoredContext = threadContext.newStoredContext();
+                }
+                waitingListeners.add(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
                 return;
             }
         }
@@ -73,31 +78,29 @@ public final class SingleResultDeduplicator<T> {
 
     private void doExecute(ActionListener<T> listener, @Nullable ThreadContext.StoredContext storedContext) {
         final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
-            final List<ListenerWithContext<T>> thisBatchOfListenerWithContext;
+            final List<ActionListener<T>> listeners;
+            final ThreadContext.StoredContext thisStoredContext;
             synchronized (this) {
-                if (waitingListOfListenerWithContext.isEmpty()) {
+                if (waitingListeners.isEmpty()) {
                     // no listeners were queued up while this execution ran, so we just reset the state to not having a running execution
-                    waitingListOfListenerWithContext = null;
+                    waitingListeners = null;
+                    waitingStoredContext = null;
                     return;
                 } else {
                     // we have queued up listeners, so we create a fresh list for the next execution and execute once to handle the
                     // listeners currently queued up
-                    thisBatchOfListenerWithContext = waitingListOfListenerWithContext;
-                    waitingListOfListenerWithContext = new ArrayList<>();
+                    listeners = waitingListeners;
+                    thisStoredContext = waitingStoredContext;
+                    // This batch of listeners will use the context of the first listener in this batch for the work execution
+                    assert thisStoredContext != null : "stored context must not be null for the first listener in a batch";
+                    waitingListeners = new ArrayList<>();
+                    waitingStoredContext = null;
                 }
             }
 
             // Create a child threadContext so that the parent context remains unchanged when the child execution ends.
             // This ensures the parent does not see response headers from the child execution.
-            try (var ignore = threadContext.newRestorableContext(false).get()) {
-                final List<ActionListener<T>> listeners = thisBatchOfListenerWithContext.stream()
-                    .map(ListenerWithContext::listener)
-                    .toList();
-                // This batch of listeners will use the context of the first listener in this batch for the work execution
-                final ThreadContext.StoredContext thisStoredContext = thisBatchOfListenerWithContext.get(0).storedContext;
-                assert thisStoredContext != null : "stored context must not be null for the first listener in a batch";
-                assert thisBatchOfListenerWithContext.stream().skip(1).allMatch(lwc -> lwc.storedContext == null);
-
+            try (var ignore = threadContext.newStoredContext()) {
                 doExecute(new ActionListener<>() {
                     @Override
                     public void onResponse(T response) {
@@ -118,7 +121,4 @@ public final class SingleResultDeduplicator<T> {
         }
         ActionListener.run(wrappedListener, executeAction::accept);
     }
-
-    record ListenerWithContext<T>(ActionListener<T> listener, @Nullable ThreadContext.StoredContext storedContext) {}
-
 }

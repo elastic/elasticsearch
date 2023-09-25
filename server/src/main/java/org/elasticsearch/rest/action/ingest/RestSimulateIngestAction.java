@@ -22,7 +22,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -77,7 +77,7 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             request.getXContentType(),
             request.getRestApiVersion()
         );
-        return channel -> client.execute(SimulateBulkAction.INSTANCE, bulkRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(SimulateBulkAction.INSTANCE, bulkRequest, new RestToXContentListener<>(channel));
     }
 
     private BytesReference convertToBulkRequestXContentBytes(Map<String, Object> sourceMap) throws IOException {

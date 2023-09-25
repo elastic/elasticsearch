@@ -34,6 +34,12 @@ public final class Page implements Writeable {
 
     private final int positionCount;
 
+    /**
+     * True if we've called {@link #releaseBlocks()} which causes us to remove the
+     * circuit breaker for the {@link Block}s. The {@link Page} reference should be
+     * removed shortly after this and reading {@linkplain Block}s after release
+     * will fail.
+     */
     private boolean blocksReleased = false;
 
     /**

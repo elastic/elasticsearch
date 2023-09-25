@@ -129,8 +129,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
                                 ChunkedToXContentHelper.endObject()
                             ),
                             EMPTY_PARAMS,
-                            channel,
-                            null
+                            channel
                         )
                     );
                 }

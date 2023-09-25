@@ -77,8 +77,7 @@ public class RestTable {
                     Iterators.single((builder, params) -> builder.endArray())
                 ),
                 ToXContent.EMPTY_PARAMS,
-                channel,
-                null
+                channel
             )
         );
     }
@@ -127,8 +126,7 @@ public class RestTable {
                         }
                         writer.append("\n");
                     })
-                ),
-                null
+                )
             )
         );
     }

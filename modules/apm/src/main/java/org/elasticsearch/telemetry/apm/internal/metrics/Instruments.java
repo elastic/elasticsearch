@@ -176,4 +176,9 @@ public class Instruments {
             registered.forEach((k, v) -> v.setProvider(meter));
         }
     }
+
+    //scope for testing
+     Meter getMeter() {
+        return meter;
+    }
 }

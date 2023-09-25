@@ -13,6 +13,7 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.apache.lucene.util.SetOnce;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
@@ -26,17 +27,30 @@ import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
 
-public class APMMeter extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Meter {
-    private static final Meter NOOP = OpenTelemetry.noop().getMeter("noop");
+public class APMMetric extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Metric {
     private final Instruments instruments;
+
+    private final Supplier<Meter> otelMeterSupplier;
+    private final Supplier<Meter> noopMeterSupplier;
+
     private volatile boolean enabled;
 
-    public APMMeter(Settings settings) {
-        enabled = APM_ENABLED_SETTING.get(settings);
-        instruments = new Instruments(enabled ? createApmServices() : NOOP);
+    record APMServices(Meter meter, OpenTelemetry openTelemetry) {}
+
+    public APMMetric(Settings settings) {
+        this(settings, APMMetric::otelMeter, APMMetric::noopMeter);
+    }
+
+    public APMMetric(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
+        this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.otelMeterSupplier = otelMeterSupplier;
+        this.noopMeterSupplier = noopMeterSupplier;
+        this.instruments = new Instruments(enabled ? createApmServices() : noopMeterSupplier.get());
+        setEnabled(enabled);
     }
 
     public void setEnabled(boolean enabled) {
@@ -149,15 +163,31 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
 
     Meter createApmServices() {
         assert this.enabled;
+
         SetOnce<Meter> provider = new SetOnce<>();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            provider.set(GlobalOpenTelemetry.get().getMeter("elasticsearch"));
+            provider.set(otelMeterSupplier.get());
             return null;
         });
         return provider.get();
     }
 
     private void destroyApmServices() {
-        instruments.setProvider(NOOP);
+        instruments.setProvider(noopMeterSupplier.get());
+    }
+
+    private static Meter noopMeter() {
+        return OpenTelemetry.noop().getMeter("noop");
+    }
+
+    private static Meter otelMeter() {
+        var openTelemetry = GlobalOpenTelemetry.get();
+        var meter = openTelemetry.getMeter("elasticsearch");
+        return meter;
+    }
+
+    // scope for testing
+    Instruments getInstruments() {
+        return instruments;
     }
 }

@@ -74,6 +74,7 @@ public class RestRequest implements ToXContent.Params {
         return contentConsumed;
     }
 
+    @SuppressWarnings("this-escape")
     protected RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
@@ -85,6 +86,7 @@ public class RestRequest implements ToXContent.Params {
         this(parserConfig, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
+    @SuppressWarnings("this-escape")
     private RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,

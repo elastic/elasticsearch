@@ -8,6 +8,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -74,6 +75,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -378,10 +380,11 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     public void testSyntheticSourceScriptLoading() throws IOException {
-
         // Build a mapping using synthetic source
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(true, false));
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new KeywordFieldMapper.Builder("cat", IndexVersion.current())
+        ).addRuntimeField(new TestRuntimeField("runtime_field", "keyword")).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
         MappingLookup lookup = MappingLookup.fromMapping(mapping);
 
@@ -389,11 +392,13 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertTrue(sec.isSourceSynthetic());
 
         MemoryIndex mi = new MemoryIndex();
-        mi.addField(new StringField("unloaded", "value", Field.Store.YES), null);
+        mi.addField(new KeywordField("runtime_field", "value", Field.Store.YES), null);
+        mi.addField(new KeywordField("cat", "meow", Field.Store.YES), null);
         LeafReaderContext leafReaderContext = mi.createSearcher().getIndexReader().leaves().get(0);
 
         SearchLookup searchLookup = sec.lookup();
-        assertNotNull(searchLookup.getSource(leafReaderContext, 0));
+        Source source = searchLookup.getSource(leafReaderContext, 0);
+        assertNotNull(source);
     }
 
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {

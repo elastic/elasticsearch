@@ -20,7 +20,7 @@ import java.io.IOException;
 // NB This is written under the assumption that individual segments are accessed by a single
 // thread, even if separate segments may be searched concurrently.  If we ever implement
 // within-segment concurrency this will have to work entirely differently.
-public class SyntheticSourceProvider implements SourceProvider {
+class SyntheticSourceProvider implements SourceProvider {
 
     private final SourceLoader sourceLoader;
     private volatile SyntheticSourceLeafLoader[] leafLoaders;
@@ -67,7 +67,6 @@ public class SyntheticSourceProvider implements SourceProvider {
                 ? StoredFieldLoader.empty().getLoader(ctx, null)
                 : StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(ctx, null);
             this.leaf = sourceLoader.leaf(ctx.reader(), null);
-            ;
         }
 
         Source getSource(int doc) throws IOException {

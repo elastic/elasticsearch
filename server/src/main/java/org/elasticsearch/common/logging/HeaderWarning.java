@@ -111,15 +111,11 @@ public class HeaderWarning {
      * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" [<space> "warn-date"]. Here, warn-code is a
      * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
      * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
-     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
-     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
+     * arbitrary token; here we use the Elasticsearch version and build hash, if the version is semantic, or just the hash, if it is not
+     * semantic (e.g. in serverless). The warn text must be quoted. The warn-date is an optional quoted field that can be in a variety of
+     * specified date formats; here we use RFC 1123 format.
      */
-    private static final String WARNING_PREFIX = String.format(
-        Locale.ROOT,
-        "299 Elasticsearch-%s-%s",
-        Build.current().version(),
-        Build.current().hash()
-    );
+    private static final String WARNING_PREFIX = buildWarningPrefix();
 
     private static String buildWarningPrefix() {
         return hasSemanticVersion

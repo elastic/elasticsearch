@@ -454,10 +454,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testEvaluatorToString() {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
-        var supplier = evaluator(buildFieldExpression(testCase));
-        try (ExpressionEvaluator ev = supplier.get(driverContext())) {
+        var factory = evaluator(buildFieldExpression(testCase));
+        try (ExpressionEvaluator ev = factory.get(driverContext())) {
             assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
         }
+    }
+
+    public final void testFactoryToString() {
+        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        var factory = evaluator(buildFieldExpression(testCase));
+        assertThat(factory.toString(), equalTo(testCase.evaluatorToString));
     }
 
     public final void testFold() {

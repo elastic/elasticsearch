@@ -77,4 +77,22 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
   public void close() {
     Releasables.closeExpectNoException(v);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public CastIntToUnsignedLongEvaluator get(DriverContext context) {
+      return new CastIntToUnsignedLongEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastIntToUnsignedLongEvaluator[" + "v=" + v + "]";
+    }
+  }
 }

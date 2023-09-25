@@ -94,4 +94,26 @@ public final class EqualsLongsEvaluator implements EvalOperator.ExpressionEvalua
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public EqualsLongsEvaluator get(DriverContext context) {
+      return new EqualsLongsEvaluator(lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "EqualsLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
+  }
 }

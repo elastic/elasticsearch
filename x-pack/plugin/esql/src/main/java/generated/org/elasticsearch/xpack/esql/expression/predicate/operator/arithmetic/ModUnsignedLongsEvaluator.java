@@ -108,4 +108,29 @@ public final class ModUnsignedLongsEvaluator implements EvalOperator.ExpressionE
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.source = source;
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public ModUnsignedLongsEvaluator get(DriverContext context) {
+      return new ModUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "ModUnsignedLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
+  }
 }

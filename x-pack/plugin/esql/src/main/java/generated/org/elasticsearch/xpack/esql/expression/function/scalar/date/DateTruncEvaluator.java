@@ -79,4 +79,25 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    private final Rounding.Prepared rounding;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal, Rounding.Prepared rounding) {
+      this.fieldVal = fieldVal;
+      this.rounding = rounding;
+    }
+
+    @Override
+    public DateTruncEvaluator get(DriverContext context) {
+      return new DateTruncEvaluator(fieldVal.get(context), rounding, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateTruncEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
+    }
+  }
 }

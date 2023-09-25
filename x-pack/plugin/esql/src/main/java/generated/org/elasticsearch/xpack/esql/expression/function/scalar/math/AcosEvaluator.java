@@ -91,4 +91,25 @@ public final class AcosEvaluator implements EvalOperator.ExpressionEvaluator {
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public AcosEvaluator get(DriverContext context) {
+      return new AcosEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "AcosEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

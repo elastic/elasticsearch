@@ -91,4 +91,25 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   public void close() {
     Releasables.closeExpectNoException(v);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+      this.source = source;
+      this.v = v;
+    }
+
+    @Override
+    public NegIntsEvaluator get(DriverContext context) {
+      return new NegIntsEvaluator(source, v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NegIntsEvaluator[" + "v=" + v + "]";
+    }
+  }
 }

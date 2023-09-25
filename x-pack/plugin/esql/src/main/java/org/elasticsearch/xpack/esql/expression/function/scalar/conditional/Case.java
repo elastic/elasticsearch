@@ -156,17 +156,33 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-
-        List<ConditionEvaluatorSupplier> conditionsEval = conditions.stream()
+        ElementType resultType = LocalExecutionPlanner.toElementType(dataType());
+        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream()
             .map(c -> new ConditionEvaluatorSupplier(toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
             .toList();
-        var elseValueEval = toEvaluator.apply(elseValue);
-        return dvrCtx -> new CaseEvaluator(
-            dvrCtx,
-            LocalExecutionPlanner.toElementType(dataType()),
-            conditionsEval.stream().map(x -> x.apply(dvrCtx)).toList(),
-            elseValueEval.get(dvrCtx)
-        );
+        ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new CaseEvaluator(
+                    context,
+                    resultType,
+                    conditionsFactories.stream().map(x -> x.apply(context)).toList(),
+                    elseValueFactory.get(context)
+                );
+            }
+
+            @Override
+            public String toString() {
+                return "CaseEvaluator[resultType="
+                    + resultType
+                    + ", conditions="
+                    + conditionsFactories
+                    + ", elseVal="
+                    + elseValueFactory
+                    + ']';
+            }
+        };
     }
 
     record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
@@ -175,6 +191,11 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         @Override
         public ConditionEvaluator apply(DriverContext driverContext) {
             return new ConditionEvaluator(condition.get(driverContext), value.get(driverContext));
+        }
+
+        @Override
+        public String toString() {
+            return "ConditionEvaluator[" + "condition=" + condition + ", value=" + value + ']';
         }
     }
 

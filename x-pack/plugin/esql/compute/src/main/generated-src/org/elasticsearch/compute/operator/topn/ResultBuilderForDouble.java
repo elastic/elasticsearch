@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 
 class ResultBuilderForDouble implements ResultBuilder {
@@ -21,10 +20,10 @@ class ResultBuilderForDouble implements ResultBuilder {
      */
     private double key;
 
-    ResultBuilderForDouble(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
+    ResultBuilderForDouble(TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = DoubleBlock.newBlockBuilder(initialSize, blockFactory);
+        this.builder = DoubleBlock.newBlockBuilder(initialSize);
     }
 
     @Override

@@ -9,15 +9,9 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 
 public class ResultBuilderForNull implements ResultBuilder {
-    private final BlockFactory blockFactory;
     private int positions;
-
-    public ResultBuilderForNull(BlockFactory blockFactory) {
-        this.blockFactory = blockFactory;
-    }
 
     @Override
     public void decodeKey(BytesRef keys) {
@@ -35,7 +29,7 @@ public class ResultBuilderForNull implements ResultBuilder {
 
     @Override
     public Block build() {
-        return Block.constantNullBlock(positions, blockFactory);
+        return Block.constantNullBlock(positions);
     }
 
     @Override

@@ -13,7 +13,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -108,7 +107,6 @@ public class TopNBenchmark {
             ClusterSettings.createBuiltInClusterSettings()
         );
         return new TopNOperator(
-            BlockFactory.getNonBreakingInstance(),
             breakerService.getBreaker(CircuitBreaker.REQUEST),
             topCount,
             elementTypes,

@@ -13,7 +13,6 @@ import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -206,15 +205,7 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public TopNOperator get(DriverContext driverContext) {
-            return new TopNOperator(
-                driverContext.blockFactory(),
-                driverContext.breaker(),
-                topCount,
-                elementTypes,
-                encoders,
-                sortOrders,
-                maxPageSize
-            );
+            return new TopNOperator(driverContext.breaker(), topCount, elementTypes, encoders, sortOrders, maxPageSize);
         }
 
         @Override
@@ -231,7 +222,6 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
-    private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
     private final Queue inputQueue;
 
@@ -244,7 +234,6 @@ public class TopNOperator implements Operator, Accountable {
     private Iterator<Page> output;
 
     public TopNOperator(
-        BlockFactory blockFactory,
         CircuitBreaker breaker,
         int topCount,
         List<ElementType> elementTypes,
@@ -252,7 +241,6 @@ public class TopNOperator implements Operator, Accountable {
         List<SortOrder> sortOrders,
         int maxPageSize
     ) {
-        this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.maxPageSize = maxPageSize;
         this.elementTypes = elementTypes;
@@ -359,7 +347,6 @@ public class TopNOperator implements Operator, Accountable {
                     builders = new ResultBuilder[elementTypes.size()];
                     for (int b = 0; b < builders.length; b++) {
                         builders[b] = ResultBuilder.resultBuilderFor(
-                            blockFactory,
                             elementTypes.get(b),
                             encoders.get(b).toUnsortable(),
                             channelInKey(sortOrders, b),

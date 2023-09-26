@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.stream.IntStream;
 
 public record HttpRouteStats(
     long requestCount,
@@ -85,6 +86,28 @@ public record HttpRouteStats(
             remainingCount -= histogram[i];
         }
         builder.endArray();
+    }
+
+    public static HttpRouteStats merge(HttpRouteStats first, HttpRouteStats second) {
+        assert first.requestSizeHistogram.length == second.requestSizeHistogram.length
+            && first.responseSizeHistogram.length == second.responseSizeHistogram.length
+            && first.responseTimeHistogram.length == second.responseTimeHistogram.length;
+
+        return new HttpRouteStats(
+            first.requestCount + second.requestCount,
+            first.totalRequestSize + second.totalRequestSize,
+            IntStream.range(0, first.requestSizeHistogram.length)
+                .mapToLong(i -> first.requestSizeHistogram[i] + second.requestSizeHistogram[i])
+                .toArray(),
+            first.responseCount + second.responseCount,
+            first.totalResponseSize + second.totalResponseSize,
+            IntStream.range(0, first.responseSizeHistogram.length)
+                .mapToLong(i -> first.responseSizeHistogram[i] + second.responseSizeHistogram[i])
+                .toArray(),
+            IntStream.range(0, first.responseTimeHistogram.length)
+                .mapToLong(i -> first.responseTimeHistogram[i] + second.responseTimeHistogram[i])
+                .toArray()
+        );
     }
 
     @Override

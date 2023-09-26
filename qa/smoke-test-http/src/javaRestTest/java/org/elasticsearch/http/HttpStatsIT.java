@@ -27,11 +27,47 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 0, numClientNodes = 0)
 public class HttpStatsIT extends HttpSmokeTestCase {
 
     @SuppressWarnings("unchecked")
-    public void testHttpStats() throws IOException {
+    public void testNodeHttpStats() throws IOException {
+        internalCluster().startNode();
+        performHttpRequests();
+
+        final Response response = getRestClient().performRequest(new Request("GET", "/_nodes/stats/http"));
+        assertOK(response);
+
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            response.getEntity().getContent(),
+            false
+        );
+        final Map<String, Object> nodesMap = (Map<String, Object>) responseMap.get("nodes");
+
+        assertThat(nodesMap, aMapWithSize(1));
+        final String nodeId = nodesMap.keySet().iterator().next();
+
+        assertHttpStats(new XContentTestUtils.JsonMapView((Map<String, Object>) nodesMap.get(nodeId)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testClusterInfoHttpStats() throws IOException {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        performHttpRequests();
+
+        final Response response = getRestClient().performRequest(new Request("GET", "/_info/http"));
+        assertOK(response);
+
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            response.getEntity().getContent(),
+            false
+        );
+        assertHttpStats(new XContentTestUtils.JsonMapView(responseMap));
+    }
+
+    private void performHttpRequests() throws IOException {
         // basic request
         final RestClient restClient = getRestClient();
         assertOK(restClient.performRequest(new Request("GET", "/")));
@@ -44,43 +80,31 @@ public class HttpStatsIT extends HttpSmokeTestCase {
         assertOK(restClient.performRequest(new Request("GET", "/_cluster/state")));
         // chunked text response
         assertOK(restClient.performRequest(new Request("GET", "/_cat/nodes")));
+    }
 
-        final Response response = restClient.performRequest(new Request("GET", "/_nodes/stats/http"));
-        assertOK(response);
-
-        final Map<String, Object> responseMap = XContentHelper.convertToMap(
-            JsonXContent.jsonXContent,
-            response.getEntity().getContent(),
-            false
-        );
-        final Map<String, Object> nodesMap = (Map<String, Object>) responseMap.get("nodes");
-
-        assertThat(nodesMap, aMapWithSize(1));
-        final String nodeId = nodesMap.keySet().iterator().next();
-        final XContentTestUtils.JsonMapView nodeView = new XContentTestUtils.JsonMapView((Map<String, Object>) nodesMap.get(nodeId));
-
+    private void assertHttpStats(XContentTestUtils.JsonMapView jsonMapView) {
         final List<String> routes = List.of("/", "/_cat/nodes", "/{index}/_search", "/_cluster/state");
 
         for (var route : routes) {
-            assertThat(nodeView.get("http.routes." + route), notNullValue());
-            assertThat(nodeView.get("http.routes." + route + ".requests.count"), equalTo(1));
-            assertThat(nodeView.get("http.routes." + route + ".requests.total_size_in_bytes"), greaterThanOrEqualTo(0));
-            assertThat(nodeView.get("http.routes." + route + ".responses.count"), equalTo(1));
-            assertThat(nodeView.get("http.routes." + route + ".responses.total_size_in_bytes"), greaterThan(1));
-            assertThat(nodeView.get("http.routes." + route + ".requests.size_histogram"), hasSize(1));
-            assertThat(nodeView.get("http.routes." + route + ".requests.size_histogram.0.count"), equalTo(1));
-            assertThat(nodeView.get("http.routes." + route + ".requests.size_histogram.0.lt_bytes"), notNullValue());
+            assertThat(jsonMapView.get("http.routes." + route), notNullValue());
+            assertThat(jsonMapView.get("http.routes." + route + ".requests.count"), equalTo(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".requests.total_size_in_bytes"), greaterThanOrEqualTo(0));
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.count"), equalTo(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.total_size_in_bytes"), greaterThan(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".requests.size_histogram"), hasSize(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.count"), equalTo(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.lt_bytes"), notNullValue());
             if (route.equals("/{index}/_search")) {
-                assertThat(nodeView.get("http.routes." + route + ".requests.size_histogram.0.ge_bytes"), notNullValue());
+                assertThat(jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.ge_bytes"), notNullValue());
             }
-            assertThat(nodeView.get("http.routes." + route + ".responses.size_histogram"), hasSize(1));
-            assertThat(nodeView.get("http.routes." + route + ".responses.size_histogram.0.count"), equalTo(1));
-            assertThat(nodeView.get("http.routes." + route + ".responses.size_histogram.0.lt_bytes"), notNullValue());
-            assertThat(nodeView.get("http.routes." + route + ".responses.size_histogram.0.ge_bytes"), notNullValue());
-            assertThat(nodeView.get("http.routes." + route + ".responses.handling_time_histogram"), hasSize(1));
-            assertThat(nodeView.get("http.routes." + route + ".responses.handling_time_histogram.0.count"), equalTo(1));
-            assertThat(nodeView.get("http.routes." + route + ".responses.handling_time_histogram.0.lt_millis"), notNullValue());
-            assertThat(nodeView.get("http.routes." + route + ".responses.handling_time_histogram.0.ge_millis"), notNullValue());
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.size_histogram"), hasSize(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.count"), equalTo(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.lt_bytes"), notNullValue());
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.ge_bytes"), notNullValue());
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram"), hasSize(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.count"), equalTo(1));
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.lt_millis"), notNullValue());
+            assertThat(jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.ge_millis"), notNullValue());
         }
     }
 }

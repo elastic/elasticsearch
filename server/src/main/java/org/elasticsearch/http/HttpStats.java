@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.TransportVersions.NODE_STATS_HTTP_ROUTE_STATS_ADDED;
@@ -72,7 +73,8 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
             first.serverOpen + second.serverOpen,
             first.totalOpen + second.totalOpen,
             Stream.concat(first.clientStats.stream(), second.clientStats.stream()).toList(),
-            Map.of() // TODO: merge
+            Stream.concat(first.httpRouteStats.entrySet().stream(), second.httpRouteStats.entrySet().stream())
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue, HttpRouteStats::merge))
         );
     }
 

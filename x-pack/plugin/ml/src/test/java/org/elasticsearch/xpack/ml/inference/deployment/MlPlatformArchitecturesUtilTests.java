@@ -71,29 +71,6 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
         }, expected, null, null);
     }
 
-    private List<NodeInfo> randomNodeInfos(int max) {
-        assertTrue(max > 0);
-        int n = randomInt(max);
-        List<NodeInfo> nodeInfos = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            nodeInfos.add(mockNodeInfo());
-        }
-        return nodeInfos;
-    }
-
-    private NodeInfo mockNodeInfo() {
-        var mockNodeInfo = mock(NodeInfo.class);
-        var mockDiscoveryNode = mock(DiscoveryNode.class);
-        when(mockNodeInfo.getNode()).thenReturn(mockDiscoveryNode);
-        when(mockDiscoveryNode.hasRole(DiscoveryNodeRole.ML_ROLE.roleName())).thenReturn(randomBoolean());
-        var mockOsInfo = mock(OsInfo.class);
-        when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
-        when(mockOsInfo.getArch()).thenReturn(randomAlphaOfLength(10));
-        when(mockOsInfo.getName()).thenReturn(randomAlphaOfLength(10));
-
-        return mockNodeInfo;
-    }
-
     public void testVerifyMlNodesAndModelArchitectures_GivenNullModelArchitecture_ThenNothing() {
         var architectures = nArchitectures(randomIntBetween(2, 10));
         MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(architectures, null, randomAlphaOfLength(10));
@@ -212,6 +189,29 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
             architectures.add(randomAlphaOfLength(10));
         }
         return architectures;
+    }
+
+    private List<NodeInfo> randomNodeInfos(int max) {
+        assertTrue(max > 0);
+        int n = randomInt(max);
+        List<NodeInfo> nodeInfos = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            nodeInfos.add(mockNodeInfo());
+        }
+        return nodeInfos;
+    }
+
+    private NodeInfo mockNodeInfo() {
+        var mockNodeInfo = mock(NodeInfo.class);
+        var mockDiscoveryNode = mock(DiscoveryNode.class);
+        when(mockNodeInfo.getNode()).thenReturn(mockDiscoveryNode);
+        when(mockDiscoveryNode.hasRole(DiscoveryNodeRole.ML_ROLE.roleName())).thenReturn(randomBoolean());
+        var mockOsInfo = mock(OsInfo.class);
+        when(mockNodeInfo.getInfo(OsInfo.class)).thenReturn(mockOsInfo);
+        when(mockOsInfo.getArch()).thenReturn(randomAlphaOfLength(10));
+        when(mockOsInfo.getName()).thenReturn(randomAlphaOfLength(10));
+
+        return mockNodeInfo;
     }
 
     protected <T> void assertAsync(

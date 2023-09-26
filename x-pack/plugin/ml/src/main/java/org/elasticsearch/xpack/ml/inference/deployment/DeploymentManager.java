@@ -12,9 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -58,7 +55,6 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -174,7 +170,26 @@ public class DeploymentManager {
             String modelId = modelConfig.getModelId();
             String platformArchitecture = modelConfig.getPlatformArchitecture();
 
-            verifyMLNodeArchitectureMatchesModelPlatformArchitecture(platformArchitecture, modelId, failedDeploymentListener);
+            ActionListener<Void> failureListener = new ActionListener<Void>() {
+
+                @Override
+                public void onResponse(Void o) {
+
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failedDeploymentListener.onFailure(e);
+                }
+            };
+
+            MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
+                failureListener,
+                client,
+                threadPool,
+                platformArchitecture,
+                modelId
+            );
 
             processContext.modelInput.set(modelConfig.getInput());
 
@@ -225,28 +240,6 @@ public class DeploymentManager {
             new GetTrainedModelsAction.Request(task.getParams().getModelId()),
             getModelListener
         );
-    }
-
-    void verifyMLNodeArchitectureMatchesModelPlatformArchitecture(
-        String modelPlatformArchitecture,
-        String modelId,
-        ActionListener<TrainedModelDeploymentTask> failedDeploymentListener
-    ) {
-        ActionListener<Set<String>> architecturesListener = ActionListener.wrap(architectures -> {
-            try {
-                MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(architectures, modelPlatformArchitecture, modelId);
-            } catch (RuntimeException e) {
-                failedDeploymentListener.onFailure(e);
-            }
-        }, failedDeploymentListener::onFailure);
-
-        ActionListener<NodesInfoResponse> listener = MlPlatformArchitecturesUtil.getArchitecturesSetFromNodesInfoResponseListener(
-            threadPool,
-            architecturesListener
-        );
-
-        NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
-        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, listener);
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {

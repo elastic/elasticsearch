@@ -14,9 +14,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -68,8 +65,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
 import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
@@ -160,14 +155,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        if (eventStateHasGlobalBlockStateNotRecoveredBlock(event)) {
             return;
         }
         if (event.localNodeMaster() == false) {
             return;
         }
 
-        if (event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
+        if (eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(event)) {
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
             // But we should remove routing to removed or shutting down nodes.
@@ -201,7 +196,20 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
     }
 
-    private void logMlNodeHeterogeneity() {
+    boolean eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(ClusterChangedEvent event) {
+        return event.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
+    }
+
+    boolean eventStateHasGlobalBlockStateNotRecoveredBlock(ClusterChangedEvent event) {
+        return event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+    }
+
+    void logMlNodeHeterogeneity() {
+        ActionListener<Set<String>> architecturesListener = getArchitecturesSetActionListener();
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
+    }
+
+    static ActionListener<Set<String>> getArchitecturesSetActionListener() {
         ActionListener<Set<String>> architecturesListener = new ActionListener<Set<String>>() {
             @Override
             public void onResponse(Set<String> architectures) {
@@ -222,14 +230,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 logger.error("Failed to detect heterogeneity among ML nodes with exception: ", e);
             }
         };
-
-        ActionListener<NodesInfoResponse> listener = MlPlatformArchitecturesUtil.getArchitecturesSetFromNodesInfoResponseListener(
-            threadPool,
-            architecturesListener
-        );
-
-        NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
-        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, listener);
+        return architecturesListener;
     }
 
     private void removeRoutingToRemovedOrShuttingDownNodes(ClusterChangedEvent event) {
@@ -525,7 +526,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return update(currentState, rebalanceAssignments(currentState, Optional.of(params)));
     }
 
-    private void rebalanceAssignments(
+    void rebalanceAssignments(
         ClusterState clusterState,
         Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd,
         String reason,
@@ -556,19 +557,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                             ClusterState updatedState = update(currentState, rebalancedMetadata);
                             isChanged = updatedState != currentState;
 
-                            if (mlNodesArchitectures.size() > 1 && modelToAdd.isPresent()) {
-                                setToStopping(
-                                    clusterState,
-                                    modelToAdd.get().getDeploymentId(),
-                                    format(
-                                        "ML nodes in this cluster have multiple platform architectures, "
-                                            + "but can only have one for this model ([%s]); "
-                                            + "detected architectures: [%s]",
-                                        modelToAdd.get().getModelId(),
-                                        mlNodesArchitectures.toString()
-                                    )
-                                );
-                            }
+                            updatedState = stopPlatformSpecificModelsInHeterogeneousClusters(
+                                updatedState,
+                                mlNodesArchitectures,
+                                modelToAdd,
+                                clusterState
+                            );
 
                             return updatedState;
                         }
@@ -597,11 +591,39 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             });
         }, listener::onFailure);
 
-        ActionListener<NodesInfoResponse> nodesInfoResponseActionListener = MlPlatformArchitecturesUtil
-            .getArchitecturesSetFromNodesInfoResponseListener(threadPool, architecturesListener);
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
+    }
 
-        NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
-        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, nodesInfoResponseActionListener);
+    ClusterState stopPlatformSpecificModelsInHeterogeneousClusters(
+        ClusterState updatedState,
+        Set<String> mlNodesArchitectures,
+        Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd,
+        ClusterState clusterState
+    ) {
+        if (mlNodesArchitectures.size() > 1 && modelToAdd.isPresent()) {
+            updatedState = callSetToStopping(mlNodesArchitectures, modelToAdd.get(), clusterState);
+        }
+        return updatedState;
+    }
+
+    ClusterState callSetToStopping(
+        Set<String> mlNodesArchitectures,
+        StartTrainedModelDeploymentAction.TaskParams modelToAdd,
+        ClusterState clusterState
+    ) {
+        ClusterState updatedState;
+        updatedState = setToStopping(
+            clusterState,
+            modelToAdd.getDeploymentId(),
+            format(
+                "ML nodes in this cluster have multiple platform architectures, "
+                    + "but can only have one for this model ([%s]); "
+                    + "detected architectures: [%s]",
+                modelToAdd.getModelId(),
+                mlNodesArchitectures.toString()
+            )
+        );
+        return updatedState;
     }
 
     private boolean areClusterStatesCompatibleForRebalance(ClusterState source, ClusterState target) {

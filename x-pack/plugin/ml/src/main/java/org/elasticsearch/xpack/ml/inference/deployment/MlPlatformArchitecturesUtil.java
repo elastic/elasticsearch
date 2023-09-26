@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
@@ -23,10 +25,22 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class MlPlatformArchitecturesUtil {
 
-    public static ActionListener<NodesInfoResponse> getArchitecturesSetFromNodesInfoResponseListener(
+    public static void getMlNodesArchitecturesSet(ActionListener<Set<String>> architecturesListener, Client client, ThreadPool threadPool) {
+        ActionListener<NodesInfoResponse> listener = MlPlatformArchitecturesUtil.getArchitecturesSetFromNodesInfoResponseListener(
+            threadPool,
+            architecturesListener
+        );
+
+        NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, listener);
+    }
+
+    static ActionListener<NodesInfoResponse> getArchitecturesSetFromNodesInfoResponseListener(
         ThreadPool threadPool,
         ActionListener<Set<String>> architecturesListener
     ) {
@@ -37,7 +51,7 @@ public class MlPlatformArchitecturesUtil {
         }, architecturesListener::onFailure);
     }
 
-    public static NodesInfoRequestBuilder getNodesInfoBuilderWithMlNodeArchitectureInfo(Client client) {
+    static NodesInfoRequestBuilder getNodesInfoBuilderWithMlNodeArchitectureInfo(Client client) {
         return client.admin().cluster().prepareNodesInfo().clear().setNodesIds("ml:true").setOs(true).setPlugins(true);
     }
 
@@ -52,7 +66,21 @@ public class MlPlatformArchitecturesUtil {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    public static void verifyMlNodesAndModelArchitectures(Set<String> architectures, String modelPlatformArchitecture, String modelID)
+    public static void verifyMlNodesAndModelArchitectures(
+        ActionListener<Void> failureListener,
+        Client client,
+        ThreadPool threadPool,
+        String modelPlatformArchitecture,
+        String modelID
+    ) {
+        ActionListener<Set<String>> architecturesListener = ActionListener.wrap((architectures) -> {
+            verifyMlNodesAndModelArchitectures(architectures, modelPlatformArchitecture, modelID);
+        }, failureListener::onFailure);
+
+        getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
+    }
+
+    static void verifyMlNodesAndModelArchitectures(Set<String> architectures, String modelPlatformArchitecture, String modelID)
         throws IllegalArgumentException, IllegalStateException {
 
         String architecture = null;

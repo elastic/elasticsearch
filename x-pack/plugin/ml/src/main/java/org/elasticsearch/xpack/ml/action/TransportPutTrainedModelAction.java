@@ -13,9 +13,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -84,7 +81,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -257,19 +253,9 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     request.isWaitForCompletion(),
                     ActionListener.wrap((downloadTriggered) -> {
                         listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
-                        ActionListener<Set<String>> architecturesListener = new ActionListener<>() {
+                        ActionListener<Void> failureListener = new ActionListener<Void>() {
                             @Override
-                            public void onResponse(Set<String> nodesArchitectures) {
-                                try {
-                                    MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-                                        nodesArchitectures,
-                                        configToReturn.getPlatformArchitecture(),
-                                        configToReturn.getModelId()
-                                    );
-                                } catch (Exception e) {
-                                    HeaderWarning.addWarning(e.getMessage());
-                                }
-                            }
+                            public void onResponse(Void o) {}
 
                             @Override
                             public void onFailure(Exception e) {
@@ -277,18 +263,12 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                             }
                         };
 
-                        ActionListener<NodesInfoResponse> nodesInfoResponseActionListener = MlPlatformArchitecturesUtil
-                            .getArchitecturesSetFromNodesInfoResponseListener(threadPool, architecturesListener);
-
-                        NodesInfoRequest nodesInfoRequest = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(
-                            client
-                        ).request();
-                        executeAsyncWithOrigin(
+                        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
+                            failureListener,
                             client,
-                            ML_ORIGIN,
-                            NodesInfoAction.INSTANCE,
-                            nodesInfoRequest,
-                            nodesInfoResponseActionListener
+                            threadPool,
+                            configToReturn.getPlatformArchitecture(),
+                            configToReturn.getModelId()
                         );
                     }, listener::onFailure)
                 );

@@ -13,31 +13,37 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 
-public class ModelTests extends AbstractWireSerializingTestCase<Model> {
+public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<ModelConfigurations> {
 
-    public static Model createRandomInstance() {
+    public static ModelConfigurations createRandomInstance() {
         // TODO randomise task types and settings
         var taskType = TaskType.SPARSE_EMBEDDING;
-        return new Model(randomAlphaOfLength(6), taskType, randomAlphaOfLength(6), randomServiceSettings(), randomTaskSettings(taskType));
+        return new ModelConfigurations(
+            randomAlphaOfLength(6),
+            taskType,
+            randomAlphaOfLength(6),
+            randomServiceSettings(),
+            randomTaskSettings(taskType)
+        );
     }
 
-    public static Model mutateTestInstance(Model instance) {
+    public static ModelConfigurations mutateTestInstance(ModelConfigurations instance) {
         switch (randomIntBetween(0, 2)) {
-            case 0 -> new Model(
+            case 0 -> new ModelConfigurations(
                 instance.getModelId() + "foo",
                 instance.getTaskType(),
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings()
             );
-            case 1 -> new Model(
+            case 1 -> new ModelConfigurations(
                 instance.getModelId(),
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings()
             );
-            case 2 -> new Model(
+            case 2 -> new ModelConfigurations(
                 instance.getModelId(),
                 instance.getTaskType(),
                 instance.getService() + "bar",
@@ -63,17 +69,17 @@ public class ModelTests extends AbstractWireSerializingTestCase<Model> {
     }
 
     @Override
-    protected Writeable.Reader<Model> instanceReader() {
-        return Model::new;
+    protected Writeable.Reader<ModelConfigurations> instanceReader() {
+        return ModelConfigurations::new;
     }
 
     @Override
-    protected Model createTestInstance() {
+    protected ModelConfigurations createTestInstance() {
         return createRandomInstance();
     }
 
     @Override
-    protected Model mutateInstance(Model instance) {
+    protected ModelConfigurations mutateInstance(ModelConfigurations instance) {
         return mutateTestInstance(instance);
     }
 }

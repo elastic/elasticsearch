@@ -14,7 +14,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.Model;
+import org.elasticsearch.xpack.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.TaskType;
@@ -55,7 +55,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public void testStoreModel() throws Exception {
         String modelId = "test-store-model";
-        Model model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -67,7 +67,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public void testStoreModelWithUnknownFields() throws Exception {
         String modelId = "test-store-model-unknown-field";
-        Model model = buildModelWithUnknownField(modelId);
+        ModelConfigurations model = buildModelWithUnknownField(modelId);
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -86,7 +86,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public void testGetModel() throws Exception {
         String modelId = "test-get-model";
-        Model model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -112,7 +112,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public void testStoreModelFailsWhenModelExists() throws Exception {
         String modelId = "test-put-trained-model-config-exists";
-        Model model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations model = buildModelConfig(modelId, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
@@ -134,7 +134,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     public void testDeleteModel() throws Exception {
         // put models
         for (var id : new String[] { "model1", "model2", "model3" }) {
-            Model model = buildModelConfig(id, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
+            ModelConfigurations model = buildModelConfig(id, ElserMlNodeService.NAME, TaskType.SPARSE_EMBEDDING);
             AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
             blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
@@ -157,7 +157,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get().getMessage(), containsString("Model not found [model1]"));
     }
 
-    private Model buildModelConfig(String modelId, String service, TaskType taskType) {
+    private ModelConfigurations buildModelConfig(String modelId, String service, TaskType taskType) {
         return switch (service) {
             case ElserMlNodeService.NAME -> ElserMlNodeServiceTests.randomModelConfig(modelId, taskType);
             default -> throw new IllegalArgumentException("unknown service " + service);
@@ -189,7 +189,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         );
     }
 
-    private static class ModelWithUnknownField extends Model {
+    private static class ModelWithUnknownField extends ModelConfigurations {
 
         ModelWithUnknownField(
             String modelId,

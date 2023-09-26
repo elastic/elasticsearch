@@ -25,6 +25,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.Model;
+import org.elasticsearch.xpack.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
 import org.elasticsearch.xpack.inference.services.InferenceService;
@@ -73,7 +74,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     ) throws Exception {
 
         var requestAsMap = requestToMap(request);
-        String serviceName = (String) requestAsMap.remove(Model.SERVICE);
+        String serviceName = (String) requestAsMap.remove(ModelConfigurations.SERVICE);
         if (serviceName == null) {
             listener.onFailure(new ElasticsearchStatusException("Model configuration is missing a service", RestStatus.BAD_REQUEST));
             return;

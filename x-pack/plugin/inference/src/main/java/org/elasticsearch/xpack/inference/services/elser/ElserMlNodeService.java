@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.inference.Model;
+import org.elasticsearch.xpack.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.results.InferenceResult;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResult;
@@ -43,13 +44,13 @@ public class ElserMlNodeService implements InferenceService {
         TaskType taskType,
         Map<String, Object> settings
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, Model.SERVICE_SETTINGS);
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettings = serviceSettingsFromMap(serviceSettingsMap);
 
         Map<String, Object> taskSettingsMap;
         // task settings are optional
-        if (settings.containsKey(Model.TASK_SETTINGS)) {
-            taskSettingsMap = removeFromMapOrThrowIfNull(settings, Model.TASK_SETTINGS);
+        if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+            taskSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.TASK_SETTINGS);
         } else {
             taskSettingsMap = Map.of();
         }
@@ -84,19 +85,21 @@ public class ElserMlNodeService implements InferenceService {
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElserMlNodeModel == false) {
-            listener.onFailure(new IllegalStateException("Error starting model, [" + model.getModelId() + "] is not an elser model"));
+            listener.onFailure(
+                new IllegalStateException("Error starting model, [" + model.getConfigurations().getModelId() + "] is not an elser model")
+            );
             return;
         }
 
-        if (model.getTaskType() != TaskType.SPARSE_EMBEDDING) {
-            listener.onFailure(new IllegalStateException(unsupportedTaskTypeErrorMsg(model.getTaskType())));
+        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
+            listener.onFailure(new IllegalStateException(unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType())));
             return;
         }
 
         var elserModel = (ElserMlNodeModel) model;
         var serviceSettings = elserModel.getServiceSettings();
 
-        var startRequest = new StartTrainedModelDeploymentAction.Request(ELSER_V1_MODEL, model.getModelId());
+        var startRequest = new StartTrainedModelDeploymentAction.Request(ELSER_V1_MODEL, model.getConfigurations().getModelId());
         startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
         startRequest.setWaitForState(STARTED);
@@ -112,13 +115,18 @@ public class ElserMlNodeService implements InferenceService {
     public void infer(Model model, String input, Map<String, Object> requestTaskSettings, ActionListener<InferenceResult> listener) {
         // No task settings to override with requestTaskSettings
 
-        if (model.getTaskType() != TaskType.SPARSE_EMBEDDING) {
-            listener.onFailure(new ElasticsearchStatusException(unsupportedTaskTypeErrorMsg(model.getTaskType()), RestStatus.BAD_REQUEST));
+        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
             return;
         }
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
-            model.getModelId(),
+            model.getConfigurations().getModelId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             List.of(input),
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request

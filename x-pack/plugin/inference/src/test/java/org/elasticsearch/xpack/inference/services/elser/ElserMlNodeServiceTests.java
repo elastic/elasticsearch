@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.elser;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.Model;
+import org.elasticsearch.xpack.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.TaskType;
 
 import java.util.HashMap;
@@ -21,7 +21,7 @@ import static org.mockito.Mockito.mock;
 
 public class ElserMlNodeServiceTests extends ESTestCase {
 
-    public static Model randomModelConfig(String modelId, TaskType taskType) {
+    public static ModelConfigurations randomModelConfig(String modelId, TaskType taskType) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new ElserMlNodeModel(
                 modelId,
@@ -39,10 +39,10 @@ public class ElserMlNodeServiceTests extends ESTestCase {
 
         var settings = new HashMap<String, Object>();
         settings.put(
-            Model.SERVICE_SETTINGS,
+            ModelConfigurations.SERVICE_SETTINGS,
             new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
         );
-        settings.put(Model.TASK_SETTINGS, Map.of());
+        settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
 
         ElserMlNodeModel parsedModel = service.parseConfigStrict("foo", TaskType.SPARSE_EMBEDDING, settings);
 
@@ -63,7 +63,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
 
         var settings = new HashMap<String, Object>();
         settings.put(
-            Model.SERVICE_SETTINGS,
+            ModelConfigurations.SERVICE_SETTINGS,
             new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
         );
 
@@ -87,10 +87,10 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             {
                 var settings = new HashMap<String, Object>();
                 settings.put(
-                    Model.SERVICE_SETTINGS,
+                    ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
                 );
-                settings.put(Model.TASK_SETTINGS, Map.of());
+                settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
                 settings.put("foo", "bar");
 
                 if (throwOnUnknown) {
@@ -110,10 +110,10 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             {
                 var settings = new HashMap<String, Object>();
                 settings.put(
-                    Model.SERVICE_SETTINGS,
+                    ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
                 );
-                settings.put(Model.TASK_SETTINGS, Map.of("foo", "bar"));
+                settings.put(ModelConfigurations.TASK_SETTINGS, Map.of("foo", "bar"));
 
                 if (throwOnUnknown) {
                     var e = expectThrows(
@@ -132,7 +132,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             {
                 var settings = new HashMap<String, Object>();
                 settings.put(
-                    Model.SERVICE_SETTINGS,
+                    ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(
                         Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4, "foo", "bar")
                     )

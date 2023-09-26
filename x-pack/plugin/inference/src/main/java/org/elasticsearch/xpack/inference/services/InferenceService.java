@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.inference.Model;
+import org.elasticsearch.xpack.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.results.InferenceResult;
 
@@ -30,7 +31,7 @@ public interface InferenceService {
      * @param modelId Model Id
      * @param taskType The model task type
      * @param config Configuration options
-     * @return The parsed {@link Model}
+     * @return The parsed {@link ModelConfigurations}
      */
     Model parseConfigStrict(String modelId, TaskType taskType, Map<String, Object> config);
 
@@ -41,7 +42,7 @@ public interface InferenceService {
      * @param modelId Model Id
      * @param taskType The model task type
      * @param config Configuration options
-     * @return The parsed {@link Model}
+     * @return The parsed {@link ModelConfigurations}
      */
     Model parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> config);
 

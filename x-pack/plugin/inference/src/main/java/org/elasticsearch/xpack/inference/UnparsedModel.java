@@ -15,8 +15,8 @@ import java.util.Map;
 public record UnparsedModel(String modelId, TaskType taskType, String service, Map<String, Object> settings) {
 
     public static UnparsedModel unparsedModelFromMap(Map<String, Object> sourceMap) {
-        String modelId = removeStringOrThrowIfNull(sourceMap, Model.MODEL_ID);
-        String service = removeStringOrThrowIfNull(sourceMap, Model.SERVICE);
+        String modelId = removeStringOrThrowIfNull(sourceMap, ModelConfigurations.MODEL_ID);
+        String service = removeStringOrThrowIfNull(sourceMap, ModelConfigurations.SERVICE);
         String taskTypeStr = removeStringOrThrowIfNull(sourceMap, TaskType.NAME);
         TaskType taskType = TaskType.fromString(taskTypeStr);
 

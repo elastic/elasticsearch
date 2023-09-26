@@ -19,79 +19,46 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class Model implements ToXContentObject, VersionedNamedWriteable {
-
-    public static final String MODEL_ID = "model_id";
-    public static final String SERVICE = "service";
-    public static final String SERVICE_SETTINGS = "service_settings";
-    public static final String TASK_SETTINGS = "task_settings";
-
-    private static final String NAME = "inference_model";
-
     public static String documentId(String modelId) {
         return "model_" + modelId;
     }
 
-    private final String modelId;
-    private final TaskType taskType;
-    private final String service;
-    private final ServiceSettings serviceSettings;
-    private final TaskSettings taskSettings;
+    private static final String NAME = "inference_model";
+    private final ModelConfigurations configurations;
+    private final ModelSecrets secrets;
 
-    public Model(String modelId, TaskType taskType, String service, ServiceSettings serviceSettings, TaskSettings taskSettings) {
-        this.modelId = modelId;
-        this.taskType = taskType;
-        this.service = service;
-        this.serviceSettings = serviceSettings;
-        this.taskSettings = taskSettings;
+    public Model(ModelConfigurations configurations, ModelSecrets secrets) {
+        this.configurations = Objects.requireNonNull(configurations);
+        this.secrets = Objects.requireNonNull(secrets);
+    }
+
+    public Model(ModelConfigurations configurations) {
+        this(configurations, new ModelSecrets(configurations));
+
     }
 
     public Model(StreamInput in) throws IOException {
-        this.modelId = in.readString();
-        this.taskType = in.readEnum(TaskType.class);
-        this.service = in.readString();
-        this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
-        this.taskSettings = in.readNamedWriteable(TaskSettings.class);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
-        out.writeEnum(taskType);
-        out.writeString(service);
-        out.writeNamedWriteable(serviceSettings);
-        out.writeNamedWriteable(taskSettings);
-    }
-
-    public String getModelId() {
-        return modelId;
-    }
-
-    public TaskType getTaskType() {
-        return taskType;
-    }
-
-    public String getService() {
-        return service;
+        this(new ModelConfigurations(in), new ModelSecrets(in));
     }
 
     public ServiceSettings getServiceSettings() {
-        return serviceSettings;
+        return configurations.getServiceSettings();
     }
 
     public TaskSettings getTaskSettings() {
-        return taskSettings;
+        return configurations.getTaskSettings();
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(MODEL_ID, modelId);
-        builder.field(TaskType.NAME, taskType.toString());
-        builder.field(SERVICE, service);
-        builder.field(SERVICE_SETTINGS, serviceSettings);
-        builder.field(TASK_SETTINGS, taskSettings);
-        builder.endObject();
-        return builder;
+    public ModelConfigurations getConfigurations() {
+        return configurations;
+    }
+
+    public ModelSecrets getSecrets() {
+        return secrets;
+    }
+
+    public SecretSettings getSecretSettings() {
+        return secrets.getSecrets();
     }
 
     @Override
@@ -101,7 +68,18 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_074;
+        return TransportVersions.INFERENCE_MODEL_SECRETS_ADDED;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // TODO should we wrap this in an object? Probably not
+        configurations.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return configurations.toXContent(builder, params);
     }
 
     @Override
@@ -109,15 +87,11 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Model model = (Model) o;
-        return Objects.equals(modelId, model.modelId)
-            && taskType == model.taskType
-            && Objects.equals(service, model.service)
-            && Objects.equals(serviceSettings, model.serviceSettings)
-            && Objects.equals(taskSettings, model.taskSettings);
+        return Objects.equals(configurations, model.configurations) && Objects.equals(secrets, model.secrets);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, taskType, service, serviceSettings, taskSettings);
+        return Objects.hash(configurations, secrets);
     }
 }

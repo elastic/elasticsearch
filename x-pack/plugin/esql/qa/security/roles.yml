@@ -13,7 +13,7 @@ test-admin:
 user1:
   cluster:
     - cluster:monitor/main
-    - monitor
+    - manage_enrich
   indices:
     - names: ['index-user1', 'index', "test-enrich" ]
       privileges:
@@ -23,8 +23,7 @@ user1:
         - indices:admin/refresh
 
 user2:
-  cluster:
-    - cluster:monitor/main
+  cluster: []
   indices:
     - names: [ 'index-user2', 'index' ]
       privileges:
@@ -34,8 +33,7 @@ user2:
         - indices:admin/refresh
 
 user3:
-  cluster:
-    - cluster:monitor/main
+  cluster: []
   indices:
     - names: [ 'index' ]
       privileges: [ 'read' ]
@@ -48,7 +46,7 @@ user3:
 
 user4:
   cluster:
-    - monitor
+    - monitor_enrich
   indices:
     - names: ['index-user1', 'index', "test-enrich" ]
       privileges:

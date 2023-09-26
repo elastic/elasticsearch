@@ -100,6 +100,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "monitor_data_frame_transforms",
     "monitor_ml",
     "monitor_rollup",
+    "monotor_enrich",
     "monitor_snapshot",
     "monitor_text_structure",
     "monitor_transform",

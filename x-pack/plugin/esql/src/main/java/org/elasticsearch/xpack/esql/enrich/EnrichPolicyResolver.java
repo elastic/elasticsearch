@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class EnrichPolicyResolver {
-    private static final String RESOLVE_ACTION_NAME = "cluster:monitor/esql/resolve_enrich";
+    private static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
 
     private final ClusterService clusterService;
     private final IndexResolver indexResolver;

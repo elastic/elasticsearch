@@ -99,13 +99,19 @@ public class MemoryMetricsService implements ClusterStateListener {
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
             for (IndexMetadata indexMetadata : event.state().metadata()) {
-                indicesMemoryMetrics.put(indexMetadata.getIndex(), new IndexMemoryMetrics(0, MetricQuality.MISSING));
+                IndexMemoryMetrics indexMemoryMetrics = new IndexMemoryMetrics(0, MetricQuality.MISSING);
+
+                var shardRouting = getPrimaryShardRouting(event, indexMetadata.getIndex());
+                if (shardRouting.assignedToNode()) {
+                    indexMemoryMetrics.update(shardRouting.currentNodeId());
+                }
+                indicesMemoryMetrics.put(indexMetadata.getIndex(), indexMemoryMetrics);
             }
             initialized = true;
             return;
         }
 
-        if (event.metadataChanged()) {
+        if (event.metadataChanged() || event.routingTableChanged()) {
 
             // index delete use case
             for (Index deletedIndex : event.indicesDeleted()) {
@@ -139,10 +145,7 @@ public class MemoryMetricsService implements ClusterStateListener {
 
                 // moving shard use case
                 if (event.indexRoutingTableChanged(index.getName())) {
-                    final ShardRouting newShardRouting = event.state()
-                        .routingTable()
-                        .shardRoutingTable(index.getName(), SENDING_PRIMARY_SHARD_ID)
-                        .primaryShard();
+                    final ShardRouting newShardRouting = getPrimaryShardRouting(event, index);
                     if (newShardRouting.assignedToNode()) {
                         final IndexMemoryMetrics indexMemoryMetrics = indicesMemoryMetrics.get(index);
                         assert indexMemoryMetrics != null;
@@ -154,9 +157,12 @@ public class MemoryMetricsService implements ClusterStateListener {
                         }
                     }
                 }
-
             }
         }
+    }
+
+    private static ShardRouting getPrimaryShardRouting(ClusterChangedEvent event, Index indexMetadata) {
+        return event.state().routingTable().shardRoutingTable(indexMetadata.getName(), SENDING_PRIMARY_SHARD_ID).primaryShard();
     }
 
     static class IndexMemoryMetrics {

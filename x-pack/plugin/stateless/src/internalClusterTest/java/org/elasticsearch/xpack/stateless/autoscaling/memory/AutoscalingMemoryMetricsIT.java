@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -45,6 +47,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
@@ -59,7 +63,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
     @Before
     public void init() {
-        startMasterOnlyNode();
+        startMasterNode();
     }
 
     public void testCreateIndexWithMapping() throws Exception {
@@ -321,7 +325,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             int shardsCount = randomIntBetween(1, indexNodes);
             logger.info("---> Number of shards {} in index {}", numberOfIndices, indexName);
             assertAcked(prepareCreate(indexName).setMapping(indexMapping).setSettings(indexSettings(shardsCount, 0).build()).get());
-
         }
 
         assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThanOrEqualTo(1)), 60, TimeUnit.SECONDS);
@@ -349,6 +352,98 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(sizeAfterIndexDelete, equalTo(0L));
             assertThat(totalIndexMappingSizeAfterIndexDelete.getMetricQuality(), equalTo(MetricQuality.EXACT));
         }, 60, TimeUnit.SECONDS);
+    }
+
+    public void testMetricsRemainExactAfterAMasterFailover() throws Exception {
+        var masterNode2 = startMasterNode();
+        startIndexNode(INDEX_NODE_SETTINGS);
+
+        final LongAdder minimalEstimatedOverhead = new LongAdder();
+        final int numberOfIndices = randomIntBetween(10, 50);
+        for (int i = 0; i < numberOfIndices; i++) {
+            final String indexName = "test-index-[" + i + "]";
+
+            final int mappingFieldsCount = randomIntBetween(10, 100);
+
+            minimalEstimatedOverhead.add(1024 * mappingFieldsCount);
+
+            final XContentBuilder indexMapping = createIndexMapping(mappingFieldsCount);
+            assertAcked(prepareCreate(indexName).setMapping(indexMapping).setSettings(indexSettings(1, 0).build()).get());
+        }
+
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.getSizeInBytes();
+            assertThat(sizeAfterIndexCreate, greaterThan(minimalEstimatedOverhead.sum()));
+            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        });
+
+        internalCluster().stopCurrentMasterNode();
+
+        assertBusy(() -> {
+            var currentMasterNode = client().admin().cluster().prepareState().get().getState().nodes().getMasterNode();
+            assertThat(currentMasterNode, is(notNullValue()));
+            assertThat(currentMasterNode.getName(), is(equalTo(masterNode2)));
+        });
+
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.getSizeInBytes();
+            assertThat(sizeAfterIndexCreate, greaterThan(minimalEstimatedOverhead.sum()));
+            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        });
+    }
+
+    public void testMemoryMetricsRemainExactAfterAShardMovesToADifferentNode() throws Exception {
+        var indexNode1 = startIndexNode(INDEX_NODE_SETTINGS);
+        var indexNode2 = startIndexNode(INDEX_NODE_SETTINGS);
+
+        var indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(indexName).setMapping(createIndexMapping(randomIntBetween(10, 100)))
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode1).build())
+                .get()
+        );
+
+        var primaryShardRelocated = new AtomicBoolean();
+        var transportService = (MockTransportService) internalCluster().getCurrentMasterNodeInstance(TransportService.class);
+        transportService.addRequestHandlingBehavior(PublishHeapMemoryMetricsAction.NAME, (handler, request, channel, task) -> {
+            // Ignore memory metrics until the primary shard moves into the new node to ensure that we transition to the new state correctly
+            if (primaryShardRelocated.get()) {
+                handler.messageReceived(request, channel, task);
+            }
+        });
+
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.MISSING));
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));
+        primaryShardRelocated.set(true);
+
+        assertBusy(() -> {
+            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
+                MemoryMetricsService.class
+            ).getTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.getSizeInBytes();
+            assertThat(sizeAfterIndexCreate, greaterThan(0L));
+            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        });
+    }
+
+    private String startMasterNode() {
+        return internalCluster().startMasterOnlyNode(
+            nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
     }
 
     private static XContentBuilder createIndexMapping(int fieldCount) {

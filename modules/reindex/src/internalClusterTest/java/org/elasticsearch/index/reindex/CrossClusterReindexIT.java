@@ -8,37 +8,25 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.not;
 
 public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
-
-    private static final Logger LOGGER = LogManager.getLogger(CrossClusterReindexIT.class);
 
     private static final String REMOTE_CLUSTER = "remote-cluster";
 
@@ -55,35 +43,6 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         return List.of(ReindexPlugin.class);
-    }
-
-    @Override
-    protected void configureRemoteCluster(String clusterAlias, Collection<String> seedNodes) throws Exception {
-        final String remoteClusterSettingPrefix = "cluster.remote." + clusterAlias + ".";
-        Settings.Builder settings = Settings.builder();
-        final List<String> seedAddresses = seedNodes.stream().map(node -> {
-            final TransportService transportService = cluster(clusterAlias).getInstance(TransportService.class, node);
-            return transportService.boundAddress().publishAddress().toString();
-        }).toList();
-
-        settings.putNull(remoteClusterSettingPrefix + "proxy_address")
-            .put(remoteClusterSettingPrefix + "mode", "sniff")
-            .put(remoteClusterSettingPrefix + "seeds", String.join(",", seedAddresses))
-            .build();
-        client(LOCAL_CLUSTER).admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-
-        assertBusy(() -> {
-            List<RemoteConnectionInfo> remoteConnectionInfos = client(LOCAL_CLUSTER).execute(
-                RemoteInfoAction.INSTANCE,
-                new RemoteInfoRequest()
-            )
-                .actionGet()
-                .getInfos()
-                .stream()
-                .filter(c -> c.isConnected() && c.getClusterAlias().equals(clusterAlias))
-                .collect(Collectors.toList());
-            assertThat(remoteConnectionInfos, not(empty()));
-        });
     }
 
     private int indexDocs(Client client, String index) {
@@ -135,7 +94,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         }));
     }
 
-    public void testReindexFromRemoteIgnoreUnavailableIndex() throws Exception {
+    public void testReindexFromRemoteIgnoreUnavailableIndex() {
 
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "no-such-source-index-001";
         BulkByScrollResponse response = new ReindexRequestBuilder(client(LOCAL_CLUSTER), ReindexAction.INSTANCE).source(sourceIndexInRemote)
@@ -170,12 +129,12 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         );
 
         // assert that local index was not created either
-        final IndexNotFoundException e2 = expectThrows(
+        final IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
             () -> client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000).get()
         );
 
-        assertThat(e2, hasToString(containsString(String.format(Locale.ROOT, "no such index [%s]", "desc-index-001"))));
+        assertThat(e, hasToString(containsString(String.format(Locale.ROOT, "no such index [%s]", "desc-index-001"))));
     }
 
     public void testReindexFromRemoteGivenSimpleDateMathIndexName() throws InterruptedException {

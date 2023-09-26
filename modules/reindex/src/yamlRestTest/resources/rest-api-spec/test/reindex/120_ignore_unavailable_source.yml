@@ -13,8 +13,8 @@
 ---
 "Skip unavailable source index":
   - skip:
-      version: " - 8.10.0"
-      reason: "ignore_unavailable query parameter was added in 8.10.0"
+      version: " - 8.11.0"
+      reason: "ignore_unavailable query parameter was added in 8.11.0"
   - do:
       reindex:
         ignore_unavailable: true

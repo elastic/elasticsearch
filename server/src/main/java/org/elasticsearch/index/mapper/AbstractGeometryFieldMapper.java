@@ -116,7 +116,6 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
             return new ArraySourceValueFetcher(name(), context) {
-
                 @Override
                 protected Object parseSourceValue(Object value) {
                     final List<T> values = new ArrayList<>();

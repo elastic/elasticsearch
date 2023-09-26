@@ -4,13 +4,9 @@ import { basename, resolve } from "path";
 import { execSync } from "child_process";
 
 import { BuildkitePipeline, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
+import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
 
 const PROJECT_ROOT = resolve(`${import.meta.dir}/../../..`);
-
-export const BWC_VERSIONS = parse(readFileSync(`${PROJECT_ROOT}/.ci/bwcVersions`, "utf-8")).BWC_VERSION;
-export const SNAPSHOT_BWC_VERSIONS = parse(
-  readFileSync(`${PROJECT_ROOT}/.ci/snapshotBwcVersions`, "utf-8")
-).BWC_VERSION;
 
 const getArray = (strOrArray: string | string[] | undefined): string[] => {
   if (typeof strOrArray === "undefined") {
@@ -61,6 +57,8 @@ const triggerCommentCheck = (pipeline: EsPipeline): boolean => {
   return false;
 };
 
+// There are so many BWC versions that we can't use the matrix feature in Buildkite, as it's limited to 20 elements per dimension
+// So we need to duplicate the steps instead
 // Recursively check for any steps that have a bwc_template attribute and expand them out into multiple steps, one for each BWC_VERSION
 const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
   const stepsToExpand = (step.steps || []).filter((s) => s.bwc_template);
@@ -73,7 +71,7 @@ const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
   }
 
   for (const stepToExpand of stepsToExpand) {
-    for (const bwcVersion of BWC_VERSIONS) {
+    for (const bwcVersion of getBwcVersions()) {
       let newStepJson = JSON.stringify(stepToExpand).replaceAll("$BWC_VERSION_SNAKE", bwcVersion.replaceAll(".", "_"));
       newStepJson = newStepJson.replaceAll("$BWC_VERSION", bwcVersion);
       const newStep = JSON.parse(newStepJson);
@@ -99,7 +97,7 @@ export const generatePipelines = (
     }
 
     let yaml = readFileSync(`${directory}/${file}`, "utf-8");
-    yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(SNAPSHOT_BWC_VERSIONS));
+    yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(getSnapshotBwcVersions()));
     const pipeline: EsPipeline = parse(yaml) || {};
 
     pipeline.config = { ...defaults.config, ...(pipeline.config || {}) };

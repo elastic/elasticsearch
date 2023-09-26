@@ -88,6 +88,8 @@ if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
 fi
 
+# Initialize the build scan and gobld annotations with empty/open <details> tags
+# This ensures that they are collapsible when they get appended to
 if [[ "${BUILDKITE_LABEL:-}" == *"Pipeline upload"* ]]; then
   cat << EOF | buildkite-agent annotate --context "gradle-build-scans" --style "info"
 <details>

@@ -458,7 +458,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertEquals(List.of(lon, lat), pointMap.get("coordinates"));
     }
 
-    public void testDensevectorInObject() throws IOException {
+    public void testDenseVectorInObject() throws IOException {
         MapperService mapperService = createMapperService();
         {
             String source = """

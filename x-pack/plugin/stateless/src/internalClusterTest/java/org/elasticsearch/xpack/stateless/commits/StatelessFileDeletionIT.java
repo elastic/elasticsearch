@@ -24,6 +24,9 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -63,11 +66,14 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
@@ -467,23 +473,39 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testCommitsAreRetainedUntilScrollCloses() throws Exception {
-        testCommitsRetainementWithSearchScroll(true);
+        testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_RETAINED_UNTIL_SCROLL_CLOSES);
     }
 
     public void testCommitsAreDroppedAfterScrollClosesAndIndexingInactivity() throws Exception {
-        testCommitsRetainementWithSearchScroll(false);
+        testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY);
     }
 
-    private void testCommitsRetainementWithSearchScroll(boolean indexingActivityAfterScrollCloses) throws Exception {
-        var indexNode = startMasterAndIndexNode(
-            indexingActivityAfterScrollCloses
-                ? Settings.EMPTY
-                : Settings.builder()
+    public void testCommitsOfScrollAreDeletedAfterIndexIsClosedAndOpened() throws Exception {
+        testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED);
+    }
+
+    public void testAllCommitsDeletedAfterIndexIsDeleted() throws Exception {
+        testCommitsRetainementWithSearchScroll(TestSearchScrollCase.ALL_COMMITS_DELETED_AFTER_INDEX_DELETED);
+    }
+
+    private enum TestSearchScrollCase {
+        COMMITS_RETAINED_UNTIL_SCROLL_CLOSES,
+        COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY,
+        COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED,
+        ALL_COMMITS_DELETED_AFTER_INDEX_DELETED
+    }
+
+    private void testCommitsRetainementWithSearchScroll(TestSearchScrollCase testCase) throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode(
+            testCase == TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY
+                ? Settings.builder()
                     .put(SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.getKey(), "100ms")
                     .put(SHARD_INACTIVITY_DURATION_TIME_SETTING.getKey(), "100ms")
                     .build()
+                : Settings.EMPTY
         );
-        startSearchNode();
+        var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
@@ -532,31 +554,44 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
 
         AtomicInteger countNewCommitNotifications = new AtomicInteger();
-        var indexTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNode);
-        indexTransport.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.startsWith(TransportNewCommitNotificationAction.NAME)) {
-                countNewCommitNotifications.incrementAndGet();
-            }
-            connection.sendRequest(requestId, action, request, options);
+        var searchTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
+        searchTransport.addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+            countNewCommitNotifications.incrementAndGet();
+            handler.messageReceived(request, channel, task);
         });
 
-        client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
-
-        if (indexingActivityAfterScrollCloses) {
-            // Trigger a new flush so the index shard cleans the unused files after the search node responds with the used commits
-            totalIndexedDocs += indexDocsAndFlush(indexName);
-        } else {
-            // New commit notifications should be sent from the inactive indexing shard so that ultimately the new commit notification
-            // responses do not contain the search's open readers anymore, and the shard cleans unused files.
+        switch (testCase) {
+            case COMMITS_RETAINED_UNTIL_SCROLL_CLOSES:
+                client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+                // Trigger a new flush so the index shard cleans the unused files after the search node responds with the used commits
+                totalIndexedDocs += indexDocsAndFlush(indexName);
+                break;
+            case COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY:
+                client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+                // New commit notifications should be sent from the inactive indexing shard so that ultimately the new commit notification
+                // responses do not contain the search's open readers anymore, and the shard cleans unused files.
+                break;
+            case COMMITS_OF_SCROLL_DELETED_AFTER_INDEX_CLOSED_AND_OPENED:
+                assertAcked(indicesAdmin().close(new CloseIndexRequest(indexName)).actionGet());
+                client().prepareClearScroll().addScrollId(scrollSearchResponse.getScrollId()).get();
+                assertAcked(indicesAdmin().open(new OpenIndexRequest(indexName)).actionGet());
+                break;
+            case ALL_COMMITS_DELETED_AFTER_INDEX_DELETED:
+                assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
+                assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); }); // all blobs should be deleted
+                return;
+            default:
+                assert false : "unknown test case " + testCase;
         }
 
+        // Check that scroll's blobs are deleted
         assertBusy(() -> {
             var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
         });
         assertThat(countNewCommitNotifications.get(), greaterThan(0));
 
-        if (indexingActivityAfterScrollCloses == false) {
+        if (testCase == TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY) {
             // Verify that there is no more new commit notifications sent
             int currentCount = countNewCommitNotifications.get();
             var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
@@ -564,8 +599,60 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             assertThat(countNewCommitNotifications.get(), equalTo(currentCount));
         }
 
+        // Check that a new search returns all docs
         var finalSearchResponse = client().prepareSearch(indexName).setQuery(matchAllQuery()).get();
         assertThat(finalSearchResponse.getHits().getTotalHits().value, equalTo((long) totalIndexedDocs));
+    }
+
+    public void testDeleteIndexAfterFlush() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        indexDocsAndFlush(indexName);
+        assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
+        assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
+    }
+
+    public void testDeleteIndexAfterRecovery() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeA = startIndexNode();
+        final var searchNodeA = startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var totalIndexedDocs = indexDocsAndFlush(indexName);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA);
+
+        startIndexNode();
+        startSearchNode();
+        final var excludeIndexOrSearchNode = randomBoolean();
+        String nodeToExclude = excludeIndexOrSearchNode ? indexNodeA : searchNodeA;
+        boolean excludeOrStop = randomBoolean();
+        logger.info(
+            "--> {} {} node {}",
+            excludeOrStop ? "excluding" : "stopping",
+            excludeIndexOrSearchNode ? "index" : "search",
+            nodeToExclude
+        );
+        if (excludeOrStop) {
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToExclude), indexName);
+            if (randomBoolean()) {
+                assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToExclude))));
+            }
+        } else {
+            internalCluster().stopNode(nodeToExclude);
+        }
+
+        logger.info("--> deleting index");
+        assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
+        if (excludeIndexOrSearchNode && excludeOrStop) {
+            // TODO: ES-6897 we cannot assert all blobs are deleted because the primary relocation handoff has leftover files
+        } else {
+            assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); }); // all blobs should be deleted
+        }
     }
 
     public void testStaleNodeDoesNotDeleteCommitFiles() throws Exception {

@@ -87,6 +87,7 @@ import java.util.Locale;
 
 public class EsqlFunctionRegistry extends FunctionRegistry {
 
+    @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
         register(functions());
     }

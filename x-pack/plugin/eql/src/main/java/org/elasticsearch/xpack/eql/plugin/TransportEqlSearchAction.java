@@ -73,6 +73,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportEqlSearchAction(
         Settings settings,

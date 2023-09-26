@@ -36,10 +36,10 @@ public class DataStreamLifecycleErrorStore {
      */
     @Nullable
     public String recordError(String indexName, Exception e) {
-        String exceptionToString = Strings.toString(((builder, params) -> {
+        String exceptionToString = Strings.toString((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, EMPTY_PARAMS, e);
             return builder;
-        }));
+        });
         String recordedError = Strings.substring(exceptionToString, 0, MAX_ERROR_MESSAGE_LENGTH);
         return indexNameToError.put(indexName, recordedError);
     }

@@ -173,7 +173,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 new ActionFilters(Set.of()),
                 new MyResolver(),
                 Request::new,
-                TEST_THREAD_POOL_NAME
+                transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
             );
         }
 

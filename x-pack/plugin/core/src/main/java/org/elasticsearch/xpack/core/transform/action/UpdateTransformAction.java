@@ -50,6 +50,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         private TransformConfig config;
         private AuthorizationState authState;
 
+        @SuppressWarnings("this-escape")
         public Request(TransformConfigUpdate update, String id, boolean deferValidation, TimeValue timeout) {
             this.update = update;
             this.id = id;

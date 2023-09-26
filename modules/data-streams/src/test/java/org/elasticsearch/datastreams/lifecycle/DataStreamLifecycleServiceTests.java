@@ -29,6 +29,8 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -44,6 +46,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -57,9 +64,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -70,6 +79,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -96,7 +106,6 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -129,6 +138,18 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         clientSeenRequests = new CopyOnWriteArrayList<>();
 
         client = getTransportRequestsRecordingClient();
+        AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(
+                new HashSet<>(
+                    Arrays.asList(new SameShardAllocationDecider(clusterSettings), new ReplicaAfterPrimaryActiveAllocationDecider())
+                )
+            ),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        );
         dataStreamLifecycleService = new DataStreamLifecycleService(
             Settings.EMPTY,
             client,
@@ -136,7 +157,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             clock,
             threadPool,
             () -> now,
-            new DataStreamLifecycleErrorStore()
+            new DataStreamLifecycleErrorStore(),
+            allocationService
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -345,10 +367,66 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             metaBuilder.put(indexMetaBuilder.build(), true);
         }
         ClusterState updatedState = ClusterState.builder(state).metadata(metaBuilder).build();
+        setState(clusterService, updatedState);
 
         dataStreamLifecycleService.run(updatedState);
 
         for (Index index : dataStream.getIndices()) {
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), nullValue());
+        }
+    }
+
+    public void testBackingIndicesFromMultipleDataStreamsInErrorStore() {
+        String ilmManagedDataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        Metadata.Builder builder = Metadata.builder();
+        DataStream ilmManagedDataStream = createDataStream(
+            builder,
+            ilmManagedDataStreamName,
+            3,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            now
+        );
+        // all backing indices are in the error store
+        for (Index index : ilmManagedDataStream.getIndices()) {
+            dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("will be ILM managed soon"));
+        }
+        String dataStreamWithBackingIndicesInErrorState = randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
+        DataStream dslManagedDataStream = createDataStream(
+            builder,
+            dataStreamWithBackingIndicesInErrorState,
+            5,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            now
+        );
+        // put all backing indices in the error store
+        for (Index index : dslManagedDataStream.getIndices()) {
+            dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("dsl managed index"));
+        }
+        builder.put(ilmManagedDataStream);
+        builder.put(dslManagedDataStream);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+
+        Metadata metadata = state.metadata();
+        Metadata.Builder metaBuilder = Metadata.builder(metadata);
+
+        // update the backing indices to be ILM managed so they should be removed from the error store on the next DSL run
+        for (Index index : ilmManagedDataStream.getIndices()) {
+            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
+            indexMetaBuilder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"));
+            metaBuilder.put(indexMetaBuilder.build(), true);
+        }
+        ClusterState updatedState = ClusterState.builder(state).metadata(metaBuilder).build();
+        setState(clusterService, updatedState);
+
+        dataStreamLifecycleService.run(updatedState);
+
+        for (Index index : dslManagedDataStream.getIndices()) {
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), notNullValue());
+        }
+        for (Index index : ilmManagedDataStream.getIndices()) {
             assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), nullValue());
         }
     }
@@ -1027,9 +1105,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
 
         // on this run, as downsampling is complete we expect to trigger the {@link
-        // org.elasticsearch.datastreams.lifecycle.downsampling.ReplaceSourceWithDownsampleIndexTask}
-        // cluster service task and replace the source index with the downsample index in the data stream
-        // we also expect a delete request for the source index to be witnessed
+        // org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS}
+        // cluster service task and delete the source index whilst adding the downsample index in the data stream
         affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(clusterService.state(), dataStream, List.of(firstGenIndex));
         assertThat(affectedIndices, is(Set.of(firstGenIndex)));
         assertBusy(() -> {
@@ -1038,51 +1115,13 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             // the downsample index must be part of the data stream
             assertThat(downsample.getParentDataStream(), is(notNullValue()));
             assertThat(downsample.getParentDataStream().getName(), is(dataStreamName));
-            // the source index must not be part of the data stream
+            // the source index was deleted
             IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndexName);
-            assertThat(sourceIndexAbstraction.getParentDataStream(), is(nullValue()));
+            assertThat(sourceIndexAbstraction, is(nullValue()));
 
-            // {@link ReplaceBackingWithDownsampleIndexExecutor} triggers a delete reuqest for the backing index when the cluster state
-            // is successfully updated
-            assertThat(clientSeenRequests.size(), is(3));
-            assertThat(clientSeenRequests.get(2), instanceOf(DeleteIndexRequest.class));
+            // no further requests should be triggered
+            assertThat(clientSeenRequests.size(), is(2));
         }, 30, TimeUnit.SECONDS);
-
-        // NOTE from now on we need to refresh the state and dataStream variables as the data stream lifecycle service updated the
-        // cluster state in the cluster service via {@link ReplaceBackingWithDownsampleIndexExecutor}
-        dataStream = clusterService.state().metadata().dataStreams().get(dataStreamName);
-        state = clusterService.state();
-
-        // before we remove the backing index (to "implement" the above issued delete request) let's issue another data stream service
-        // donwsampling run as the service should detect that the index has not been deleted and issue a request itself
-
-        // note that we call the downsampling with the downsampled index from now on, as IT is the one that's part of the datastream now
-        IndexMetadata downsampleMeta = clusterService.state().metadata().index(downsampleIndexName);
-        affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
-            clusterService.state(),
-            dataStream,
-            List.of(downsampleMeta.getIndex())
-        );
-        assertThat(affectedIndices, is(Set.of(downsampleMeta.getIndex())));
-        assertThat(clientSeenRequests.size(), is(4));
-        assertThat(clientSeenRequests.get(3), instanceOf(DeleteIndexRequest.class));
-
-        {
-            // let's remove the backing index (as delete was successful ... say)
-            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
-            metadataBuilder.remove(firstGenIndexName);
-            state = ClusterState.builder(state).metadata(metadataBuilder).build();
-            setState(clusterService, state);
-        }
-
-        // downsample was successful for this index, nothing else to have been executed here (still 4 witnessed reuqests as before)
-        affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
-            clusterService.state(),
-            dataStream,
-            List.of(downsampleMeta.getIndex())
-        );
-        assertThat(affectedIndices, is(empty()));
-        assertThat(clientSeenRequests.size(), is(4));
     }
 
     public void testDownsamplingWhenTargetIndexNameClashYieldsException() throws Exception {

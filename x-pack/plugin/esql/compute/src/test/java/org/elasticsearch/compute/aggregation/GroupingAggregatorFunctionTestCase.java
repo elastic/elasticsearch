@@ -12,11 +12,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -513,7 +513,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                                         seenGroupIds.set(group);
                                         chunk[count++] = group;
                                     }
-                                    delegateAddInput.add(positionOffset + offset, new IntArrayVector(chunk, count));
+                                    BlockFactory blockFactory = driverContext().blockFactory(); // TODO: just for compile
+                                    delegateAddInput.add(positionOffset + offset, blockFactory.newIntArrayVector(chunk, count));
                                 }
                             }
                         };
@@ -527,7 +528,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             for (int i = offset; i < Math.min(groupIds.getPositionCount(), offset + emitChunkSize); i++) {
                                 chunk[count++] = groupIds.getInt(i);
                             }
-                            delegate.addIntermediateInput(positionOffset + offset, new IntArrayVector(chunk, count), page);
+                            BlockFactory blockFactory = driverContext().blockFactory(); // TODO: just for compile
+                            delegate.addIntermediateInput(positionOffset + offset, blockFactory.newIntArrayVector(chunk, count), page);
                         }
                     }
 

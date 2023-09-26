@@ -19,9 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -89,12 +87,10 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -382,52 +378,22 @@ public class CsvTests extends ESTestCase {
                 Randomness.shuffle(drivers);
             }
             // Execute the driver
-            final Queue<Map<String, List<String>>> responseHeaders = ConcurrentCollections.newQueue();
             DriverRunner runner = new DriverRunner() {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(
-                        threadPool.executor(ESQL_THREAD_POOL_NAME),
-                        driver,
-                        between(1, 1000),
-                        ActionListener.runBefore(
-                            driverListener,
-                            () -> responseHeaders.add(threadPool.getThreadContext().getResponseHeaders())
-                        )
-                    );
+                    Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
                 }
             };
             PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
-            runner.runToCompletion(
-                drivers,
-                ActionListener.releaseAfter(future, () -> Releasables.close(drivers))
-                    .map(
-                        ignore -> new ActualResults(
-                            columnNames,
-                            columnTypes,
-                            dataTypes,
-                            collectedPages,
-                            mergeResponseHeaders(responseHeaders)
-                        )
-                    )
-            );
+            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)).map(ignore -> {
+                var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
+                return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            }));
             return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
             Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
             assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         }
-    }
-
-    private static Map<String, List<String>> mergeResponseHeaders(Collection<Map<String, List<String>>> responses) {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        for (Map<String, List<String>> r : responses) {
-            for (Map.Entry<String, List<String>> e : r.entrySet()) {
-                for (String v : e.getValue()) {
-                    threadContext.addResponseHeader(e.getKey(), v);
-                }
-            }
-        }
-        return threadContext.getResponseHeaders();
     }
 
     private Throwable reworkException(Throwable th) {

@@ -94,8 +94,8 @@ POST /_query?format=txt
 
 The above query's `LIMIT` command limits results to 5 rows.
 
-If not specified, `LIMIT` defaults to `500`. A single query can't return more
-than 10,000 rows, regardless of the `LIMIT` value.
+If not specified, `LIMIT` defaults to `500`. A single query will not return
+more than 10,000 rows, regardless of the `LIMIT` value.
 
 [discrete]
 ==== {kib}
@@ -125,8 +125,8 @@ with the time filter.
 ** `unsigned_long`
 ** `version`
 
-* A single query can't return more than 10,000 rows, regardless of the `LIMIT`
-command's value.
+* A single query will not return more than 10,000 rows, regardless of the
+`LIMIT` command's value.
 --
 
 include::esql-get-started.asciidoc[]

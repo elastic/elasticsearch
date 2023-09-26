@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +71,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repo.threadPool()
             .generic()
-            .execute(ActionRunnable.run(future, () -> repo.blobStore().blobContainer(path).delete(OperationPurpose.SNAPSHOT)));
+            .execute(ActionRunnable.run(future, () -> repo.blobStore().blobContainer(path).delete(BlobPurpose.SNAPSHOT)));
         future.actionGet();
         final BlobPath parent = path.parent();
         if (parent == null) {
@@ -125,23 +125,17 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             final BlobStore blobStore = repo.blobStore();
             blobStore.blobContainer(repo.basePath().add("foo"))
                 .writeBlob(
-                    OperationPurpose.SNAPSHOT,
+                    BlobPurpose.SNAPSHOT,
                     "nested-blob",
                     new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)),
                     testBlobLen,
                     false
                 );
             blobStore.blobContainer(repo.basePath().add("foo").add("nested"))
-                .writeBlob(
-                    OperationPurpose.SNAPSHOT,
-                    "bar",
-                    new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)),
-                    testBlobLen,
-                    false
-                );
+                .writeBlob(BlobPurpose.SNAPSHOT, "bar", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
             blobStore.blobContainer(repo.basePath().add("foo").add("nested2"))
                 .writeBlob(
-                    OperationPurpose.SNAPSHOT,
+                    BlobPurpose.SNAPSHOT,
                     "blub",
                     new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)),
                     testBlobLen,
@@ -228,10 +222,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         genericExec.execute(ActionRunnable.run(future, () -> {
             final BlobStore blobStore = repo.blobStore();
             blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
-                .writeBlob(OperationPurpose.SNAPSHOT, "bar", new ByteArrayInputStream(new byte[3]), 3, false);
+                .writeBlob(BlobPurpose.SNAPSHOT, "bar", new ByteArrayInputStream(new byte[3]), 3, false);
             for (String prefix : Arrays.asList("snap-", "meta-")) {
                 blobStore.blobContainer(repo.basePath())
-                    .writeBlob(OperationPurpose.SNAPSHOT, prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
+                    .writeBlob(BlobPurpose.SNAPSHOT, prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
             }
         }));
         future.get();
@@ -239,10 +233,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final PlainActionFuture<Boolean> corruptionFuture = PlainActionFuture.newFuture();
         genericExec.execute(ActionRunnable.supply(corruptionFuture, () -> {
             final BlobStore blobStore = repo.blobStore();
-            return blobStore.blobContainer(repo.basePath().add("indices")).children(OperationPurpose.SNAPSHOT).containsKey("foo")
-                && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists(OperationPurpose.SNAPSHOT, "bar")
-                && blobStore.blobContainer(repo.basePath()).blobExists(OperationPurpose.SNAPSHOT, "meta-foo.dat")
-                && blobStore.blobContainer(repo.basePath()).blobExists(OperationPurpose.SNAPSHOT, "snap-foo.dat");
+            return blobStore.blobContainer(repo.basePath().add("indices")).children(BlobPurpose.SNAPSHOT).containsKey("foo")
+                && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists(BlobPurpose.SNAPSHOT, "bar")
+                && blobStore.blobContainer(repo.basePath()).blobExists(BlobPurpose.SNAPSHOT, "meta-foo.dat")
+                && blobStore.blobContainer(repo.basePath()).blobExists(BlobPurpose.SNAPSHOT, "snap-foo.dat");
         }));
         assertTrue(corruptionFuture.get());
     }
@@ -263,7 +257,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         repository.threadPool()
             .generic()
             .execute(
-                ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).children(OperationPurpose.SNAPSHOT).keySet())
+                ActionRunnable.supply(future, () -> repository.blobStore().blobContainer(path).children(BlobPurpose.SNAPSHOT).keySet())
             );
         return future.actionGet();
     }

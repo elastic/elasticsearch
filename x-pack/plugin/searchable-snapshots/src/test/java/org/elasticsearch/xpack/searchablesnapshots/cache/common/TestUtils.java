@@ -17,8 +17,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -115,7 +115,7 @@ public final class TestUtils {
     public static BlobContainer singleBlobContainer(final String blobName, final byte[] blobContent) {
         return new MostlyUnimplementedFakeBlobContainer() {
             @Override
-            public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
+            public InputStream readBlob(BlobPurpose purpose, String name, long position, long length) throws IOException {
                 if (blobName.equals(name) == false) {
                     throw new FileNotFoundException("Blob not found: " + name);
                 }
@@ -134,7 +134,7 @@ public final class TestUtils {
             final String prefix = blobName + ".part";
             return new MostlyUnimplementedFakeBlobContainer() {
                 @Override
-                public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
+                public InputStream readBlob(BlobPurpose purpose, String name, long position, long length) throws IOException {
                     if (name.startsWith(prefix) == false) {
                         throw new FileNotFoundException("Blob not found: " + name);
                     }
@@ -175,7 +175,7 @@ public final class TestUtils {
         }
 
         @Override
-        public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) {
+        public Map<String, BlobMetadata> listBlobs(BlobPurpose purpose) {
             throw unsupportedException();
         }
 
@@ -185,34 +185,28 @@ public final class TestUtils {
         }
 
         @Override
-        public boolean blobExists(OperationPurpose purpose, String blobName) {
+        public boolean blobExists(BlobPurpose purpose, String blobName) {
             throw unsupportedException();
         }
 
         @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName) {
+        public InputStream readBlob(BlobPurpose purpose, String blobName) {
             throw unsupportedException();
         }
 
         @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+        public InputStream readBlob(BlobPurpose purpose, String blobName, long position, long length) throws IOException {
             throw unsupportedException();
         }
 
         @Override
-        public void writeBlob(
-            OperationPurpose purpose,
-            String blobName,
-            InputStream inputStream,
-            long blobSize,
-            boolean failIfAlreadyExists
-        ) {
+        public void writeBlob(BlobPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
 
         @Override
         public void writeMetadataBlob(
-            OperationPurpose purpose,
+            BlobPurpose purpose,
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,
@@ -222,33 +216,33 @@ public final class TestUtils {
         }
 
         @Override
-        public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
+        public void writeBlobAtomic(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
 
         @Override
-        public DeleteResult delete(OperationPurpose purpose) {
+        public DeleteResult delete(BlobPurpose purpose) {
             throw unsupportedException();
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+        public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) {
             throw unsupportedException();
         }
 
         @Override
-        public Map<String, BlobContainer> children(OperationPurpose purpose) {
+        public Map<String, BlobContainer> children(BlobPurpose purpose) {
             throw unsupportedException();
         }
 
         @Override
-        public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) {
+        public Map<String, BlobMetadata> listBlobsByPrefix(BlobPurpose purpose, String blobNamePrefix) {
             throw unsupportedException();
         }
 
         @Override
         public void compareAndExchangeRegister(
-            OperationPurpose purpose,
+            BlobPurpose purpose,
             String key,
             BytesReference expected,
             BytesReference updated,

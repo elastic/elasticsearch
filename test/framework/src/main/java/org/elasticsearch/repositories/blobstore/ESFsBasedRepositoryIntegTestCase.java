@@ -10,8 +10,8 @@ package org.elasticsearch.repositories.blobstore;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -114,7 +114,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             writeBlob(container, "test", new BytesArray(data));
             assertArrayEquals(readBlobFully(container, "test", data.length), data);
-            assertTrue(container.blobExists(OperationPurpose.SNAPSHOT, "test"));
+            assertTrue(container.blobExists(BlobPurpose.SNAPSHOT, "test"));
         }
     }
 }

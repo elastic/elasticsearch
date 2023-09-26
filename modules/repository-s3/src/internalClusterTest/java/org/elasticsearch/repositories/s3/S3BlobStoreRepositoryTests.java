@@ -21,8 +21,8 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -64,14 +64,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
@@ -208,16 +206,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    public void testRequestStatsWithPurposes() throws IOException {
+    public void testRequestStatsWithBlobPurposes() throws IOException {
+        // The blobPurpose parameter is added but not yet used. This test asserts the new parameter does not change
+        // the existing stats collection.
         final String repoName = createRepository(randomRepositoryName());
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final BlobStore blobStore = repository.blobStore();
-        final Map<String, Long> initialStats = blobStore.stats();
 
         final BlobPath blobPath = repository.basePath().add(randomAlphaOfLength(10));
         final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
-        final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT, () -> randomFrom(OperationPurpose.values()));
+        final BlobPurpose purpose = randomValueOtherThan(BlobPurpose.SNAPSHOT, () -> randomFrom(BlobPurpose.values()));
         final BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
         blobContainer.writeBlob(purpose, "test.txt", whatToWrite, true);
         try (InputStream is = blobContainer.readBlob(purpose, "test.txt")) {
@@ -225,26 +224,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
         blobContainer.delete(purpose);
 
-        final Map<String, Long> newStats = blobStore.stats();
-        final Map<String, Long> netNewStats = newStats.entrySet().stream().filter(entry -> {
-            if (initialStats.containsKey(entry.getKey())) {
-                assertThat(entry.getValue(), equalTo(initialStats.get(entry.getKey())));
-                return false;
-            } else {
-                return true;
-            }
-        }).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
-
+        final Map<String, Long> stats = blobStore.stats();
         assertThat(
-            netNewStats.keySet(),
-            containsInAnyOrder(
-                "PutObject/" + purpose.getValue(),
-                "ListObjects/" + purpose.getValue(),
-                "GetObject/" + purpose.getValue(),
-                "DeleteObjects/" + purpose.getValue()
-            )
+            stats.keySet(),
+            containsInAnyOrder("GetObject", "ListObjects", "PutObject", "PutMultipartObject", "DeleteObjects", "AbortMultipartObject")
         );
-        assertThat(netNewStats.values(), everyItem(greaterThan(0L)));
     }
 
     public void testEnforcedCooldownPeriod() throws IOException {
@@ -289,7 +273,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
                             .writeBlobAtomic(
-                                OperationPurpose.SNAPSHOT,
+                                BlobPurpose.SNAPSHOT,
                                 BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
                                 serialized,
                                 true

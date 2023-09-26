@@ -41,11 +41,11 @@ public interface BlobContainer {
      * @param blobName The name of the blob whose existence is to be determined.
      * @return {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
      */
-    boolean blobExists(OperationPurpose purpose, String blobName) throws IOException;
+    boolean blobExists(BlobPurpose purpose, String blobName) throws IOException;
 
     @Deprecated(forRemoval = true)
     default boolean blobExists(String blobName) throws IOException {
-        return blobExists(OperationPurpose.SNAPSHOT, blobName);
+        return blobExists(BlobPurpose.SNAPSHOT, blobName);
     }
 
     /**
@@ -57,11 +57,11 @@ public interface BlobContainer {
      * @throws NoSuchFileException if the blob does not exist
      * @throws IOException         if the blob can not be read.
      */
-    InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException;
+    InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException;
 
     @Deprecated(forRemoval = true)
     default InputStream readBlob(String blobName) throws IOException {
-        return readBlob(OperationPurpose.SNAPSHOT, blobName);
+        return readBlob(BlobPurpose.SNAPSHOT, blobName);
     }
 
     /**
@@ -77,15 +77,15 @@ public interface BlobContainer {
      * @throws NoSuchFileException if the blob does not exist
      * @throws IOException         if the blob can not be read.
      */
-    InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException;
+    InputStream readBlob(BlobPurpose purpose, String blobName, long position, long length) throws IOException;
 
     @Deprecated(forRemoval = true)
     default InputStream readBlob(String blobName, long position, long length) throws IOException {
-        return readBlob(OperationPurpose.SNAPSHOT, blobName, position, length);
+        return readBlob(BlobPurpose.SNAPSHOT, blobName, position, length);
     }
 
     /**
-     * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(OperationPurpose, String, long, long)}.
+     * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(BlobPurpose, String, long, long)}.
      *
      * Some blob containers have nontrivial costs attached to each readBlob call, so it is a good idea for consumers to speculatively
      * request more data than they need right now and to re-use this stream for future needs if possible.
@@ -116,12 +116,12 @@ public interface BlobContainer {
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
-    void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+    void writeBlob(BlobPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException;
 
     @Deprecated(forRemoval = true)
     default void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(OperationPurpose.SNAPSHOT, blobName, inputStream, blobSize, failIfAlreadyExists);
+        writeBlob(BlobPurpose.SNAPSHOT, blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     /**
@@ -134,8 +134,7 @@ public interface BlobContainer {
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
-    default void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
-        throws IOException {
+    default void writeBlob(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         writeBlob(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
     }
 
@@ -157,7 +156,7 @@ public interface BlobContainer {
      * @param writer              consumer for an output stream that will write the blob contents to the stream
      */
     void writeMetadataBlob(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
@@ -171,7 +170,7 @@ public interface BlobContainer {
         boolean atomic,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
-        writeMetadataBlob(OperationPurpose.SNAPSHOT, blobName, failIfAlreadyExists, atomic, writer);
+        writeMetadataBlob(BlobPurpose.SNAPSHOT, blobName, failIfAlreadyExists, atomic, writer);
     }
 
     /**
@@ -185,11 +184,11 @@ public interface BlobContainer {
      * @throws FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws IOException                if the input stream could not be read, or the target blob could not be written to.
      */
-    void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException;
+    void writeBlobAtomic(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException;
 
     @Deprecated(forRemoval = true)
     default void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-        writeBlobAtomic(OperationPurpose.SNAPSHOT, blobName, bytes, failIfAlreadyExists);
+        writeBlobAtomic(BlobPurpose.SNAPSHOT, blobName, bytes, failIfAlreadyExists);
     }
 
     /**
@@ -199,11 +198,11 @@ public interface BlobContainer {
      * @return delete result
      * @throws IOException on failure
      */
-    DeleteResult delete(OperationPurpose purpose) throws IOException;
+    DeleteResult delete(BlobPurpose purpose) throws IOException;
 
     @Deprecated(forRemoval = true)
     default DeleteResult delete() throws IOException {
-        return delete(OperationPurpose.SNAPSHOT);
+        return delete(BlobPurpose.SNAPSHOT);
     }
 
     /**
@@ -214,11 +213,11 @@ public interface BlobContainer {
      * @param blobNames the names of the blobs to delete
      * @throws IOException if a subset of blob exists but could not be deleted.
      */
-    void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException;
+    void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException;
 
     @Deprecated(forRemoval = true)
     default void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobNames);
+        deleteBlobsIgnoringIfNotExists(BlobPurpose.SNAPSHOT, blobNames);
     }
 
     /**
@@ -228,11 +227,11 @@ public interface BlobContainer {
      *          the values are {@link BlobMetadata}, containing basic information about each blob.
      * @throws  IOException if there were any failures in reading from the blob container.
      */
-    Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException;
+    Map<String, BlobMetadata> listBlobs(BlobPurpose purpose) throws IOException;
 
     @Deprecated(forRemoval = true)
     default Map<String, BlobMetadata> listBlobs() throws IOException {
-        return listBlobs(OperationPurpose.SNAPSHOT);
+        return listBlobs(BlobPurpose.SNAPSHOT);
     }
 
     /**
@@ -244,11 +243,11 @@ public interface BlobContainer {
      * @return Map of name of the child container to child container
      * @throws IOException on failure to list child containers
      */
-    Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException;
+    Map<String, BlobContainer> children(BlobPurpose purpose) throws IOException;
 
     @Deprecated(forRemoval = true)
     default Map<String, BlobContainer> children() throws IOException {
-        return children(OperationPurpose.SNAPSHOT);
+        return children(BlobPurpose.SNAPSHOT);
     }
 
     /**
@@ -260,11 +259,11 @@ public interface BlobContainer {
      * and the values are {@link BlobMetadata}, containing basic information about each blob.
      * @throws IOException if there were any failures in reading from the blob container.
      */
-    Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException;
+    Map<String, BlobMetadata> listBlobsByPrefix(BlobPurpose purpose, String blobNamePrefix) throws IOException;
 
     @Deprecated(forRemoval = true)
     default Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        return listBlobsByPrefix(OperationPurpose.SNAPSHOT, blobNamePrefix);
+        return listBlobsByPrefix(BlobPurpose.SNAPSHOT, blobNamePrefix);
     }
 
     /**
@@ -279,7 +278,7 @@ public interface BlobContainer {
      *                 {@link OptionalBytesReference#MISSING} if the value could not be read due to concurrent activity.
      */
     void compareAndExchangeRegister(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,
@@ -293,7 +292,7 @@ public interface BlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
-        compareAndExchangeRegister(OperationPurpose.SNAPSHOT, key, expected, updated, listener);
+        compareAndExchangeRegister(BlobPurpose.SNAPSHOT, key, expected, updated, listener);
     }
 
     /**
@@ -308,7 +307,7 @@ public interface BlobContainer {
      *                 did not match the updated value or the value could not be read due to concurrent activity
      */
     default void compareAndSetRegister(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,
@@ -342,7 +341,7 @@ public interface BlobContainer {
      * @param listener a listener, completed with the value read from the register or {@code OptionalBytesReference#MISSING} if the value
      *                 could not be read due to concurrent activity.
      */
-    default void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+    default void getRegister(BlobPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         compareAndExchangeRegister(purpose, key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
     }
 

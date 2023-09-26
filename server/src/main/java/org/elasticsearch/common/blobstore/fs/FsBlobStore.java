@@ -11,8 +11,8 @@ package org.elasticsearch.common.blobstore.fs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
@@ -65,7 +65,7 @@ public class FsBlobStore implements BlobStore {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException {
         IOException ioe = null;
         long suppressedExceptions = 0;
         while (blobNames.hasNext()) {

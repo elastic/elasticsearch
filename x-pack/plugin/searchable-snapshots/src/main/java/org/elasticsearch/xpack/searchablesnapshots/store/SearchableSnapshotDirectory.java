@@ -24,7 +24,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -721,12 +721,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
 
         @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+        public InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException {
             return blobStoreRepository.maybeRateLimitRestores(super.readBlob(purpose, blobName));
         }
 
         @Override
-        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+        public InputStream readBlob(BlobPurpose purpose, String blobName, long position, long length) throws IOException {
             return blobStoreRepository.maybeRateLimitRestores(super.readBlob(purpose, blobName, position, length));
         }
     }

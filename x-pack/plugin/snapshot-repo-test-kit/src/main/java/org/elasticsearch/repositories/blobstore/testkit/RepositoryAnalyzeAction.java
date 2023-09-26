@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -630,16 +630,16 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             }
                         }, ref), listener -> {
                             switch (random.nextInt(3)) {
-                                case 0 -> getBlobContainer().getRegister(OperationPurpose.SNAPSHOT, registerName, listener);
+                                case 0 -> getBlobContainer().getRegister(BlobPurpose.SNAPSHOT, registerName, listener);
                                 case 1 -> getBlobContainer().compareAndExchangeRegister(
-                                    OperationPurpose.SNAPSHOT,
+                                    BlobPurpose.SNAPSHOT,
                                     registerName,
                                     RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
                                     listener
                                 );
                                 case 2 -> getBlobContainer().compareAndSetRegister(
-                                    OperationPurpose.SNAPSHOT,
+                                    BlobPurpose.SNAPSHOT,
                                     registerName,
                                     RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
@@ -689,7 +689,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                 try {
                     final BlobContainer blobContainer = getBlobContainer();
                     final Set<String> missingBlobs = new HashSet<>(expectedBlobs);
-                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
+                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(BlobPurpose.SNAPSHOT);
                     missingBlobs.removeAll(blobsMap.keySet());
 
                     if (missingBlobs.isEmpty()) {
@@ -712,11 +712,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private void deleteContainer() {
             try {
                 final BlobContainer blobContainer = getBlobContainer();
-                blobContainer.delete(OperationPurpose.SNAPSHOT);
+                blobContainer.delete(BlobPurpose.SNAPSHOT);
                 if (failure.get() != null) {
                     return;
                 }
-                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
+                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(BlobPurpose.SNAPSHOT);
                 if (blobsMap.isEmpty() == false) {
                     final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                         request.repositoryName,

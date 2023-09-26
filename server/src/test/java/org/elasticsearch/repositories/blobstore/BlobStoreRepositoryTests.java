@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -225,7 +225,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 16; i++) {
             repository.blobContainer()
-                .writeBlob(OperationPurpose.SNAPSHOT, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
+                .writeBlob(BlobPurpose.SNAPSHOT, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
             if (i == 8) {
                 assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(generation));
             } else {

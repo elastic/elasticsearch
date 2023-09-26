@@ -8,19 +8,19 @@
 
 package org.elasticsearch.common.blobstore;
 
-public enum OperationPurpose {
+public enum BlobPurpose {
     SNAPSHOT("Snapshot"),
     CLUSTER_STATE("ClusterState"),
     INDICES("Indices"),
     TRANSLOG("Translog");
 
-    private final String value;
+    private final String key;
 
-    OperationPurpose(String value) {
-        this.value = value;
+    BlobPurpose(String key) {
+        this.key = key;
     }
 
-    public String getValue() {
-        return value;
+    public String getKey() {
+        return key;
     }
 }

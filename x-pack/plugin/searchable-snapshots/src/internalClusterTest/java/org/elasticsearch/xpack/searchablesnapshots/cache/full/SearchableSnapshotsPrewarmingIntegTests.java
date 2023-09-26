@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -464,7 +464,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                                 }
 
                                 @Override
-                                public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames)
+                                public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames)
                                     throws IOException {
                                     delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
                                 }
@@ -488,7 +488,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+            public InputStream readBlob(BlobPurpose purpose, String blobName, long position, long length) throws IOException {
                 return new FilterInputStream(super.readBlob(purpose, blobName, position, length)) {
                     long bytesRead = 0L;
 

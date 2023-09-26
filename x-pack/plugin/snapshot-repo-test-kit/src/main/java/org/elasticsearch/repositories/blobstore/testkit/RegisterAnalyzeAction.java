@@ -21,7 +21,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -115,7 +115,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                             protected void doRun() {
                                 if (((CancellableTask) task).notifyIfCancelled(listener) == false) {
                                     blobContainer.compareAndExchangeRegister(
-                                        OperationPurpose.SNAPSHOT,
+                                        BlobPurpose.SNAPSHOT,
                                         registerName,
                                         bytesFromLong(currentValue),
                                         bytesFromLong(currentValue + 1L),
@@ -163,10 +163,10 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             };
 
             if (request.getInitialRead() > request.getRequestCount()) {
-                blobContainer.getRegister(OperationPurpose.SNAPSHOT, registerName, initialValueListener);
+                blobContainer.getRegister(BlobPurpose.SNAPSHOT, registerName, initialValueListener);
             } else {
                 blobContainer.compareAndExchangeRegister(
-                    OperationPurpose.SNAPSHOT,
+                    BlobPurpose.SNAPSHOT,
                     registerName,
                     bytesFromLong(request.getInitialRead()),
                     bytesFromLong(

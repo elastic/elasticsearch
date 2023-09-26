@@ -9,7 +9,7 @@
 package org.elasticsearch.common.blobstore.url.http;
 
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.url.URLBlobContainer;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 
@@ -36,7 +36,7 @@ public class HttpURLBlobContainer extends URLBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
+    public InputStream readBlob(BlobPurpose purpose, String name, long position, long length) throws IOException {
         if (length == 0) {
             return new ByteArrayInputStream(new byte[0]);
         }
@@ -52,7 +52,7 @@ public class HttpURLBlobContainer extends URLBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
+    public InputStream readBlob(BlobPurpose purpose, String name) throws IOException {
         return new RetryingHttpInputStream(name, getURIForBlob(name), httpClient, httpClientSettings.getMaxRetries());
     }
 

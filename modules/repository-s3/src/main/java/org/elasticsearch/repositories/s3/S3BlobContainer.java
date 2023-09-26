@@ -36,9 +36,9 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
@@ -89,7 +89,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(OperationPurpose purpose, String blobName) {
+    public boolean blobExists(BlobPurpose purpose, String blobName) {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             return SocketAccess.doPrivileged(() -> clientReference.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
         } catch (final Exception e) {
@@ -98,12 +98,12 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+    public InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException {
         return new S3RetryingInputStream(purpose, blobStore, buildKey(blobName));
     }
 
     @Override
-    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+    public InputStream readBlob(BlobPurpose purpose, String blobName, long position, long length) throws IOException {
         if (position < 0L) {
             throw new IllegalArgumentException("position must be non-negative");
         }
@@ -127,7 +127,7 @@ class S3BlobContainer extends AbstractBlobContainer {
      * This implementation ignores the failIfAlreadyExists flag as the S3 API has no way to enforce this due to its weak consistency model.
      */
     @Override
-    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+    public void writeBlob(BlobPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
         SocketAccess.doPrivilegedIOException(() -> {
@@ -142,7 +142,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeMetadataBlob(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
@@ -224,7 +224,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private UploadPartRequest createPartUploadRequest(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         InputStream stream,
         String uploadId,
         int number,
@@ -244,7 +244,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         return uploadRequest;
     }
 
-    private void abortMultiPartUpload(OperationPurpose purpose, String uploadId, String blobName) {
+    private void abortMultiPartUpload(BlobPurpose purpose, String uploadId, String blobName) {
         final AbortMultipartUploadRequest abortRequest = new AbortMultipartUploadRequest(blobStore.bucket(), blobName, uploadId);
         abortRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.ABORT_MULTIPART_OBJECT, purpose));
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
@@ -252,7 +252,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private InitiateMultipartUploadRequest initiateMultiPartUpload(OperationPurpose purpose, String blobName) {
+    private InitiateMultipartUploadRequest initiateMultiPartUpload(BlobPurpose purpose, String blobName) {
         final InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(blobStore.bucket(), blobName);
         initRequest.setStorageClass(blobStore.getStorageClass());
         initRequest.setCannedACL(blobStore.getCannedACL());
@@ -271,13 +271,13 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+    public void writeBlobAtomic(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
     }
 
     @Override
-    public DeleteResult delete(OperationPurpose purpose) throws IOException {
+    public DeleteResult delete(BlobPurpose purpose) throws IOException {
         final AtomicLong deletedBlobs = new AtomicLong();
         final AtomicLong deletedBytes = new AtomicLong();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
@@ -315,12 +315,12 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException {
         blobStore.deleteBlobsIgnoringIfNotExists(purpose, Iterators.map(blobNames, this::buildKey));
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, @Nullable String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(BlobPurpose purpose, @Nullable String blobNamePrefix) throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             return executeListing(
                 purpose,
@@ -336,12 +336,12 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+    public Map<String, BlobMetadata> listBlobs(BlobPurpose purpose) throws IOException {
         return listBlobsByPrefix(purpose, null);
     }
 
     @Override
-    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
+    public Map<String, BlobContainer> children(BlobPurpose purpose) throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             return executeListing(purpose, clientReference, listObjectsRequest(purpose, keyPath)).stream().flatMap(listing -> {
                 assert listing.getObjectSummaries().stream().noneMatch(s -> {
@@ -365,7 +365,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private List<ObjectListing> executeListing(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         AmazonS3Reference clientReference,
         ListObjectsRequest listObjectsRequest
     ) {
@@ -390,7 +390,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         return results;
     }
 
-    private ListObjectsRequest listObjectsRequest(OperationPurpose purpose, String pathPrefix) {
+    private ListObjectsRequest listObjectsRequest(BlobPurpose purpose, String pathPrefix) {
         return new ListObjectsRequest().withBucketName(blobStore.bucket())
             .withPrefix(pathPrefix)
             .withDelimiter("/")
@@ -406,7 +406,7 @@ class S3BlobContainer extends AbstractBlobContainer {
      * Uploads a blob using a single upload request
      */
     void executeSingleUpload(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         final S3BlobStore s3BlobStore,
         final String blobName,
         final InputStream input,
@@ -442,7 +442,7 @@ class S3BlobContainer extends AbstractBlobContainer {
      * Uploads a blob using multipart upload requests.
      */
     void executeMultipartUpload(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         final S3BlobStore s3BlobStore,
         final String blobName,
         final InputStream input,
@@ -564,14 +564,14 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     private class CompareAndExchangeOperation {
 
-        private final OperationPurpose purpose;
+        private final BlobPurpose purpose;
         private final AmazonS3 client;
         private final String bucket;
         private final String rawKey;
         private final String blobKey;
         private final ThreadPool threadPool;
 
-        CompareAndExchangeOperation(OperationPurpose purpose, AmazonS3 client, String bucket, String key, ThreadPool threadPool) {
+        CompareAndExchangeOperation(BlobPurpose purpose, AmazonS3 client, String bucket, String key, ThreadPool threadPool) {
             this.purpose = purpose;
             this.client = client;
             this.bucket = bucket;
@@ -791,7 +791,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void compareAndExchangeRegister(
-        OperationPurpose purpose,
+        BlobPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,
@@ -815,7 +815,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+    public void getRegister(BlobPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         ActionListener.completeWith(listener, () -> {
             final var getObjectRequest = new GetObjectRequest(blobStore.bucket(), buildKey(key));
             getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.GET_OBJECT, purpose));

@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -40,7 +40,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -103,7 +102,7 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
     }
 
-    RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
+    RequestMetricCollector getMetricCollector(Operation operation, BlobPurpose purpose) {
         return statsCollectors.getMetricCollector(operation, purpose);
     }
 
@@ -175,7 +174,7 @@ class S3BlobStore implements BlobStore {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -208,7 +207,7 @@ class S3BlobStore implements BlobStore {
         AmazonS3Reference clientReference,
         List<String> partition,
         AtomicReference<Exception> aex,
-        OperationPurpose purpose
+        BlobPurpose purpose
     ) {
         try {
             clientReference.client().deleteObjects(bulkDelete(this, partition, purpose));
@@ -230,7 +229,7 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs, OperationPurpose purpose) {
+    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs, BlobPurpose purpose) {
         return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
             .withQuiet(true)
             .withRequestMetricCollector(blobStore.getMetricCollector(Operation.DELETE_OBJECTS, purpose));
@@ -300,15 +299,15 @@ class S3BlobStore implements BlobStore {
         DELETE_OBJECTS("DeleteObjects"),
         ABORT_MULTIPART_OBJECT("AbortMultipartObject");
 
-        private final String value;
+        private final String key;
 
-        Operation(String value) {
-            this.value = value;
+        Operation(String key) {
+            this.key = key;
         }
     }
 
     class StatsCollectors {
-        final ConcurrentMap<String, IgnoreNoResponseMetricsCollector> collectors;
+        final Map<String, IgnoreNoResponseMetricsCollector> collectors;
 
         StatsCollectors() {
             this.collectors = Stream.of(
@@ -318,21 +317,13 @@ class S3BlobStore implements BlobStore {
                 Operation.PUT_MULTIPART_OBJECT,
                 Operation.DELETE_OBJECTS,
                 Operation.ABORT_MULTIPART_OBJECT
-            ).collect(Collectors.toConcurrentMap(ops -> ops.value, this::buildMetricCollector));
+            ).collect(Collectors.toUnmodifiableMap(ops -> ops.key, this::buildMetricCollector));
         }
 
-        RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-            final String key;
-            if (purpose == OperationPurpose.SNAPSHOT) {
-                key = operation.value;
-            } else {
-                key = operation.value + "/" + purpose.getValue();
-                if (false == collectors.containsKey(key)) {
-                    collectors.putIfAbsent(key, buildMetricCollector(operation));
-                }
-            }
-
-            return collectors.get(key);
+        RequestMetricCollector getMetricCollector(Operation operation, BlobPurpose purpose) {
+            final String statsKey = operation.key;
+            assert collectors.containsKey(statsKey) : "stats collector must exist for " + statsKey;
+            return collectors.get(statsKey);
         }
 
         Map<String, Long> statsMap() {

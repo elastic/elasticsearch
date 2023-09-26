@@ -65,7 +65,15 @@ public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute LONG = field("long", DataTypes.LONG);
     private static final FieldAttribute DATE = field("date", DataTypes.DATETIME);
 
-    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(ZoneOffset.UTC, Locale.US, "test", null, null, 10000000);
+    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(
+        ZoneOffset.UTC,
+        Locale.US,
+        "test",
+        null,
+        null,
+        10000000,
+        10000
+    );
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static List<Object[]> params() {

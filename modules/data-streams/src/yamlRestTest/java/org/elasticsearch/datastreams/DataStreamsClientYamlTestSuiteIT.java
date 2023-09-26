@@ -40,7 +40,6 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .module("reindex")
-        .setting("indices.lifecycle.history_index_enabled", "false")
         .setting("xpack.security.enabled", "true")
         .keystore("bootstrap.password", "x-pack-test-password")
         .user("x_pack_rest_user", "x-pack-test-password")

@@ -32,42 +32,6 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         execute("git branch origin/7.10", file("cloned"))
     }
 
-    def "bwc distribution archives can be resolved as bwc project artifact"() {
-        setup:
-        buildFile << """
-
-        configurations {
-            dists
-        }
-
-        dependencies {
-            dists project(path: ":distribution:bwc:bugfix", configuration:"darwin-tar")
-        }
-
-        tasks.register("resolveDistributionArchive") {
-            inputs.files(configurations.dists)
-            doLast {
-                configurations.dists.files.each {
-                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
-                }
-            }
-        }
-        """
-        when:
-        def result = gradleRunner(":resolveDistributionArchive",
-                "-DtestRemoteRepo=" + remoteGitRepo,
-                "-Dbwc.remote=origin")
-                .build()
-        then:
-        result.task(":resolveDistributionArchive").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-
-        and: "assemble task triggered"
-        result.output.contains("[7.10.1] > Task :distribution:archives:darwin-tar:assemble")
-        result.output.contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-7.10/distribution/archives/darwin-tar/" +
-                "build/distributions/elasticsearch-7.10.1-SNAPSHOT-darwin-x86_64.tar.gz")
-    }
-
     def "builds distribution from branches via archives assemble"() {
         given:
         buildFile.text = ""
@@ -141,6 +105,42 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         bwcDistVersion | platform
         "7.12.0"       | "darwin"
         "7.12.0"       | "linux"
+    }
+
+    def "bwc distribution archives can be resolved as bwc project artifact"() {
+        setup:
+        buildFile << """
+
+        configurations {
+            dists
+        }
+
+        dependencies {
+            dists project(path: ":distribution:bwc:bugfix", configuration:"darwin-tar")
+        }
+
+        tasks.register("resolveDistributionArchive") {
+            inputs.files(configurations.dists)
+            doLast {
+                configurations.dists.files.each {
+                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
+                }
+            }
+        }
+        """
+        when:
+        def result = gradleRunner(":resolveDistributionArchive",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin")
+                .build()
+        then:
+        result.task(":resolveDistributionArchive").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "assemble task triggered"
+        result.output.contains("[7.10.1] > Task :distribution:archives:darwin-tar:assemble")
+        result.output.contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-7.10/distribution/archives/darwin-tar/" +
+                "build/distributions/elasticsearch-7.10.1-SNAPSHOT-darwin-x86_64.tar.gz")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {

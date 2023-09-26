@@ -10,6 +10,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.Mapping;
 
 import java.io.IOException;
 
@@ -36,4 +37,15 @@ public interface SourceProvider {
         return new StoredFieldSourceProvider(storedFieldLoader);
     }
 
+    /**
+     * A SourceProvider that loads source from synthetic source
+     *
+     * The returned SourceProvider is thread-safe across segments, in that it may be
+     * safely used by a searcher that searches different segments on different threads,
+     * but it is not safe to use this to access documents from the same segment across
+     * multiple threads.
+     */
+    static SourceProvider fromSyntheticSource(Mapping mapping) {
+        return new SyntheticSourceProvider(mapping);
+    }
 }

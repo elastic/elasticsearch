@@ -45,7 +45,7 @@ public enum ElementType {
     /**
      * Create a new {@link Block.Builder} for blocks of this type.
      */
-    public Block.Builder newBlockBuilder(int estimatedSize) {
+    public Block.Builder newBlockBuilder(int estimatedSize) {  // TODO add BlockFactory
         return builder.apply(estimatedSize);
     }
 

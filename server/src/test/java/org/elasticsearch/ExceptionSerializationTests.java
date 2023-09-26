@@ -376,12 +376,15 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testTooManyBucketsException() throws IOException {
         TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        int max = randomIntBetween(10, 20);
+        int count = randomIntBetween(100, 200);
         MultiBucketConsumerService.TooManyBucketsException ex = serialize(
-            new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
+            new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", max, count),
             version
         );
         assertEquals("Too many buckets", ex.getMessage());
-        assertEquals(100, ex.getMaxBuckets());
+        assertEquals(max, ex.getMaxBuckets());
+        assertEquals(count, ex.getBucketsCount());
     }
 
     public void testTimestampParsingException() throws IOException {

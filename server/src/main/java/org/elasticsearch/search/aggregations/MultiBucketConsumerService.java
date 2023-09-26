@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,25 +53,33 @@ public class MultiBucketConsumerService {
 
     public static class TooManyBucketsException extends AggregationExecutionException {
         private final int maxBuckets;
+        private final int bucketsCount;
 
-        public TooManyBucketsException(String message, int maxBuckets) {
+        public TooManyBucketsException(String message, int maxBuckets, int bucketsCount) {
             super(message);
             this.maxBuckets = maxBuckets;
+            this.bucketsCount = bucketsCount;
         }
 
         public TooManyBucketsException(StreamInput in) throws IOException {
             super(in);
             maxBuckets = in.readInt();
+            bucketsCount = in.getTransportVersion().onOrAfter(TransportVersions.LOG_TOO_MANY_BUCKETS_ERROR) ? in.readVInt() : -1;
         }
 
         @Override
         protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
             out.writeInt(maxBuckets);
+            out.writeVInt(out.getTransportVersion().onOrAfter(TransportVersions.LOG_TOO_MANY_BUCKETS_ERROR) ? bucketsCount : -1);
         }
 
         public int getMaxBuckets() {
             return maxBuckets;
+        }
+
+        public int getBucketsCount() {
+            return bucketsCount;
         }
 
         @Override
@@ -81,6 +90,9 @@ public class MultiBucketConsumerService {
         @Override
         protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("max_buckets", maxBuckets);
+            if (bucketsCount >= 0) {
+                builder.field("buckets_count", bucketsCount);
+            }
         }
     }
 
@@ -114,7 +126,8 @@ public class MultiBucketConsumerService {
                             + "] but this number of buckets was exceeded. This limit can be set by changing the ["
                             + MAX_BUCKET_SETTING.getKey()
                             + "] cluster level setting.",
-                        limit
+                        limit,
+                        count
                     );
                 }
             }

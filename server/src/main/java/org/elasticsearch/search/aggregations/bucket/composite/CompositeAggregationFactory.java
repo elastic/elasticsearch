@@ -8,16 +8,20 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 class CompositeAggregationFactory extends AggregatorFactory {
+    final Logger logger = LogManager.getLogger(CompositeAggregationFactory.class);
     private final int size;
     private final CompositeValuesSourceConfig[] sources;
     private final CompositeKey afterKey;
@@ -41,6 +45,13 @@ class CompositeAggregationFactory extends AggregatorFactory {
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return new CompositeAggregator(name, factories, context, parent, metadata, size, sources, afterKey);
+        try {
+            return new CompositeAggregator(name, factories, context, parent, metadata, size, sources, afterKey);
+        } catch (MultiBucketConsumerService.TooManyBucketsException e) {
+            logger.error(
+                "Too many buckets for aggregation [%s] (max [%d], count [%d])".formatted(name, e.getMaxBuckets(), e.getBucketsCount())
+            );
+            throw e;
+        }
     }
 }

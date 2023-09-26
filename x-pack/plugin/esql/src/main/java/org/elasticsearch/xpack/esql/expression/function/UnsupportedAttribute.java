@@ -42,6 +42,7 @@ public class UnsupportedAttribute extends FieldAttribute implements Unresolvable
         this(source, name, field, customMessage, null);
     }
 
+    @SuppressWarnings("this-escape")
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
         super(source, null, name, field, null, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;

@@ -115,6 +115,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             super(name);
         }
 
+        @SuppressWarnings("this-escape")
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
@@ -215,6 +216,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     protected ValuesSourceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         if (serializeTargetValueType(in.getTransportVersion())) {

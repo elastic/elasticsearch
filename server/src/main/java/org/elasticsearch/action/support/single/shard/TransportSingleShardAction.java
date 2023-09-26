@@ -61,6 +61,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     private final String transportShardAction;
     private final Executor executor;
 
+    @SuppressWarnings("this-escape")
     protected TransportSingleShardAction(
         String actionName,
         ThreadPool threadPool,

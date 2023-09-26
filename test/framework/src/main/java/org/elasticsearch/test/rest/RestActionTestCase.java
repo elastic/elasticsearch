@@ -78,6 +78,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeVerifier = new AtomicReference<>();
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
+        @SuppressWarnings("this-escape")
         public VerifyingClient(String testName) {
             super(testName);
             reset();

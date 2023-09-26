@@ -44,6 +44,7 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
     private final Expression elseValue;
     private DataType dataType;
 
+    @SuppressWarnings("this-escape")
     public Case(Source source, Expression first, List<Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
         int conditionCount = children().size() / 2;

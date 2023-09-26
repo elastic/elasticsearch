@@ -39,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.action.get.TransportGetAction.getCurrentNodeOfPrimary;
 import static org.elasticsearch.core.Strings.format;
@@ -72,7 +73,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             actionFilters,
             indexNameExpressionResolver,
             MultiGetShardRequest::new,
-            ThreadPool.Names.GET
+            threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
@@ -144,12 +145,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected String getExecutor(MultiGetShardRequest request, ShardId shardId) {
+    protected Executor getExecutor(MultiGetShardRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
         if (clusterState.metadata().index(shardId.getIndex()).isSystem()) {
-            return executorSelector.executorForGet(shardId.getIndexName());
+            return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
-            return ThreadPool.Names.SEARCH_THROTTLED;
+            return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
         } else {
             return super.getExecutor(request, shardId);
         }
@@ -205,15 +206,14 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                             indexShard.waitForSegmentGeneration(
                                 r.segmentGeneration(),
                                 listener.delegateFailureAndWrap(
-                                    (ll, aLong) -> threadPool.executor(getExecutor(request, shardId))
-                                        .execute(
-                                            ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
-                                        )
+                                    (ll, aLong) -> getExecutor(request, shardId).execute(
+                                        ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
+                                    )
                                 )
                             );
                         }
                     }
-                }), TransportShardMultiGetFomTranslogAction.Response::new, threadPool.executor(getExecutor(request, shardId)))
+                }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(request, shardId))
             );
         } else {
             // A non-real-time mget with no explicit refresh requested.
@@ -262,7 +262,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
         throws IOException {
         if (request.refresh() && request.realtime() == false) {
-            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
+            getExecutor(request, shardId).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
                 indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
             }));

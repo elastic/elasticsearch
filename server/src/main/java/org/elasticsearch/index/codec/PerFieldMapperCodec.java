@@ -49,6 +49,7 @@ public class PerFieldMapperCodec extends Lucene95Codec {
             : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
+    @SuppressWarnings("this-escape")
     public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
         this.mapperService = mapperService;

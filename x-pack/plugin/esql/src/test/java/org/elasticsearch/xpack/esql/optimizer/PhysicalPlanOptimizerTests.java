@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
@@ -76,13 +75,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -90,6 +87,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
@@ -129,16 +127,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public static List<Object[]> readScriptSpec() {
         return settings().stream().map(t -> {
             var settings = Settings.builder().loadFromMap(t.v2()).build();
-            return new Object[] {
-                t.v1(),
-                new EsqlConfiguration(
-                    DateUtils.UTC,
-                    Locale.US,
-                    null,
-                    null,
-                    new QueryPragmas(settings),
-                    EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(settings)
-                ) };
+            return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
         }).toList();
     }
 

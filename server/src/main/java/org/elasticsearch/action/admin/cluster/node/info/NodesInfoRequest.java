@@ -42,6 +42,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Get information from nodes based on the nodes ids specified. If none are passed, information
      * for all nodes will be returned.
      */
+    @SuppressWarnings("this-escape")
     public NodesInfoRequest(String... nodesIds) {
         super(nodesIds);
         all();

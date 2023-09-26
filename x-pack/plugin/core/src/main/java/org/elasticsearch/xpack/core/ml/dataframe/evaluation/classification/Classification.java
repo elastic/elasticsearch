@@ -75,6 +75,7 @@ public class Classification implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
+    @SuppressWarnings("this-escape")
     public Classification(
         String actualField,
         @Nullable String predictedField,

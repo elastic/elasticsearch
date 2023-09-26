@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.DoubleArrayVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -48,7 +48,7 @@ public class SequenceDoubleBlockSourceOperator extends AbstractBlockSourceOperat
             array[i] = values[positionOffset + i];
         }
         currentPosition += length;
-        return new Page(new DoubleArrayVector(array, array.length).asBlock());
+        return new Page(BlockFactory.getNonBreakingInstance().newDoubleArrayVector(array, array.length).asBlock());
     }
 
     protected int remaining() {

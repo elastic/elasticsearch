@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.ThrowingDriverContext;
@@ -30,9 +33,20 @@ public interface EvaluatorMapper {
      * good enough.
      */
     default Object fold() {
-        return toJavaObject(
-            toEvaluator(e -> driverContext -> p -> fromArrayRow(e.fold())[0]).get(new ThrowingDriverContext()).eval(new Page(1)),
-            0
-        );
+        return toJavaObject(toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                return fromArrayRow(e.fold())[0];
+            }
+
+            @Override
+            public void close() {}
+        }).get(new ThrowingDriverContext() {
+            @Override
+            public CircuitBreaker breaker() {
+                // TODO maybe this should have a small fixed limit?
+                return new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+            }
+        }).eval(new Page(1)), 0);
     }
 }

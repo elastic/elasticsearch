@@ -23,7 +23,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 

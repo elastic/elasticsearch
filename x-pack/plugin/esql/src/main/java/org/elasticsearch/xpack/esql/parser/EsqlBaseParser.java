@@ -138,7 +138,7 @@ public class EsqlBaseParser extends Parser {
   @Override
   public ATN getATN() { return _ATN; }
 
-  public EsqlBaseParser(TokenStream input) {
+  @SuppressWarnings("this-escape") public EsqlBaseParser(TokenStream input) {
     super(input);
     _interp = new ParserATNSimulator(this,_ATN,_decisionToDFA,_sharedContextCache);
   }
@@ -212,7 +212,7 @@ public class EsqlBaseParser extends Parser {
     public ProcessingCommandContext processingCommand() {
       return getRuleContext(ProcessingCommandContext.class,0);
     }
-    public CompositeQueryContext(QueryContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public CompositeQueryContext(QueryContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterCompositeQuery(this);
@@ -232,7 +232,7 @@ public class EsqlBaseParser extends Parser {
     public SourceCommandContext sourceCommand() {
       return getRuleContext(SourceCommandContext.class,0);
     }
-    public SingleCommandQueryContext(QueryContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public SingleCommandQueryContext(QueryContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterSingleCommandQuery(this);
@@ -632,7 +632,7 @@ public class EsqlBaseParser extends Parser {
     public BooleanExpressionContext booleanExpression() {
       return getRuleContext(BooleanExpressionContext.class,0);
     }
-    public LogicalNotContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public LogicalNotContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLogicalNot(this);
@@ -652,7 +652,7 @@ public class EsqlBaseParser extends Parser {
     public ValueExpressionContext valueExpression() {
       return getRuleContext(ValueExpressionContext.class,0);
     }
-    public BooleanDefaultContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public BooleanDefaultContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterBooleanDefault(this);
@@ -675,7 +675,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode IS() { return getToken(EsqlBaseParser.IS, 0); }
     public TerminalNode NULL() { return getToken(EsqlBaseParser.NULL, 0); }
     public TerminalNode NOT() { return getToken(EsqlBaseParser.NOT, 0); }
-    public IsNullContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public IsNullContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterIsNull(this);
@@ -695,7 +695,7 @@ public class EsqlBaseParser extends Parser {
     public RegexBooleanExpressionContext regexBooleanExpression() {
       return getRuleContext(RegexBooleanExpressionContext.class,0);
     }
-    public RegexExpressionContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public RegexExpressionContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterRegexExpression(this);
@@ -726,7 +726,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
-    public LogicalInContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public LogicalInContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLogicalIn(this);
@@ -754,7 +754,7 @@ public class EsqlBaseParser extends Parser {
     }
     public TerminalNode AND() { return getToken(EsqlBaseParser.AND, 0); }
     public TerminalNode OR() { return getToken(EsqlBaseParser.OR, 0); }
-    public LogicalBinaryContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public LogicalBinaryContext(BooleanExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterLogicalBinary(this);
@@ -1056,7 +1056,7 @@ public class EsqlBaseParser extends Parser {
     public OperatorExpressionContext operatorExpression() {
       return getRuleContext(OperatorExpressionContext.class,0);
     }
-    public ValueExpressionDefaultContext(ValueExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public ValueExpressionDefaultContext(ValueExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterValueExpressionDefault(this);
@@ -1084,7 +1084,7 @@ public class EsqlBaseParser extends Parser {
     public OperatorExpressionContext operatorExpression(int i) {
       return getRuleContext(OperatorExpressionContext.class,i);
     }
-    public ComparisonContext(ValueExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public ComparisonContext(ValueExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterComparison(this);
@@ -1157,7 +1157,7 @@ public class EsqlBaseParser extends Parser {
     public PrimaryExpressionContext primaryExpression() {
       return getRuleContext(PrimaryExpressionContext.class,0);
     }
-    public OperatorExpressionDefaultContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public OperatorExpressionDefaultContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterOperatorExpressionDefault(this);
@@ -1188,7 +1188,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode PERCENT() { return getToken(EsqlBaseParser.PERCENT, 0); }
     public TerminalNode PLUS() { return getToken(EsqlBaseParser.PLUS, 0); }
     public TerminalNode MINUS() { return getToken(EsqlBaseParser.MINUS, 0); }
-    public ArithmeticBinaryContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public ArithmeticBinaryContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterArithmeticBinary(this);
@@ -1211,7 +1211,7 @@ public class EsqlBaseParser extends Parser {
     }
     public TerminalNode MINUS() { return getToken(EsqlBaseParser.MINUS, 0); }
     public TerminalNode PLUS() { return getToken(EsqlBaseParser.PLUS, 0); }
-    public ArithmeticUnaryContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public ArithmeticUnaryContext(OperatorExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterArithmeticUnary(this);
@@ -1370,7 +1370,7 @@ public class EsqlBaseParser extends Parser {
     public QualifiedNameContext qualifiedName() {
       return getRuleContext(QualifiedNameContext.class,0);
     }
-    public DereferenceContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public DereferenceContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterDereference(this);
@@ -1390,7 +1390,7 @@ public class EsqlBaseParser extends Parser {
     public ConstantContext constant() {
       return getRuleContext(ConstantContext.class,0);
     }
-    public ConstantDefaultContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public ConstantDefaultContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterConstantDefault(this);
@@ -1412,7 +1412,7 @@ public class EsqlBaseParser extends Parser {
       return getRuleContext(BooleanExpressionContext.class,0);
     }
     public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
-    public ParenthesizedExpressionContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public ParenthesizedExpressionContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterParenthesizedExpression(this);
@@ -1444,7 +1444,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
-    public FunctionExpressionContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public FunctionExpressionContext(PrimaryExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterFunctionExpression(this);
@@ -2355,7 +2355,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
-    public BooleanArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public BooleanArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterBooleanArrayLiteral(this);
@@ -2375,7 +2375,7 @@ public class EsqlBaseParser extends Parser {
     public DecimalValueContext decimalValue() {
       return getRuleContext(DecimalValueContext.class,0);
     }
-    public DecimalLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public DecimalLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterDecimalLiteral(this);
@@ -2393,7 +2393,7 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class NullLiteralContext extends ConstantContext {
     public TerminalNode NULL() { return getToken(EsqlBaseParser.NULL, 0); }
-    public NullLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public NullLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterNullLiteral(this);
@@ -2414,7 +2414,7 @@ public class EsqlBaseParser extends Parser {
       return getRuleContext(IntegerValueContext.class,0);
     }
     public TerminalNode UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.UNQUOTED_IDENTIFIER, 0); }
-    public QualifiedIntegerLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public QualifiedIntegerLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterQualifiedIntegerLiteral(this);
@@ -2443,7 +2443,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
-    public StringArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public StringArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterStringArrayLiteral(this);
@@ -2463,7 +2463,7 @@ public class EsqlBaseParser extends Parser {
     public StringContext string() {
       return getRuleContext(StringContext.class,0);
     }
-    public StringLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public StringLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterStringLiteral(this);
@@ -2492,7 +2492,7 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
-    public NumericArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public NumericArrayLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterNumericArrayLiteral(this);
@@ -2510,7 +2510,7 @@ public class EsqlBaseParser extends Parser {
   @SuppressWarnings("CheckReturnValue")
   public static class InputParamContext extends ConstantContext {
     public TerminalNode PARAM() { return getToken(EsqlBaseParser.PARAM, 0); }
-    public InputParamContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public InputParamContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterInputParam(this);
@@ -2530,7 +2530,7 @@ public class EsqlBaseParser extends Parser {
     public IntegerValueContext integerValue() {
       return getRuleContext(IntegerValueContext.class,0);
     }
-    public IntegerLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public IntegerLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterIntegerLiteral(this);
@@ -2550,7 +2550,7 @@ public class EsqlBaseParser extends Parser {
     public BooleanValueContext booleanValue() {
       return getRuleContext(BooleanValueContext.class,0);
     }
-    public BooleanLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public BooleanLiteralContext(ConstantContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterBooleanLiteral(this);
@@ -4003,7 +4003,7 @@ public class EsqlBaseParser extends Parser {
   public static class ShowInfoContext extends ShowCommandContext {
     public TerminalNode SHOW() { return getToken(EsqlBaseParser.SHOW, 0); }
     public TerminalNode INFO() { return getToken(EsqlBaseParser.INFO, 0); }
-    public ShowInfoContext(ShowCommandContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public ShowInfoContext(ShowCommandContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterShowInfo(this);
@@ -4022,7 +4022,7 @@ public class EsqlBaseParser extends Parser {
   public static class ShowFunctionsContext extends ShowCommandContext {
     public TerminalNode SHOW() { return getToken(EsqlBaseParser.SHOW, 0); }
     public TerminalNode FUNCTIONS() { return getToken(EsqlBaseParser.FUNCTIONS, 0); }
-    public ShowFunctionsContext(ShowCommandContext ctx) { copyFrom(ctx); }
+    @SuppressWarnings("this-escape") public ShowFunctionsContext(ShowCommandContext ctx) { copyFrom(ctx); }
     @Override
     public void enterRule(ParseTreeListener listener) {
       if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterShowFunctions(this);

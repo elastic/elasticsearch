@@ -79,7 +79,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
     }
 
     @Override
-    public final void close() {}
+    public void close() {}
 
     public static class Status implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

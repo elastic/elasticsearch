@@ -194,7 +194,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 actionFilters,
                 indexNameExpressionResolver,
                 Request::new,
-                ThreadPool.Names.SEARCH
+                threadPool.executor(ThreadPool.Names.SEARCH)
             );
             this.indicesService = indicesService;
         }

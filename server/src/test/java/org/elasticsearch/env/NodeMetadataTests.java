@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
@@ -137,9 +138,9 @@ public class NodeMetadataTests extends ESTestCase {
                 startsWith("cannot upgrade a node from version ["),
                 endsWith(
                     "] directly to version ["
-                        + Version.CURRENT
+                        + Build.current().version()
                         + "], upgrade to version ["
-                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + Build.current().minWireCompatVersion()
                         + "] first."
                 )
             )

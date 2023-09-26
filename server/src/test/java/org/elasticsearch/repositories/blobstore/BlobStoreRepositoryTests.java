@@ -9,8 +9,10 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
@@ -37,6 +40,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
@@ -47,6 +51,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -56,7 +61,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -76,6 +83,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     static final String REPO_TYPE = "fsLike";
+    private static final String TEST_REPO_NAME = "test-repo";
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(FsLikeRepoPlugin.class);
@@ -107,12 +115,11 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     public void testRetrieveSnapshots() throws Exception {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
-        final String repositoryName = "test-repo";
 
         logger.info("-->  creating repository");
         AcknowledgedResponse putRepositoryResponse = client.admin()
             .cluster()
-            .preparePutRepository(repositoryName)
+            .preparePutRepository(TEST_REPO_NAME)
             .setType(REPO_TYPE)
             .setSettings(Settings.builder().put(node().settings()).put("location", location))
             .get();
@@ -132,7 +139,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-1")
+            .prepareCreateSnapshot(TEST_REPO_NAME, "test-snap-1")
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .get();
@@ -141,7 +148,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         logger.info("--> create second snapshot");
         createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot(repositoryName, "test-snap-2")
+            .prepareCreateSnapshot(TEST_REPO_NAME, "test-snap-2")
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .get();
@@ -149,7 +156,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         logger.info("--> make sure the node's repository can resolve the snapshots");
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(TEST_REPO_NAME);
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2);
 
         List<SnapshotId> snapshotIds = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
@@ -257,13 +264,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     public void testBadChunksize() throws Exception {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
-        final String repositoryName = "test-repo";
 
         expectThrows(
             RepositoryException.class,
             () -> client.admin()
                 .cluster()
-                .preparePutRepository(repositoryName)
+                .preparePutRepository(TEST_REPO_NAME)
                 .setType(REPO_TYPE)
                 .setSettings(
                     Settings.builder()
@@ -347,7 +353,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     private BlobStoreRepository setupRepo() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
-        final String repositoryName = "test-repo";
 
         Settings.Builder repoSettings = Settings.builder().put(node().settings()).put("location", location);
         boolean compress = randomBoolean();
@@ -356,18 +361,27 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
         AcknowledgedResponse putRepositoryResponse = client.admin()
             .cluster()
-            .preparePutRepository(repositoryName)
+            .preparePutRepository(TEST_REPO_NAME)
             .setType(REPO_TYPE)
             .setSettings(repoSettings)
             .setVerify(false) // prevent eager reading of repo data
-            .get();
+            .get(TimeValue.timeValueSeconds(10));
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         final RepositoriesService repositoriesService = getInstanceFromNode(RepositoriesService.class);
-        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(TEST_REPO_NAME);
         assertThat("getBlobContainer has to be lazy initialized", repository.getBlobContainer(), nullValue());
         assertEquals("Compress must be set to", compress, repository.isCompress());
         return repository;
+    }
+
+    @After
+    public void removeRepo() {
+        try {
+            client().admin().cluster().prepareDeleteRepository(TEST_REPO_NAME).get(TimeValue.timeValueSeconds(10));
+        } catch (RepositoryMissingException e) {
+            // ok, not all tests create the test repo
+        }
     }
 
     private RepositoryData addRandomSnapshotsToRepoData(RepositoryData repoData, boolean inclIndices) {
@@ -441,6 +455,32 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
         repository.snapshotFiles(context, files, allFilesUploadListener);
         listenerCalled.get();
+    }
+
+    public void testGetRepositoryDataThreadContext() {
+        final var future = new PlainActionFuture<Void>();
+        try (var listeners = new RefCountingListener(future)) {
+            final var repo = setupRepo();
+            final int threads = between(1, 5);
+            final var barrier = new CyclicBarrier(threads);
+            final var headerName = "test-header";
+            final var threadPool = client().threadPool();
+            final var threadContext = threadPool.getThreadContext();
+            for (int i = 0; i < threads; i++) {
+                final var headerValue = randomAlphaOfLength(10);
+                try (var ignored = threadContext.stashContext()) {
+                    threadContext.putHeader(headerName, headerValue);
+                    threadPool.generic().execute(ActionRunnable.wrap(listeners.acquire(), l -> {
+                        safeAwait(barrier);
+                        repo.getRepositoryData(l.map(repositoryData -> {
+                            assertEquals(headerValue, threadContext.getHeader(headerName));
+                            return null;
+                        }));
+                    }));
+                }
+            }
+        }
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     private Environment createEnvironment() {

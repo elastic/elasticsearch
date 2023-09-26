@@ -103,7 +103,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         @Override
         public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
             switch (model.getTaskType()) {
-                case SPARSE_EMBEDDING -> listener.onResponse(TextExpansionResultsTests.createRandomResults());
+                case SPARSE_EMBEDDING -> listener.onResponse(TextExpansionResultsTests.createRandomResults(1, 10));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getTaskType(), NAME),

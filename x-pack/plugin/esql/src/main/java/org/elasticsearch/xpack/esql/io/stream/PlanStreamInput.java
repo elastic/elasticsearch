@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 
@@ -99,6 +101,13 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     public PhysicalPlan readPhysicalPlanNode() throws IOException {
         return readNamed(PhysicalPlan.class);
+    }
+
+    public Source readSource() throws IOException {
+        int line = readInt();
+        int column = readInt();
+        String text = readString();
+        return new Source(new Location(line, column), text);
     }
 
     public Expression readExpression() throws IOException {

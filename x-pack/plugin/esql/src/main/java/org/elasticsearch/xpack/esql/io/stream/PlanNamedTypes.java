@@ -218,7 +218,7 @@ public final class PlanNamedTypes {
 
     /**
      * List of named type entries that link concrete names to stream reader and writer implementations.
-     * Entries have the form;  category,  name,  serializer method,  deserializer method.
+     * Entries have the form:  category,  name,  serializer method,  deserializer method.
      */
     public static List<PlanNameRegistry.Entry> namedTypeEntries() {
         return List.of(
@@ -981,22 +981,24 @@ public final class PlanNamedTypes {
     // -- BinaryComparison
 
     static BinaryComparison readBinComparison(PlanStreamInput in, String name) throws IOException {
+        var source = in.readSource();
         var operation = in.readEnum(BinaryComparisonProcessor.BinaryComparisonOperation.class);
         var left = in.readExpression();
         var right = in.readExpression();
         var zoneId = in.readOptionalZoneId();
         return switch (operation) {
-            case EQ -> new Equals(Source.EMPTY, left, right, zoneId);
-            case NULLEQ -> new NullEquals(Source.EMPTY, left, right, zoneId);
-            case NEQ -> new NotEquals(Source.EMPTY, left, right, zoneId);
-            case GT -> new GreaterThan(Source.EMPTY, left, right, zoneId);
-            case GTE -> new GreaterThanOrEqual(Source.EMPTY, left, right, zoneId);
-            case LT -> new LessThan(Source.EMPTY, left, right, zoneId);
-            case LTE -> new LessThanOrEqual(Source.EMPTY, left, right, zoneId);
+            case EQ -> new Equals(source, left, right, zoneId);
+            case NULLEQ -> new NullEquals(source, left, right, zoneId);
+            case NEQ -> new NotEquals(source, left, right, zoneId);
+            case GT -> new GreaterThan(source, left, right, zoneId);
+            case GTE -> new GreaterThanOrEqual(source, left, right, zoneId);
+            case LT -> new LessThan(source, left, right, zoneId);
+            case LTE -> new LessThanOrEqual(source, left, right, zoneId);
         };
     }
 
     static void writeBinComparison(PlanStreamOutput out, BinaryComparison binaryComparison) throws IOException {
+        out.writeSource(binaryComparison.source());
         out.writeEnum(binaryComparison.function());
         out.writeExpression(binaryComparison.left());
         out.writeExpression(binaryComparison.right());
@@ -1006,10 +1008,11 @@ public final class PlanNamedTypes {
     // -- InComparison
 
     static In readInComparison(PlanStreamInput in) throws IOException {
-        return new In(Source.EMPTY, in.readExpression(), in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)));
+        return new In(in.readSource(), in.readExpression(), in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)));
     }
 
     static void writeInComparison(PlanStreamOutput out, In in) throws IOException {
+        out.writeSource(in.source());
         out.writeExpression(in.value());
         out.writeCollection(in.list(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
     }
@@ -1017,19 +1020,21 @@ public final class PlanNamedTypes {
     // -- RegexMatch
 
     static WildcardLike readWildcardLike(PlanStreamInput in, String name) throws IOException {
-        return new WildcardLike(Source.EMPTY, in.readExpression(), new WildcardPattern(in.readString()));
+        return new WildcardLike(in.readSource(), in.readExpression(), new WildcardPattern(in.readString()));
     }
 
     static void writeWildcardLike(PlanStreamOutput out, WildcardLike like) throws IOException {
+        out.writeSource(like.source());
         out.writeExpression(like.field());
         out.writeString(like.pattern().pattern());
     }
 
     static RLike readRLike(PlanStreamInput in, String name) throws IOException {
-        return new RLike(Source.EMPTY, in.readExpression(), new RLikePattern(in.readString()));
+        return new RLike(in.readSource(), in.readExpression(), new RLikePattern(in.readString()));
     }
 
     static void writeRLike(PlanStreamOutput out, RLike like) throws IOException {
+        out.writeSource(like.source());
         out.writeExpression(like.field());
         out.writeString(like.pattern().asJavaRegex());
     }
@@ -1095,10 +1100,11 @@ public final class PlanNamedTypes {
         if (ctr == null) {
             throw new IOException("Constructor for ESQLUnaryScalar not found for name:" + name);
         }
-        return ctr.apply(Source.EMPTY, in.readExpression());
+        return ctr.apply(in.readSource(), in.readExpression());
     }
 
     static void writeESQLUnaryScalar(PlanStreamOutput out, UnaryScalarFunction function) throws IOException {
+        out.writeSource(function.source());
         out.writeExpression(function.field());
     }
 
@@ -1133,30 +1139,33 @@ public final class PlanNamedTypes {
         if (ctr == null) {
             throw new IOException("Constructor for QLUnaryScalar not found for name:" + name);
         }
-        return ctr.apply(Source.EMPTY, in.readExpression());
+        return ctr.apply(in.readSource(), in.readExpression());
     }
 
     static void writeQLUnaryScalar(PlanStreamOutput out, org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction function)
         throws IOException {
+        out.writeSource(function.source());
         out.writeExpression(function.field());
     }
 
     // -- ScalarFunction
 
     static Atan2 readAtan2(PlanStreamInput in) throws IOException {
-        return new Atan2(Source.EMPTY, in.readExpression(), in.readExpression());
+        return new Atan2(in.readSource(), in.readExpression(), in.readExpression());
     }
 
     static void writeAtan2(PlanStreamOutput out, Atan2 atan2) throws IOException {
+        out.writeSource(atan2.source());
         out.writeExpression(atan2.y());
         out.writeExpression(atan2.x());
     }
 
     static AutoBucket readAutoBucket(PlanStreamInput in) throws IOException {
-        return new AutoBucket(Source.EMPTY, in.readExpression(), in.readExpression(), in.readExpression(), in.readExpression());
+        return new AutoBucket(in.readSource(), in.readExpression(), in.readExpression(), in.readExpression(), in.readExpression());
     }
 
     static void writeAutoBucket(PlanStreamOutput out, AutoBucket bucket) throws IOException {
+        out.writeSource(bucket.source());
         out.writeExpression(bucket.field());
         out.writeExpression(bucket.buckets());
         out.writeExpression(bucket.from());
@@ -1173,10 +1182,11 @@ public final class PlanNamedTypes {
 
     static ScalarFunction readVarag(PlanStreamInput in, String name) throws IOException {
         return VARARG_CTORS.get(name)
-            .apply(Source.EMPTY, in.readExpression(), in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)));
+            .apply(in.readSource(), in.readExpression(), in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression)));
     }
 
     static void writeVararg(PlanStreamOutput out, ScalarFunction vararg) throws IOException {
+        out.writeSource(vararg.source());
         out.writeExpression(vararg.children().get(0));
         out.writeCollection(
             vararg.children().subList(1, vararg.children().size()),
@@ -1196,10 +1206,11 @@ public final class PlanNamedTypes {
     }
 
     static DateExtract readDateExtract(PlanStreamInput in) throws IOException {
-        return new DateExtract(Source.EMPTY, in.readExpression(), in.readExpression(), in.configuration());
+        return new DateExtract(in.readSource(), in.readExpression(), in.readExpression(), in.configuration());
     }
 
     static void writeDateExtract(PlanStreamOutput out, DateExtract function) throws IOException {
+        out.writeSource(function.source());
         List<Expression> fields = function.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
@@ -1207,10 +1218,11 @@ public final class PlanNamedTypes {
     }
 
     static DateFormat readDateFormat(PlanStreamInput in) throws IOException {
-        return new DateFormat(Source.EMPTY, in.readExpression(), in.readOptionalNamed(Expression.class), in.configuration());
+        return new DateFormat(in.readSource(), in.readExpression(), in.readOptionalNamed(Expression.class), in.configuration());
     }
 
     static void writeDateFormat(PlanStreamOutput out, DateFormat dateFormat) throws IOException {
+        out.writeSource(dateFormat.source());
         List<Expression> fields = dateFormat.children();
         assert fields.size() == 1 || fields.size() == 2;
         out.writeExpression(fields.get(0));
@@ -1218,10 +1230,11 @@ public final class PlanNamedTypes {
     }
 
     static DateParse readDateTimeParse(PlanStreamInput in) throws IOException {
-        return new DateParse(Source.EMPTY, in.readExpression(), in.readOptionalNamed(Expression.class));
+        return new DateParse(in.readSource(), in.readExpression(), in.readOptionalNamed(Expression.class));
     }
 
     static void writeDateTimeParse(PlanStreamOutput out, DateParse function) throws IOException {
+        out.writeSource(function.source());
         List<Expression> fields = function.children();
         assert fields.size() == 1 || fields.size() == 2;
         out.writeExpression(fields.get(0));
@@ -1229,10 +1242,11 @@ public final class PlanNamedTypes {
     }
 
     static DateTrunc readDateTrunc(PlanStreamInput in) throws IOException {
-        return new DateTrunc(Source.EMPTY, in.readExpression(), in.readExpression());
+        return new DateTrunc(in.readSource(), in.readExpression(), in.readExpression());
     }
 
     static void writeDateTrunc(PlanStreamOutput out, DateTrunc dateTrunc) throws IOException {
+        out.writeSource(dateTrunc.source());
         List<Expression> fields = dateTrunc.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
@@ -1246,19 +1260,21 @@ public final class PlanNamedTypes {
     static void writeNow(PlanStreamOutput out, Now function) {}
 
     static Round readRound(PlanStreamInput in) throws IOException {
-        return new Round(Source.EMPTY, in.readExpression(), in.readOptionalNamed(Expression.class));
+        return new Round(in.readSource(), in.readExpression(), in.readOptionalNamed(Expression.class));
     }
 
     static void writeRound(PlanStreamOutput out, Round round) throws IOException {
+        out.writeSource(round.source());
         out.writeExpression(round.field());
         out.writeOptionalExpression(round.decimals());
     }
 
     static Pow readPow(PlanStreamInput in) throws IOException {
-        return new Pow(Source.EMPTY, in.readExpression(), in.readExpression());
+        return new Pow(in.readSource(), in.readExpression(), in.readExpression());
     }
 
     static void writePow(PlanStreamOutput out, Pow pow) throws IOException {
+        out.writeSource(pow.source());
         out.writeExpression(pow.base());
         out.writeExpression(pow.exponent());
     }
@@ -1275,10 +1291,11 @@ public final class PlanNamedTypes {
     }
 
     static StartsWith readStartsWith(PlanStreamInput in) throws IOException {
-        return new StartsWith(Source.EMPTY, in.readExpression(), in.readExpression());
+        return new StartsWith(in.readSource(), in.readExpression(), in.readExpression());
     }
 
     static void writeStartsWith(PlanStreamOutput out, StartsWith startsWith) throws IOException {
+        out.writeSource(startsWith.source());
         List<Expression> fields = startsWith.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
@@ -1297,10 +1314,11 @@ public final class PlanNamedTypes {
     }
 
     static Substring readSubstring(PlanStreamInput in) throws IOException {
-        return new Substring(Source.EMPTY, in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
+        return new Substring(in.readSource(), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
     }
 
     static void writeSubstring(PlanStreamOutput out, Substring substring) throws IOException {
+        out.writeSource(substring.source());
         List<Expression> fields = substring.children();
         assert fields.size() == 2 || fields.size() == 3;
         out.writeExpression(fields.get(0));
@@ -1309,10 +1327,11 @@ public final class PlanNamedTypes {
     }
 
     static Left readLeft(PlanStreamInput in) throws IOException {
-        return new Left(Source.EMPTY, in.readExpression(), in.readExpression());
+        return new Left(in.readSource(), in.readExpression(), in.readExpression());
     }
 
     static void writeLeft(PlanStreamOutput out, Left left) throws IOException {
+        out.writeSource(left.source());
         List<Expression> fields = left.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
@@ -1320,10 +1339,11 @@ public final class PlanNamedTypes {
     }
 
     static Right readRight(PlanStreamInput in) throws IOException {
-        return new Right(Source.EMPTY, in.readExpression(), in.readExpression());
+        return new Right(in.readSource(), in.readExpression(), in.readExpression());
     }
 
     static void writeRight(PlanStreamOutput out, Right right) throws IOException {
+        out.writeSource(right.source());
         List<Expression> fields = right.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
@@ -1331,23 +1351,25 @@ public final class PlanNamedTypes {
     }
 
     static Split readSplit(PlanStreamInput in) throws IOException {
-        return new Split(Source.EMPTY, in.readExpression(), in.readExpression());
+        return new Split(in.readSource(), in.readExpression(), in.readExpression());
     }
 
     static void writeSplit(PlanStreamOutput out, Split split) throws IOException {
+        out.writeSource(split.source());
         out.writeExpression(split.left());
         out.writeExpression(split.right());
     }
 
     static CIDRMatch readCIDRMatch(PlanStreamInput in) throws IOException {
         return new CIDRMatch(
-            Source.EMPTY,
+            in.readSource(),
             in.readExpression(),
             in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readExpression))
         );
     }
 
     static void writeCIDRMatch(PlanStreamOutput out, CIDRMatch cidrMatch) throws IOException {
+        out.writeSource(cidrMatch.source());
         List<Expression> children = cidrMatch.children();
         assert children.size() > 1;
         out.writeExpression(children.get(0));
@@ -1365,12 +1387,14 @@ public final class PlanNamedTypes {
     );
 
     static ArithmeticOperation readArithmeticOperation(PlanStreamInput in, String name) throws IOException {
+        var source = in.readSource();
         var left = in.readExpression();
         var right = in.readExpression();
-        return ARITHMETIC_CTRS.get(name).apply(Source.EMPTY, left, right);
+        return ARITHMETIC_CTRS.get(name).apply(source, left, right);
     }
 
     static void writeArithmeticOperation(PlanStreamOutput out, ArithmeticOperation arithmeticOperation) throws IOException {
+        out.writeSource(arithmeticOperation.source());
         out.writeExpression(arithmeticOperation.left());
         out.writeExpression(arithmeticOperation.right());
     }

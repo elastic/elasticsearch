@@ -108,7 +108,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertEquals(null, process(Integer.MIN_VALUE));
             assertCriticalWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: integer overflow"
+                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
             );
 
             return;
@@ -117,7 +117,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertEquals(null, process(Long.MIN_VALUE));
             assertCriticalWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: long overflow"
+                "Line -1:-1: java.lang.ArithmeticException: long overflow"
             );
 
             return;
@@ -143,7 +143,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertNull(process(minPeriod));
             assertCriticalWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: integer overflow"
+                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
             );
 
             Period maxPeriod = Period.of(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
@@ -156,7 +156,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertNull(process(minDuration));
             assertCriticalWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Exceeds capacity of Duration: 9223372036854775808000000000"
+                "Line -1:-1: java.lang.ArithmeticException: Exceeds capacity of Duration: 9223372036854775808000000000"
             );
 
             Duration maxDuration = Duration.ofSeconds(Long.MAX_VALUE, 0);

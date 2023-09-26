@@ -350,6 +350,7 @@ public class Node implements Closeable {
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
+    @SuppressWarnings("this-escape")
     protected Node(
         final Environment initialEnvironment,
         final Function<Settings, PluginsService> pluginServiceCtor,

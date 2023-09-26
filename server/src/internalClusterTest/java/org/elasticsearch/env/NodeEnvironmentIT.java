@@ -8,6 +8,7 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -140,9 +141,9 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 startsWith("cannot upgrade a node from version ["),
                 endsWith(
                     "] directly to version ["
-                        + Version.CURRENT
+                        + Build.current().version()
                         + "], upgrade to version ["
-                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + Build.current().minWireCompatVersion()
                         + "] first."
                 )
             )

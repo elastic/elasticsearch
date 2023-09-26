@@ -96,7 +96,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "half_float" -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
             case "keyword" -> new BytesRef(randomAlphaOfLength(5));
             case "ip" -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            case "time_duration" -> Duration.ofNanos(randomLongBetween(-604800000000000L, 604800000000000L));
+            case "time_duration" -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
             case "text" -> new BytesRef(randomAlphaOfLength(50));
             case "version" -> new Version(randomIdentifier()).toBytesRef();
             case "null" -> null;

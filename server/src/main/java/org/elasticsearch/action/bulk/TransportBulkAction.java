@@ -422,7 +422,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         });
                     }
-                }, bulkRequest.isSimulated());
+                });
             }
         }
     }
@@ -513,16 +513,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener, boolean isSimulated) {
-        if (isSimulated) {
-            listener.onResponse(null);
-        } else {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-            createIndexRequest.index(index);
-            createIndexRequest.cause("auto(bulk api)");
-            createIndexRequest.masterNodeTimeout(timeout);
-            client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
-        }
+    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+        createIndexRequest.index(index);
+        createIndexRequest.cause("auto(bulk api)");
+        createIndexRequest.masterNodeTimeout(timeout);
+        client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
     private static boolean setResponseFailureIfIndexMatches(

@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
@@ -106,5 +108,10 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
     protected IngestService getIngestService(BulkRequest request) {
         IngestService rawIngestService = super.getIngestService(request);
         return new SimulateIngestService(rawIngestService, request);
+    }
+
+    @Override
+    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        listener.onResponse(null);
     }
 }

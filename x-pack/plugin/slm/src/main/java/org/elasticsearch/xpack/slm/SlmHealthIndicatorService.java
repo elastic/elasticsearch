@@ -83,6 +83,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
 
+    @SuppressWarnings("this-escape")
     public SlmHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
         this.failedSnapshotWarnThreshold = clusterService.getClusterSettings().get(SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING);

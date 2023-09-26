@@ -96,7 +96,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(settings)
         );
         String sessionId = sessionID(task);
         planExecutor.esql(

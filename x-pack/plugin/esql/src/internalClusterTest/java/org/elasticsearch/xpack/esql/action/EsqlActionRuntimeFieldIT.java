@@ -65,8 +65,9 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
 
     public void testKeyword() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
-        EsqlQueryResponse response = run("from test | keep const | limit 1");
-        assertThat(getValuesList(response), equalTo(List.of(List.of("const"))));
+        try (EsqlQueryResponse response = run("from test | keep const | limit 1")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("const"))));
+        }
     }
 
     /**
@@ -81,8 +82,9 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
 
     public void testBoolean() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("boolean");
-        EsqlQueryResponse response = run("from test | sort foo | limit 3");
-        assertThat(getValuesList(response), equalTo(List.of(List.of(true, 0L), List.of(true, 1L), List.of(true, 2L))));
+        try (EsqlQueryResponse response = run("from test | sort foo | limit 3")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(true, 0L), List.of(true, 1L), List.of(true, 2L))));
+        }
     }
 
     public void testDate() throws InterruptedException, IOException {

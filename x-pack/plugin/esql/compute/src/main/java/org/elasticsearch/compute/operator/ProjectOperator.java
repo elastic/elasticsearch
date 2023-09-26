@@ -57,7 +57,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         int b = 0;
         int positionCount = page.getPositionCount();
         List<Releasable> blocksToRelease = new ArrayList<>();
-        for (int i = 0; i >= 0 && i < page.getBlockCount(); i++) {
+        for (int i = 0; i < page.getBlockCount(); i++) {
             var block = page.getBlock(i);
             if (bs.get(i)) {
                 blocks[b++] = block;

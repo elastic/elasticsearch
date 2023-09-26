@@ -150,7 +150,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
             IllegalArgumentException.class,
             "Expected IllegalArgumentException but no exception was thrown",
             () -> MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-                new HashSet<>(Collections.singleton(architecturesStr)),
+                Set.of(architecturesStr),
                 requiredArch,
                 modelId
             )

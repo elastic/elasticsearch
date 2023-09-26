@@ -15,7 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
+
+import static org.hamcrest.Matchers.sameInstance;
 
 public class APMMeterTests extends ESTestCase {
     Meter testOtel = OpenTelemetry.noop().getMeter("test");
@@ -27,34 +28,33 @@ public class APMMeterTests extends ESTestCase {
         APMMeter apmMeter = new APMMeter(Settings.EMPTY, () -> testOtel, () -> noopOtel);
 
         Meter meter = apmMeter.getInstruments().getMeter();
-        assertThat(meter, Matchers.sameInstance(noopOtel));
+        assertThat(meter, sameInstance(noopOtel));
 
         // test explicitly enabled
         var settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         apmMeter = new APMMeter(settings, () -> testOtel, () -> noopOtel);
 
         meter = apmMeter.getInstruments().getMeter();
-        assertThat(meter, Matchers.sameInstance(testOtel));
+        assertThat(meter, sameInstance(testOtel));
 
         // test explicitly disabled
         settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
         apmMeter = new APMMeter(settings, () -> testOtel, () -> noopOtel);
 
         meter = apmMeter.getInstruments().getMeter();
-        assertThat(meter, Matchers.sameInstance(noopOtel));
+        assertThat(meter, sameInstance(noopOtel));
     }
 
     public void testMeterIsOverridden() {
-        // test default
         APMMeter apmMeter = new APMMeter(Settings.EMPTY, () -> testOtel, () -> noopOtel);
 
         Meter meter = apmMeter.getInstruments().getMeter();
-        assertThat(meter, Matchers.sameInstance(noopOtel));
+        assertThat(meter, sameInstance(noopOtel));
 
         apmMeter.setEnabled(true);
 
         meter = apmMeter.getInstruments().getMeter();
-        assertThat(meter, Matchers.sameInstance(testOtel));
+        assertThat(meter, sameInstance(testOtel));
     }
 
     public void testLookupByName() {
@@ -65,6 +65,21 @@ public class APMMeterTests extends ESTestCase {
         DoubleCounter registeredCounter = apmMeter.registerDoubleCounter("name", "desc", "unit");
         DoubleCounter lookedUpCounter = apmMeter.getDoubleCounter("name");
 
-        assertThat(lookedUpCounter, Matchers.sameInstance(registeredCounter));
+        assertThat(lookedUpCounter, sameInstance(registeredCounter));
     }
+
+    public void testNoopIsSetOnStop() {
+        var settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
+        APMMeter apmMeter = new APMMeter(settings, () -> testOtel, () -> noopOtel);
+        apmMeter.start();
+
+        Meter meter = apmMeter.getInstruments().getMeter();
+        assertThat(meter, sameInstance(testOtel));
+
+        apmMeter.stop();
+
+        meter = apmMeter.getInstruments().getMeter();
+        assertThat(meter, sameInstance(noopOtel));
+    }
+
 }

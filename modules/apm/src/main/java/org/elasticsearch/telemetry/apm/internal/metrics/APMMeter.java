@@ -12,9 +12,10 @@ import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
-import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -39,40 +40,34 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     private volatile boolean enabled;
 
     public APMMeter(Settings settings) {
-        this(settings, APMMeter::otelMeter, APMMeter::noopMeter);
+        this(settings, APMMeter.otelMeter(), APMMeter.noopMeter());
     }
 
     public APMMeter(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
         this.enabled = APM_ENABLED_SETTING.get(settings);
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
-        this.instruments = new Instruments(enabled ? createApmServices() : noopMeterSupplier.get());
-        setEnabled(enabled);
+        this.instruments = new Instruments(enabled ? createOtelMeter() : createNoopMeter());
     }
 
+    /**
+     * @see org.elasticsearch.telemetry.apm.internal.APMAgentSettings#addClusterSettingsListeners(ClusterService, APMTelemetryProvider)
+     */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        setupApmServices(this.enabled);
-    }
-
-    private void setupApmServices(boolean enabled) {
         if (enabled) {
-            instruments.setProvider(createApmServices());
+            instruments.setProvider(createOtelMeter());
         } else {
-            destroyApmServices();
+            instruments.setProvider(createNoopMeter());
         }
     }
 
     @Override
-    protected void doStart() {
-        if (enabled) {
-            createApmServices();
-        }
-    }
+    protected void doStart() {}
 
     @Override
     protected void doStop() {
-        destroyApmServices();
+        instruments.setProvider(createNoopMeter());
     }
 
     @Override
@@ -158,29 +153,24 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
         return instruments.getLongHistogram(name);
     }
 
-    Meter createApmServices() {
+    Meter createOtelMeter() {
         assert this.enabled;
-
-        SetOnce<Meter> provider = new SetOnce<>();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            provider.set(otelMeterSupplier.get());
-            return null;
-        });
-        return provider.get();
+        return AccessController.doPrivileged((PrivilegedAction<Meter>) () -> otelMeterSupplier.get());
     }
 
-    private void destroyApmServices() {
-        instruments.setProvider(noopMeterSupplier.get());
+    private Meter createNoopMeter() {
+        return noopMeterSupplier.get();
     }
 
-    private static Meter noopMeter() {
-        return OpenTelemetry.noop().getMeter("noop");
+    private static Supplier<Meter> noopMeter() {
+        return () -> OpenTelemetry.noop().getMeter("noop");
     }
 
-    private static Meter otelMeter() {
+    // to be used within doPrivileged block
+    private static Supplier<Meter> otelMeter() {
         var openTelemetry = GlobalOpenTelemetry.get();
         var meter = openTelemetry.getMeter("elasticsearch");
-        return meter;
+        return () -> meter;
     }
 
     // scope for testing

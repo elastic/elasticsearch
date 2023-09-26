@@ -167,7 +167,7 @@ public class APMAgentSettings {
 
     public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
         APM_SETTING_PREFIX + "enabled",
-        true,
+        false,
         OperatorDynamic,
         NodeScope
     );

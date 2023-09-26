@@ -20,6 +20,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
@@ -97,6 +98,108 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             assertThat(ignored, contains("numeric_field"));
             Map<String, Object> ignoredFieldValues = ((Map<String, Map<String, Object>>) results.get(0)).get("ignored_field_values");
             assertThat(ignoredFieldValues.get("numeric_field"), is(List.of("forty-two")));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLogsDefaultPipeline() throws Exception {
+        RestClient client = client();
+        waitForLogs(client);
+
+        {
+            Request request = new Request("POST", "/_component_template/logs@custom");
+            request.setJsonEntity("""
+                {
+                  "template": {
+                    "mappings": {
+                      "properties": {
+                        "custom_timestamp": {
+                          "type": "date"
+                        }
+                      }
+                    }
+                  }
+                }
+                """);
+            assertOK(client.performRequest(request));
+        }
+        {
+            Request request = new Request("PUT", "/_ingest/pipeline/logs@custom");
+            request.setJsonEntity("""
+                    {
+                      "processors": [
+                        {
+                          "set" : {
+                            "field": "custom_timestamp",
+                            "copy_from": "_ingest.timestamp"
+                          }
+                        }
+                      ]
+                    }
+                """);
+            assertOK(client.performRequest(request));
+        }
+
+        String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+        String backingIndex = getWriteBackingIndex(client, dataStreamName);
+
+        // Verify mapping from custom logs
+        Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
+        assertThat(((Map<String, Object>) mappingProperties.get("@timestamp")).get("type"), equalTo("date"));
+
+        // no timestamp - testing default pipeline's @timestamp set processor
+        {
+            indexDoc(client, dataStreamName, """
+                {
+                  "message": "no_timestamp"
+                }
+                """);
+            List<Object> results = searchDocs(client, dataStreamName, """
+                {
+                  "query": {
+                    "term": {
+                      "message": {
+                        "value": "no_timestamp"
+                      }
+                    }
+                  },
+                  "fields": ["@timestamp", "custom_timestamp"]
+                }
+                """);
+            Map<String, Object> source = ((Map<String, Map<String, Object>>) results.get(0)).get("_source");
+            String timestamp = (String) source.get("@timestamp");
+            assertThat(timestamp, matchesRegex("[0-9-]+T[0-9:.]+Z"));
+            assertThat(source.get("custom_timestamp"), is(timestamp));
+
+            Map<String, Object> fields = ((Map<String, Map<String, Object>>) results.get(0)).get("fields");
+            timestamp = ((List<String>) fields.get("@timestamp")).get(0);
+            assertThat(timestamp, matchesRegex("[0-9-]+T[0-9:.]+Z"));
+            assertThat(((List<Object>) fields.get("custom_timestamp")).get(0), is(timestamp));
+        }
+
+        // verify that when a document is ingested with a timestamp, it does not get overridden
+        {
+            indexDoc(client, dataStreamName, """
+                {
+                  "message": "with_timestamp",
+                  "@timestamp": "2023-05-10"
+                }
+                """);
+            List<Object> results = searchDocs(client, dataStreamName, """
+                {
+                  "query": {
+                    "term": {
+                      "message": {
+                        "value": "with_timestamp"
+                      }
+                    }
+                  },
+                  "fields": ["@timestamp", "custom_timestamp"]
+                }
+                """);
+            Map<String, Object> fields = ((Map<String, Map<String, Object>>) results.get(0)).get("fields");
+            assertThat(fields.get("@timestamp"), is(List.of("2023-05-10T00:00:00.000Z")));
         }
     }
 

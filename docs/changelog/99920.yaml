@@ -1,0 +1,5 @@
+pr: 99920
+summary: Feature/simulate ingest with pipeline defs and mapping validation
+area: Ingest Node
+type: enhancement
+issues: []

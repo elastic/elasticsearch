@@ -67,6 +67,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected final Executor executor;
 
+    /**
+     * Temporary for serverless compatibility. TODO remove.
+     */
     protected TransportMasterNodeAction(
         String actionName,
         TransportService transportService,
@@ -77,6 +80,30 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
         String executor
+    ) {
+        this(
+            actionName,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            request,
+            indexNameExpressionResolver,
+            response,
+            threadPool.executor(executor)
+        );
+    }
+
+    protected TransportMasterNodeAction(
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Writeable.Reader<Response> response,
+        Executor executor
     ) {
         this(
             actionName,
@@ -102,14 +129,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = threadPool.executor(executor);
+        this.executor = executor;
         this.responseReader = response;
     }
 

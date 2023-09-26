@@ -140,7 +140,7 @@ public interface BlobContainer {
 
     @Deprecated(forRemoval = true)
     default void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+        writeBlob(BlobPurpose.SNAPSHOT, blobName, bytes, failIfAlreadyExists);
     }
 
     /**
@@ -324,12 +324,7 @@ public interface BlobContainer {
 
     @Deprecated(forRemoval = true)
     default void compareAndSetRegister(String key, BytesReference expected, BytesReference updated, ActionListener<Boolean> listener) {
-        compareAndExchangeRegister(
-            key,
-            expected,
-            updated,
-            listener.map(witness -> witness.isPresent() && witness.bytesReference().equals(expected))
-        );
+        compareAndSetRegister(BlobPurpose.SNAPSHOT, key, expected, updated, listener);
     }
 
     /**
@@ -347,7 +342,7 @@ public interface BlobContainer {
 
     @Deprecated(forRemoval = true)
     default void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
-        compareAndExchangeRegister(key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
+        getRegister(BlobPurpose.SNAPSHOT, key, listener);
     }
 
 }

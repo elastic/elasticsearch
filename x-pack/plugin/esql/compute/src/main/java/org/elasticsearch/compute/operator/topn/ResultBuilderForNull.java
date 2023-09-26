@@ -42,4 +42,9 @@ public class ResultBuilderForNull implements ResultBuilder {
     public String toString() {
         return "ValueExtractorForNull";
     }
+
+    @Override
+    public void close() {
+        // Nothing to close
+    }
 }

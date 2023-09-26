@@ -14,6 +14,8 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
 $else$
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 $endif$
 
@@ -41,7 +43,7 @@ $else$
     $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
         values = new $type$[initialSize];
     }
 $endif$
@@ -265,8 +267,23 @@ $endif$
                 block = new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
+        /*
+         * Update the breaker with the actual bytes used.
+         * We pass false below even though we've used the bytes. That's weird,
+         * but if we break here we will throw away the used memory, letting
+         * it be deallocated. The exception will bubble up and the builder will
+         * still technically be open, meaning the calling code should close it
+         * which will return all used memory to the breaker.
+         */
+        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
+        built();
         return block;
     }
+$if(BytesRef)$
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
+    }
+$endif$
 }

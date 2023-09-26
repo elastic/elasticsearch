@@ -20,6 +20,7 @@ class ResultBuilderForDoc implements ResultBuilder {
     private int position;
 
     ResultBuilderForDoc(BlockFactory blockFactory, int positions) {
+        // TODO use fixed length builders
         this.blockFactory = blockFactory;
         this.shards = new int[positions];
         this.segments = new int[positions];
@@ -52,5 +53,10 @@ class ResultBuilderForDoc implements ResultBuilder {
     @Override
     public String toString() {
         return "ValueExtractorForDoc";
+    }
+
+    @Override
+    public void close() {
+        // TODO memory accounting
     }
 }

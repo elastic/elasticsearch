@@ -82,4 +82,9 @@ $endif$
     public String toString() {
         return "ResultBuilderFor$Type$[inKey=" + inKey + "]";
     }
+
+    @Override
+    public void close() {
+        builder.close();
+    }
 }

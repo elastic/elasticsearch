@@ -64,4 +64,9 @@ class ResultBuilderForInt implements ResultBuilder {
     public String toString() {
         return "ResultBuilderForInt[inKey=" + inKey + "]";
     }
+
+    @Override
+    public void close() {
+        builder.close();
+    }
 }

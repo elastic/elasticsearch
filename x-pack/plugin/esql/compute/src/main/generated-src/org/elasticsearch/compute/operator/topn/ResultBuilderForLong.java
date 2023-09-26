@@ -64,4 +64,9 @@ class ResultBuilderForLong implements ResultBuilder {
     public String toString() {
         return "ResultBuilderForLong[inKey=" + inKey + "]";
     }
+
+    @Override
+    public void close() {
+        builder.close();
+    }
 }

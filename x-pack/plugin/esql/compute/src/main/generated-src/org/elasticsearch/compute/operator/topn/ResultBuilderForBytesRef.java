@@ -68,4 +68,9 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     public String toString() {
         return "ResultBuilderForBytesRef[inKey=" + inKey + "]";
     }
+
+    @Override
+    public void close() {
+        builder.close();
+    }
 }

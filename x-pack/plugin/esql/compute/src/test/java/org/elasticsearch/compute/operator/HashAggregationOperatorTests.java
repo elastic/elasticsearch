@@ -7,8 +7,11 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
@@ -17,10 +20,14 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -28,12 +35,32 @@ import java.util.stream.LongStream;
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
+
+    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+
+    @Before
+    @After
+    public void assertBreakerIsZero() {
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    @Override
+    protected DriverContext driverContext() {
+        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+    }
+
     @Override
     protected SourceOperator simpleInput(int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);
-        return new TupleBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> Tuple.tuple(l % 5, randomLongBetween(-max, max))));
+        var valuesStream = LongStream.range(0, size).mapToObj(l -> Tuple.tuple(l % 5, randomLongBetween(-max, max)));
+        return new TupleBlockSourceOperator(blockFactory, valuesStream);
     }
 
     @Override
@@ -93,5 +120,12 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         return ByteSizeValue.ofBytes(between(1, 32));
+    }
+
+    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        return breakerService;
     }
 }

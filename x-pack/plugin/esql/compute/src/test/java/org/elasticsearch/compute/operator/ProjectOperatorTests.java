@@ -91,7 +91,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(int end) {
-        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)), blockFactory);
+        return new TupleBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
     @Override

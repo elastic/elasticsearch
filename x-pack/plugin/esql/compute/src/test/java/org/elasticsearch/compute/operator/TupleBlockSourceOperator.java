@@ -22,22 +22,22 @@ public class TupleBlockSourceOperator extends AbstractBlockSourceOperator {
 
     private static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
+    private final BlockFactory blockFactory;
+
     private final List<Tuple<Long, Long>> values;
 
-    final BlockFactory blockFactory;
-
     public TupleBlockSourceOperator(Stream<Tuple<Long, Long>> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS, BlockFactory.getNonBreakingInstance());
+        this(BlockFactory.getNonBreakingInstance(), values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public TupleBlockSourceOperator(Stream<Tuple<Long, Long>> values, BlockFactory blockFactory) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS, blockFactory);
+    public TupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Long>> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public TupleBlockSourceOperator(Stream<Tuple<Long, Long>> values, int maxPagePositions, BlockFactory blockFactory) {
+    public TupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Long>> values, int maxPagePositions) {
         super(maxPagePositions);
-        this.values = values.toList();
         this.blockFactory = blockFactory;
+        this.values = values.toList();
     }
 
     public TupleBlockSourceOperator(List<Tuple<Long, Long>> values) {

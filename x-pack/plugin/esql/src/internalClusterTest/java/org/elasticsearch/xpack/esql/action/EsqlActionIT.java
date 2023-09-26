@@ -95,7 +95,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals(List.of(List.of(value)), getValuesList(response));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testFromStatsGroupingAvgWithSort() {
         testFromStatsGroupingAvgImpl("from test | stats avg(count) by data | sort data | limit 2", "data", "avg(count)");
     }
@@ -200,7 +199,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals(expectedValues, actualValues);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826 - project")
     public void testFromGroupingByNumericFieldWithNulls() {
         for (int i = 0; i < 5; i++) {
             client().prepareBulk()

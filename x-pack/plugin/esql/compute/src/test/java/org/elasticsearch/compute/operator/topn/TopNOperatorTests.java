@@ -176,7 +176,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                 .toArray(),
             equalTo(topN)
         );
-        results.stream().forEach(Page::releaseBlocks);
     }
 
     @Override

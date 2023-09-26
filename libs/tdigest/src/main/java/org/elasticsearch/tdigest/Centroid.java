@@ -40,16 +40,19 @@ public class Centroid implements Comparable<Centroid> {
         id = uniqueCount.getAndIncrement();
     }
 
+    @SuppressWarnings("this-escape")
     public Centroid(double x) {
         this();
         start(x, 1, uniqueCount.getAndIncrement());
     }
 
+    @SuppressWarnings("this-escape")
     public Centroid(double x, long w) {
         this();
         start(x, w, uniqueCount.getAndIncrement());
     }
 
+    @SuppressWarnings("this-escape")
     public Centroid(double x, long w, int id) {
         this();
         start(x, w, id);

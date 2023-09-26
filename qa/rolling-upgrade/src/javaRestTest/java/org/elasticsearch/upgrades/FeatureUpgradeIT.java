@@ -8,6 +8,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -21,14 +23,17 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FeatureUpgradeIT extends AbstractRollingTestCase {
+public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    @SuppressWarnings("unchecked")
+    public FeatureUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
     public void testGetFeatureUpgradeStatus() throws Exception {
 
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
+        if (isOldCluster()) {
             // setup - put something in the tasks index
             // create index
             Request createTestIndex = new Request("PUT", "/feature_test_index_old");
@@ -79,7 +84,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
                 }
             });
 
-        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+        } else if (isUpgradedCluster()) {
             // check results
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_migration/system_features");
@@ -95,7 +100,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
                 assertThat(feature, aMapWithSize(4));
                 assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toString()));
-                if (UPGRADE_FROM_VERSION.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
+                if (getOldClusterVersion().before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {
                     assertThat(feature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));
@@ -103,5 +108,4 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
             });
         }
     }
-
 }

@@ -47,6 +47,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         this(loadSource, SourceFieldMapper.NAME);
     }
 
+    @SuppressWarnings("this-escape")
     public FieldsVisitor(boolean loadSource, String sourceFieldName) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;

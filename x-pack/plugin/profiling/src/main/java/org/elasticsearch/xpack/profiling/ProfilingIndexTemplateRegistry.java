@@ -282,7 +282,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private int getVersion(LifecyclePolicy policy, String logicalVersion) {
+    private static int getVersion(LifecyclePolicy policy, String logicalVersion) {
         Map<String, Object> meta = policy.getMetadata();
         try {
             return meta != null ? Integer.parseInt(meta.getOrDefault("version", Integer.MIN_VALUE).toString()) : Integer.MIN_VALUE;
@@ -294,21 +294,35 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
+    /**
+     * Determines whether all resources (component templates, composable templates and lifecycle policies) have been created. This method
+     * also checks whether resources have been created for the expected version.
+     *
+     * @param state Current cluster state.
+     * @param settings Current cluster settings.
+     * @return <code>true</code> if and only if all resources managed by this registry have been created and are current.
+     */
     public static boolean isAllResourcesCreated(ClusterState state, Settings settings) {
-        for (String componentTemplate : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
-            if (state.metadata().componentTemplates().containsKey(componentTemplate) == false) {
+        for (String name : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
+            ComponentTemplate componentTemplate = state.metadata().componentTemplates().get(name);
+            if (componentTemplate == null || componentTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
-        for (String composableTemplate : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
-            if (state.metadata().templatesV2().containsKey(composableTemplate) == false) {
+        for (String name : COMPOSABLE_INDEX_TEMPLATE_CONFIGS.keySet()) {
+            ComposableIndexTemplate composableIndexTemplate = state.metadata().templatesV2().get(name);
+            if (composableIndexTemplate == null || composableIndexTemplate.version() < INDEX_TEMPLATE_VERSION) {
                 return false;
             }
         }
         if (isDataStreamsLifecycleOnlyMode(settings) == false) {
+            IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
+            if (ilmMetadata == null) {
+                return false;
+            }
             for (LifecyclePolicyConfig lifecyclePolicy : LIFECYCLE_POLICY_CONFIGS) {
-                IndexLifecycleMetadata ilmMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-                if (ilmMetadata == null || ilmMetadata.getPolicies().containsKey(lifecyclePolicy.getPolicyName()) == false) {
+                LifecyclePolicy existingPolicy = ilmMetadata.getPolicies().get(lifecyclePolicy.getPolicyName());
+                if (existingPolicy == null || getVersion(existingPolicy, "current") < INDEX_TEMPLATE_VERSION) {
                     return false;
                 }
             }

@@ -76,6 +76,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> QUERY_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
+        "esql.query.result_truncation_max_size",
+        500,
+        1,
+        10000,
+        Setting.Property.NodeScope
+    );
+
     @Override
     public Collection<Object> createComponents(
         Client client,

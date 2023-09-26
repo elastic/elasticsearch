@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -113,6 +114,11 @@ public class InMapper extends ExpressionMapper<In> {
                     return new BooleanArrayBlock(values, values.length, null, nulls, Block.MvOrdering.UNORDERED);
                 }
             }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(() -> Releasables.close(listEvaluators));
         }
     }
 }

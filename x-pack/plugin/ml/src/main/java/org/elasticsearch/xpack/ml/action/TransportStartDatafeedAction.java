@@ -79,7 +79,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TOO_OLD;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_CONFIG_TOO_OLD;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -316,7 +316,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         throw ExceptionsHelper.badRequestException(
             Messages.getMessage(
-                REMOTE_CLUSTERS_TOO_OLD,
+                REMOTE_CLUSTERS_CONFIG_TOO_OLD,
                 minVersion.toString(),
                 reason,
                 Strings.collectionToCommaDelimitedString(clustersTooOld)

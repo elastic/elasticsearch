@@ -140,7 +140,11 @@ public class ReindexValidator {
             target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
         }
         SearchRequest filteredSource = skipRemoteIndexNames(source);
-        for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, filteredSource)) {
+        if (filteredSource.indices().length == 0) {
+            return;
+        }
+        String[] sourceIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, filteredSource);
+        for (String sourceIndex : sourceIndexNames) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');

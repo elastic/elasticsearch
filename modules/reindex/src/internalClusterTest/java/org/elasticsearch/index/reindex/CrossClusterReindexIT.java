@@ -94,6 +94,39 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
         }));
     }
 
+    public void testReindexManyTimesFromRemoteGivenSameIndexNames() throws Exception {
+        assertAcked(client(REMOTE_CLUSTER).admin().indices().prepareCreate("test-index-001"));
+        final long docsNumber = indexDocs(client(REMOTE_CLUSTER), "test-index-001");
+
+        final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "test-index-001";
+
+        int N = randomIntBetween(2, 10);
+        for (int attempt = 0; attempt < N; attempt++) {
+
+            BulkByScrollResponse response = new ReindexRequestBuilder(client(LOCAL_CLUSTER), ReindexAction.INSTANCE).source(sourceIndexInRemote)
+                .destination("test-index-001")
+                .ignoreUnavailable(randomBoolean())
+                .get();
+
+            if (attempt == 0) {
+                assertThat(response.getCreated(), equalTo(docsNumber));
+                assertThat(response.getUpdated(), equalTo(0L));
+            } else {
+                assertThat(response.getCreated(), equalTo(0L));
+                assertThat(response.getUpdated(), equalTo(docsNumber));
+            }
+
+            assertTrue("Number of documents in source and desc indexes does not match", waitUntil(() -> {
+                SearchResponse resp = client(LOCAL_CLUSTER).prepareSearch("test-index-001")
+                    .setQuery(new MatchAllQueryBuilder())
+                    .setSize(1000)
+                    .get();
+                final TotalHits totalHits = resp.getHits().getTotalHits();
+                return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            }));
+        }
+    }
+
     public void testReindexFromRemoteIgnoreUnavailableIndex() {
 
         final String sourceIndexInRemote = REMOTE_CLUSTER + ":" + "no-such-source-index-001";

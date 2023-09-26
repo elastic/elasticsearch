@@ -72,10 +72,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
         }
 
-        // ReindexRequest is created with default search request IndicesOptions
-        // respect other indices options (like ignore_unavailable) which can come via request parameters
-        IndicesOptions options = IndicesOptions.fromRequest(request, internal.getSearchRequest().indicesOptions());
-        internal.getSearchRequest().indicesOptions(options);
+        // ReindexRequest contains search request object with default index options
+        // propagate other indices options (like ignore_unavailable) to underlying search request
+        IndicesOptions defaultIndicesOptions = internal.getSearchRequest().indicesOptions();
+        IndicesOptions updatedIndicesOptions = IndicesOptions.fromRequest(request, defaultIndicesOptions);
+        internal.getSearchRequest().indicesOptions(updatedIndicesOptions);
 
         return internal;
     }

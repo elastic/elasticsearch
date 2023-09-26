@@ -64,6 +64,7 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
     }
 
     public ReindexRequestBuilder ignoreUnavailable(boolean ignoreUnavailable) {
+        // propagate `ignore_unavailable` option to underlying search request
         var currentSearchIndicesOptions = request().getSearchRequest().indicesOptions();
         var newSearchIndicesOptions = IndicesOptions.fromOptions(
             ignoreUnavailable || currentSearchIndicesOptions.ignoreUnavailable(),

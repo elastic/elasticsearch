@@ -13,6 +13,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -257,7 +260,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                             @Override
                             public void onResponse(Set<String> nodesArchitectures) {
                                 try {
-                                    MlPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
+                                    MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
                                         nodesArchitectures,
                                         configToReturn.getPlatformArchitecture(),
                                         configToReturn.getModelId()
@@ -273,7 +276,19 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                             }
                         };
 
-                        MlPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architecturesListener);
+                        ActionListener<NodesInfoResponse> nodesInfoResponseActionListener = MlPlatformArchitecturesUtil
+                            .getArchitecturesSetFromNodesInfoResponseListener(threadPool, architecturesListener);
+
+                        NodesInfoRequest nodesInfoRequest = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(
+                            client
+                        ).request();
+                        executeAsyncWithOrigin(
+                            client,
+                            ML_ORIGIN,
+                            NodesInfoAction.INSTANCE,
+                            nodesInfoRequest,
+                            nodesInfoResponseActionListener
+                        );
                     }, listener::onFailure)
                 );
             } else {

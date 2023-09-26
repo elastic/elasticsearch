@@ -253,23 +253,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     request.isWaitForCompletion(),
                     ActionListener.wrap((downloadTriggered) -> {
                         listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
-                        ActionListener<Void> failureListener = new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void o) {}
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                HeaderWarning.addWarning(e.getMessage());
-                            }
-                        };
-
-                        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-                            failureListener,
-                            client,
-                            threadPool,
-                            configToReturn.getPlatformArchitecture(),
-                            configToReturn.getModelId()
-                        );
+                        verifyMlNodesAndModelArchitectures(configToReturn, client, threadPool);
                     }, listener::onFailure)
                 );
             } else {
@@ -356,6 +340,35 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             listener,
             handlePackageAndTagsListener,
             request.timeout()
+        );
+    }
+
+    void verifyMlNodesAndModelArchitectures(TrainedModelConfig configToReturn, Client client, ThreadPool threadPool) {
+        ActionListener<Void> failureListener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void o) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                HeaderWarning.addWarning(e.getMessage());
+            }
+        };
+
+        callVerifyMlNodesAndModelArchitectures(configToReturn, failureListener, client, threadPool);
+    }
+
+    void callVerifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        ActionListener<Void> failureListener,
+        Client client,
+        ThreadPool threadPool
+    ) {
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
+            failureListener,
+            client,
+            threadPool,
+            configToReturn.getPlatformArchitecture(),
+            configToReturn.getModelId()
         );
     }
 

@@ -86,24 +86,22 @@ public class MlPlatformArchitecturesUtil {
         String architecture = null;
         Iterator<String> architecturesIterator = architectures.iterator();
 
+        // If there are no ML nodes at all in the current cluster we assume that any that are added later will work
         if (architecturesIterator.hasNext()) {
-            architecture = architectures.iterator().next();
+            architecture = architecturesIterator.next();
 
-            String architecturesStr = architectures.toString();
-            architecturesStr = architecturesStr.substring(1, architecturesStr.length() - 1); // Remove the brackets
-
-            if (Objects.isNull(modelPlatformArchitecture) == false) { // null value indicates platform agnostic, so these errors are
-                                                                      // irrelevant
+            if (modelPlatformArchitecture != null) { // null value indicates platform agnostic, so these errors are
+                                                     // irrelevant
                 if (architectures.size() > 1) { // Platform architectures are not homogeneous among ML nodes
 
                     throw new IllegalStateException(
                         format(
                             "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
                                 + "expected [%s]; "
-                                + "but was [%s]",
+                                + "but was %s",
                             modelID,
                             modelPlatformArchitecture,
-                            architecturesStr
+                            architectures
                         )
                     );
 
@@ -113,10 +111,10 @@ public class MlPlatformArchitecturesUtil {
                         format(
                             "The model being deployed ([%s]) is platform specific and incompatible with ML nodes in the cluster; "
                                 + "expected [%s]; "
-                                + "but was [%s]",
+                                + "but was %s",
                             modelID,
                             modelPlatformArchitecture,
-                            architecturesStr
+                            architectures
                         )
                     );
                 }

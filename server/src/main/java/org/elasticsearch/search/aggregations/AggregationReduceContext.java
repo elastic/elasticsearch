@@ -8,8 +8,11 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -175,6 +178,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
      * A {@linkplain AggregationReduceContext} to perform the final reduction.
      */
     public static final class ForFinal extends AggregationReduceContext {
+        final Logger logger = LogManager.getLogger(ForFinal.class);
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
 
@@ -210,7 +214,28 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
 
         @Override
         protected void consumeBucketCountAndMaybeBreak(int size) {
-            multiBucketConsumer.accept(size);
+            final String aggregationName = builder().getName();
+            try {
+                multiBucketConsumer.accept(size);
+            } catch (MultiBucketConsumerService.TooManyBucketsException e) {
+                logger.error(
+                    "Too many buckets for aggregation [%s] (max [%d], count [%d])".formatted(
+                        aggregationName,
+                        e.getMaxBuckets(),
+                        e.getBucketsCount()
+                    )
+                );
+                throw e;
+            } catch (CircuitBreakingException e) {
+                logger.error(
+                    "Too much memory required for aggregation [%s] (max [%d] bytes, estimated [%d] bytes)".formatted(
+                        aggregationName,
+                        e.getByteLimit(),
+                        e.getBytesWanted()
+                    )
+                );
+                throw e;
+            }
         }
 
         @Override

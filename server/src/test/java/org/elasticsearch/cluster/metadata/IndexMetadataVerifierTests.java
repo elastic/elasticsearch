@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -118,7 +119,9 @@ public class IndexMetadataVerifierTests extends ESTestCase {
                     + "] "
                     + "but the minimum compatible version is ["
                     + minCompat
-                    + "]. It should be re-indexed using the previous major version of Elasticsearch before upgrading to "
+                    + "]. It should be re-indexed in Elasticsearch "
+                    + (Version.CURRENT.major - 1)
+                    + ".x before upgrading to "
                     + Build.current().version()
                     + "."
             )

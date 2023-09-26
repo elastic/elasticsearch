@@ -350,8 +350,8 @@ public class HeaderWarningTests extends ESTestCase {
     }
 
     public void testWarnAgentValidationStateful() {
-        var sampleWarningWithFullAgent = "299 Elasticsearch-8.11.0-SNAPSHOT-e4ccab7b7122041b8315194941bef592410916d0 " +
-            "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+        var sampleWarningWithFullAgent = "299 Elasticsearch-8.11.0-SNAPSHOT-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
 
         var pattern = HeaderWarning.getPatternWithSemanticVersion();
         final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
@@ -359,8 +359,8 @@ public class HeaderWarningTests extends ESTestCase {
     }
 
     public void testWarnAgentValidationStateless() {
-        var sampleWarningWithFullAgent = "299 Elasticsearch-e4ccab7b7122041b8315194941bef592410916d0 " +
-            "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+        var sampleWarningWithFullAgent = "299 Elasticsearch-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
 
         var pattern = HeaderWarning.getPatternWithoutSemanticVersion();
         final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);

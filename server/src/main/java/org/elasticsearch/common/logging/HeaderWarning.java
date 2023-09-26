@@ -34,12 +34,17 @@ public class HeaderWarning {
 
     private static final String semanticVersionPattern = "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?";
 
+    /**
+     * Detects if Build.current().version() returns a semantic version (major.minor.revision) or not
+     */
     private static final boolean hasSemanticVersion = Pattern.matches(semanticVersionPattern, Build.current().version());
 
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
      * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build
-     * hash.
+     * hash and (optionally) the build version.
+     * Build version is optional as Build.current().version() is extensible and may not be semantic in downstream projects or future
+     * releases. See {@link org.elasticsearch.internal.BuildExtension}.
      */
     public static final Pattern WARNING_HEADER_PATTERN = hasSemanticVersion
         ? getPatternWithSemanticVersion()

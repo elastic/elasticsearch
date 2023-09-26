@@ -64,7 +64,7 @@ public class TransportGetBlobStoreStatsAction extends TransportNodesAction<
             actionFilters,
             GetBlobStoreStatsNodesRequest::new,
             GetBlobStoreStatsNodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.objectStoreService = objectStoreService;
         this.repositoriesService = repositoriesService;

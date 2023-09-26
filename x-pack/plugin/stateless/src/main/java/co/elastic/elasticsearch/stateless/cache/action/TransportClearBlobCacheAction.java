@@ -56,7 +56,7 @@ public class TransportClearBlobCacheAction extends TransportNodesAction<
             actionFilters,
             ClearBlobCacheNodesRequest::new,
             ClearBlobCacheNodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.sharedBlobCacheServiceSupplier = sharedBlobCacheServiceSupplier;
     }

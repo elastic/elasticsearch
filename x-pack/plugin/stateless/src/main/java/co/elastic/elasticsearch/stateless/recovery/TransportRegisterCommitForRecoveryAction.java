@@ -57,7 +57,13 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
         ClusterService clusterService,
         ActionFilters actionFilters
     ) {
-        super(NAME, transportService, actionFilters, RegisterCommitRequest::new, ThreadPool.Names.GENERIC);
+        super(
+            NAME,
+            transportService,
+            actionFilters,
+            RegisterCommitRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
+        );
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = clusterService.threadPool();

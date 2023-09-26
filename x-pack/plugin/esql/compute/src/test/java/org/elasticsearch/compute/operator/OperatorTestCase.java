@@ -154,6 +154,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     private void assertSimple(DriverContext context, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), size));
+        // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> inputClone = CannedSourceOperator.deepCopyOf(input);
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
         List<Page> results = drive(simple(bigArrays).get(context), input.iterator());

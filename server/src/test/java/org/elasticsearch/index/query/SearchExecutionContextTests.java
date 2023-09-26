@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
-import org.elasticsearch.index.mapper.LeafRuntimeField;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -380,14 +379,12 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertTrue(mappingLookup.isMultiField("cat.subfield"));
     }
 
-    public void testSyntheticSourceScriptLoading() throws IOException {
+    public void testSyntheticSourceSearchLookup() throws IOException {
         // Build a mapping using synthetic source
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
-        )
-            .addRuntimeField(new LeafRuntimeField("runtime_field", new KeywordFieldMapper.KeywordFieldType("runtime_field"), List.of()))
-            .build(MapperBuilderContext.root(true, false));
+        ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
         MappingLookup lookup = MappingLookup.fromMapping(mapping);
 
@@ -395,7 +392,6 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertTrue(sec.isSourceSynthetic());
 
         MemoryIndex mi = new MemoryIndex();
-        mi.addField(new KeywordField("runtime_field", "script", Field.Store.YES), null);
         mi.addField(new KeywordField("cat", "meow", Field.Store.YES), null);
         LeafReaderContext leafReaderContext = mi.createSearcher().getIndexReader().leaves().get(0);
 

@@ -297,17 +297,21 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
         if (Randomness.get().nextBoolean()) {
             // don't acquire a commit every time, lest it disturb something else
             final var engine = indexShard.getEngineOrNull();
-            assert engine != null : indexShard.shardId();
-            try (var commitRef = engine.acquireLastIndexCommit(flushFirst)) {
-                final var indexCommit = commitRef.getIndexCommit();
-                final var userData = indexCommit.getUserData();
-                final var localCheckpoint = Long.toString(sourceCheckpoints.getLocalCheckpoint());
-                assert localCheckpoint.equals(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))
-                    && localCheckpoint.equals(userData.get(SequenceNumbers.MAX_SEQ_NO))
-                    : indexShard.shardId() + ": " + sourceCheckpoints + " vs " + userData;
-
-            } catch (IOException e) {
-                throw new AssertionError("unexpected", e);
+            if (engine == null) {
+                assert indexShard.state() == IndexShardState.CLOSED : indexShard.shardId() + " engine null but index not closed";
+            } else {
+                try (var commitRef = engine.acquireLastIndexCommit(flushFirst)) {
+                    final var indexCommit = commitRef.getIndexCommit();
+                    final var userData = indexCommit.getUserData();
+                    final var localCheckpoint = Long.toString(sourceCheckpoints.getLocalCheckpoint());
+                    assert localCheckpoint.equals(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))
+                        && localCheckpoint.equals(userData.get(SequenceNumbers.MAX_SEQ_NO))
+                        : indexShard.shardId() + ": " + sourceCheckpoints + " vs " + userData;
+                } catch (IOException e) {
+                    throw new AssertionError("unexpected", e);
+                } catch (IllegalStateException e) {
+                    assert indexShard.state() == IndexShardState.CLOSED : e;
+                }
             }
         }
         return true;

@@ -598,6 +598,11 @@ public class Stateless extends Plugin
                 }
 
                 @Override
+                public void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+                    statelessCommitService.delete(shardId);
+                }
+
+                @Override
                 public void onStoreClosed(ShardId shardId) {
                     statelessCommitService.unregister(shardId);
                     localTranslogReplicator.unregister(shardId);

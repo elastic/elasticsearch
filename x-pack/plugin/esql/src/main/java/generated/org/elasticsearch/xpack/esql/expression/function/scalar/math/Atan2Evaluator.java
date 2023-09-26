@@ -10,7 +10,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Atan2}.
@@ -21,9 +23,13 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
 
   private final EvalOperator.ExpressionEvaluator x;
 
-  public Atan2Evaluator(EvalOperator.ExpressionEvaluator y, EvalOperator.ExpressionEvaluator x) {
+  private final DriverContext driverContext;
+
+  public Atan2Evaluator(EvalOperator.ExpressionEvaluator y, EvalOperator.ExpressionEvaluator x,
+      DriverContext driverContext) {
     this.y = y;
     this.x = x;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -76,5 +82,10 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public String toString() {
     return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(y, x);
   }
 }

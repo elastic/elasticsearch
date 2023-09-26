@@ -33,6 +33,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -100,11 +101,8 @@ public class TransportGetPipelineActionTests extends ESTestCase {
 
         try (Client client = getMockClient(multiGetResponse)) {
             Loggers.addAppender(logger, mockLogAppender);
-            TransportGetPipelineAction action = new TransportGetPipelineAction(
-                mock(TransportService.class),
-                mock(ActionFilters.class),
-                client
-            );
+            TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+            TransportGetPipelineAction action = new TransportGetPipelineAction(transportService, mock(ActionFilters.class), client);
             action.doExecute(null, request, testActionListener);
         } finally {
             Loggers.removeAppender(logger, mockLogAppender);
@@ -152,8 +150,9 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             }
         };
 
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         try (Client client = getMockClient(searchResponse)) {
-            new TransportGetPipelineAction(mock(TransportService.class), mock(ActionFilters.class), client).doExecute(
+            new TransportGetPipelineAction(transportService, mock(ActionFilters.class), client).doExecute(
                 null,
                 request,
                 testActionListener
@@ -165,8 +164,9 @@ public class TransportGetPipelineActionTests extends ESTestCase {
 
     public void testMissingIndexHandling() throws Exception {
         try (Client failureClient = getFailureClient(new IndexNotFoundException("foo"))) {
+            TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
             final TransportGetPipelineAction action = new TransportGetPipelineAction(
-                mock(TransportService.class),
+                transportService,
                 mock(ActionFilters.class),
                 failureClient
             );

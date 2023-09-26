@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
@@ -21,8 +23,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator v;
 
-  public CastIntToDoubleEvaluator(EvalOperator.ExpressionEvaluator v) {
+  private final DriverContext driverContext;
+
+  public CastIntToDoubleEvaluator(EvalOperator.ExpressionEvaluator v, DriverContext driverContext) {
     this.v = v;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -62,5 +67,10 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   @Override
   public String toString() {
     return "CastIntToDoubleEvaluator[" + "v=" + v + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(v);
   }
 }

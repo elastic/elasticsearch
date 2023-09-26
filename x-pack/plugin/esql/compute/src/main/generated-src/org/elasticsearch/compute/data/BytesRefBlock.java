@@ -20,6 +20,8 @@ import java.io.IOException;
  */
 public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock, BytesRefArrayBlock, BytesRefVectorBlock {
 
+    BytesRef NULL_VALUE = new BytesRef();
+
     /**
      * Retrieves the BytesRef value stored at the given value index.
      *
@@ -160,12 +162,24 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new BytesRefBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBytesRefBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static BytesRefBlock newConstantBlockWith(BytesRef value, int positions) {
-        return new ConstantBytesRefVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static BytesRefBlock newConstantBlockWith(BytesRef value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantBytesRefBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits BytesRefBlockBuilder {

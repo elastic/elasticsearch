@@ -28,6 +28,11 @@
                   "type": "keyword"
                 }
             }
+        },
+        "long_noidx": {
+          "type": "long",
+          "index": false,
+          "doc_values": false
         }
     }
 }

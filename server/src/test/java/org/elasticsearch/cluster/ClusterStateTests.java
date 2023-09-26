@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
@@ -44,6 +45,8 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -208,16 +211,16 @@ public class ClusterStateTests extends ESTestCase {
                               "max_index_version":%s
                             }
                           },
-                          "transport_versions" : [
-                            {
-                              "node_id" : "nodeId1",
-                              "transport_version" : "%s"
-                            }
-                          ],
                           "nodes_versions" : [
                             {
                               "node_id" : "nodeId1",
-                              "transport_version" : "%s"
+                              "transport_version" : "%s",
+                              "mappings_versions" : {
+                                ".tasks" : {
+                                  "version" : 1,
+                                  "hash" : 1
+                                }
+                              }
                             }
                           ],
                           "metadata": {
@@ -373,7 +376,6 @@ public class ClusterStateTests extends ESTestCase {
                     IndexVersion.MINIMUM_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
-                    TransportVersion.current(),
                     IndexVersion.current(),
                     IndexVersion.current(),
                     allocationId,
@@ -470,16 +472,16 @@ public class ClusterStateTests extends ESTestCase {
                           "max_index_version" : %s
                         }
                       },
-                      "transport_versions" : [
-                        {
-                          "node_id" : "nodeId1",
-                          "transport_version" : "%s"
-                        }
-                      ],
                       "nodes_versions" : [
                         {
                           "node_id" : "nodeId1",
-                          "transport_version" : "%s"
+                          "transport_version" : "%s",
+                          "mappings_versions" : {
+                            ".tasks" : {
+                              "version" : 1,
+                              "hash" : 1
+                            }
+                          }
                         }
                       ],
                       "metadata" : {
@@ -631,7 +633,6 @@ public class ClusterStateTests extends ESTestCase {
                 IndexVersion.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
-                TransportVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current(),
                 allocationId,
@@ -728,16 +729,16 @@ public class ClusterStateTests extends ESTestCase {
                           "max_index_version" : %s
                         }
                       },
-                      "transport_versions" : [
-                        {
-                          "node_id" : "nodeId1",
-                          "transport_version" : "%s"
-                        }
-                      ],
                       "nodes_versions" : [
                         {
                           "node_id" : "nodeId1",
-                          "transport_version" : "%s"
+                          "transport_version" : "%s",
+                          "mappings_versions" : {
+                            ".tasks" : {
+                              "version" : 1,
+                              "hash" : 1
+                            }
+                          }
                         }
                       ],
                       "metadata" : {
@@ -895,7 +896,6 @@ public class ClusterStateTests extends ESTestCase {
                 IndexVersion.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
-                TransportVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current(),
                 allocationId,
@@ -953,7 +953,6 @@ public class ClusterStateTests extends ESTestCase {
               "master_node" : null,
               "blocks" : { },
               "nodes" : { },
-              "transport_versions" : [ ],
               "nodes_versions" : [ ],
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -1051,7 +1050,12 @@ public class ClusterStateTests extends ESTestCase {
                     .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
             )
-            .putTransportVersion("nodeId1", TransportVersion.current())
+            .nodeIdsToCompatibilityVersions(
+                Map.of(
+                    "nodeId1",
+                    new CompatibilityVersions(TransportVersion.current(), Map.of(".tasks", new SystemIndexDescriptor.MappingsVersion(1, 1)))
+                )
+            )
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1156,7 +1160,7 @@ public class ClusterStateTests extends ESTestCase {
 
         for (int i = 0; i < numNodes; i++) {
             TransportVersion tv = TransportVersionUtils.randomVersion();
-            builder.putTransportVersion("nodeTv" + i, tv);
+            builder.putCompatibilityVersions("nodeTv" + i, tv, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS);
             minVersion = Collections.min(List.of(minVersion, tv));
         }
 
@@ -1172,10 +1176,77 @@ public class ClusterStateTests extends ESTestCase {
         );
     }
 
+    public void testHasMixedSystemIndexVersions() throws IOException {
+        // equal mappings versions
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.compatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    )
+                )
+            );
+            assertFalse(builder.build().hasMixedSystemIndexVersions());
+        }
+
+        // unequal mappings versions
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.compatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(2, 0))
+                    )
+                )
+            );
+            assertTrue(builder.build().hasMixedSystemIndexVersions());
+        }
+
+        // one node has a mappings version that the other is missing
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.compatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(
+                            ".system-index",
+                            new SystemIndexDescriptor.MappingsVersion(1, 0),
+                            ".another-system-index",
+                            new SystemIndexDescriptor.MappingsVersion(1, 0)
+                        )
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    )
+                )
+            );
+            assertTrue(builder.build().hasMixedSystemIndexVersions());
+        }
+    }
+
     public static int expectedChunkCount(ToXContent.Params params, ClusterState clusterState) {
         final var metrics = ClusterState.Metric.parseString(params.param("metric", "_all"), true);
 
-        int chunkCount = 0;
+        long chunkCount = 0;
 
         // header chunk
         chunkCount += 1;
@@ -1185,9 +1256,9 @@ public class ClusterStateTests extends ESTestCase {
             chunkCount += 2 + clusterState.blocks().indices().size();
         }
 
-        // nodes, transport_versions, nodes_versions
+        // nodes, nodes_versions
         if (metrics.contains(ClusterState.Metric.NODES)) {
-            chunkCount += 6 + clusterState.nodes().size() + 2 * clusterState.compatibilityVersions().size();
+            chunkCount += 4 + clusterState.nodes().size() + clusterState.compatibilityVersions().size();
         }
 
         // metadata
@@ -1239,6 +1310,6 @@ public class ClusterStateTests extends ESTestCase {
             }
         }
 
-        return chunkCount;
+        return Math.toIntExact(chunkCount);
     }
 }

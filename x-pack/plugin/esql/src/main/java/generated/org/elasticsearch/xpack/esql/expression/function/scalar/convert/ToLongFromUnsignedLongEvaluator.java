@@ -28,7 +28,7 @@ public final class ToLongFromUnsignedLongEvaluator extends AbstractConvertFuncti
 
   @Override
   public String name() {
-    return "ToLong";
+    return "ToLongFromUnsignedLong";
   }
 
   @Override

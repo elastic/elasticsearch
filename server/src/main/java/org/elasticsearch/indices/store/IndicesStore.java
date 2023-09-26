@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -87,6 +88,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     private final TimeValue deleteShardTimeout;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public IndicesStore(
         Settings settings,
@@ -102,7 +104,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         this.threadPool = threadPool;
         transportService.registerRequestHandler(
             ACTION_SHARD_EXISTS,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardActiveRequest::new,
             new ShardActiveRequestHandler()
         );

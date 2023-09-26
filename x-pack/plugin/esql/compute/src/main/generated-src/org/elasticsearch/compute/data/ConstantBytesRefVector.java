@@ -21,7 +21,11 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
     private final BytesRef value;
 
     public ConstantBytesRefVector(BytesRef value, int positionCount) {
-        super(positionCount);
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public ConstantBytesRefVector(BytesRef value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -70,5 +74,10 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

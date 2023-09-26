@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
@@ -23,10 +25,13 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   private final EvalOperator.ExpressionEvaluator decimals;
 
+  private final DriverContext driverContext;
+
   public RoundIntEvaluator(EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator decimals) {
+      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
     this.val = val;
     this.decimals = decimals;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -79,5 +84,10 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public String toString() {
     return "RoundIntEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val, decimals);
   }
 }

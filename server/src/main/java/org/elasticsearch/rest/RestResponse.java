@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
@@ -81,7 +82,11 @@ public class RestResponse {
 
     public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content) {
         if (content.isDone()) {
-            return new RestResponse(restStatus, content.getResponseContentTypeString(), BytesArray.EMPTY);
+            return new RestResponse(
+                restStatus,
+                content.getResponseContentTypeString(),
+                new ReleasableBytesReference(BytesArray.EMPTY, content)
+            );
         } else {
             return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content);
         }
@@ -107,6 +112,7 @@ public class RestResponse {
         this(channel, ExceptionsHelper.status(e), e);
     }
 
+    @SuppressWarnings("this-escape")
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
         ToXContent.Params params = paramsFromRequest(channel.request());

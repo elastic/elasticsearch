@@ -20,7 +20,11 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
     private final boolean value;
 
     public ConstantBooleanVector(boolean value, int positionCount) {
-        super(positionCount);
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public ConstantBooleanVector(boolean value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -69,5 +73,10 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

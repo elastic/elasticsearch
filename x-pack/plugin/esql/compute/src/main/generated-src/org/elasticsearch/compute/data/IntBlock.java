@@ -157,12 +157,24 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new IntBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newIntBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static IntBlock newConstantBlockWith(int value, int positions) {
-        return new ConstantIntVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static IntBlock newConstantBlockWith(int value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantIntBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits IntBlockBuilder {

@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateExtract}.
@@ -25,11 +27,14 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
 
   private final ZoneId zone;
 
+  private final DriverContext driverContext;
+
   public DateExtractConstantEvaluator(EvalOperator.ExpressionEvaluator value,
-      ChronoField chronoField, ZoneId zone) {
+      ChronoField chronoField, ZoneId zone, DriverContext driverContext) {
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -69,5 +74,10 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public String toString() {
     return "DateExtractConstantEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(value);
   }
 }

@@ -44,6 +44,9 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
     protected final String transportUnpromotableAction;
     protected final Executor executor;
 
+    /**
+     * Temporary for serverless compatibility. TODO remove.
+     */
     protected TransportBroadcastUnpromotableAction(
         String actionName,
         ClusterService clusterService,
@@ -53,14 +56,39 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         Writeable.Reader<Request> requestReader,
         String executor
     ) {
+        this(
+            actionName,
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            requestReader,
+            transportService.getThreadPool().executor(executor)
+        );
+    }
+
+    protected TransportBroadcastUnpromotableAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        Executor executor
+    ) {
         super(actionName, transportService, actionFilters, requestReader);
         this.clusterService = clusterService;
         this.shardStateAction = shardStateAction;
         this.transportService = transportService;
         this.transportUnpromotableAction = actionName + "[u]";
-        this.executor = transportService.getThreadPool().executor(executor);
+        this.executor = executor;
 
-        transportService.registerRequestHandler(transportUnpromotableAction, executor, requestReader, new UnpromotableTransportHandler());
+        transportService.registerRequestHandler(
+            transportUnpromotableAction,
+            this.executor,
+            requestReader,
+            new UnpromotableTransportHandler()
+        );
     }
 
     protected abstract void unpromotableShardOperation(Task task, Request request, ActionListener<Response> listener);

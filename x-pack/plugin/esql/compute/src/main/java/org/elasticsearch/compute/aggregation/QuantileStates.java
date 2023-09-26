@@ -148,8 +148,12 @@ public final class QuantileStates {
             getOrAddGroup(groupId).add(deserializeDigest(other));
         }
 
-        TDigestState get(int position) {
-            return digests.get(position);
+        TDigestState getOrNull(int position) {
+            if (position < digests.size()) {
+                return digests.get(position);
+            } else {
+                return null;
+            }
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
@@ -161,7 +165,7 @@ public final class QuantileStates {
                 int group = selected.getInt(i);
                 TDigestState state;
                 if (group < digests.size()) {
-                    state = get(group);
+                    state = getOrNull(group);
                     if (state == null) {
                         state = TDigestState.create(DEFAULT_COMPRESSION);
                     }

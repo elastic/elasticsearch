@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Vector implementation that stores an array of BytesRef values.
@@ -22,7 +23,11 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     private final BytesRefArray values;
 
     public BytesRefArrayVector(BytesRefArray values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -76,5 +81,11 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-BASE_RAM_BYTES_USED, true);
+        Releasables.closeExpectNoException(values);
     }
 }

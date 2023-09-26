@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CIDRMatch}.
@@ -25,10 +27,13 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final EvalOperator.ExpressionEvaluator[] cidrs;
 
+  private final DriverContext driverContext;
+
   public CIDRMatchEvaluator(EvalOperator.ExpressionEvaluator ip,
-      EvalOperator.ExpressionEvaluator[] cidrs) {
+      EvalOperator.ExpressionEvaluator[] cidrs, DriverContext driverContext) {
     this.ip = ip;
     this.cidrs = cidrs;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -111,5 +116,10 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public String toString() {
     return "CIDRMatchEvaluator[" + "ip=" + ip + ", cidrs=" + Arrays.toString(cidrs) + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
   }
 }

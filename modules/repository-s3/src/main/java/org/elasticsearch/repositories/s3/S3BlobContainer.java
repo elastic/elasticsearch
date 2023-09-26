@@ -23,7 +23,6 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 
@@ -60,7 +59,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -272,14 +270,13 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public DeleteResult delete() throws IOException {
         final AtomicLong deletedBlobs = new AtomicLong();
         final AtomicLong deletedBytes = new AtomicLong();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             ObjectListing prevListing = null;
             while (true) {
-                ObjectListing list;
+                final ObjectListing list;
                 if (prevListing != null) {
                     final var listNextBatchOfObjectsRequest = new ListNextBatchOfObjectsRequest(prevListing);
                     listNextBatchOfObjectsRequest.setRequestMetricCollector(blobStore.listMetricCollector);
@@ -291,26 +288,16 @@ class S3BlobContainer extends AbstractBlobContainer {
                     listObjectsRequest.setRequestMetricCollector(blobStore.listMetricCollector);
                     list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
                 }
-                final Iterator<S3ObjectSummary> objectSummaryIterator = list.getObjectSummaries().iterator();
-                final Iterator<String> blobNameIterator = new Iterator<>() {
-                    @Override
-                    public boolean hasNext() {
-                        return objectSummaryIterator.hasNext();
-                    }
-
-                    @Override
-                    public String next() {
-                        final S3ObjectSummary summary = objectSummaryIterator.next();
-                        deletedBlobs.incrementAndGet();
-                        deletedBytes.addAndGet(summary.getSize());
-                        return summary.getKey();
-                    }
-                };
+                final Iterator<String> blobNameIterator = Iterators.map(list.getObjectSummaries().iterator(), summary -> {
+                    deletedBlobs.incrementAndGet();
+                    deletedBytes.addAndGet(summary.getSize());
+                    return summary.getKey();
+                });
                 if (list.isTruncated()) {
-                    doDeleteBlobs(blobNameIterator, false);
+                    blobStore.deleteBlobsIgnoringIfNotExists(blobNameIterator);
                     prevListing = list;
                 } else {
-                    doDeleteBlobs(Iterators.concat(blobNameIterator, Collections.singletonList(keyPath).iterator()), false);
+                    blobStore.deleteBlobsIgnoringIfNotExists(Iterators.concat(blobNameIterator, Iterators.single(keyPath)));
                     break;
                 }
             }
@@ -322,31 +309,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        doDeleteBlobs(blobNames, true);
-    }
-
-    private void doDeleteBlobs(Iterator<String> blobNames, boolean relative) throws IOException {
-        if (blobNames.hasNext() == false) {
-            return;
-        }
-        final Iterator<String> outstanding;
-        if (relative) {
-            outstanding = new Iterator<>() {
-                @Override
-                public boolean hasNext() {
-                    return blobNames.hasNext();
-                }
-
-                @Override
-                public String next() {
-                    return buildKey(blobNames.next());
-                }
-            };
-        } else {
-            outstanding = blobNames;
-        }
-
-        blobStore.deleteBlobsIgnoringIfNotExists(outstanding);
+        blobStore.deleteBlobsIgnoringIfNotExists(Iterators.map(blobNames, this::buildKey));
     }
 
     @Override

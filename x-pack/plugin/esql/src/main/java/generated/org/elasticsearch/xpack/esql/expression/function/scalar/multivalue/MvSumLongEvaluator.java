@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,9 +21,13 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public final class MvSumLongEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
   private final Warnings warnings;
 
-  public MvSumLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field) {
+  private final DriverContext driverContext;
+
+  public MvSumLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
+      DriverContext driverContext) {
     super(field);
     this.warnings = new Warnings(source);
+    this.driverContext = driverContext;
   }
 
   @Override

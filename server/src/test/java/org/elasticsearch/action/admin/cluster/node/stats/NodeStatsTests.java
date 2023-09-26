@@ -541,7 +541,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(@Nullable HttpStats httpStats) {
-        return httpStats == null ? 0 : 2 + httpStats.getClientStats().size();
+        return httpStats == null ? 0 : 3 + httpStats.getClientStats().size() + httpStats.httpRouteStats().size();
     }
 
     private static int expectedChunks(@Nullable TransportStats transportStats) {

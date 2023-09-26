@@ -649,7 +649,7 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeBlobAtomic(
-                OperationPurpose purpose,
+                final OperationPurpose purpose,
                 final String blobName,
                 final BytesReference bytes,
                 final boolean failIfAlreadyExists
@@ -661,7 +661,7 @@ public class MockRepository extends FsRepository {
                     super.writeBlob(purpose, tempBlobName, bytes, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
+                    fsBlobContainer.moveBlobAtomic(purpose, tempBlobName, blobName, failIfAlreadyExists);
                 } else {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container

@@ -51,10 +51,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         return blobStore.blobExists(buildKey(blobName));
     }
 
-    private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
+    private InputStream openInputStream(OperationPurpose purpose, String blobName, long position, @Nullable Long length)
+        throws IOException {
         String blobKey = buildKey(blobName);
         logger.trace("readBlob({}) from position [{}] with length [{}]", blobName, position, length != null ? length : "unlimited");
-        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && blobExists(OperationPurpose.SNAPSHOT, blobName) == false) {
+        if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && blobExists(purpose, blobName) == false) {
             // On Azure, if the location path is a secondary location, and the blob does not
             // exist, instead of returning immediately from the getInputStream call below
             // with a 404 StorageException, Azure keeps trying and trying for a long timeout
@@ -78,12 +79,12 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-        return openInputStream(blobName, 0L, null);
+        return openInputStream(purpose, blobName, 0L, null);
     }
 
     @Override
     public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-        return openInputStream(blobName, position, length);
+        return openInputStream(purpose, blobName, position, length);
     }
 
     @Override
@@ -101,7 +102,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
-        writeBlob(OperationPurpose.SNAPSHOT, blobName, bytes, failIfAlreadyExists);
+        writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
     }
 
     @Override
@@ -149,7 +150,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         logger.trace("listBlobs()");
-        return listBlobsByPrefix(OperationPurpose.SNAPSHOT, null);
+        return listBlobsByPrefix(purpose, null);
     }
 
     @Override

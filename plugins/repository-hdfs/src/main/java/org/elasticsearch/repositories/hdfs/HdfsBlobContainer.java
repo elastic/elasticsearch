@@ -283,7 +283,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
-        return listBlobsByPrefix(OperationPurpose.SNAPSHOT, null);
+        return listBlobsByPrefix(purpose, null);
     }
 
     @Override

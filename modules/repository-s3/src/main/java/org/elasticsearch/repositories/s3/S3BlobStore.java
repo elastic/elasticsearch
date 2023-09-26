@@ -328,7 +328,7 @@ class S3BlobStore implements BlobStore {
             } else {
                 key = operation.value + "/" + purpose.getValue();
                 if (false == collectors.containsKey(key)) {
-                    collectors.put(key, buildMetricCollector(operation));
+                    collectors.putIfAbsent(key, buildMetricCollector(operation));
                 }
             }
 

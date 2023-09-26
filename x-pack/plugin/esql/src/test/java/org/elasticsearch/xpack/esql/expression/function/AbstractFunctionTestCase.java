@@ -304,23 +304,23 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (Map.Entry<List<DataType>, DataType> entry : signatures.entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(i).add(types.get(i).typeName());
+                typesFromSignature.get(i).add(types.get(i).esType());
             }
             returnFromSignature.add(entry.getValue().esType());
         }
 
-        // TODO the signatures don't seem to contain all the possible type combinations
-        // for (int i = 0; i < args.size(); i++) {
-        // Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toSet());
-        // if (annotationTypes.equals(Set.of("?"))) {
-        // continue;
-        // }
-        // Set<String> signatureTypes = typesFromSignature.get(i);
-        // assertEquals(annotationTypes, signatureTypes);
-        // }
+        for (int i = 0; i < args.size(); i++) {
+            Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toSet());
+            if (annotationTypes.equals(Set.of("?"))) {
+                continue; // TODO remove this eventually, so that all the functions will have to provide singature info
+            }
+            Set<String> signatureTypes = typesFromSignature.get(i);
+            assertEquals(annotationTypes, signatureTypes);
+        }
 
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toSet());
-        if (returnTypes.equals(Set.of("?")) == false) {
+        if (returnTypes.equals(Set.of("?")) == false) { // TODO remove this eventually, so that all the functions will have to provide
+                                                        // singature info
             assertEquals(returnTypes, returnFromSignature);
         }
     }

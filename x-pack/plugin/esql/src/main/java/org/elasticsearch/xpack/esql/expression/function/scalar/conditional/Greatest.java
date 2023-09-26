@@ -44,14 +44,8 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
 
     public Greatest(
         Source source,
-        @Param(
-            name = "first",
-            type = { "integer", "long", "double", "unsigned_long", "boolean", "date", "keyword", "text", "ip", "version" }
-        ) Expression first,
-        @Param(
-            name = "rest",
-            type = { "integer", "long", "double", "unsigned_long", "boolean", "date", "keyword", "text", "ip", "version" }
-        ) List<Expression> rest
+        @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
+        @Param(name = "rest", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }

@@ -11,6 +11,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,11 +24,12 @@ public record HttpRouteStats(
     long[] requestSizeHistogram,
     long responseCount,
     long totalResponseSize,
-    long[] responseSizeHistogram
+    long[] responseSizeHistogram,
+    long[] responseTimeHistogram
 ) implements Writeable, ToXContentObject {
 
     public HttpRouteStats(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLong(), in.readVLong(), in.readVLongArray());
+        this(in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLongArray());
     }
 
     @Override
@@ -37,43 +39,50 @@ public record HttpRouteStats(
         builder.startObject("requests");
         builder.field("count", requestCount);
         builder.humanReadableField("total_size_in_bytes", "total_size", ByteSizeValue.ofBytes(totalRequestSize));
-        histogramToXContent(builder, requestSizeHistogram);
+        histogramToXContent(builder, "size_histogram", "bytes", requestSizeHistogram, HttpRouteStatsTracker.getBucketUpperBounds());
         builder.endObject();
 
         builder.startObject("responses");
         builder.field("count", responseCount);
         builder.humanReadableField("total_size_in_bytes", "total_size", ByteSizeValue.ofBytes(totalResponseSize));
-        histogramToXContent(builder, responseSizeHistogram);
+        histogramToXContent(builder, "size_histogram", "bytes", responseSizeHistogram, HttpRouteStatsTracker.getBucketUpperBounds());
+        histogramToXContent(
+            builder,
+            "handling_time_histogram",
+            "millis",
+            responseTimeHistogram,
+            HandlingTimeTracker.getBucketUpperBounds()
+        );
         builder.endObject();
 
         return builder.endObject();
     }
 
-    static void histogramToXContent(XContentBuilder builder, long[] sizeHistogram) throws IOException {
-        final int[] bucketBounds = HttpRouteStatsTracker.getBucketUpperBounds();
-        assert sizeHistogram.length == bucketBounds.length + 1;
-        builder.startArray("histogram");
+    static void histogramToXContent(XContentBuilder builder, String fieldName, String unitName, long[] histogram, int[] bucketBounds)
+        throws IOException {
+        assert histogram.length == bucketBounds.length + 1;
+        builder.startArray(fieldName);
 
         int firstBucket = 0;
         long remainingCount = 0L;
-        for (int i = 0; i < sizeHistogram.length; i++) {
+        for (int i = 0; i < histogram.length; i++) {
             if (remainingCount == 0) {
                 firstBucket = i;
             }
-            remainingCount += sizeHistogram[i];
+            remainingCount += histogram[i];
         }
 
-        for (int i = firstBucket; i < sizeHistogram.length && 0 < remainingCount; i++) {
+        for (int i = firstBucket; i < histogram.length && 0 < remainingCount; i++) {
             builder.startObject();
             if (i > 0) {
-                builder.humanReadableField("ge_bytes", "ge", ByteSizeValue.ofBytes(bucketBounds[i - 1]));
+                builder.humanReadableField("ge_" + unitName, "ge", ByteSizeValue.ofBytes(bucketBounds[i - 1]));
             }
             if (i < bucketBounds.length) {
-                builder.humanReadableField("lt_bytes", "lt", ByteSizeValue.ofBytes(bucketBounds[i]));
+                builder.humanReadableField("lt_" + unitName, "lt", ByteSizeValue.ofBytes(bucketBounds[i]));
             }
-            builder.field("count", sizeHistogram[i]);
+            builder.field("count", histogram[i]);
             builder.endObject();
-            remainingCount -= sizeHistogram[i];
+            remainingCount -= histogram[i];
         }
         builder.endArray();
     }
@@ -86,5 +95,6 @@ public record HttpRouteStats(
         out.writeVLong(responseCount);
         out.writeVLong(totalResponseSize);
         out.writeVLongArray(responseSizeHistogram);
+        out.writeVLongArray(responseTimeHistogram);
     }
 }

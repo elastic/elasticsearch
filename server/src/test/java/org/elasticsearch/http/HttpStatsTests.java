@@ -42,13 +42,19 @@ public class HttpStatsTests extends ESTestCase {
         final var responseSizeHistogram = new long[28];
         responseSizeHistogram[3] = 13;
         responseSizeHistogram[5] = 14;
+
+        final var responseTimeHistogram = new long[18];
+        responseTimeHistogram[4] = 17;
+        responseTimeHistogram[6] = 18;
+
         final HttpRouteStats httpRouteStats = new HttpRouteStats(
             1,
             ByteSizeUnit.MB.toBytes(2),
             requestSizeHistogram,
             3,
             ByteSizeUnit.MB.toBytes(4),
-            responseSizeHistogram
+            responseSizeHistogram,
+            responseTimeHistogram
         );
 
         assertThat(

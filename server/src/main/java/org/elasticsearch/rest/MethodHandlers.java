@@ -88,6 +88,10 @@ final class MethodHandlers {
         statsTracker.addResponseStats(contentLength);
     }
 
+    public void addResponseTime(long timeMillis) {
+        statsTracker.addResponseTime(timeMillis);
+    }
+
     public HttpRouteStats getStats() {
         return statsTracker.getStats();
     }

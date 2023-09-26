@@ -236,6 +236,7 @@ public interface ChunkedRestResponseBody extends Releasable {
                         () -> Releasables.closeExpectNoException(chunkOutput)
                     );
                     currentOutput = null;
+                    size += result.length();
                     return result;
                 } finally {
                     if (currentOutput != null) {

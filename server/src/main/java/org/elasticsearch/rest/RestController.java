@@ -702,6 +702,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
         private final MethodHandlers methodHandlers;
+        private final long startTime;
         private final AtomicBoolean closed = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(
@@ -714,7 +715,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
             this.methodHandlers = methodHandlers;
-            this.methodHandlers.addRequestStats(contentLength);
+            this.startTime = System.currentTimeMillis();
         }
 
         @Override
@@ -773,6 +774,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             boolean success = false;
             try {
                 close();
+                methodHandlers.addRequestStats(contentLength);
                 if (response.isChunked() == false) {
                     methodHandlers.addResponseStats(response.content().length());
                 } else {
@@ -781,6 +783,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 delegate.sendResponse(response);
                 success = true;
             } finally {
+                methodHandlers.addResponseTime(System.currentTimeMillis() - startTime);
                 if (success == false) {
                     releaseOutputBuffer();
                 }

@@ -52,7 +52,7 @@ public class TransportPublishNodeIngestLoadMetric extends TransportMasterNodeAct
             PublishNodeIngestLoadRequest::new,
             indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.ingestMetricsService = ingestMetricsService;
     }

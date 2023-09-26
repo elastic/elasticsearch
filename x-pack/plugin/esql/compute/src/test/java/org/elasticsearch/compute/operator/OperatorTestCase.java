@@ -101,7 +101,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
             assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         } finally {
-            Releasables.close(() -> Iterators.map(input.iterator(), p -> () -> p.releaseBlocks()));
+            Releasables.close(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks));
         }
     }
 

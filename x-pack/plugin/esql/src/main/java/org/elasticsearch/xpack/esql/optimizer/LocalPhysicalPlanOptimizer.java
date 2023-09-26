@@ -54,6 +54,8 @@ import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Queries;
 import org.elasticsearch.xpack.ql.util.Queries.Clause;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -194,6 +196,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     public static class PushFiltersToSource extends OptimizerRule<FilterExec> {
+        private static int HALF_FLOAT_MAX = 65504;
+
         @Override
         protected PhysicalPlan rule(FilterExec filterExec) {
             PhysicalPlan plan = filterExec;
@@ -228,20 +232,42 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         public static boolean canPushToSource(Expression exp) {
             if (exp instanceof BinaryComparison bc) {
-                return isAttributePushable(bc.left(), bc) && bc.right().foldable();
+                Expression left = bc.left();
+                Expression right = bc.right();
+
+                /**
+                 * Because of {@link org.elasticsearch.xpack.esql.type.EsqlDataTypes#widenSmallNumericTypes(DataType)} we should not
+                 * encounter some data types - we include them anyway to be on the safe side.
+                 */
+                if (isPushableAttribute(left, bc) && right.foldable()) {
+                    DataType leftDataType = left.dataType();
+                    if (leftDataType == DataTypes.INTEGER || leftDataType == DataTypes.SHORT || leftDataType == DataTypes.BYTE) {
+                        // Lucene treats bytes/shorts the same as integers, the right hand side only needs to be a valid integer.
+                        return isInIntegerRange(right.fold());
+                    }
+                    // TODO: The half_float and float cases never trigger because we widen them to double
+                    // https://github.com/elastic/elasticsearch/issues/100130
+                    if (leftDataType == DataTypes.HALF_FLOAT) {
+                        return isInHalfFloatRange(right.fold());
+                    }
+                    if (leftDataType == DataTypes.FLOAT) {
+                        return isInFloatRange(right.fold());
+                    }
+                    return true;
+                }
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left()) && canPushToSource(bl.right());
             } else if (exp instanceof RegexMatch<?> rm) {
-                return isAttributePushable(rm.field(), rm);
+                return isPushableAttribute(rm.field(), rm);
             } else if (exp instanceof In in) {
-                return isAttributePushable(in.value(), null) && Expressions.foldable(in.list());
+                return isPushableAttribute(in.value(), null) && Expressions.foldable(in.list());
             } else if (exp instanceof Not not) {
                 return canPushToSource(not.field());
             }
             return false;
         }
 
-        private static boolean isAttributePushable(Expression expression, ScalarFunction operation) {
+        private static boolean isPushableAttribute(Expression expression, ScalarFunction operation) {
             if (expression instanceof FieldAttribute f && f.getExactInfo().hasExact()) {
                 return isAggregatable(f);
             }
@@ -252,6 +278,77 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     || operation instanceof NotEquals
                     || operation instanceof WildcardLike;
             }
+            return false;
+        }
+
+        /**
+         * Check if a folded expression is a numerical value that fits into an integer.
+         * @param num the result of folding an expression
+         * @return true if it is a numerical value in integer range
+         */
+        private static boolean isInIntegerRange(Object num) {
+            if (num instanceof Integer || num instanceof Short || num instanceof Byte) {
+                return true;
+            }
+            if (num instanceof Long l) {
+                long value = l;
+                return value <= Integer.MAX_VALUE && value >= Integer.MIN_VALUE;
+            }
+            if (num instanceof Float f) {
+                float value = f;
+                return value <= Integer.MAX_VALUE && value >= Integer.MIN_VALUE;
+            }
+            if (num instanceof Double d) {
+                double value = d;
+                return value <= Integer.MAX_VALUE && value >= Integer.MIN_VALUE;
+            }
+
+            return false;
+        }
+
+        /**
+         * Check if a folded expression is a numerical value that fits into a half_float.
+         * @param num the result of folding an expression
+         * @return true if it is a numerical value in half_float range
+         */
+        private static boolean isInHalfFloatRange(Object num) {
+            if (num instanceof Short || num instanceof Byte) {
+                return true;
+            }
+            if (num instanceof Integer i) {
+                int value = i;
+                return value <= HALF_FLOAT_MAX && value >= -HALF_FLOAT_MAX;
+            }
+            if (num instanceof Long l) {
+                long value = l;
+                return value <= HALF_FLOAT_MAX && value >= -HALF_FLOAT_MAX;
+            }
+            if (num instanceof Float f) {
+                float value = f;
+                return value <= HALF_FLOAT_MAX && value >= -HALF_FLOAT_MAX;
+            }
+            if (num instanceof Double d) {
+                double value = d;
+                return value <= HALF_FLOAT_MAX && value >= -HALF_FLOAT_MAX;
+            }
+
+            return false;
+        }
+
+        /**
+         * Check if a folded expression is a numerical value that fits into a float.
+         * @param num the result of folding an expression
+         * @return true if it is a numerical value in float range
+         */
+        private static boolean isInFloatRange(Object num) {
+            if (num instanceof Float || num instanceof Long || num instanceof Integer || num instanceof Short || num instanceof Byte) {
+                return true;
+            }
+            if (num instanceof Double d) {
+                double value = d;
+                return value <= Float.MAX_VALUE && value >= -Float.MAX_VALUE;
+            }
+
             return false;
         }
     }

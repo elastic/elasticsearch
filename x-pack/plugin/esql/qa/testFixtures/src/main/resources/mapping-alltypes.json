@@ -1,0 +1,54 @@
+{
+    "properties" : {
+        "alias-integer": {
+            "type": "alias",
+            "path": "integer"
+        },
+        "boolean": {
+            "type": "boolean"
+        },
+        "byte" : {
+            "type" : "byte"
+        },
+        "constant_keyword-foo": {
+            "type": "constant_keyword",
+            "value": "foo"
+        },
+        "date": {
+            "type": "date"
+        },
+        "double": {
+            "type": "double"
+        },
+        "float": {
+            "type": "float"
+        },
+        "half_float": {
+            "type": "half_float"
+        },
+        "integer" : {
+            "type" : "integer"
+        },
+        "ip": {
+            "type": "ip"
+        },
+        "keyword" : {
+            "type" : "keyword"
+        },
+        "long": {
+            "type": "long"
+        },
+        "short": {
+            "type": "short"
+        },
+        "text" : {
+            "type" : "text"
+        },
+        "version": {
+            "type": "version"
+        },
+        "wildcard": {
+            "type": "wildcard"
+        }
+    }
+}

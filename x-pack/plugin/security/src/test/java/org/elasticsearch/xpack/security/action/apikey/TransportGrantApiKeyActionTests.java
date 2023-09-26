@@ -82,8 +82,6 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool("TP-" + getTestName());
         final ThreadContext threadContext = threadPool.getThreadContext();
-
-        // TODO: temporary, remove in #97879
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 

@@ -107,6 +107,7 @@ public class TransformConfigUpdate implements Writeable {
         this.retentionPolicyConfig = retentionPolicyConfig;
     }
 
+    @SuppressWarnings("this-escape")
     public TransformConfigUpdate(final StreamInput in) throws IOException {
         source = in.readOptionalWriteable(SourceConfig::new);
         dest = in.readOptionalWriteable(DestConfig::new);

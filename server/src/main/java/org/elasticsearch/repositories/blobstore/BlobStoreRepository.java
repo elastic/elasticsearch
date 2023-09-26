@@ -26,10 +26,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -67,6 +67,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -392,6 +393,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param metadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
      */
+    @SuppressWarnings("this-escape")
     protected BlobStoreRepository(
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
@@ -1326,44 +1328,107 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // when writing the index-${N} to each shard directory.
         final IndexVersion repositoryMetaVersion = finalizeSnapshotContext.repositoryMetaVersion();
         final boolean writeShardGens = SnapshotsService.useShardGenerations(repositoryMetaVersion);
-        final Consumer<Exception> onUpdateFailure = e -> finalizeSnapshotContext.onFailure(
-            new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e)
-        );
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         final boolean writeIndexGens = SnapshotsService.useIndexGenerations(repositoryMetaVersion);
 
-        final ListenableFuture<RepositoryData> repoDataListener = new ListenableFuture<>();
-        getRepositoryData(repoDataListener);
-        repoDataListener.addListener(ActionListener.wrap(existingRepositoryData -> {
-            final int existingSnapshotCount = existingRepositoryData.getSnapshotIds().size();
-            if (existingSnapshotCount >= maxSnapshotCount) {
-                finalizeSnapshotContext.onFailure(
-                    new RepositoryException(
+        record MetadataWriteResult(
+            RepositoryData existingRepositoryData,
+            Map<IndexId, String> indexMetas,
+            Map<String, String> indexMetaIdentifiers
+        ) {}
+
+        record RootBlobUpdateResult(RepositoryData oldRepositoryData, RepositoryData newRepositoryData) {}
+
+        SubscribableListener
+
+            // Get the current RepositoryData
+            .<RepositoryData>newForked(this::getRepositoryData)
+
+            // Identify and write the missing metadata
+            .<MetadataWriteResult>andThen((l, existingRepositoryData) -> {
+                final int existingSnapshotCount = existingRepositoryData.getSnapshotIds().size();
+                if (existingSnapshotCount >= maxSnapshotCount) {
+                    throw new RepositoryException(
                         metadata.name(),
-                        "Cannot add another snapshot to this repository as it "
-                            + "already contains ["
+                        "Cannot add another snapshot to this repository as it already contains ["
                             + existingSnapshotCount
                             + "] snapshots and is configured to hold up to ["
                             + maxSnapshotCount
                             + "] snapshots only."
-                    )
-                );
-                return;
-            }
+                    );
+                }
 
-            final Map<IndexId, String> indexMetas;
-            final Map<String, String> indexMetaIdentifiers;
-            if (writeIndexGens) {
-                indexMetaIdentifiers = ConcurrentCollections.newConcurrentMap();
-                indexMetas = ConcurrentCollections.newConcurrentMap();
-            } else {
-                indexMetas = null;
-                indexMetaIdentifiers = null;
-            }
+                final MetadataWriteResult metadataWriteResult;
+                if (writeIndexGens) {
+                    metadataWriteResult = new MetadataWriteResult(
+                        existingRepositoryData,
+                        ConcurrentCollections.newConcurrentMap(),
+                        ConcurrentCollections.newConcurrentMap()
+                    );
+                } else {
+                    metadataWriteResult = new MetadataWriteResult(existingRepositoryData, null, null);
+                }
 
-            try (var allMetaListeners = new RefCountingListener(ActionListener.wrap(v -> {
+                try (var allMetaListeners = new RefCountingListener(l.map(ignored -> metadataWriteResult))) {
+                    // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method
+                    // will mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version
+                    // of the index or global metadata will be compatible with the segments written in this snapshot as well.
+                    // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a
+                    // way that decrements the generation it points at
+
+                    // Write global metadata
+                    final Metadata clusterMetadata = finalizeSnapshotContext.clusterMetadata();
+                    executor.execute(
+                        ActionRunnable.run(
+                            allMetaListeners.acquire(),
+                            () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress)
+                        )
+                    );
+
+                    // Write the index metadata for each index in the snapshot
+                    for (IndexId index : indices) {
+                        executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
+                            final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
+                            if (writeIndexGens) {
+                                final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                                String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
+                                if (metaUUID == null) {
+                                    // We don't yet have this version of the metadata so we write it
+                                    metaUUID = UUIDs.base64UUID();
+                                    INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
+                                    metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
+                                } // else this task was largely a no-op - TODO no need to fork in that case
+                                metadataWriteResult.indexMetas().put(index, identifiers);
+                            } else {
+                                INDEX_METADATA_FORMAT.write(
+                                    clusterMetadata.index(index.getName()),
+                                    indexContainer(index),
+                                    snapshotId.getUUID(),
+                                    compress
+                                );
+                            }
+                        }));
+                    }
+
+                    // Write the SnapshotInfo blob
+                    executor.execute(
+                        ActionRunnable.run(
+                            allMetaListeners.acquire(),
+                            () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress)
+                        )
+                    );
+
+                    // TODO fail fast if any metadata write fails
+                    // TODO clean up successful metadata writes on failure (needs care, we must not clobber another node concurrently
+                    // finalizing the same snapshot: we can only clean up after removing the failed snapshot from the cluster state)
+                }
+            })
+
+            // Update the root blob
+            .<RootBlobUpdateResult>andThen((l, metadataWriteResult) -> {
+                // unlikely, but in theory we could still be on the thread which called finalizeSnapshot - TODO must fork to SNAPSHOT here
                 final String slmPolicy = slmPolicy(snapshotInfo);
                 final SnapshotDetails snapshotDetails = new SnapshotDetails(
                     snapshotInfo.state(),
@@ -1372,64 +1437,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     snapshotInfo.endTime(),
                     slmPolicy
                 );
+                final var existingRepositoryData = metadataWriteResult.existingRepositoryData();
                 writeIndexGen(
-                    existingRepositoryData.addSnapshot(snapshotId, snapshotDetails, shardGenerations, indexMetas, indexMetaIdentifiers),
+                    existingRepositoryData.addSnapshot(
+                        snapshotId,
+                        snapshotDetails,
+                        shardGenerations,
+                        metadataWriteResult.indexMetas(),
+                        metadataWriteResult.indexMetaIdentifiers()
+                    ),
                     repositoryStateId,
                     repositoryMetaVersion,
                     finalizeSnapshotContext::updatedClusterState,
-                    ActionListener.wrap(newRepoData -> {
-                        finalizeSnapshotContext.onResponse(newRepoData);
-                        cleanupOldMetadata(existingRepositoryData, newRepoData, finalizeSnapshotContext, snapshotInfo, writeShardGens);
-                    }, onUpdateFailure)
+                    l.map(newRepositoryData -> new RootBlobUpdateResult(existingRepositoryData, newRepositoryData))
                 );
-            }, onUpdateFailure))) {
+                // NB failure of writeIndexGen doesn't guarantee the update failed, so we cannot safely clean anything up on failure
+            })
 
-                // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method
-                // will mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of
-                // the index or global metadata will be compatible with the segments written in this snapshot as well.
-                // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
-                // that decrements the generation it points at
-                final Metadata clusterMetadata = finalizeSnapshotContext.clusterMetadata();
-                // Write Global MetaData
-                executor.execute(
-                    ActionRunnable.run(
-                        allMetaListeners.acquire(),
-                        () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress)
-                    )
+            // Report success, then clean up.
+            .<RepositoryData>andThen((l, rootBlobUpdateResult) -> {
+                l.onResponse(rootBlobUpdateResult.newRepositoryData());
+                cleanupOldMetadata(
+                    rootBlobUpdateResult.oldRepositoryData(),
+                    rootBlobUpdateResult.newRepositoryData(),
+                    finalizeSnapshotContext,
+                    snapshotInfo,
+                    writeShardGens
                 );
+            })
 
-                // write the index metadata for each index in the snapshot
-                for (IndexId index : indices) {
-                    executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
-                        final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
-                        if (writeIndexGens) {
-                            final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
-                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
-                            if (metaUUID == null) {
-                                // We don't yet have this version of the metadata so we write it
-                                metaUUID = UUIDs.base64UUID();
-                                INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
-                                indexMetaIdentifiers.put(identifiers, metaUUID);
-                            }
-                            indexMetas.put(index, identifiers);
-                        } else {
-                            INDEX_METADATA_FORMAT.write(
-                                clusterMetadata.index(index.getName()),
-                                indexContainer(index),
-                                snapshotId.getUUID(),
-                                compress
-                            );
-                        }
-                    }));
-                }
-                executor.execute(
-                    ActionRunnable.run(
-                        allMetaListeners.acquire(),
-                        () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress)
-                    )
-                );
-            }
-        }, onUpdateFailure));
+            // Finally subscribe the context as the listener, wrapping exceptions if needed
+            .addListener(
+                finalizeSnapshotContext.delegateResponse(
+                    (l, e) -> l.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e))
+                )
+            );
     }
 
     // Delete all old shard gen and root level index blobs that aren't referenced any longer as a result from moving to updated
@@ -1471,13 +1513,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             }
         }
+
         if (toDelete.isEmpty() == false) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                try {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
                     deleteFromContainer(blobContainer(), toDelete.iterator());
-                } catch (Exception e) {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
                     logger.warn("Failed to clean up old metadata blobs", e);
-                } finally {
+                }
+
+                @Override
+                public void onAfter() {
                     finalizeSnapshotContext.onDone(snapshotInfo);
                 }
             });
@@ -1739,36 +1789,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // master-eligible or not.
         assert clusterService.localNode().isMasterNode() : "should only load repository data on master nodes";
 
-        if (lifecycle.started() == false) {
-            listener.onFailure(notStartedException());
-            return;
-        }
+        while (true) {
+            // retry loop, in case the state changes underneath us somehow
 
-        if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
-            listener.onFailure(corruptedStateException(null, null));
-            return;
-        }
-        final RepositoryData cached = latestKnownRepositoryData.get();
-        // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
-        // the latest known repository generation
-        if (bestEffortConsistency == false && cached.getGenId() == latestKnownRepoGen.get()) {
-            listener.onResponse(cached);
-            return;
-        }
-        if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {
-            logger.debug(
-                "[{}] loading repository metadata for the first time, trying to determine correct generation and to store "
-                    + "it in the cluster state",
-                metadata.name()
-            );
-            initializeRepoGenerationTracking(listener);
-        } else {
-            logger.trace(
-                "[{}] loading un-cached repository data with best known repository generation [{}]",
-                metadata.name(),
-                latestKnownRepoGen
-            );
-            repoDataLoadDeduplicator.execute(listener);
+            if (lifecycle.started() == false) {
+                listener.onFailure(notStartedException());
+                return;
+            }
+
+            if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
+                listener.onFailure(corruptedStateException(null, null));
+                return;
+            }
+            final RepositoryData cached = latestKnownRepositoryData.get();
+            // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
+            // the latest known repository generation
+            if (bestEffortConsistency == false && cached.getGenId() == latestKnownRepoGen.get()) {
+                listener.onResponse(cached);
+                return;
+            }
+            if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {
+                logger.debug("""
+                    [{}] loading repository metadata for the first time, trying to determine correct generation and to store it in the \
+                    cluster state""", metadata.name());
+                if (initializeRepoGenerationTracking(listener)) {
+                    return;
+                } // else there was a concurrent modification, retry from the start
+            } else {
+                logger.trace(
+                    "[{}] loading un-cached repository data with best known repository generation [{}]",
+                    metadata.name(),
+                    latestKnownRepoGen
+                );
+                repoDataLoadDeduplicator.execute(listener);
+                return;
+            }
         }
     }
 
@@ -1777,7 +1832,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Listener used to ensure that repository data is only initialized once in the cluster state by #initializeRepoGenerationTracking
-    private ListenableActionFuture<RepositoryData> repoDataInitialized;
+    @Nullable // unless we're in the process of initializing repo-generation tracking
+    private SubscribableListener<RepositoryData> repoDataInitialized;
 
     /**
      * Method used to set the current repository generation in the cluster state's {@link RepositoryMetadata} to the latest generation that
@@ -1786,103 +1842,120 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * have a consistent view of the {@link RepositoryData} before any data has been written to the repository.
      *
      * @param listener listener to resolve with new repository data
+     * @return {@code true} if this method at least started the initialization process successfully and will eventually complete the
+     * listener, {@code false} if there was some concurrent state change which prevents us from starting repo generation tracking (typically
+     * that some other node got there first) and the caller should check again and possibly retry or complete the listener in some other
+     * way.
      */
-    private void initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
+    private boolean initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
+        final SubscribableListener<RepositoryData> listenerToSubscribe;
+        final ActionListener<RepositoryData> listenerToComplete;
+
         synchronized (this) {
             if (repoDataInitialized == null) {
-                // double check the generation since we checked it outside the mutex in the caller and it could have changed by a
+                // double-check the generation since we checked it outside the mutex in the caller and it could have changed by a
                 // concurrent initialization of the repo metadata and just load repository normally in case we already finished the
                 // initialization
                 if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
-                    getRepositoryData(listener);
-                    return;
+                    return false; // retry
                 }
                 logger.trace("[{}] initializing repository generation in cluster state", metadata.name());
-                repoDataInitialized = new ListenableActionFuture<>();
-                repoDataInitialized.addListener(listener);
-                final Consumer<Exception> onFailure = e -> {
-                    logger.warn(
-                        () -> format("[%s] Exception when initializing repository generation in cluster state", metadata.name()),
-                        e
-                    );
-                    final ActionListener<RepositoryData> existingListener;
-                    synchronized (BlobStoreRepository.this) {
-                        existingListener = repoDataInitialized;
-                        repoDataInitialized = null;
+                repoDataInitialized = listenerToSubscribe = new SubscribableListener<>();
+                listenerToComplete = new ActionListener<>() {
+                    private ActionListener<RepositoryData> acquireAndClearRepoDataInitialized() {
+                        synchronized (BlobStoreRepository.this) {
+                            assert repoDataInitialized == listenerToSubscribe;
+                            repoDataInitialized = null;
+                            return listenerToSubscribe;
+                        }
                     }
-                    existingListener.onFailure(e);
+
+                    @Override
+                    public void onResponse(RepositoryData repositoryData) {
+                        acquireAndClearRepoDataInitialized().onResponse(repositoryData);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(
+                            () -> format("[%s] Exception when initializing repository generation in cluster state", metadata.name()),
+                            e
+                        );
+                        acquireAndClearRepoDataInitialized().onFailure(e);
+                    }
                 };
-                repoDataLoadDeduplicator.execute(
-                    ActionListener.wrap(
-                        repoData -> submitUnbatchedTask(
-                            "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
-                            new ClusterStateUpdateTask() {
-                                @Override
-                                public ClusterState execute(ClusterState currentState) {
-                                    RepositoryMetadata metadata = getRepoMetadata(currentState);
-                                    // No update to the repository generation should have occurred concurrently in general except
-                                    // for
-                                    // extreme corner cases like failing over to an older version master node and back to the
-                                    // current
-                                    // node concurrently
-                                    if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
-                                        throw new RepositoryException(
-                                            metadata.name(),
-                                            "Found unexpected initialized repo metadata [" + metadata + "]"
-                                        );
-                                    }
-                                    return ClusterState.builder(currentState)
-                                        .metadata(
-                                            Metadata.builder(currentState.getMetadata())
-                                                .putCustom(
-                                                    RepositoriesMetadata.TYPE,
-                                                    RepositoriesMetadata.get(currentState)
-                                                        .withUpdatedGeneration(metadata.name(), repoData.getGenId(), repoData.getGenId())
-                                                )
-                                        )
-                                        .build();
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    onFailure.accept(e);
-                                }
-
-                                @Override
-                                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                                    logger.trace(
-                                        "[{}] initialized repository generation in cluster state to [{}]",
-                                        metadata.name(),
-                                        repoData.getGenId()
-                                    );
-                                    // Resolve listeners on generic pool since some callbacks for repository data do additional IO
-                                    threadPool.generic().execute(() -> {
-                                        final ActionListener<RepositoryData> existingListener;
-                                        synchronized (BlobStoreRepository.this) {
-                                            existingListener = repoDataInitialized;
-                                            repoDataInitialized = null;
-                                        }
-                                        existingListener.onResponse(repoData);
-                                        logger.trace(
-                                            "[{}] called listeners after initializing repository to generation [{}]",
-                                            metadata.name(),
-                                            repoData.getGenId()
-                                        );
-                                    });
-                                }
-                            }
-                        ),
-                        onFailure
-                    )
-                );
             } else {
                 logger.trace(
                     "[{}] waiting for existing initialization of repository metadata generation in cluster state",
                     metadata.name()
                 );
-                repoDataInitialized.addListener(listener);
+                listenerToComplete = null;
+                listenerToSubscribe = repoDataInitialized;
             }
         }
+
+        if (listenerToComplete != null) {
+            SubscribableListener
+                // load the current repository data
+                .newForked(repoDataLoadDeduplicator::execute)
+                // write its generation to the cluster state
+                .<RepositoryData>andThen(
+                    (l, repoData) -> submitUnbatchedTask(
+                        "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
+                        new ClusterStateUpdateTask() {
+                            @Override
+                            public ClusterState execute(ClusterState currentState) {
+                                return getClusterStateWithUpdatedRepositoryGeneration(currentState, repoData);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                l.onFailure(e);
+                            }
+
+                            @Override
+                            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                                l.onResponse(repoData);
+                            }
+                        }
+                    )
+                )
+                // fork to generic pool since we're on the applier thread and some callbacks for repository data do additional IO
+                .<RepositoryData>andThen((l, repoData) -> {
+                    logger.trace("[{}] initialized repository generation in cluster state to [{}]", metadata.name(), repoData.getGenId());
+                    threadPool.generic().execute(ActionRunnable.supply(ActionListener.runAfter(l, () -> {
+                        logger.trace(
+                            "[{}] called listeners after initializing repository to generation [{}]",
+                            metadata.name(),
+                            repoData.getGenId()
+                        );
+                    }), () -> repoData));
+                })
+                // and finally complete the listener
+                .addListener(listenerToComplete);
+        }
+
+        listenerToSubscribe.addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext());
+        return true;
+    }
+
+    private ClusterState getClusterStateWithUpdatedRepositoryGeneration(ClusterState currentState, RepositoryData repoData) {
+        // In theory we might have failed over to a different master which initialized the repo and then failed back to this node, so we
+        // must check the repository generation in the cluster state is still unknown here.
+        final RepositoryMetadata repoMetadata = getRepoMetadata(currentState);
+        if (repoMetadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
+            throw new RepositoryException(repoMetadata.name(), "Found unexpected initialized repo metadata [" + repoMetadata + "]");
+        }
+        return ClusterState.builder(currentState)
+            .metadata(
+                Metadata.builder(currentState.getMetadata())
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        RepositoriesMetadata.get(currentState)
+                            .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId())
+                    )
+            )
+            .build();
     }
 
     /**
@@ -2142,12 +2215,34 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Writing a new index generation is a three step process.
-     * First, the {@link RepositoryMetadata} entry for this repository is set into a pending state by incrementing its
-     * pending generation {@code P} while its safe generation {@code N} remains unchanged.
-     * Second, the updated {@link RepositoryData} is written to generation {@code P + 1}.
-     * Lastly, the {@link RepositoryMetadata} entry for this repository is updated to the new generation {@code P + 1} and thus
-     * pending and safe generation are set to the same value marking the end of the update of the repository data.
+     * Writing a new index generation (root) blob is a three-step process. Typically, it starts from a stable state where the pending
+     * generation {@link RepositoryMetadata#pendingGeneration()} is equal to the safe generation {@link RepositoryMetadata#generation()},
+     * but after a failure it may be that the pending generation starts out greater than the safe generation.
+     * <ol>
+     * <li>
+     * We reserve ourselves a new root blob generation {@code G}, greater than {@link RepositoryMetadata#pendingGeneration()}, via a
+     * cluster state update which edits the {@link RepositoryMetadata} entry for this repository, increasing its pending generation to
+     * {@code G} without changing its safe generation.
+     * <li>
+     * We write the updated {@link RepositoryData} to a new root blob with generation {@code G}.
+     * <li>
+     * We mark the successful end of the update of the repository data with a cluster state update which edits the
+     * {@link RepositoryMetadata} entry for this repository again, increasing its safe generation to equal to its pending generation
+     * {@code G}.
+     * </ol>
+     * We use this process to protect against problems such as a master failover part-way through. If a new master is elected while we're
+     * writing the root blob with generation {@code G} then we will fail to update the safe repository generation in the final step, and
+     * meanwhile the new master will choose a generation greater than {@code G} for all subsequent root blobs so there is no risk that we
+     * will clobber its writes. See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for more details.
+     * <p>
+     * Note that a failure here does not imply that the process was unsuccessful or the repository is unchanged. Once we have written the
+     * new root blob the repository is updated from the point of view of any other clusters reading from it, and if we performed a full
+     * cluster restart at that point then we would also pick up the new root blob. Writing the root blob may succeed without us receiving
+     * a successful response from the repository, leading us to report that the write operation failed. Updating the safe generation may
+     * likewise succeed on a majority of master-eligible nodes which does not include this one, again leading to an apparent failure.
+     * <p>
+     * We therefore cannot safely clean up apparently-dangling blobs after a failure here. Instead, we defer any cleanup until after the
+     * next successful root-blob write, which may happen on a different master node or possibly even in a different cluster.
      *
      * @param repositoryData RepositoryData to write
      * @param expectedGen    expected repository generation at the start of the operation

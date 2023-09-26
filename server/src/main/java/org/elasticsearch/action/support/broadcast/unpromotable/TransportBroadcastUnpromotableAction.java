@@ -51,14 +51,14 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        String executor
+        Executor executor
     ) {
         super(actionName, transportService, actionFilters, requestReader);
         this.clusterService = clusterService;
         this.shardStateAction = shardStateAction;
         this.transportService = transportService;
         this.transportUnpromotableAction = actionName + "[u]";
-        this.executor = transportService.getThreadPool().executor(executor);
+        this.executor = executor;
 
         transportService.registerRequestHandler(
             transportUnpromotableAction,

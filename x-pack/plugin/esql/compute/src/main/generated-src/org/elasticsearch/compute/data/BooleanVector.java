@@ -100,8 +100,14 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newVectorBuilder(int estimatedSize) {
-        return new BooleanVectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    }
+
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBooleanVectorBuilder(estimatedSize);
     }
 
     sealed interface Builder extends Vector.Builder permits BooleanVectorBuilder {

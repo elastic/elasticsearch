@@ -31,6 +31,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
+
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -56,7 +58,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
     protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ThreadPool threadPool;
-    protected final String executor;
+    protected final Executor executor;
     private TimeValue healthNodeTransportActionTimeout;
 
     private final Writeable.Reader<Response> responseReader;
@@ -69,7 +71,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         super(actionName, true, transportService, actionFilters, request);
         this.transportService = transportService;
@@ -103,7 +105,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
             if (healthNode == null) {
                 listener.onFailure(new HealthNodeNotDiscoveredException());
             } else if (localNode.getId().equals(healthNode.getId())) {
-                threadPool.executor(executor).execute(() -> {
+                executor.execute(() -> {
                     try {
                         if (isTaskCancelled(task)) {
                             listener.onFailure(new TaskCancelledException("Task was cancelled"));

@@ -51,6 +51,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99649")
     public void testAddBytesRef() {
         testAgainstOracle(() -> new TestIteration() {
             BytesRef ref = new BytesRef(randomAlphaOfLengthBetween(1, 100));
@@ -72,6 +73,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99649")
     public void testGrow() {
         testAgainstOracle(() -> new TestIteration() {
             int length = between(1, 100);

@@ -38,6 +38,12 @@ Test flattened document with subobjects-false:
             - logs-test-subobjects-mappings
             - ecs@dynamic_templates
 
+  # This ensures the templates have been added
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_events: languid
+
   - do:
       indices.create_data_stream:
         name: logs-ecs-test-subobjects

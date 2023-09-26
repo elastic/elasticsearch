@@ -312,13 +312,6 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
         return fromId(version.id);
     }
 
-    public static Version toVersion(TransformConfigVersion TransformConfigVersion) {
-        if (TransformConfigVersion.before(FIRST_TRANSFORM_VERSION) || TransformConfigVersion.onOrAfter(V_8_10_0)) {
-            throw new IllegalArgumentException("Cannot convert " + TransformConfigVersion + ". Incompatible version");
-        }
-        return Version.fromId(TransformConfigVersion.id);
-    }
-
     public static TransformConfigVersion getMinTransformConfigVersion(DiscoveryNodes nodes) {
         return getMinMaxTransformConfigVersion(nodes).v1();
     }

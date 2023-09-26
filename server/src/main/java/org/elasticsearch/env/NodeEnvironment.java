@@ -20,6 +20,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -512,9 +513,9 @@ public final class NodeEnvironment implements Closeable {
         if (metadata == null) {
             throw new CorruptStateException(
                 "Format version is not supported. Upgrading to ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] is only supported from version ["
-                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + Build.current().minWireCompatVersion()
                     + "]."
             );
         }
@@ -528,13 +529,13 @@ public final class NodeEnvironment implements Closeable {
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
                     + "] with which this node of version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] is incompatible. Revert this node to version ["
                     + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
                     + "] and delete any indices with versions earlier than ["
                     + IndexVersion.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
                     + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
                     + "] and wait for it to join the cluster to clean up any older indices from its metadata."

@@ -1,0 +1,6 @@
+pr: 99816
+summary: "ESQL: Lower the implicit limit, if none is user-provided"
+area: ES|QL
+type: enhancement
+issues:
+ - 99458

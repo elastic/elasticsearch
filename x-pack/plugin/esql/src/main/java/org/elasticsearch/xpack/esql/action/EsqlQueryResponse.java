@@ -23,6 +23,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -48,7 +50,7 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
-public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent {
+public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent, Releasable {
 
     private final List<ColumnInfo> columns;
     private final List<Page> pages;
@@ -188,6 +190,11 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
     @Override
     public String toString() {
         return Strings.toString(ChunkedToXContent.wrapAsToXContent(this));
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
     }
 
     public static Iterator<Iterator<Object>> pagesToValues(List<String> dataTypes, List<Page> pages) {

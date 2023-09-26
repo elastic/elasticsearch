@@ -126,7 +126,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
             + "]";
 
         MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-            new HashSet<>(Collections.singleton(architecturesStr)),
+            Set.of(architecturesStr),
             requiredArch,
             modelId
         );

@@ -12,6 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -229,20 +232,21 @@ public class DeploymentManager {
         String modelId,
         ActionListener<TrainedModelDeploymentTask> failedDeploymentListener
     ) {
-        ActionListener<Set<String>> architectureValidationListener = ActionListener.wrap(architectures -> {
+        ActionListener<Set<String>> architecturesListener = ActionListener.wrap(architectures -> {
             try {
-                MlPlatformArchitecturesUtil.verifyArchitectureMatchesModelPlatformArchitecture(
-                    architectures,
-                    modelPlatformArchitecture,
-                    modelId
-                );
-            } catch (IllegalArgumentException iae) {
-                MlPlatformArchitecturesUtil.verifyArchitectureOfMLNodesIsHomogenous(architectures, modelPlatformArchitecture, modelId);
-                throw iae;
+                MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(architectures, modelPlatformArchitecture, modelId);
+            } catch (RuntimeException e) {
+                failedDeploymentListener.onFailure(e);
             }
         }, failedDeploymentListener::onFailure);
 
-        MlPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architectureValidationListener);
+        ActionListener<NodesInfoResponse> listener = MlPlatformArchitecturesUtil.getArchitecturesSetFromNodesInfoResponseListener(
+            threadPool,
+            architecturesListener
+        );
+
+        NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, listener);
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {

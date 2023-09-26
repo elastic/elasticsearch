@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
@@ -25,25 +23,25 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class MlPlatformArchitecturesUtil {
 
-    public static void getNodesOsArchitectures(ThreadPool threadPool, Client client, ActionListener<Set<String>> architecturesListener) {
-
-        ActionListener<NodesInfoResponse> nodesInfoResponseActionListener = ActionListener.wrap(nodesInfoResponse -> {
+    public static ActionListener<NodesInfoResponse> getArchitecturesSetFromNodesInfoResponseListener(
+        ThreadPool threadPool,
+        ActionListener<Set<String>> architecturesListener
+    ) {
+        return ActionListener.wrap(nodesInfoResponse -> {
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                architecturesListener.onResponse(extractMLNodesOsArchitectures(nodesInfoResponse));
+                architecturesListener.onResponse(getArchitecturesSetFromNodesInfoResponse(nodesInfoResponse));
             });
         }, architecturesListener::onFailure);
-
-        NodesInfoRequest request = getNodesInfoBuilderWithOSAndPlugins(client).request();
-
-        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, nodesInfoResponseActionListener);
     }
 
-    private static Set<String> extractMLNodesOsArchitectures(NodesInfoResponse nodesInfoResponse) {
+    public static NodesInfoRequestBuilder getNodesInfoBuilderWithMlNodeArchitectureInfo(Client client) {
+        return client.admin().cluster().prepareNodesInfo().clear().setNodesIds("ml:true").setOs(true).setPlugins(true);
+    }
+
+    private static Set<String> getArchitecturesSetFromNodesInfoResponse(NodesInfoResponse nodesInfoResponse) {
         return nodesInfoResponse.getNodes()
             .stream()
             .filter(node -> node.getNode().hasRole(DiscoveryNodeRole.ML_ROLE.roleName()))
@@ -54,56 +52,46 @@ public class MlPlatformArchitecturesUtil {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    private static NodesInfoRequestBuilder getNodesInfoBuilderWithOSAndPlugins(Client client) {
-        return client.admin().cluster().prepareNodesInfo().clear().setNodesIds("ml:true").setOs(true).setPlugins(true);
-    }
-
-    public static void verifyArchitectureOfMLNodesIsHomogenous(Set<String> architectures, String requiredArch, String modelId)
-        throws IllegalStateException {
-        if (architectures.size() > 1) {
-            String architecturesStr = architectures.toString();
-            architecturesStr = architecturesStr.substring(1, architecturesStr.length() - 1); // Remove the brackets
-            throw new IllegalStateException(
-                format(
-                    "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
-                        + "expected [%s]; "
-                        + "but was [%s]",
-                    modelId,
-                    requiredArch,
-                    architecturesStr
-                )
-            );
-        }
-    }
-
-    public static void verifyArchitectureMatchesModelPlatformArchitecture(
-        Set<String> architectures,
-        String modelPlatformArchitecture,
-        String modelID
-    ) throws IllegalArgumentException {
+    public static void verifyMlNodesAndModelArchitectures(Set<String> architectures, String modelPlatformArchitecture, String modelID)
+        throws IllegalArgumentException, IllegalStateException {
 
         String architecture = null;
         Iterator<String> architecturesIterator = architectures.iterator();
 
         if (architecturesIterator.hasNext()) {
             architecture = architectures.iterator().next();
-            if (architectures.size() > 1
-                || (Objects.isNull(modelPlatformArchitecture) == false
-                    && Objects.equals(architecture, modelPlatformArchitecture) == false)) {
 
-                String architecturesStr = architectures.toString();
-                architecturesStr = architecturesStr.substring(1, architecturesStr.length() - 1); // Remove the brackets
+            String architecturesStr = architectures.toString();
+            architecturesStr = architecturesStr.substring(1, architecturesStr.length() - 1); // Remove the brackets
 
-                throw new IllegalArgumentException(
-                    format(
-                        "The model being deployed ([%s]) is platform specific and incompatible with ML nodes in the cluster; "
-                            + "expected [%s]; "
-                            + "but was [%s]",
-                        modelID,
-                        modelPlatformArchitecture,
-                        architecturesStr
-                    )
-                );
+            if (Objects.isNull(modelPlatformArchitecture) == false) { // null value indicates platform agnostic, so these errors are
+                                                                      // irrelevant
+                if (architectures.size() > 1) { // Platform architectures are not homogeneous among ML nodes
+
+                    throw new IllegalStateException(
+                        format(
+                            "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
+                                + "expected [%s]; "
+                                + "but was [%s]",
+                            modelID,
+                            modelPlatformArchitecture,
+                            architecturesStr
+                        )
+                    );
+
+                } else if (Objects.equals(architecture, modelPlatformArchitecture) == false) {
+
+                    throw new IllegalArgumentException(
+                        format(
+                            "The model being deployed ([%s]) is platform specific and incompatible with ML nodes in the cluster; "
+                                + "expected [%s]; "
+                                + "but was [%s]",
+                            modelID,
+                            modelPlatformArchitecture,
+                            architecturesStr
+                        )
+                    );
+                }
             }
         }
     }

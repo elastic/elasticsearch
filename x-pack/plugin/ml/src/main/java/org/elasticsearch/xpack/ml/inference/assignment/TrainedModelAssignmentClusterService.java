@@ -14,6 +14,9 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -65,6 +68,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
 import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
@@ -218,7 +223,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             }
         };
 
-        MlPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, architecturesListener);
+        ActionListener<NodesInfoResponse> listener = MlPlatformArchitecturesUtil.getArchitecturesSetFromNodesInfoResponseListener(
+            threadPool,
+            architecturesListener
+        );
+
+        NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, listener);
     }
 
     private void removeRoutingToRemovedOrShuttingDownNodes(ClusterChangedEvent event) {
@@ -520,7 +531,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         String reason,
         ActionListener<TrainedModelAssignmentMetadata> listener
     ) {
-        ActionListener<Set<String>> homogeneityListener = ActionListener.wrap((mlNodesArchitectures) -> {
+        ActionListener<Set<String>> architecturesListener = ActionListener.wrap((mlNodesArchitectures) -> {
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
                 logger.debug(() -> format("Rebalancing model allocations because [%s]", reason));
 
@@ -586,7 +597,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             });
         }, listener::onFailure);
 
-        MlPlatformArchitecturesUtil.getNodesOsArchitectures(threadPool, client, homogeneityListener);
+        ActionListener<NodesInfoResponse> nodesInfoResponseActionListener = MlPlatformArchitecturesUtil
+            .getArchitecturesSetFromNodesInfoResponseListener(threadPool, architecturesListener);
+
+        NodesInfoRequest request = MlPlatformArchitecturesUtil.getNodesInfoBuilderWithMlNodeArchitectureInfo(client).request();
+        executeAsyncWithOrigin(client, ML_ORIGIN, NodesInfoAction.INSTANCE, request, nodesInfoResponseActionListener);
     }
 
     private boolean areClusterStatesCompatibleForRebalance(ClusterState source, ClusterState target) {

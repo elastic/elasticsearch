@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXContentFragment {
@@ -323,9 +324,11 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
 
         String writeDataStream = this.writeDataStream;
         if (renamePattern != null && renameReplacement != null) {
-            this.dataStreams.stream().map(s -> s.replaceAll(renamePattern, renameReplacement)).forEach(mergedDataStreams::add);
+            this.dataStreams.stream()
+                .map(s -> s.replaceAll(renamePattern, Matcher.quoteReplacement(renameReplacement)))
+                .forEach(mergedDataStreams::add);
             if (writeDataStream != null) {
-                writeDataStream = writeDataStream.replaceAll(renamePattern, renameReplacement);
+                writeDataStream = writeDataStream.replaceAll(renamePattern, Matcher.quoteReplacement(renameReplacement));
             }
         } else {
             mergedDataStreams.addAll(this.dataStreams);
@@ -335,7 +338,10 @@ public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXCont
             if (writeDataStream != null && previous.getWriteDataStream() != null) {
                 String previousWriteDataStream = previous.getWriteDataStream();
                 if (renamePattern != null && renameReplacement != null) {
-                    previousWriteDataStream = previousWriteDataStream.replaceAll(renamePattern, renameReplacement);
+                    previousWriteDataStream = previousWriteDataStream.replaceAll(
+                        renamePattern,
+                        Matcher.quoteReplacement(renameReplacement)
+                    );
                 }
                 if (writeDataStream.equals(previousWriteDataStream) == false) {
                     throw new IllegalArgumentException(

@@ -21,8 +21,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
@@ -35,7 +35,13 @@ public class DummyTransportGetRollupIndexCapsAction extends HandledTransportActi
 
     @Inject
     public DummyTransportGetRollupIndexCapsAction(TransportService transportService, ActionFilters actionFilters) {
-        super(GetRollupIndexCapsAction.NAME, transportService, actionFilters, GetRollupIndexCapsAction.Request::new, ThreadPool.Names.SAME);
+        super(
+            GetRollupIndexCapsAction.NAME,
+            transportService,
+            actionFilters,
+            GetRollupIndexCapsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.HttpStatsTests;
 import org.elasticsearch.test.ESTestCase;
@@ -21,6 +22,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -90,7 +92,11 @@ public class RestClusterInfoActionTests extends ESTestCase {
                     .map(Collection::stream)
                     .reduce(Stream.of(), Stream::concat)
                     .toList(),
-                Map.of()
+                nodeStats.stream().map(NodeStats::getHttp).map(HttpStats::httpRouteStats).reduce(Map.of(), (l, r) -> {
+                    final var m = new HashMap<>(l);
+                    r.forEach((k, v) -> m.merge(k, v, HttpRouteStats::merge));
+                    return Map.copyOf(m);
+                })
             )
         );
     }

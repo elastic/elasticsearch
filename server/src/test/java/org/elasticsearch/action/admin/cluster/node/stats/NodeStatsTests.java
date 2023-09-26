@@ -32,6 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.http.HttpStatsTests;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -859,7 +860,12 @@ public class NodeStatsTests extends ESTestCase {
                 );
                 clientStats.add(cs);
             }
-            httpStats = new HttpStats(randomNonNegativeLong(), randomNonNegativeLong(), clientStats, Map.of());
+            httpStats = new HttpStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                clientStats,
+                randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLength(10), HttpStatsTests.randomHttpRouteStats()))
+            );
         }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {

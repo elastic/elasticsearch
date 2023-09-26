@@ -10,8 +10,10 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -32,6 +34,9 @@ public class HttpStatsTests extends ESTestCase {
         assertEquals(merged.getTotalOpen(), first.getTotalOpen() + second.getTotalOpen());
         assertThat(merged.getClientStats(), hasSize(first.getClientStats().size() + second.getClientStats().size()));
         assertEquals(merged.getClientStats(), Stream.concat(first.getClientStats().stream(), second.getClientStats().stream()).toList());
+        final Map<String, HttpRouteStats> m = new HashMap<>(first.httpRouteStats());
+        second.httpRouteStats().forEach((k, v) -> m.merge(k, v, HttpRouteStats::merge));
+        assertEquals(merged.httpRouteStats(), m);
     }
 
     public void testToXContent() {
@@ -74,7 +79,7 @@ public class HttpStatsTests extends ESTestCase {
             randomLongBetween(0, Long.MAX_VALUE),
             randomLongBetween(0, Long.MAX_VALUE),
             IntStream.range(1, randomIntBetween(2, 10)).mapToObj(HttpStatsTests::randomClients).toList(),
-            Map.of()
+            randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLength(10), randomHttpRouteStats()))
         );
     }
 
@@ -92,6 +97,18 @@ public class HttpStatsTests extends ESTestCase {
             randomLong(),
             randomLong(),
             randomLong()
+        );
+    }
+
+    public static HttpRouteStats randomHttpRouteStats() {
+        return new HttpRouteStats(
+            randomLongBetween(0, 99),
+            randomLongBetween(0, 9999),
+            IntStream.range(0, 28).mapToLong(i -> randomLongBetween(0, 42)).toArray(),
+            randomLongBetween(0, 99),
+            randomLongBetween(0, 9999),
+            IntStream.range(0, 28).mapToLong(i -> randomLongBetween(0, 42)).toArray(),
+            IntStream.range(0, 18).mapToLong(i -> randomLongBetween(0, 42)).toArray()
         );
     }
 }

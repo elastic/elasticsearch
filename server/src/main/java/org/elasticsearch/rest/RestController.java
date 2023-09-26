@@ -775,6 +775,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             try {
                 close();
                 methodHandlers.addRequestStats(contentLength);
+                methodHandlers.addResponseTime(System.currentTimeMillis() - startTime);
                 if (response.isChunked() == false) {
                     methodHandlers.addResponseStats(response.content().length());
                 } else {
@@ -783,7 +784,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 delegate.sendResponse(response);
                 success = true;
             } finally {
-                methodHandlers.addResponseTime(System.currentTimeMillis() - startTime);
                 if (success == false) {
                     releaseOutputBuffer();
                 }

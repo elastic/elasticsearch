@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
 public record HttpRouteStats(
@@ -119,5 +121,28 @@ public record HttpRouteStats(
         out.writeVLong(totalResponseSize);
         out.writeVLongArray(responseSizeHistogram);
         out.writeVLongArray(responseTimeHistogram);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        HttpRouteStats that = (HttpRouteStats) o;
+        return requestCount == that.requestCount
+            && totalRequestSize == that.totalRequestSize
+            && responseCount == that.responseCount
+            && totalResponseSize == that.totalResponseSize
+            && Arrays.equals(requestSizeHistogram, that.requestSizeHistogram)
+            && Arrays.equals(responseSizeHistogram, that.responseSizeHistogram)
+            && Arrays.equals(responseTimeHistogram, that.responseTimeHistogram);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(requestCount, totalRequestSize, responseCount, totalResponseSize);
+        result = 31 * result + Arrays.hashCode(requestSizeHistogram);
+        result = 31 * result + Arrays.hashCode(responseSizeHistogram);
+        result = 31 * result + Arrays.hashCode(responseTimeHistogram);
+        return result;
     }
 }

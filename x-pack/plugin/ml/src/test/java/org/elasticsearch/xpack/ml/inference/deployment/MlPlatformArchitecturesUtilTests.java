@@ -140,11 +140,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
         Throwable exception = expectThrows(
             IllegalArgumentException.class,
             "Expected IllegalArgumentException but no exception was thrown",
-            () -> MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-                Set.of(architecturesStr),
-                requiredArch,
-                modelId
-            )
+            () -> MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(Set.of(architecturesStr), requiredArch, modelId)
         );
         assertEquals(exception.getMessage(), message);
     }

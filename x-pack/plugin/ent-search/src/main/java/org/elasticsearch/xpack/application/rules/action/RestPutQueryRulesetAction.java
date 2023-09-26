@@ -48,7 +48,7 @@ public class RestPutQueryRulesetAction extends EnterpriseSearchBaseRestHandler {
         return channel -> client.execute(
             PutQueryRulesetAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, PutQueryRulesetAction.Response::status)
+            new RestToXContentListener<>(channel, PutQueryRulesetAction.Response::status, r -> null)
         );
     }
 }

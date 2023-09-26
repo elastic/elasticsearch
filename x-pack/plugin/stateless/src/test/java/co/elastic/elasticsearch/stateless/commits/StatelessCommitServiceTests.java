@@ -308,15 +308,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testUploadFileOfUnregisteredShardThrowsExceptions() throws IOException {
-        try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run())) {
-            List<StatelessCommitRef> refs = generateIndexCommits(testHarness, 1);
-
-            testHarness.commitService.unregister(testHarness.shardId);
-            expectThrows(AlreadyClosedException.class, () -> testHarness.commitService.onCommitCreation(refs.get(0)));
-        }
-    }
-
     public void testMapIsPrunedOnIndexDelete() throws Exception {
         try (var testHarness = createNode((n, r) -> r.run(), (n, r) -> r.run())) {
             List<StatelessCommitRef> refs = generateIndexCommits(testHarness, 2, true);
@@ -1201,6 +1192,74 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     equalTo(expectedDeletedCommits)
                 )
             );
+        }
+    }
+
+    public void testAllCommitsAreDeletedWhenIndexIsDeleted() throws Exception {
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var commitCleaner = new StatelessCommitCleaner(null, null, null) {
+            @Override
+            void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                deletedCommits.add(staleCompoundCommit);
+            }
+        };
+        var stateRef = new AtomicReference<ClusterState>();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return fakeSearchNode;
+            }
+
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return commitCleaner;
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+
+            var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            stateRef.set(state);
+
+            int numberOfCommits = randomIntBetween(1, 10);
+            var initialCommits = generateIndexCommits(testHarness, numberOfCommits);
+            var delayedNewCommitNotifications = randomSubsetOf(initialCommits);
+            for (StatelessCommitRef initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+                if (delayedNewCommitNotifications.contains(initialCommit) == false) {
+                    fakeSearchNode.respondWithUsedCommits(
+                        initialCommit.getGeneration(),
+                        new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
+                    );
+                }
+            }
+
+            // Wait for sending all new commit notification requests, to be able to respond to them.
+            assertBusy(() -> assertThat(fakeSearchNode.generationPendingListeners.size(), equalTo(numberOfCommits)));
+
+            testHarness.commitService.delete(testHarness.shardId);
+            testHarness.commitService.unregister(testHarness.shardId);
+
+            for (StatelessCommitRef initialCommit : delayedNewCommitNotifications) {
+                fakeSearchNode.respondWithUsedCommits(
+                    initialCommit.getGeneration(),
+                    new PrimaryTermAndGeneration(primaryTerm, initialCommit.getGeneration())
+                );
+            }
+
+            // All commits must be deleted
+            var expectedDeletedCommits = staleCommits(initialCommits, shardId);
+            assertBusy(() -> { assertThat(deletedCommits, is(expectedDeletedCommits)); });
         }
     }
 

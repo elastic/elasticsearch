@@ -99,7 +99,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent {
                 TimeValue.timeValueSeconds(5),
                 TimeValue.MAX_VALUE,
                 listener.map(v -> {
-                    deleteStaleCommitsIfNodeIsStillPrimary(commitsToDelete);
+                    deleteStaleCommitsIfIndexDeletedOrNodeIsStillPrimary(commitsToDelete);
                     return null;
                 }),
                 threadPool.executor(ThreadPool.Names.GENERIC)
@@ -117,10 +117,10 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent {
         }
     }
 
-    private void deleteStaleCommitsIfNodeIsStillPrimary(List<StaleCompoundCommit> commitsToDelete) {
+    private void deleteStaleCommitsIfIndexDeletedOrNodeIsStillPrimary(List<StaleCompoundCommit> commitsToDelete) {
         ClusterState state = consistencyService.state();
         for (StaleCompoundCommit staleCompoundCommit : commitsToDelete) {
-            if (isLocalNodePrimaryForShard(staleCompoundCommit.shardId(), staleCompoundCommit.allocationPrimaryTerm(), state)) {
+            if (isIndexDeletedOrLocalNodePrimary(staleCompoundCommit.shardId(), staleCompoundCommit.allocationPrimaryTerm(), state)) {
                 logger.debug("Delete shard file {}", staleCompoundCommit);
                 objectStoreService.asyncDeleteShardFile(staleCompoundCommit);
             } else {
@@ -129,10 +129,10 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent {
         }
     }
 
-    private boolean isLocalNodePrimaryForShard(ShardId shardId, long allocationPrimaryTerm, ClusterState state) {
+    private boolean isIndexDeletedOrLocalNodePrimary(ShardId shardId, long allocationPrimaryTerm, ClusterState state) {
         var indexRoutingTable = state.routingTable().index(shardId.getIndex());
         if (indexRoutingTable == null) {
-            return false;
+            return true;
         }
 
         var primaryShard = indexRoutingTable.shard(shardId.getId()).primaryShard();

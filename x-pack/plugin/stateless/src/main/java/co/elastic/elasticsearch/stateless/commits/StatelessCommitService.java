@@ -226,59 +226,74 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     public void onCommitCreation(StatelessCommitRef reference) {
-        var shardId = reference.getShardId();
-        var generation = reference.getGeneration();
+        boolean success = false;
+        try {
+            var shardId = reference.getShardId();
+            var generation = reference.getGeneration();
 
-        ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
-        if (commitState.recoveredGeneration == reference.getGeneration()) {
-            logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
-            IOUtils.closeWhileHandlingException(reference);
-            return;
+            ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
+            if (commitState.recoveredGeneration == reference.getGeneration()) {
+                logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
+                IOUtils.closeWhileHandlingException(reference);
+                return;
+            }
+
+            logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
+            var blobReference = commitState.markCommitCreated(
+                reference.getPrimaryTerm(),
+                generation,
+                reference.getCommitFiles(),
+                reference.getAdditionalFiles()
+            );
+
+            // The CommitUpload listener is called after releasing the reference to the Lucene commit,
+            // it's possible that due to a slow upload the commit is deleted in the meanwhile, therefore
+            // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
+            // todo: reevaluate this.
+            blobReference.incRef();
+            CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.runAfter(ActionListener.wrap(new ActionListener<>() {
+                @Override
+                public void onResponse(StatelessCompoundCommit commit) {
+                    commitState.sendNewCommitNotification(blobReference, commit);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert assertClosedOrRejectionFailure(e);
+                    logger.warn(
+                        () -> format(
+                            "%s failed to upload commit [%s] to object store because shard was closed",
+                            reference.getShardId(),
+                            reference.getGeneration()
+                        ),
+                        e
+                    );
+                }
+
+                private boolean assertClosedOrRejectionFailure(final Exception e) {
+                    final var closed = commitState.isClosed;
+                    assert closed
+                        || e instanceof EsRejectedExecutionException
+                        || e instanceof IndexNotFoundException
+                        || e instanceof ShardNotFoundException : closed + " vs " + e;
+                    return true;
+                }
+
+            }), () -> {
+                IOUtils.closeWhileHandlingException(reference);
+                blobReference.decRef();
+            }), reference, TimeValue.timeValueMillis(50));
+            commitUpload.run();
+            success = true;
+        } catch (Exception ex) {
+            assert false : ex;
+            logger.warn(Strings.format("failed to handle new commit [%s], generation [%s]", reference, reference.getGeneration()), ex);
+            throw ex;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(reference);
+            }
         }
-
-        logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
-        var blobReference = commitState.markCommitCreated(
-            reference.getPrimaryTerm(),
-            generation,
-            reference.getCommitFiles(),
-            reference.getAdditionalFiles()
-        );
-
-        // The CommitUpload listener is called after releasing the reference to the Lucene commit,
-        // it's possible that due to a slow upload the commit is deleted in the meanwhile, therefore
-        // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
-        // todo: reevaluate this.
-        blobReference.incRef();
-        CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.runAfter(ActionListener.wrap(new ActionListener<>() {
-            @Override
-            public void onResponse(StatelessCompoundCommit commit) {
-                commitState.sendNewCommitNotification(blobReference, commit);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert assertClosedOrRejectionFailure(e);
-                logger.warn(
-                    () -> format(
-                        "%s failed to upload commit [%s] to object store because shard was closed",
-                        reference.getShardId(),
-                        reference.getGeneration()
-                    ),
-                    e
-                );
-            }
-
-            private boolean assertClosedOrRejectionFailure(final Exception e) {
-                final var closed = commitState.isClosed;
-                assert closed
-                    || e instanceof EsRejectedExecutionException
-                    || e instanceof IndexNotFoundException
-                    || e instanceof ShardNotFoundException : closed + " vs " + e;
-                return true;
-            }
-
-        }), blobReference::decRef), reference, TimeValue.timeValueMillis(50));
-        commitUpload.run();
     }
 
     public boolean hasPendingCommitUploads(ShardId shardId) {
@@ -438,11 +453,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         @Override
-        public void onFinished() {
-            IOUtils.closeWhileHandlingException(reference);
-        }
-
-        @Override
         public boolean shouldRetry(Exception e) {
             return shardCommitState.isClosed == false;
         }
@@ -457,6 +467,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ShardCommitState removed = shardsCommitsStates.remove(shardId);
         assert removed != null : shardId + " not registered";
         removed.close();
+    }
+
+    /**
+     * Marks the {@link ShardCommitState} as deleted, which will delete associated blobs upon the forthcoming {@link #unregister(ShardId)}.
+     * @param shardId the shard to mark as deleted
+     */
+    public void delete(ShardId shardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.delete();
     }
 
     public void addListenerForUploadedGeneration(ShardId shardId, long generation, ActionListener<Void> listener) {
@@ -509,6 +528,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         private final AtomicLong generationNotified = new AtomicLong(-1);
         private volatile boolean isClosed;
+        private volatile boolean isDeleted;
         // map generations to compound commit blob instances
         private final Map<PrimaryTermAndGeneration, BlobReference> blobReferences = new ConcurrentHashMap<>();
         /**
@@ -533,6 +553,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         public void markFileUploaded(String fileName, BlobLocation blobLocation) {
+            assert isDeleted == false : "shard " + shardId + " is deleted when trying to mark uploaded file " + blobLocation;
             blobLocations.compute(fileName, (ignored, commitAndBlobLocation) -> {
                 assert commitAndBlobLocation != null : fileName;
                 assert assertBlobLocations(fileName, commitAndBlobLocation, blobLocation);
@@ -560,6 +581,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             Map<String, Long> commitFiles,
             long translogRecoveryStartFile
         ) {
+            assert isDeleted == false : "shard " + shardId + " is deleted when trying to return pending compound commit";
             StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
                 shardId,
                 generation,
@@ -706,6 +728,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             Collection<String> commitFiles,
             Set<String> additionalFiles
         ) {
+            assert isDeleted == false : "shard " + shardId + " is deleted when trying to add commit data";
             // create a compound commit blob instance for the new commit
             var blobReference = new BlobReference(primaryTerm, generation, additionalFiles);
             if (blobReferences.putIfAbsent(blobReference.getPrimaryTermAndGeneration(), blobReference) != null) {
@@ -764,6 +787,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private void handleUploadedCommit(StatelessCompoundCommit commit) {
+            assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + commit;
             final long newGeneration = commit.generation();
 
             List<ActionListener<UploadedCommitInfo>> listenersToFire = null;
@@ -933,6 +957,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     new AlreadyClosedException("shard closed")
                 );
             }
+
+            if (isDeleted) {
+                updateUnpromotableShardAssignedNodes(Set.of(), Long.MAX_VALUE); // clear all unpromotable references
+                blobReferences.values().forEach(blobReference -> {
+                    blobReference.closedLocalReaders();
+                    blobReference.deleted();
+                });
+            }
+        }
+
+        /**
+         * Marks the shard as deleted. Any related {@link ShardCommitState.BlobReference} will be deleted in the upcoming {@link #close()}.
+         */
+        public void delete() {
+            // idempotent
+            synchronized (this) {
+                isDeleted = true;
+            }
         }
 
         void onNewCommitNotificationResponse(
@@ -967,7 +1009,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
-            long generationNotified = this.generationNotified.get();
+            updateUnpromotableShardAssignedNodes(currentUnpromotableNodes, this.generationNotified.get());
+        }
+
+        void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes, long generationNotified) {
             for (Map.Entry<BlobReference, Set<String>> entry : unpromotableBlobReferences.entrySet()) {
                 Set<String> result = unpromotableBlobReferences.computeIfPresent(
                     entry.getKey(),
@@ -1072,9 +1117,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             public void deleted() {
-                assert deleted.compareAndSet(false, true);
-                references.forEach(AbstractRefCounted::decRef);
-                decRef();
+                // be idempotent.
+                if (deleted.compareAndSet(false, true)) {
+                    references.forEach(AbstractRefCounted::decRef);
+                    decRef();
+                }
             }
 
             public void closedLocalReaders() {
@@ -1137,6 +1184,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + readersClosed.get()
                     + ","
                     + externalReadersClosed.get()
+                    + ","
+                    + refCount()
                     + "]";
             }
         }

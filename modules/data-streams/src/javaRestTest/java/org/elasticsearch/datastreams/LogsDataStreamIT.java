@@ -18,7 +18,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
@@ -139,7 +142,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
         // Verify mapping from custom logs
         Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
-        assertThat(((Map<String, Object>) mappingProperties.get("numeric_field")).get("type"), equalTo("integer"));
+        assertThat(((Map<String, Object>) mappingProperties.get("numeric_field")).get("type"), is("integer"));
         assertThat(
             ((Map<String, Object>) mappingProperties.get("socket")).get("properties"),
             equalTo(Map.of("ip", Map.of("type", "keyword")))

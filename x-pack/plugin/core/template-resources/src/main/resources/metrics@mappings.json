@@ -35,6 +35,7 @@
   },
   "_meta": {
     "description": "default mappings for the metrics index template installed by x-pack",
+    ${xpack.stack.template.deprecated}
     "managed": true
   },
   "version": ${xpack.stack.template.version}

@@ -4,7 +4,7 @@
       "actions": {
         "rollover": {
           "max_primary_shard_size": "50gb",
-          "max_age": "7d"
+          "max_age": "30d"
         }
       }
     },
@@ -20,14 +20,15 @@
       }
     },
     "delete": {
-      "min_age": "7d",
+      "min_age": "30d",
       "actions":{
         "delete": {}
       }
     }
   },
   "_meta": {
-    "description": "built-in ILM policy using the hot and warm phases with a retention of 7 days",
+    "description": "built-in ILM policy using the hot and warm phases with a retention of 30 days",
+    ${xpack.stack.template.deprecated}
     "managed": true
   }
 }

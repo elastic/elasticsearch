@@ -19,15 +19,20 @@
         }
       }
     },
-    "delete": {
+    "cold": {
       "min_age": "30d",
+      "actions": {}
+    },
+    "delete": {
+      "min_age": "365d",
       "actions":{
         "delete": {}
       }
     }
   },
   "_meta": {
-    "description": "built-in ILM policy using the hot and warm phases with a retention of 30 days",
+    "description": "built-in ILM policy using the hot, warm, and cold phases with a retention of 365 days",
+    ${xpack.stack.template.deprecated}
     "managed": true
   }
 }

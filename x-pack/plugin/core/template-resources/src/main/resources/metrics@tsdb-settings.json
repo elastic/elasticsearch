@@ -5,7 +5,6 @@
         "lifecycle": {
           "name": "metrics"
         },
-        "codec": "best_compression",
         "query": {
           "default_field": ["message"]
         }
@@ -14,6 +13,7 @@
   },
   "_meta": {
     "description": "default settings for the metrics index template installed by x-pack",
+    ${xpack.stack.template.deprecated}
     "managed": true
   },
   "version": ${xpack.stack.template.version}

@@ -636,14 +636,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             "watch-history-ilm-policy-16",
             "ml-size-based-ilm-policy",
             "logs",
+            "logs@lifecycle",
             "metrics",
+            "metrics@lifecycle",
             "profiling",
+            "profiling@lifecycle",
             "synthetics",
+            "synthetics@lifecycle",
             "7-days-default",
+            "7-days@lifecycle",
             "30-days-default",
+            "30-days@lifecycle",
             "90-days-default",
+            "90-days@lifecycle",
             "180-days-default",
+            "180-days@lifecycle",
             "365-days-default",
+            "365-days@lifecycle",
             ".fleet-files-ilm-policy",
             ".fleet-file-data-ilm-policy",
             ".fleet-actions-results-ilm-policy",
@@ -1871,23 +1880,36 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
             case "logs":
+            case "logs@template":
             case "logs-settings":
+            case "logs@settings":
             case "logs-mappings":
+            case "logs@mappings":
             case "metrics":
+            case "metrics@template":
             case "metrics-settings":
+            case "metrics@settings":
             case "metrics-tsdb-settings":
+            case "metrics@tsdb-settings":
             case "metrics-mappings":
+            case "metrics@mappings":
             case "synthetics":
+            case "synthetics@template":
             case "synthetics-settings":
+            case "synthetics@settings":
             case "synthetics-mappings":
+            case "synthetics@mappings":
             case ".snapshot-blob-cache":
             case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
+            case "data-streams@mappings":
             case "ecs@dynamic_templates":
+            case "ecs@mappings":
             case "search-acl-filter":
             case ".kibana-reporting":
+            case ".kibana-reporting@template":
                 return true;
             default:
                 return false;

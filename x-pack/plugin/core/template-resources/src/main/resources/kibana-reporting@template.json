@@ -1,6 +1,6 @@
 {
   "index_patterns": [".kibana-reporting*"],
-  "priority": 99,
+  "priority": 100,
   "data_stream": {
     "hidden": true
   },
@@ -171,8 +171,7 @@
   },
   "_meta": {
     "description": "default kibana reporting template installed by elasticsearch",
-    "managed": true,
-    "deprecated": true
+    "managed": true
   },
   "version": ${xpack.stack.template.version}
 }

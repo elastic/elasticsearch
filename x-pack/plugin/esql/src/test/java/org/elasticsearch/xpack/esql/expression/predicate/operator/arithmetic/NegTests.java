@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -144,8 +145,8 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertEquals(negatedMaxPeriod, process(maxPeriod));
 
             Period minPeriod = Period.of(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
-            DateMathException e = expectThrows(
-                DateMathException.class,
+            VerificationException e = expectThrows(
+                VerificationException.class,
                 "Expected exception when negating minimal date period.",
                 () -> process(minPeriod)
             );
@@ -159,8 +160,8 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertEquals(negatedMaxDuration, process(maxDuration));
 
             Duration minDuration = Duration.ofSeconds(Long.MIN_VALUE, 0);
-            DateMathException e = expectThrows(
-                DateMathException.class,
+            VerificationException e = expectThrows(
+                VerificationException.class,
                 "Expected exception when negating minimal time duration.",
                 () -> process(minDuration)
             );

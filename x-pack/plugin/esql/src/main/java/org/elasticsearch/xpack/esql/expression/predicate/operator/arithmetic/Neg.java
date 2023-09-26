@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -78,7 +79,7 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.
-                throw DateMathException.fromArithmeticException(source(), e);
+                throw ExceptionUtils.math(source(), e);
             }
         }
         if (dataType == TIME_DURATION) {
@@ -88,7 +89,7 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.
-                throw DateMathException.fromArithmeticException(source(), e);
+                throw ExceptionUtils.math(source(), e);
             }
         }
         return EvaluatorMapper.super.fold();

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -112,7 +113,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.
-                throw DateMathException.fromArithmeticException(source(), e);
+                throw ExceptionUtils.math(source(), e);
             }
         }
         if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
@@ -124,7 +125,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.
-                throw DateMathException.fromArithmeticException(source(), e);
+                throw ExceptionUtils.math(source(), e);
             }
         }
         return super.fold();

@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -29,16 +30,23 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
+    private final boolean isSimulated;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+            isSimulated = in.readBoolean();
+        } else {
+            isSimulated = false;
+        }
     }
 
     @SuppressWarnings("this-escape")
-    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
         super(shardId);
         this.items = items;
+        this.isSimulated = isSimulated;
         setRefreshPolicy(refreshPolicy);
     }
 
@@ -62,6 +70,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     public BulkItemRequest[] items() {
         return items;
+    }
+
+    public boolean isSimulated() {
+        return isSimulated;
     }
 
     @Override
@@ -92,6 +104,9 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
                 o.writeBoolean(false);
             }
         }, items);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+            out.writeBoolean(isSimulated);
+        }
     }
 
     @Override

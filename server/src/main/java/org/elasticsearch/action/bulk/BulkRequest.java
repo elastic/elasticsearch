@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -77,6 +78,7 @@ public class BulkRequest extends ActionRequest
     private Boolean globalRequireAlias;
 
     private long sizeInBytes = 0;
+    private boolean isSimulated = false;
 
     public BulkRequest() {}
 
@@ -86,6 +88,11 @@ public class BulkRequest extends ActionRequest
         requests.addAll(in.readCollectionAsList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+            isSimulated = in.readBoolean();
+        } else {
+            isSimulated = false;
+        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -100,6 +107,10 @@ public class BulkRequest extends ActionRequest
             add(request);
         }
         return this;
+    }
+
+    public void nullifyRequest(int i) {
+        requests.set(i, null);
     }
 
     /**
@@ -315,6 +326,14 @@ public class BulkRequest extends ActionRequest
         return this;
     }
 
+    public boolean isSimulated() {
+        return isSimulated;
+    }
+
+    public void setIsSimulated(boolean isSimulated) {
+        this.isSimulated = isSimulated;
+    }
+
     /**
      * Note for internal callers (NOT high level rest client),
      * the global parameter setting is ignored when used with:
@@ -422,6 +441,9 @@ public class BulkRequest extends ActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+            out.writeBoolean(isSimulated);
+        }
     }
 
     @Override

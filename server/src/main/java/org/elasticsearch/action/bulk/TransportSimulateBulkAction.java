@@ -69,23 +69,37 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
-        for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            DocWriteRequest<?> request = bulkRequest.requests.get(i);
-            responses.set(
-                i,
-                BulkItemResponse.success(
-                    0,
-                    DocWriteRequest.OpType.CREATE,
-                    new SimulateIndexResponse(
-                        request.index(),
-                        ((IndexRequest) request).source(),
-                        ((IndexRequest) request).getContentType(),
-                        ((IndexRequest) request).getPipelines()
-                    )
-                )
-            );
-        }
-        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
+        super.indexData(task, bulkRequest, executorName, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkResponse response) {
+                BulkItemResponse[] originalResponses = response.getItems();
+                for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                    DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                    BulkItemResponse originalResponse = originalResponses[i];
+                    Exception exception = originalResponse.isFailed() ? originalResponse.getFailure().getCause() : null;
+                    BulkItemResponse updatedResponse = BulkItemResponse.success(
+                        originalResponse.getItemId(),
+                        originalResponse.getOpType(),
+                        new SimulateIndexResponse(
+                            request.index(),
+                            ((IndexRequest) request).source(),
+                            ((IndexRequest) request).getContentType(),
+                            ((IndexRequest) request).getPipelines(),
+                            exception
+                        )
+                    );
+                    responses.set(i, updatedResponse);
+                }
+                listener.onResponse(
+                    new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime))
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        }, responses, autoCreateIndices, indicesThatCannotBeCreated, startTime);
     }
 
     @Override

@@ -422,7 +422,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             }
                         });
                     }
-                });
+                }, bulkRequest.isSimulated());
             }
         }
     }
@@ -513,12 +513,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-        createIndexRequest.index(index);
-        createIndexRequest.cause("auto(bulk api)");
-        createIndexRequest.masterNodeTimeout(timeout);
-        client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
+    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener, boolean isSimulated) {
+        if (isSimulated) {
+            listener.onResponse(null);
+        } else {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+            createIndexRequest.index(index);
+            createIndexRequest.cause("auto(bulk api)");
+            createIndexRequest.masterNodeTimeout(timeout);
+            client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
+        }
     }
 
     private static boolean setResponseFailureIfIndexMatches(
@@ -638,7 +642,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
-                    bulkRequest.requests.set(i, null);
+                    bulkRequest.nullifyRequest(i);
                 }
             }
 
@@ -657,7 +661,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0])
+                    requests.toArray(new BulkItemRequest[0]),
+                    bulkRequest.isSimulated()
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());

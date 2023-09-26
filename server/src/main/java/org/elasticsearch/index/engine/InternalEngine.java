@@ -1111,7 +1111,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexResult index(Index index) throws IOException {
+    public IndexResult index(Index index, boolean isSimulated) throws IOException {
         assert Objects.equals(index.uid().field(), IdFieldMapper.NAME) : index.uid().field();
         final boolean doThrottle = index.origin().isRecovery() == false;
         try (ReleasableLock releasableLock = readLock.acquire()) {
@@ -1185,7 +1185,7 @@ public class InternalEngine extends Engine {
 
                     assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
 
-                    if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
+                    if ((plan.indexIntoLucene || plan.addStaleOpToLucene) && isSimulated == false) {
                         indexResult = indexIntoLucene(index, plan);
                     } else {
                         indexResult = new IndexResult(
@@ -1197,7 +1197,7 @@ public class InternalEngine extends Engine {
                         );
                     }
                 }
-                if (index.origin().isFromTranslog() == false) {
+                if (index.origin().isFromTranslog() == false && isSimulated == false) {
                     final Translog.Location location;
                     if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
@@ -1224,7 +1224,7 @@ public class InternalEngine extends Engine {
                     );
                 }
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
-                if (indexResult.getTranslogLocation() == null) {
+                if (indexResult.getTranslogLocation() == null && isSimulated == false) {
                     // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());

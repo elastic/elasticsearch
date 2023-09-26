@@ -55,4 +55,9 @@ public class SimulateBulkRequest extends BulkRequest {
         }
         return parsedPipelineSubstitutions;
     }
+
+    @Override
+    public void nullifyRequest(int i) {
+        // do nothing because in simulate we want to return information from the request regardless of success
+    }
 }

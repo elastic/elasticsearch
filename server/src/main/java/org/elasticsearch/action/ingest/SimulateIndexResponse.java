@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,19 +26,28 @@ public class SimulateIndexResponse extends IndexResponse {
     private final BytesReference source;
     private final XContentType sourceXContentType;
     private final List<String> pipelines;
+    private final Exception exception;
 
     public SimulateIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.source = in.readBytesReference();
         this.sourceXContentType = XContentType.valueOf(in.readString());
         this.pipelines = in.readCollectionAsList(StreamInput::readString);
+        this.exception = in.readException();
     }
 
-    public SimulateIndexResponse(String index, BytesReference source, XContentType sourceXContentType, List<String> pipelines) {
+    public SimulateIndexResponse(
+        String index,
+        BytesReference source,
+        XContentType sourceXContentType,
+        List<String> pipelines,
+        Exception exception
+    ) {
         super(new ShardId(index, "", 0), "", 0, 0, 0, true);
         this.source = source;
         this.sourceXContentType = sourceXContentType;
         this.pipelines = pipelines;
+        this.exception = exception;
     }
 
     @Override
@@ -45,6 +55,11 @@ public class SimulateIndexResponse extends IndexResponse {
         builder.field("_index", getShardId().getIndexName());
         builder.field("_source", XContentHelper.convertToMap(source, false, sourceXContentType).v2());
         builder.array("executed_pipelines", pipelines.toArray());
+        if (exception != null) {
+            builder.startObject("error");
+            ElasticsearchException.generateThrowableXContent(builder, params, exception);
+            builder.endObject();
+        }
         return builder;
     }
 
@@ -59,6 +74,7 @@ public class SimulateIndexResponse extends IndexResponse {
         out.writeBytesReference(source);
         out.writeString(sourceXContentType.name());
         out.writeCollection(pipelines, StreamOutput::writeString);
+        out.writeException(exception);
     }
 
     @Override

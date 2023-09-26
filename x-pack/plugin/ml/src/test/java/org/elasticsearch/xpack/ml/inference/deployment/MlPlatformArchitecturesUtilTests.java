@@ -113,20 +113,11 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
 
     public void testVerifyArchitectureMatchesModelPlatformArchitecture_GivenRequiredArchMatches_ThenNothing() {
         var requiredArch = randomAlphaOfLength(10);
-        String architecturesStr = requiredArch;
 
         var modelId = randomAlphaOfLength(10);
-        String message = "The model being deployed (["
-            + modelId
-            + "]) is platform specific and incompatible with ML nodes in the cluster; "
-            + "expected ["
-            + requiredArch
-            + "]; but was ["
-            + architecturesStr
-            + "]";
 
         MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-            new HashSet<>(Collections.singleton(architecturesStr)),
+            new HashSet<>(Collections.singleton(requiredArch)),
             requiredArch,
             modelId
         );
@@ -154,31 +145,6 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
                 requiredArch,
                 modelId
             )
-        );
-        assertEquals(exception.getMessage(), message);
-    }
-
-    public void testVerifyArchitectureMatchesModelPlatformArchitecture_GivenTooManyArches() {
-        var requiredArch = randomAlphaOfLength(10);
-        var architectures = nArchitectures(randomIntBetween(2, 10));
-        var modelId = randomAlphaOfLength(10);
-        String architecturesStr = architectures.toString();
-        architecturesStr = architecturesStr.substring(1, architecturesStr.length() - 1); // Remove the brackets
-
-        String message = "ML nodes in this cluster have multiple platform architectures, "
-            + "but can only have one for this model (["
-            + modelId
-            + "]); "
-            + "expected ["
-            + requiredArch
-            + "]; but was ["
-            + architecturesStr
-            + "]";
-
-        Throwable exception = expectThrows(
-            IllegalStateException.class,
-            "Expected IllegalStateException but no exception was thrown",
-            () -> MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(architectures, requiredArch, modelId)
         );
         assertEquals(exception.getMessage(), message);
     }

@@ -45,7 +45,7 @@ public class HeaderWarning {
         ? getPatternWithSemanticVersion()
         : getPatternWithoutSemanticVersion();
 
-    private static Pattern getPatternWithSemanticVersion() {
+    static Pattern getPatternWithSemanticVersion() {
         return Pattern.compile("299 " + // log level code
             "Elasticsearch-" + // warn agent
             semanticVersionPattern + "-" + // warn agent: semantic version
@@ -65,7 +65,7 @@ public class HeaderWarning {
         ); // in order to parse new line inside the qdText
     }
 
-    private static Pattern getPatternWithoutSemanticVersion() {
+    static Pattern getPatternWithoutSemanticVersion() {
         return Pattern.compile("299 " + // log level code
             "Elasticsearch-" + // warn agent
             "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent: hash

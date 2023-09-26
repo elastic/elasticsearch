@@ -146,7 +146,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
         @Override
         public DocBlock build() {
-            // Pass null for singleSegmentNonDecreasing so we 1calculate it when we first need it.
+            // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
             return new DocVector(shards.build(), segments.build(), docs.build(), null).asBlock();
         }
 

@@ -186,7 +186,7 @@ public class TopNOperatorTests extends OperatorTestCase {
          * 775 causes us to blow up while collecting values and 780 doesn't
          * trip the breaker. So 775 is the max on this range.
          */
-        return ByteSizeValue.ofBytes(775);
+        return ByteSizeValue.ofBytes(between(1, 775));
     }
 
     public void testRamBytesUsed() {

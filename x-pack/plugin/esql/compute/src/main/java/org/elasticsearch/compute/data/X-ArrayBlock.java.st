@@ -132,6 +132,7 @@ $endif$
 
     @Override
     public void close() {
+        released = true;
     $if(BytesRef)$
         blockFactory.adjustBreaker(-(ramBytesUsed() - values.ramBytesUsed()), true);
         Releasables.closeExpectNoException(values);

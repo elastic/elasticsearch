@@ -126,6 +126,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public void close() {
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 

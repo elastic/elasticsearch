@@ -905,6 +905,12 @@ public class BasicBlockTests extends ESTestCase {
     static <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data, CircuitBreaker breaker) {
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
+        if (data instanceof Block block) {
+            assertThat(block.isReleased(), is(true));
+            Page page = new Page(block);
+            var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+            assertThat(e.getMessage(), containsString("can't read released block"));
+        }
         assertThat(breaker.getUsed(), is(0L));
     }
 

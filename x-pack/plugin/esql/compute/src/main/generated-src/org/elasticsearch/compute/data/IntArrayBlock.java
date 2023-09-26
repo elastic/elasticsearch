@@ -109,6 +109,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
 
     @Override
     public void close() {
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

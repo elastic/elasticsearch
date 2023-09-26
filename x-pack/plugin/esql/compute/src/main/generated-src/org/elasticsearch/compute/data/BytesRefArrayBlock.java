@@ -111,6 +111,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     @Override
     public void close() {
+        released = true;
         blockFactory.adjustBreaker(-(ramBytesUsed() - values.ramBytesUsed()), true);
         Releasables.closeExpectNoException(values);
     }

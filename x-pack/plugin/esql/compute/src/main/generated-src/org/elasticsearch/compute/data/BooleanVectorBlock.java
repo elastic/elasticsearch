@@ -72,6 +72,7 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
 
     @Override
     public void close() {
+        released = true;
         Releasables.closeExpectNoException(vector);
     }
 }

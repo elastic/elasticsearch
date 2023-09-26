@@ -109,6 +109,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public void close() {
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

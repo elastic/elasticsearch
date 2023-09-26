@@ -80,6 +80,7 @@ $endif$
 
     @Override
     public void close() {
+        released = true;
         Releasables.closeExpectNoException(vector);
     }
 }

@@ -72,6 +72,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public void close() {
+        released = true;
         Releasables.closeExpectNoException(vector);
     }
 }

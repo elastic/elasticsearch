@@ -73,6 +73,7 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
 
     @Override
     public void close() {
+        released = true;
         Releasables.closeExpectNoException(vector);
     }
 }

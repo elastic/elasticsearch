@@ -72,6 +72,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public void close() {
+        released = true;
         Releasables.closeExpectNoException(vector);
     }
 }

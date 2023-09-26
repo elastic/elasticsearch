@@ -29,6 +29,7 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -44,12 +45,14 @@ public class BlockFactoryTests extends ESTestCase {
 
     @ParametersFactory
     public static List<Object[]> params() {
-        List<Supplier<BlockFactory>> l = List.of(() -> {
+        Supplier<BlockFactory> supplier1 = () -> {
             CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
             BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
             return BlockFactory.getInstance(breaker, bigArrays);
-        }, BlockFactory::getGlobalInstance);
-        return l.stream().map(s -> new Object[] { s }).toList();
+        };
+        Supplier<BlockFactory> supplier2 = BlockFactory::getGlobalInstance;
+
+        return List.of(supplier1, supplier2).stream().map(s -> new Object[] { s }).toList();
     }
 
     public BlockFactoryTests(@Name("blockFactorySupplier") Supplier<BlockFactory> blockFactorySupplier) {
@@ -552,6 +555,12 @@ public class BlockFactoryTests extends ESTestCase {
     <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
+        if (data instanceof Block block) {
+            assertThat(block.isReleased(), is(true));
+            Page page = new Page(block);
+            var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+            assertThat(e.getMessage(), containsString("can't read released block"));
+        }
         assertThat(breaker.getUsed(), is(0L));
     }
 

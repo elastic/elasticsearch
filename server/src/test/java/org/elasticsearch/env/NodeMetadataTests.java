@@ -142,7 +142,7 @@ public class NodeMetadataTests extends ESTestCase {
                     "] directly to version ["
                         + Build.current().version()
                         + "], upgrade to version ["
-                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + Build.current().minWireCompatVersion()
                         + "] first."
                 )
             )

@@ -121,7 +121,7 @@ public final class NodeMetadata {
                     + Build.current().version()
                     + "], "
                     + "upgrade to version ["
-                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + Build.current().minWireCompatVersion()
                     + "] first."
             );
         }

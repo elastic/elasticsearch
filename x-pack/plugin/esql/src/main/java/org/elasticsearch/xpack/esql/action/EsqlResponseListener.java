@@ -118,22 +118,33 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
 
     @Override
     public RestResponse buildResponse(EsqlQueryResponse esqlResponse) throws Exception {
-        RestResponse restResponse;
-        if (mediaType instanceof TextFormat format) {
-            restResponse = RestResponse.chunked(
-                RestStatus.OK,
-                ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse))
-            );
-        } else {
-            restResponse = RestResponse.chunked(
-                RestStatus.OK,
-                ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel)
-            );
+        boolean success = false;
+        try {
+            RestResponse restResponse;
+            if (mediaType instanceof TextFormat format) {
+                restResponse = RestResponse.chunked(
+                    RestStatus.OK,
+                    ChunkedRestResponseBody.fromTextChunks(
+                        format.contentType(restRequest),
+                        format.format(restRequest, esqlResponse),
+                        esqlResponse
+                    )
+                );
+            } else {
+                restResponse = RestResponse.chunked(
+                    RestStatus.OK,
+                    ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel, esqlResponse)
+                );
+            }
+            long tookNanos = stopWatch.stop().getNanos();
+            restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
+            success = true;
+            return restResponse;
+        } finally {
+            if (success == false) {
+                esqlResponse.close();
+            }
         }
-        long tookNanos = stopWatch.stop().getNanos();
-        restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
-
-        return restResponse;
     }
 
     /**

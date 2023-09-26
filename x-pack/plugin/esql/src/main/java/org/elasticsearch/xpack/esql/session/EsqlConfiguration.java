@@ -23,6 +23,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
     private final QueryPragmas pragmas;
 
     private final int resultTruncationMaxSize;
+    private final int resultTruncationDefaultSize;
 
     private final Locale locale;
 
@@ -32,12 +33,14 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         String username,
         String clusterName,
         QueryPragmas pragmas,
-        int resultTruncationMaxSize
+        int resultTruncationMaxSize,
+        int resultTruncationDefaultSize
     ) {
         super(zi, username, clusterName);
         this.locale = locale;
         this.pragmas = pragmas;
         this.resultTruncationMaxSize = resultTruncationMaxSize;
+        this.resultTruncationDefaultSize = resultTruncationDefaultSize;
     }
 
     public EsqlConfiguration(StreamInput in) throws IOException {
@@ -45,6 +48,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         locale = Locale.forLanguageTag(in.readString());
         this.pragmas = new QueryPragmas(in);
         this.resultTruncationMaxSize = in.readVInt();
+        this.resultTruncationDefaultSize = in.readVInt();
     }
 
     @Override
@@ -58,6 +62,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         out.writeString(locale.toLanguageTag());
         pragmas.writeTo(out);
         out.writeVInt(resultTruncationMaxSize);
+        out.writeVInt(resultTruncationDefaultSize);
     }
 
     public QueryPragmas pragmas() {
@@ -66,6 +71,10 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     public int resultTruncationMaxSize() {
         return resultTruncationMaxSize;
+    }
+
+    public int resultTruncationDefaultSize() {
+        return resultTruncationDefaultSize;
     }
 
     public Locale locale() {
@@ -77,6 +86,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         if (super.equals(o)) {
             EsqlConfiguration that = (EsqlConfiguration) o;
             return resultTruncationMaxSize == that.resultTruncationMaxSize
+                && resultTruncationDefaultSize == that.resultTruncationDefaultSize
                 && Objects.equals(pragmas, that.pragmas)
                 && Objects.equals(locale, that.locale);
         }
@@ -85,6 +95,6 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize, locale);
+        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize, resultTruncationDefaultSize, locale);
     }
 }

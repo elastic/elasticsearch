@@ -10,7 +10,6 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -143,7 +142,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                     "] directly to version ["
                         + Build.current().version()
                         + "], upgrade to version ["
-                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + Build.current().minWireCompatVersion()
                         + "] first."
                 )
             )

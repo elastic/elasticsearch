@@ -48,6 +48,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     @Nullable
     public Page takePage() {
         if (pageTaken) {
+            assert false : "Page was taken already";
             throw new IllegalStateException("Page was taken already");
         }
         pageTaken = true;

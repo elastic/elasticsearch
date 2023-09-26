@@ -561,7 +561,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         field = fields.get("object.field");
         assertNotNull(field);
-        assertThat(field.getValues().size(), equalTo(3));
+        assertThat(field.getValues(), containsInAnyOrder("foo", "bar", "baz");
     }
 
     public void testFieldNamesWithWildcard() throws IOException {

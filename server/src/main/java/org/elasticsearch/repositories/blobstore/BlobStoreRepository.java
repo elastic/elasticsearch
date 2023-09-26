@@ -2936,6 +2936,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     lastSnapshotStatus.getIncrementalFileCount(),
                     lastSnapshotStatus.getIncrementalSize()
                 );
+                // Once we start writing the shard level snapshot file, no cleanup will be performed because it is possible that
+                // written files are referenced by another concurrent process.
+                fileToCleanUp.set(List.of());
                 try {
                     final String snapshotUUID = snapshotId.getUUID();
                     final Map<String, String> serializationParams = Collections.singletonMap(
@@ -2952,9 +2955,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
-                // Once the shard level snapshot metadata is written, no cleanup will be performed because it is possible that
-                // written files are referenced by another concurrent process.
-                fileToCleanUp.set(List.of());
                 afterWriteSnapBlob.run();
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
                     indexGeneration,

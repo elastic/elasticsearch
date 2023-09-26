@@ -304,6 +304,25 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
+        ActionListener<Void> itemDoneListener
+    ) throws Exception {
+        return executeBulkItemRequest(
+            context,
+            updateHelper,
+            nowInMillisSupplier,
+            mappingUpdater,
+            waitForMappingUpdate,
+            itemDoneListener,
+            false
+        );
+    }
+
+    static boolean executeBulkItemRequest(
+        BulkPrimaryExecutionContext context,
+        UpdateHelper updateHelper,
+        LongSupplier nowInMillisSupplier,
+        MappingUpdatePerformer mappingUpdater,
+        Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener,
         boolean isSimulated
     ) throws Exception {

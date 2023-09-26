@@ -57,6 +57,11 @@ public class SimulateBulkRequest extends BulkRequest {
     }
 
     @Override
+    public boolean isSimulated() {
+        return true;
+    }
+
+    @Override
     public void nullifyRequest(int i) {
         // do nothing because in simulate we want to return information from the request regardless of success
     }

@@ -1129,7 +1129,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 op.primaryTerm()
             );
             if (op instanceof Engine.Index) {
-                Engine.IndexResult result = replicaEngine.index((Engine.Index) op);
+                Engine.IndexResult result = replicaEngine.index((Engine.Index) op, false);
                 // Replicas don't really care about the creation status of documents. This allows us to ignore the case where a document was
                 // found in the live version maps in a delete state and return false for the created flag in favor of code simplicity as
                 // deleted or not. This check is just to signal a regression so a decision can be made if it's intentional.
@@ -1214,7 +1214,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public static Engine.Result applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         final Engine.Result result = switch (operation.operationType()) {
-            case INDEX -> engine.index((Engine.Index) operation);
+            case INDEX -> engine.index((Engine.Index) operation, false);
             case DELETE -> engine.delete((Engine.Delete) operation);
             case NO_OP -> engine.noOp((Engine.NoOp) operation);
         };

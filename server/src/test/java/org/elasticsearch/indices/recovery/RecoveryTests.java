@@ -299,6 +299,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 0,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                false,
                 false
             );
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));

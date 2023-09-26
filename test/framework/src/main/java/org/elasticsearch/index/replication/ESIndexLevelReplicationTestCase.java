@@ -270,7 +270,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             );
             BulkItemRequest[] items = new BulkItemRequest[1];
             items[0] = new BulkItemRequest(0, writeRequest);
-            BulkShardRequest request = new BulkShardRequest(shardId, refreshPolicy, items);
+            BulkShardRequest request = new BulkShardRequest(shardId, refreshPolicy, items, false);
             new WriteReplicationAction(request, wrapBulkListener, this).execute();
             return listener.get();
         }
@@ -919,7 +919,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         final BulkShardRequest bulkShardRequest = new BulkShardRequest(
             shardId,
             request.getRefreshPolicy(),
-            new BulkItemRequest[] { new BulkItemRequest(0, request) }
+            new BulkItemRequest[] { new BulkItemRequest(0, request) },
+            false
         );
         final PlainActionFuture<BulkShardRequest> res = new PlainActionFuture<>();
         executeShardBulkOnPrimary(primary, bulkShardRequest, res.map(TransportReplicationAction.PrimaryResult::replicaRequest));

@@ -42,6 +42,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         }
     }
 
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+        this(shardId, refreshPolicy, items, false);
+    }
+
     @SuppressWarnings("this-escape")
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
         super(shardId);

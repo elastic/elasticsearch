@@ -62,7 +62,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         switch (operation.operationType()) {
-            case INDEX -> engine.index((Engine.Index) operation);
+            case INDEX -> engine.index((Engine.Index) operation, false);
             case DELETE -> engine.delete((Engine.Delete) operation);
             case NO_OP -> engine.noOp((Engine.NoOp) operation);
             default -> throw new IllegalStateException("No operation defined for [" + operation + "]");

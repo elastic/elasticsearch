@@ -340,9 +340,9 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final IndicesStatsResponse idleIndexStatsAfter = indicesAdmin().prepareStats(idleIndex).get();
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
 
+        // Can match should not mark shards as search active, because query rewrite should skip shard before doing any search i/o:
         List<ShardStats> active = Arrays.stream(idleIndexStatsAfter.getShards()).filter(s -> s.isSearchIdle() == false).toList();
-        // Adjust this assertion (active should be empty) when updating WildcardQueryBuilder#doRewrite(...)
-        assertThat(active, hasSize(idleIndexShardsCount));
+        assertThat(active, empty());
     }
 
     private SearchResponse search(final String index, final String field, final String value, int preFilterShardSize) {

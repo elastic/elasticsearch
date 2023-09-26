@@ -140,7 +140,7 @@ final class TransportKeepAlive implements Closeable {
 
         void ensureStarted() {
             if (isStarted.get() == false && isStarted.compareAndSet(false, true)) {
-                threadPool.schedule(this, pingInterval, ThreadPool.Names.GENERIC);
+                threadPool.schedule(this, pingInterval, threadPool.generic());
             }
         }
 
@@ -175,7 +175,7 @@ final class TransportKeepAlive implements Closeable {
                 return;
             }
 
-            threadPool.scheduleUnlessShuttingDown(pingInterval, ThreadPool.Names.GENERIC, this);
+            threadPool.scheduleUnlessShuttingDown(pingInterval, threadPool.generic(), this);
         }
 
         @Override

@@ -1,0 +1,14 @@
+{
+  "index_patterns": ["${connectors-sync-jobs.index_pattern}"],
+  "priority": 100,
+  "composed_of": [
+    "elastic-connectors-settings",
+    "elastic-connectors-sync-jobs-mappings"
+  ],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "Built-in template for elastic-connectors-sync-jobs",
+    "managed": true
+  },
+  "version": ${xpack.application.connector.template.version}
+}

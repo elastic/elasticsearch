@@ -513,13 +513,13 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         public TestTasksResponse(StreamInput in) throws IOException {
             super(in);
-            tasks = in.readList(TestTaskResponse::new);
+            tasks = in.readCollectionAsList(TestTaskResponse::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(tasks);
+            out.writeCollection(tasks);
         }
 
         public List<TestTaskResponse> getTasks() {
@@ -543,7 +543,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 TestTasksRequest::new,
                 TestTasksResponse::new,
                 TestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
         }
 

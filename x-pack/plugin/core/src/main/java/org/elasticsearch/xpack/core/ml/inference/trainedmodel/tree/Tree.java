@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,11 +82,11 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     public Tree(StreamInput in) throws IOException {
-        this.featureNames = in.readImmutableList(StreamInput::readString);
-        this.nodes = in.readImmutableList(TreeNode::new);
+        this.featureNames = in.readCollectionAsImmutableList(StreamInput::readString);
+        this.nodes = in.readCollectionAsImmutableList(TreeNode::new);
         this.targetType = TargetType.fromStream(in);
         if (in.readBoolean()) {
-            this.classificationLabels = in.readImmutableList(StreamInput::readString);
+            this.classificationLabels = in.readCollectionAsImmutableList(StreamInput::readString);
         } else {
             this.classificationLabels = null;
         }
@@ -287,11 +288,11 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     @Override
-    public Version getMinimalCompatibilityVersion() {
+    public TransportVersion getMinimalCompatibilityVersion() {
         if (nodes.stream().filter(TreeNode::isLeaf).anyMatch(t -> t.getLeafValue().length > 1)) {
-            return Version.V_7_7_0;
+            return TransportVersions.V_7_7_0;
         }
-        return Version.V_7_6_0;
+        return TransportVersions.V_7_6_0;
     }
 
     public static class Builder {
@@ -301,6 +302,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         private TargetType targetType = TargetType.REGRESSION;
         private List<String> classificationLabels;
 
+        @SuppressWarnings("this-escape")
         public Builder() {
             nodes = new ArrayList<>();
             // allocate space in the root node and set to a leaf

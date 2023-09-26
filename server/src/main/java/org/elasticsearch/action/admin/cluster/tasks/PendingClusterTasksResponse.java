@@ -26,7 +26,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
 
     public PendingClusterTasksResponse(StreamInput in) throws IOException {
         super(in);
-        pendingTasks = in.readList(PendingClusterTask::new);
+        pendingTasks = in.readCollectionAsList(PendingClusterTask::new);
     }
 
     PendingClusterTasksResponse(List<PendingClusterTask> pendingTasks) {
@@ -60,7 +60,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
             builder.startObject();
             builder.startArray(Fields.TASKS);
             return builder;
-        }), pendingTasks.stream().<ToXContent>map(pendingClusterTask -> (builder, p) -> {
+        }), Iterators.map(pendingTasks.iterator(), pendingClusterTask -> (builder, p) -> {
             builder.startObject();
             builder.field(Fields.INSERT_ORDER, pendingClusterTask.getInsertOrder());
             builder.field(Fields.PRIORITY, pendingClusterTask.getPriority());
@@ -70,7 +70,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
             builder.field(Fields.TIME_IN_QUEUE, pendingClusterTask.getTimeInQueue());
             builder.endObject();
             return builder;
-        }).iterator(), Iterators.single((builder, p) -> {
+        }), Iterators.single((builder, p) -> {
             builder.endArray();
             builder.endObject();
             return builder;
@@ -91,7 +91,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Chunk
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(pendingTasks);
+        out.writeCollection(pendingTasks);
     }
 
 }

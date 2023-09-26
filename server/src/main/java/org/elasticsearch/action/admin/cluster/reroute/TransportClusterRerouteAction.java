@@ -35,11 +35,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -71,7 +73,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             ClusterRerouteRequest::new,
             indexNameExpressionResolver,
             ClusterRerouteResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.allocationService = allocationService;
     }
@@ -110,7 +112,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             transportService.getLocalNode(),
             IndicesShardStoresAction.NAME,
             new IndicesShardStoresRequest().indices(stalePrimaryAllocations.keySet().toArray(Strings.EMPTY_ARRAY)),
-            new ActionListenerResponseHandler<>(ActionListener.wrap(response -> {
+            new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((delegate, response) -> {
                 Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> status = response.getStoreStatuses();
                 Exception e = null;
                 for (Map.Entry<String, List<AbstractAllocateAllocationCommand>> entry : stalePrimaryAllocations.entrySet()) {
@@ -151,11 +153,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                     }
                 }
                 if (e == null) {
-                    submitStateUpdate(request, listener);
+                    submitStateUpdate(request, delegate);
                 } else {
-                    listener.onFailure(e);
+                    delegate.onFailure(e);
                 }
-            }, listener::onFailure), IndicesShardStoresResponse::new)
+            }), IndicesShardStoresResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 

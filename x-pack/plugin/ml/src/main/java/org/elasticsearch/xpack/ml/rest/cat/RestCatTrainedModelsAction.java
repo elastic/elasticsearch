@@ -236,17 +236,10 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         final List<TrainedModelConfig> configs,
         final ActionListener<Table> listener
     ) {
-        return new GroupedActionListener<>(size, listener.delegateFailure((l, responses) -> {
+        return new GroupedActionListener<>(size, listener.safeMap(responses -> {
             GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
             GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
-            l.onResponse(
-                buildTable(
-                    request,
-                    statsResponse.getResources().results(),
-                    configs,
-                    analytics == null ? Collections.emptyList() : analytics.getResources().results()
-                )
-            );
+            return buildTable(request, statsResponse.getResources().results(), configs, analytics.getResources().results());
         }));
     }
 

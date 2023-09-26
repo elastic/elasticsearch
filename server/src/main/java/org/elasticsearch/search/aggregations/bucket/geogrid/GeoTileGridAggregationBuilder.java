@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -39,6 +40,7 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
         GeoTileGridAggregationBuilder::new
     );
 
+    @SuppressWarnings("this-escape")
     public GeoTileGridAggregationBuilder(String name) {
         super(name);
         precision(DEFAULT_PRECISION);
@@ -112,6 +114,6 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_0_0;
+        return TransportVersions.V_7_0_0;
     }
 }

@@ -24,6 +24,9 @@ import java.util.LongSummaryStatistics;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -64,6 +67,7 @@ public class PyTorchResultProcessor {
     private long lastResultTimeMs;
     private final long startTime;
     private final LongSupplier currentTimeMsSupplier;
+    private final CountDownLatch processorCompletionLatch = new CountDownLatch(1);
 
     public PyTorchResultProcessor(String modelId, Consumer<ThreadSettings> threadSettingsConsumer) {
         this(modelId, threadSettingsConsumer, System::currentTimeMillis);
@@ -129,6 +133,7 @@ public class PyTorchResultProcessor {
             notifyAndClearPendingResults(errorResult);
         } finally {
             notifyAndClearPendingResults(new ErrorResult("inference canceled as process is stopping"));
+            processorCompletionLatch.countDown();
         }
         logger.debug(() -> "[" + modelId + "] Results processing finished");
     }
@@ -149,7 +154,7 @@ public class PyTorchResultProcessor {
             timeMs = 0L;
         }
 
-        logger.trace(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
+        logger.debug(() -> format("[%s] Parsed inference result with id [%s]", modelId, result.requestId()));
         updateStats(timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
@@ -163,7 +168,7 @@ public class PyTorchResultProcessor {
         ThreadSettings threadSettings = result.threadSettings();
         assert threadSettings != null;
 
-        logger.trace(() -> format("[%s] Parsed thread settings result with id [%s]", modelId, result.requestId()));
+        logger.debug(() -> format("[%s] Parsed thread settings result with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for thread settings [%s]", modelId, result.requestId()));
@@ -176,7 +181,7 @@ public class PyTorchResultProcessor {
         AckResult ack = result.ackResult();
         assert ack != null;
 
-        logger.trace(() -> format("[%s] Parsed ack result with id [%s]", modelId, result.requestId()));
+        logger.debug(() -> format("[%s] Parsed ack result with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for ack [%s]", modelId, result.requestId()));
@@ -194,7 +199,7 @@ public class PyTorchResultProcessor {
             errorCount++;
         }
 
-        logger.trace(() -> format("[%s] Parsed error with id [%s]", modelId, result.requestId()));
+        logger.debug(() -> format("[%s] Parsed error with id [%s]", modelId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for error [%s]", modelId, result.requestId()));
@@ -284,6 +289,24 @@ public class PyTorchResultProcessor {
 
     public void stop() {
         isStopping = true;
+    }
+
+    /**
+     * Waits for specified amount of time for the processor to complete.
+     *
+     * @param timeout the maximum time to wait
+     * @param unit the time unit of the timeout
+     * @throws TimeoutException if the results processor has not completed after exceeding the timeout period
+     */
+    public void awaitCompletion(long timeout, TimeUnit unit) throws TimeoutException {
+        try {
+            if (processorCompletionLatch.await(timeout, unit) == false) {
+                throw new TimeoutException(format("Timed out waiting for pytorch results processor to complete for model id %s", modelId));
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.info(format("[%s] Interrupted waiting for pytorch results processor to complete", modelId));
+        }
     }
 
     public static class PendingResult {

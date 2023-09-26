@@ -32,12 +32,12 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
 
     @Override
     protected List<ClearRealmCacheResponse.Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::new);
+        return in.readCollectionAsList(Node::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClearRealmCacheResponse.Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

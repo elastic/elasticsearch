@@ -85,10 +85,6 @@ public class MonitoringServiceTests extends ESTestCase {
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());
 
-        monitoringService.start();
-        assertBusy(() -> assertTrue(monitoringService.isStarted()));
-        assertTrue(monitoringService.isMonitoringActive());
-
         monitoringService.close();
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());

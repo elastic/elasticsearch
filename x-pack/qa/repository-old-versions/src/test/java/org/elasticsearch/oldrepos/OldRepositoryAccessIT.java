@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -98,6 +100,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             sourceOnlyRepository == false || oldVersion.onOrAfter(Version.fromString("6.5.0"))
         );
 
+        assertThat("Index version should be added to archive tests", oldVersion, lessThan(Version.V_8_10_0));
+        IndexVersion indexVersion = IndexVersion.fromId(oldVersion.id);
+
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
         String indexName;
         if (sourceOnlyRepository) {
@@ -113,7 +118,18 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()
         ) {
             if (afterRestart == false) {
-                beforeRestart(sourceOnlyRepository, repoLocation, oldVersion, numDocs, extraDocs, expectedIds, client, oldEs, indexName);
+                beforeRestart(
+                    sourceOnlyRepository,
+                    repoLocation,
+                    oldVersion,
+                    indexVersion,
+                    numDocs,
+                    extraDocs,
+                    expectedIds,
+                    client,
+                    oldEs,
+                    indexName
+                );
             } else {
                 afterRestart(indexName);
             }
@@ -131,6 +147,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         boolean sourceOnlyRepository,
         String repoLocation,
         Version oldVersion,
+        IndexVersion indexVersion,
         int numDocs,
         int extraDocs,
         Set<String> expectedIds,
@@ -213,7 +230,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
         assertEquals(0, (int) getResp.evaluate("snapshots.0.shards.failed"));
-        assertEquals(oldVersion.indexVersion.toString(), getResp.evaluate("snapshots.0.version"));
+        assertEquals(indexVersion.toString(), getResp.evaluate("snapshots.0.version"));
 
         // list specific snapshot on new ES
         getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName);
@@ -227,7 +244,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
         assertEquals(0, (int) getResp.evaluate("snapshots.0.shards.failed"));
-        assertEquals(oldVersion.indexVersion.toString(), getResp.evaluate("snapshots.0.version"));
+        assertEquals(indexVersion.toString(), getResp.evaluate("snapshots.0.version"));
 
         // list advanced snapshot info on new ES
         getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName + "/_status");

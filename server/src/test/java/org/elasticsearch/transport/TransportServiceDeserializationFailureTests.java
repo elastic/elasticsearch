@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -29,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -51,7 +53,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 if (action.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), otherNode, new ClusterName(""))
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), otherNode, new ClusterName(""))
                     );
                 }
             }
@@ -67,7 +69,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
 
         transportService.registerRequestHandler(
             testActionName,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             TransportRequest.Empty::new,
             (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE)
         );
@@ -88,6 +90,11 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 TransportRequest.Empty.INSTANCE,
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("should not be called");
@@ -149,6 +156,11 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 parentTask,
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<TransportResponse.Empty>() {
+                    @Override
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("should not be called");

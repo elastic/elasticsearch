@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -50,6 +51,7 @@ public class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
         return XContentMapValues.nodeIntegerValue(node);
     }
 
+    @SuppressWarnings("this-escape")
     public GeoHexGridAggregationBuilder(String name) {
         super(name);
         precision(DEFAULT_PRECISION);
@@ -124,6 +126,6 @@ public class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_1_0;
+        return TransportVersions.V_8_1_0;
     }
 }

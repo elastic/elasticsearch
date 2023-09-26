@@ -298,7 +298,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         public Result(StreamInput in) throws IOException {
             this.value = in.readDouble();
-            this.curve = in.readList(AucRocPoint::new);
+            this.curve = in.readCollectionAsList(AucRocPoint::new);
         }
 
         public double getValue() {
@@ -322,7 +322,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeDouble(value);
-            out.writeList(curve);
+            out.writeCollection(curve);
         }
 
         @Override

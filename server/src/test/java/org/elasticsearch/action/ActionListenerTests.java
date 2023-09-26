@@ -412,8 +412,7 @@ public class ActionListenerTests extends ESTestCase {
         assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener, () -> {
             throw new IllegalArgumentException();
         }));
-        assertThat(assertionError.getCause(), instanceOf(AssertionError.class));
-        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
 
@@ -452,7 +451,7 @@ public class ActionListenerTests extends ESTestCase {
         });
 
         AssertionError assertionError = expectThrows(AssertionError.class, () -> mapped.onResponse(null));
-        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
         mapped.onResponse(false);
         assertNull(exReference.get());
@@ -460,7 +459,7 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(exReference.get(), instanceOf(IllegalStateException.class));
 
         assertionError = expectThrows(AssertionError.class, () -> mapped.onFailure(new IllegalArgumentException()));
-        assertThat(assertionError.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
         mapped.onFailure(new IllegalStateException());
         assertThat(exReference.get(), instanceOf(IllegalStateException.class));

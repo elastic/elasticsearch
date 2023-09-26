@@ -46,6 +46,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
@@ -139,6 +142,7 @@ public class NativePrivilegeStoreSingleNodeTests extends SecuritySingleNodeTestC
             if (randomBoolean()) {
                 final var createApiKeyRequest = new CreateApiKeyRequest();
                 createApiKeyRequest.setName(randomAlphaOfLength(5));
+                createApiKeyRequest.setRefreshPolicy(randomFrom(NONE, IMMEDIATE, WAIT_UNTIL));
                 if (randomBoolean()) {
                     createApiKeyRequest.setRoleDescriptors(
                         List.of(

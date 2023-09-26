@@ -1,0 +1,87 @@
+[role="xpack"]
+[[query-dsl-rule-query]]
+=== Rule query
+++++
+<titleabbrev>Rule</titleabbrev>
+++++
+
+preview::[]
+
+Applies <<query-rules-apis,query rules>> to the query before returning results.
+This feature is used to promote documents in the manner of a <<query-dsl-pinned-query>> based on matching defined rules.
+If no matching query rules are defined, the "organic" matches for the query are returned.
+
+[NOTE]
+====
+To use the rule query, you first need a defined set of query rules.
+Use the <<query-rules-apis, query rules management APIs>> to create and manage query rules.
+For more information and examples see <<search-using-query-rules>>.
+====
+
+==== Example request
+
+////
+
+[source,console]
+--------------------------------------------------
+PUT _query_rules/my-ruleset
+{
+  "rules": [
+    {
+      "rule_id": "my-rule1",
+      "type": "pinned",
+      "criteria": [
+        {
+          "type": "exact",
+          "metadata": "user_query",
+          "values": ["puggles"]
+        }
+      ],
+      "actions": {
+        "ids": [ "id1" ]
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _query_rules/my-ruleset
+--------------------------------------------------
+// TEARDOWN
+
+////
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "rule_query": {
+      "match_criteria": {
+        "user_query": "pugs"
+      },
+      "ruleset_id": "my-ruleset",
+      "organic": {
+        "match": {
+          "description": "puggles"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+[[rule-query-top-level-parameters]]
+==== Top-level parameters for `rule_query`
+
+`ruleset_id`::
+(Required, string) A unique <<query-rules-apis, query ruleset>> ID with query-based rules to match and apply as applicable.
+`match_criteria`::
+(Required, object) Defines the match criteria to apply to rules in the given query ruleset.
+Match criteria should match the keys defined in the `criteria.metadata` field of the rule.
+`organic`::
+(Required, object) Any choice of <<query-dsl, query>> used to return results, that may be modified by matching query rules.
+If no query rules are matched and applied, this query will be executed with no modification.

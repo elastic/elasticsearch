@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -57,7 +58,7 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
             Request::new,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
@@ -74,7 +75,8 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
                     request.getModelId(),
                     ((NlpConfig) inferenceConfig).getVocabularyConfig(),
                     new Vocabulary(request.getVocabulary(), request.getModelId(), request.getMerges(), request.getScores()),
-                    ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+                    ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure),
+                    request.isOverwritingAllowed()
                 );
                 return;
             }

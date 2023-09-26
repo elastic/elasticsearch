@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import org.elasticsearch.test.cluster.DefaultElasticsearchCluster;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolver;
 import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
@@ -17,6 +16,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 
 public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
 
+    @SuppressWarnings("this-escape")
     public DefaultLocalClusterSpecBuilder() {
         super();
         this.apply(new FipsEnabledClusterConfigProvider());
@@ -27,9 +27,11 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuil
 
     @Override
     public ElasticsearchCluster build() {
-        return new DefaultElasticsearchCluster<>(
+        return new DefaultLocalElasticsearchCluster<>(
             this::buildClusterSpec,
-            new LocalClusterFactory(new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver())))
+            new DefaultLocalClusterFactory(
+                new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
+            )
         );
     }
 }

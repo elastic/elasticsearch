@@ -118,22 +118,22 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         final RoutingNode target,
         final RoutingAllocation allocation
     ) {
-        if (target.node().getVersion().onOrAfter(recoverySource.version().toVersion())) {
+        if (target.node().getMaxIndexVersion().onOrAfter(recoverySource.version())) {
             /* we can allocate if we can restore from a snapshot that is older or on the same version */
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "node version [%s] is the same or newer than snapshot version [%s]",
-                target.node().getVersion(),
-                recoverySource.version().toVersion()
+                "max supported index version [%s] is the same or newer than snapshot version [%s]",
+                target.node().getMaxIndexVersion(),
+                recoverySource.version()
             );
         } else {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "node version [%s] is older than the snapshot version [%s]",
-                target.node().getVersion(),
-                recoverySource.version().toVersion()
+                "max supported index version [%s] is older than the snapshot version [%s]",
+                target.node().getMaxIndexVersion(),
+                recoverySource.version()
             );
         }
     }

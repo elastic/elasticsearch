@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -64,7 +65,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private final Writeable.Reader<Response> responseReader;
 
-    protected final String executor;
+    protected final Executor executor;
 
     protected TransportMasterNodeAction(
         String actionName,
@@ -75,7 +76,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         this(
             actionName,
@@ -101,7 +102,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
@@ -117,10 +118,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private void executeMasterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
-        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
             throw new TaskCancelledException("Task was cancelled");
         }
-
         masterOperation(task, request, state, listener);
     }
 
@@ -168,7 +168,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
-        new AsyncSingleAction(task, request, listener).doStart(state);
+        request.incRef();
+        new AsyncSingleAction(task, request, ActionListener.runBefore(listener, request::decRef)).doStart(state);
     }
 
     class AsyncSingleAction {
@@ -231,8 +232,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                 delegatedListener.onFailure(t);
                             }
                         });
-                        threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
+                        executor.execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {

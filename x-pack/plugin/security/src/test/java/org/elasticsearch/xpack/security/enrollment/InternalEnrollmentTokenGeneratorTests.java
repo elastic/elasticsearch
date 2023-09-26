@@ -23,8 +23,10 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -52,6 +54,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -80,7 +83,14 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "InternalEnrollmentTokenGeneratorTests").build();
         threadPool = new ThreadPool(
             settings,
-            new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.enrollment.thread_pool", false)
+            new FixedExecutorBuilder(
+                settings,
+                TokenService.THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.enrollment.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         AuthenticationTestHelper.builder()
             .user(new User("foo"))
@@ -223,6 +233,8 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                     new NodeInfo(
                         Version.CURRENT,
                         TransportVersion.current(),
+                        IndexVersion.current(),
+                        Map.of(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
@@ -256,6 +268,8 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                     new NodeInfo(
                         Version.CURRENT,
                         TransportVersion.current(),
+                        IndexVersion.current(),
+                        Map.of(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,

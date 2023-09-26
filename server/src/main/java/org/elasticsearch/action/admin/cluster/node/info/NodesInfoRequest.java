@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,6 +42,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * Get information from nodes based on the nodes ids specified. If none are passed, information
      * for all nodes will be returned.
      */
+    @SuppressWarnings("this-escape")
     public NodesInfoRequest(String... nodesIds) {
         super(nodesIds);
         all();
@@ -110,7 +110,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(String[]::new));
+        out.writeStringCollection(requestedMetrics);
     }
 
     /**
@@ -157,10 +157,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         }
 
         public static Set<String> allMetrics() {
-            return Arrays.stream(values())
-                .filter(metric -> TcpTransport.isUntrustedRemoteClusterEnabled() || metric != REMOTE_CLUSTER_SERVER)
-                .map(Metric::metricName)
-                .collect(Collectors.toSet());
+            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
         }
     }
 }

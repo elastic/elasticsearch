@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tdigest.Centroid;
@@ -111,7 +111,7 @@ public class TDigestState {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeString(state.type.toString());
             out.writeVLong(state.tdigest.size());
         }
@@ -127,7 +127,7 @@ public class TDigestState {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             state = new TDigestState(Type.valueOf(in.readString()), compression);
             size = in.readVLong();
         } else {
@@ -138,7 +138,7 @@ public class TDigestState {
             state.tdigest.reserve(size);
         }
         for (int i = 0; i < n; i++) {
-            state.add(in.readDouble(), in.readVInt());
+            state.add(in.readDouble(), in.readVLong());
         }
         return state;
     }
@@ -189,7 +189,7 @@ public class TDigestState {
         h = 31 * h + Integer.hashCode(centroidCount());
         for (Centroid centroid : centroids()) {
             h = 31 * h + Double.hashCode(centroid.mean());
-            h = 31 * h + centroid.count();
+            h = 31 * h + (int) centroid.count();
         }
         h = 31 * h + Double.hashCode(getMax());
         h = 31 * h + Double.hashCode(getMin());
@@ -205,7 +205,7 @@ public class TDigestState {
         tdigest.add(other.tdigest);
     }
 
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         tdigest.add(x, w);
     }
 

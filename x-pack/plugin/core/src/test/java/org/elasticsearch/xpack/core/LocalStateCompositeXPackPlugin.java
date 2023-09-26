@@ -80,7 +80,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
@@ -90,9 +90,10 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -138,7 +139,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         SystemIndexPlugin,
         SearchPlugin,
         ShutdownAwarePlugin,
-        RestInterceptorActionPlugin {
+        RestServerActionPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -204,7 +205,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -221,7 +222,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 namedWriteableRegistry,
                 expressionResolver,
                 repositoriesServiceSupplier,
-                tracer,
+                telemetryProvider,
                 allocationService,
                 indicesService
             )
@@ -241,7 +242,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     namedWriteableRegistry,
                     expressionResolver,
                     repositoriesServiceSupplier,
-                    tracer,
+                    telemetryProvider,
                     allocationService,
                     indicesService
                 )
@@ -441,8 +442,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
         // There can be only one.
         List<UnaryOperator<RestHandler>> items = filterPlugins(ActionPlugin.class).stream()
-            .filter(RestInterceptorActionPlugin.class::isInstance)
-            .map(RestInterceptorActionPlugin.class::cast)
+            .filter(RestServerActionPlugin.class::isInstance)
+            .map(RestServerActionPlugin.class::cast)
             .map(p -> p.getRestHandlerInterceptor(threadContext))
             .filter(Objects::nonNull)
             .toList();

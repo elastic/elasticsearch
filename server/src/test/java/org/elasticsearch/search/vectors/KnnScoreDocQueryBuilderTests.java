@@ -96,7 +96,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(new Document());
             try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext context = createSearchExecutionContext(new IndexSearcher(reader));
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
                 KnnScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
                 Query query = queryBuilder.doToQuery(context);
 
@@ -118,7 +118,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(new Document());
             try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext context = createSearchExecutionContext(new IndexSearcher(reader));
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
                 KnnScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
                 QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
                 assertNotNull(rewriteQuery.toQuery(context));
@@ -135,7 +135,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(new Document());
             try (IndexReader reader = iw.getReader()) {
-                SearchExecutionContext context = createSearchExecutionContext(new IndexSearcher(reader));
+                SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
                 context.setAllowUnmappedFields(true);
                 KnnScoreDocQueryBuilder queryBuilder = createTestQueryBuilder();
                 queryBuilder.toQuery(context);
@@ -175,7 +175,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 }
             }
             try (IndexReader reader = iw.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext context = createSearchExecutionContext(searcher);
 
                 List<ScoreDoc> scoreDocsList = new ArrayList<>();
@@ -218,7 +218,7 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             }
 
             try (IndexReader reader = iw.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext context = createSearchExecutionContext(searcher);
 
                 List<ScoreDoc> scoreDocsList = new ArrayList<>();

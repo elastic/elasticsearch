@@ -38,8 +38,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -388,9 +388,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         try {
             rlock.lock();
             if (shuttingDown) {
-                logger.warn("server accepted channel after shutting down");
-                httpChannel.close();
-                return;
+                throw new IllegalStateException("Server cannot accept new channel while shutting down");
             }
             RequestTrackingHttpChannel trackingChannel = httpChannels.putIfAbsent(httpChannel, new RequestTrackingHttpChannel(httpChannel));
             assert trackingChannel == null : "Channel should only be added to http channel set once";
@@ -654,6 +652,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         @Override
         public InetSocketAddress getRemoteAddress() {
             return inner.getRemoteAddress();
+        }
+
+        @Override
+        public String toString() {
+            return inner.toString();
         }
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.XPackLicenseState;
@@ -87,7 +88,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             Request::new,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.xContentRegistry = namedXContentRegistry;
         this.licenseState = licenseState;
@@ -263,7 +264,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         for (Phase phase : phasesWithSearchableSnapshotActions) {
             SearchableSnapshotAction action = (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME);
             String repository = action.getSnapshotRepository();
-            if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
+            if (RepositoriesMetadata.get(state).repository(repository) == null) {
                 throw new IllegalArgumentException(
                     "no such repository ["
                         + repository

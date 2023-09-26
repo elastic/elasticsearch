@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xcontent.XContentType;
@@ -110,6 +111,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
                         .masterNodeId("node_id")
                         .build()
                 )
+                .putCompatibilityVersions("node_id", CompatibilityVersionsUtils.staticCurrent())
                 .build(),
             ClusterState.builder(new ClusterName("test")).build()
         );

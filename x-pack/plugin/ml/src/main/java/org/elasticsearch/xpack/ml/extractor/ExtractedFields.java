@@ -225,6 +225,9 @@ public class ExtractedFields {
                 // We check if the parent is an object or nested field. If so, it's not a multi field.
                 return false;
             }
+            if (isAggregatable(parent) && isAggregatable(field)) {
+                return false;
+            }
             return true;
         }
 

@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,11 +38,15 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
 
 /**
  * API key information
  */
 public final class ApiKey implements ToXContentObject, Writeable {
+
+    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersions.V_8_500_020;
 
     public enum Type {
         /**
@@ -153,13 +160,13 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     public ApiKey(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             this.name = in.readOptionalString();
         } else {
             this.name = in.readString();
         }
         this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
+        if (in.getTransportVersion().onOrAfter(CROSS_CLUSTER_KEY_VERSION)) {
             this.type = in.readEnum(Type.class);
         } else {
             // This default is safe because
@@ -172,13 +179,13 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidated = in.readBoolean();
         this.username = in.readString();
         this.realm = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             this.metadata = in.readMap();
         } else {
             this.metadata = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
-            final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+            final List<RoleDescriptor> roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
             this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
             this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
         } else {
@@ -240,9 +247,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("id", id).field("name", name);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            builder.field("type", type.value());
-        }
+        builder.field("type", type.value());
         builder.field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
@@ -257,6 +262,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
                 builder.field(roleDescriptor.getName(), roleDescriptor);
             }
             builder.endObject();
+            if (type == Type.CROSS_CLUSTER) {
+                assert roleDescriptors.size() == 1;
+                buildXContentForCrossClusterApiKeyAccess(builder, roleDescriptors.iterator().next());
+            }
         }
         if (limitedBy != null) {
             assert type != Type.CROSS_CLUSTER;
@@ -265,15 +274,48 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return builder;
     }
 
+    private void buildXContentForCrossClusterApiKeyAccess(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
+        if (Assertions.ENABLED) {
+            CrossClusterApiKeyRoleDescriptorBuilder.validate(roleDescriptor);
+        }
+        final List<RoleDescriptor.IndicesPrivileges> search = new ArrayList<>();
+        final List<RoleDescriptor.IndicesPrivileges> replication = new ArrayList<>();
+        for (RoleDescriptor.IndicesPrivileges indicesPrivileges : roleDescriptor.getIndicesPrivileges()) {
+            if (Arrays.equals(CCS_INDICES_PRIVILEGE_NAMES, indicesPrivileges.getPrivileges())) {
+                search.add(indicesPrivileges);
+            } else {
+                assert Arrays.equals(CCR_INDICES_PRIVILEGE_NAMES, indicesPrivileges.getPrivileges());
+                replication.add(indicesPrivileges);
+            }
+        }
+        builder.startObject("access");
+        final Params params = new MapParams(Map.of("_with_privileges", "false"));
+        if (false == search.isEmpty()) {
+            builder.startArray("search");
+            for (RoleDescriptor.IndicesPrivileges indicesPrivileges : search) {
+                indicesPrivileges.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+        if (false == replication.isEmpty()) {
+            builder.startArray("replication");
+            for (RoleDescriptor.IndicesPrivileges indicesPrivileges : replication) {
+                indicesPrivileges.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
+        builder.endObject();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             out.writeOptionalString(name);
         } else {
             out.writeString(name);
         }
         out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
+        if (out.getTransportVersion().onOrAfter(CROSS_CLUSTER_KEY_VERSION)) {
             out.writeEnum(type);
         }
         out.writeInstant(creation);
@@ -281,10 +323,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         out.writeBoolean(invalidated);
         out.writeString(username);
         out.writeString(realm);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeGenericMap(metadata);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             out.writeOptionalCollection(roleDescriptors);
             out.writeOptionalWriteable(limitedBy);
         }
@@ -321,12 +363,11 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
+    static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", true, args -> {
         return new ApiKey(
             (String) args[0],
             (String) args[1],
-            // TODO: remove null check once TcpTransport.isUntrustedRemoteClusterEnabled() is removed
-            args[2] == null ? Type.REST : (Type) args[2],
+            (Type) args[2],
             Instant.ofEpochMilli((Long) args[3]),
             (args[4] == null) ? null : Instant.ofEpochMilli((Long) args[4]),
             (Boolean) args[5],
@@ -340,7 +381,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
         PARSER.declareString(constructorArg(), new ParseField("id"));
-        PARSER.declareField(optionalConstructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
         PARSER.declareLong(constructorArg(), new ParseField("creation"));
         PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
         PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));

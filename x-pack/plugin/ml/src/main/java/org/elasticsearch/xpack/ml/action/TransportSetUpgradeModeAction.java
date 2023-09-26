@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -86,7 +87,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             actionFilters,
             SetUpgradeModeAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
@@ -298,7 +299,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         );
 
         TypedChainTaskExecutor<PersistentTask<?>> chainTaskExecutor = new TypedChainTaskExecutor<>(
-            client.threadPool().executor(executor),
+            executor,
             r -> true,
             // Another process could modify tasks and thus we cannot find them via the allocation_id and name
             // If the task was removed from the node, all is well
@@ -328,7 +329,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
 
         logger.info("Isolating datafeeds: " + datafeedsToIsolate.toString());
         TypedChainTaskExecutor<IsolateDatafeedAction.Response> isolateDatafeedsExecutor = new TypedChainTaskExecutor<>(
-            client.threadPool().executor(executor),
+            executor,
             r -> true,
             ex -> true
         );

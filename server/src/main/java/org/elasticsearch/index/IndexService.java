@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -80,6 +81,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -97,6 +99,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -155,7 +158,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
+    @SuppressWarnings("this-escape")
     public IndexService(
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
@@ -187,9 +192,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Engine.IndexCommitListener indexCommitListener
+        Engine.IndexCommitListener indexCommitListener,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         super(indexSettings);
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
+        assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
+            : "IndexCreationContext.RELOAD_ANALYZERS should only be used when reloading analysers";
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
         this.parserConfiguration = parserConfiguration;
@@ -212,7 +221,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
                 idFieldMapper,
-                scriptService
+                scriptService,
+                documentParsingObserverSupplier
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
@@ -274,7 +284,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public enum IndexCreationContext {
         CREATE_INDEX,
-        METADATA_VERIFICATION
+        METADATA_VERIFICATION,
+        RELOAD_ANALYZERS
     }
 
     public int numberOfShards() {
@@ -650,7 +661,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shardId,
             shardRequestIndex,
             indexSettings,
-            clusterService.getClusterSettings(),
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
             mapperService(),
@@ -1039,7 +1049,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                     && e instanceof ShardNotInPrimaryModeException == false) {
                                     logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
-                            }, ThreadPool.Names.SAME);
+                            }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }
@@ -1055,8 +1065,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         protected final IndexService indexService;
 
-        BaseAsyncTask(final IndexService indexService, final TimeValue interval) {
-            super(indexService.logger, indexService.threadPool, interval, true);
+        BaseAsyncTask(final IndexService indexService, final Executor executor, final TimeValue interval) {
+            super(indexService.logger, indexService.threadPool, executor, interval, true);
             this.indexService = indexService;
             rescheduleIfNecessary();
         }
@@ -1075,12 +1085,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     static final class AsyncTranslogFSync extends BaseAsyncTask {
 
         AsyncTranslogFSync(IndexService indexService) {
-            super(indexService, indexService.getIndexSettings().getTranslogSyncInterval());
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.FLUSH;
+            super(
+                indexService,
+                indexService.threadPool.executor(ThreadPool.Names.FLUSH),
+                indexService.getIndexSettings().getTranslogSyncInterval()
+            );
         }
 
         @Override
@@ -1104,17 +1113,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     static final class AsyncRefreshTask extends BaseAsyncTask {
 
         AsyncRefreshTask(IndexService indexService) {
-            super(indexService, indexService.getIndexSettings().getRefreshInterval());
+            super(
+                indexService,
+                indexService.threadPool.executor(ThreadPool.Names.REFRESH),
+                indexService.getIndexSettings().getRefreshInterval()
+            );
         }
 
         @Override
         protected void runInternal() {
             indexService.maybeRefreshEngine(false);
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.REFRESH;
         }
 
         @Override
@@ -1128,6 +1136,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         AsyncTrimTranslogTask(IndexService indexService) {
             super(
                 indexService,
+                threadPool.generic(),
                 indexService.getIndexSettings()
                     .getSettings()
                     .getAsTime(INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING, TimeValue.timeValueMinutes(10))
@@ -1142,11 +1151,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected void runInternal() {
             indexService.maybeTrimTranslog();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -1180,17 +1184,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         AsyncGlobalCheckpointTask(final IndexService indexService) {
             // index.global_checkpoint_sync_interval is not a real setting, it is only registered in tests
-            super(indexService, GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
+            super(
+                indexService,
+                indexService.getThreadPool().generic(),
+                GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings())
+            );
         }
 
         @Override
         protected void runInternal() {
             indexService.maybeSyncGlobalCheckpoints();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override
@@ -1202,17 +1205,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private static final class AsyncRetentionLeaseSyncTask extends BaseAsyncTask {
 
         AsyncRetentionLeaseSyncTask(final IndexService indexService) {
-            super(indexService, RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
+            super(
+                indexService,
+                indexService.threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings())
+            );
         }
 
         @Override
         protected void runInternal() {
             indexService.syncRetentionLeases();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.MANAGEMENT;
         }
 
         @Override

@@ -1675,18 +1675,18 @@ Provider. The value for this setting should be provided by your OpenID Connect P
 // tag::oidc-op-jwkset-path-tag[]
 `op.jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The path or URL to a JSON Web Key Set with the key material that the OpenID Connect
-Provider uses for signing tokens and claims responses.
-If a path is provided, then it is resolved relative to the {es} config
-directory.
-If a URL is provided, then it must be either a `file` URL or a `https` URL.
-{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
-requests but will attempt to refresh the JWK upon signature verification
+
+The file name or URL to a JSON Web Key Set (JWKS) with the public key material used to verify
+tokens and claims responses signed by the OpenID Connect Provider. A value is considered a file name
+if it does not begin with `https` or `http`. The file name
+is resolved relative to the {es} configuration directory.  Changes to the file are polled
+at a frequency determined by the global {es} `resource.reload.interval.high`
+setting, which defaults to 5 seconds.
++
+If a URL is provided, then it must begin with `https://` or `http://`.
+{es} automatically caches the retrieved JWK and will attempt to refresh the JWK upon signature verification
 failure, as this might indicate that the OpenID Connect Provider has
 rotated the signing keys.
-+
-File-based resources are polled at a frequency determined by the global {es}
-`resource.reload.interval.high` setting, which defaults to 5 seconds.
 // end::oidc-op-jwkset-path-tag[]
 
 `authorization_realms`::
@@ -2266,10 +2266,19 @@ restricts which ones are allowed to submit those JWTs to {es}.
 
 // tag::jwt-client-authentication-shared-secret-tag[]
 `client_authentication.shared_secret` {ess-icon}::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 Secret value string for client authentication.
 Required if `client_authentication.type` is `shared_secret`.
 // end::jwt-client-authentication-shared-secret-tag[]
+
+// tag::jwt-client-authentication-rotation-grace-period-tag[]
+`client_authentication.rotation_grace_period`::
+(<<static-cluster-setting,Static>>)
+Sets the grace period for how long after rotating the `client_authentication.shared_secret`
+is valid. `client_authentication.shared_secret` can be rotated by updating the
+keystore then calling the <<cluster-nodes-reload-secure-settings, reload API>>.
+Defaults to `1m`.
+// end::jwt-client-authentication-rotation-grace-period-tag[]
 
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
@@ -2320,19 +2329,14 @@ for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 // tag::jwt-pkc-jwkset-path-tag[]
 `pkc_jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The file path or URL to a JSON Web Key Set (JWKS) with the public key material that
-the JWT Realm uses for verifying token signatures. If a path is provided,
-then it is resolved relative to the {es} configuration directory. In {ecloud},
-use an absolute path starting with `/app/config/`.
-+
-If a URL is provided, then it must be either a `file` URL or an `https` URL.
-{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
-requests, but will attempt to refresh the JWK upon signature verification
-failure, as this might indicate that the JWT Provider has
+The file name or URL to a JSON Web Key Set (JWKS) with the public key material that
+the JWT Realm uses for verifying token signatures. A value is considered a file name
+if it does not begin with `https`. The file name
+is resolved relative to the {es} configuration directory. If a URL is provided, then
+it must begin with `https://` (`http://` is not supported).
+{es} automatically caches the JWK set and will attempt to refresh the
+JWK set upon signature verification failure, as this might indicate that the JWT Provider has
 rotated the signing keys.
-+
-File-based resources are polled at a frequency determined by the global {es}
-`resource.reload.interval.high` setting, which defaults to `5s`.
 // end::jwt-pkc-jwkset-path-tag[]
 
 // tag::jwt-hmac-jwkset-tag[]
@@ -2418,6 +2422,12 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 // end::jwt-ssl-keystore-type-tag[]
+
+// tag::jwt-ssl-keystore-password-tag[]
+`ssl.keystore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+// end::jwt-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password`::
 (<<secure-settings,Secure>>)
@@ -2568,6 +2578,38 @@ include::ssl-settings.asciidoc[]
 
 include::ssl-settings.asciidoc[]
 
+[[remote-cluster-server-tls-ssl-settings]]
+
+beta::[]
+
+:ssl-prefix:             xpack.security.remote_cluster_server
+:component:              Remote cluster server (API key based model)
+:enabled-by-default:
+:client-auth-default:    none
+:verifies!:
+:server:
+:secure-pass:
+:ssl-context:            security-remote-cluster-server
+:ssl-layer:              remote cluster server networking layer, which {es} uses to communicate with remote cluster clients
+
+include::ssl-settings.asciidoc[]
+
+[[remote-cluster-client-tls-ssl-settings]]
+
+beta::[]
+
+:ssl-prefix:             xpack.security.remote_cluster_client
+:component:              Remote cluster client (API key based model)
+:enabled-by-default:
+:client-auth-default:    none
+:verifies:
+:server!:
+:secure-pass:
+:ssl-context:            security-remote-cluster-client
+:ssl-layer:              remote cluster client networking layer, which {es} uses to communicate with remote cluster servers
+
+include::ssl-settings.asciidoc[]
+
 [[ssl-tls-profile-settings]]
 [discrete]
 ===== Transport profile TLS/SSL settings
@@ -2584,7 +2626,7 @@ setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
 [discrete]
 [[ip-filtering-settings]]
-==== IP filtering settings
+=== IP filtering settings
 You can configure the following settings for <<ip-filtering,IP filtering>>.
 
 `xpack.security.transport.filter.allow`::
@@ -2610,5 +2652,15 @@ List of IP addresses to allow for this profile.
 `transport.profiles.$PROFILE.xpack.security.filter.deny`::
 (<<dynamic-cluster-setting,Dynamic>>)
 List of IP addresses to deny for this profile.
+
+`xpack.security.remote_cluster.filter.allow`::
+(<<dynamic-cluster-setting,Dynamic>>)
+beta:[] List of IP addresses to allow just for the
+<<remote-clusters-api-key,remote cluster server configured with the API key based model>>.
+
+`xpack.security.remote_cluster.filter.deny`::
+(<<dynamic-cluster-setting,Dynamic>>)
+beta:[] List of IP addresses to deny just for the remote cluster server configured with
+the <<remote-clusters-api-key,API key based model>>.
 
 include::security-hash-settings.asciidoc[]

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -43,7 +44,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     private final MlProcessorAutoscalingDecider processorDecider;
 
     private volatile boolean isMaster;
+    private volatile int allocatedProcessorsScale;
 
+    @SuppressWarnings("this-escape")
     public MlAutoscalingDeciderService(
         MlMemoryTracker memoryTracker,
         Settings settings,
@@ -53,6 +56,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         this(new NodeLoadDetector(memoryTracker), settings, nodeAvailabilityZoneMapper, clusterService, System::currentTimeMillis);
     }
 
+    @SuppressWarnings("this-escape")
     MlAutoscalingDeciderService(
         NodeLoadDetector nodeLoadDetector,
         Settings settings,
@@ -69,7 +73,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             scaleTimer
         );
         this.processorDecider = new MlProcessorAutoscalingDecider(scaleTimer);
+        this.allocatedProcessorsScale = MachineLearning.ALLOCATED_PROCESSORS_SCALE.get(settings);
+
         clusterService.addLocalNodeMasterListener(this);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.ALLOCATED_PROCESSORS_SCALE, this::setAllocatedProcessorsScale);
+    }
+
+    void setAllocatedProcessorsScale(int scale) {
+        this.allocatedProcessorsScale = scale;
     }
 
     @Override
@@ -94,7 +106,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         final MlAutoscalingContext mlContext = new MlAutoscalingContext(clusterState);
         final NativeMemoryCapacity currentNativeMemoryCapacity = memoryDecider.currentScale(mlContext.mlNodes);
         final MlMemoryAutoscalingCapacity currentMemoryCapacity = memoryDecider.capacityFromNativeMemory(currentNativeMemoryCapacity);
-        final MlProcessorAutoscalingCapacity currentProcessorCapacity = processorDecider.computeCurrentCapacity(mlContext.mlNodes);
+        final MlProcessorAutoscalingCapacity currentProcessorCapacity = processorDecider.computeCurrentCapacity(
+            mlContext.mlNodes,
+            allocatedProcessorsScale
+        );
 
         final MlScalingReason.Builder reasonBuilder = MlScalingReason.builder(mlContext)
             .setCurrentMlCapacity(
@@ -120,7 +135,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             return downscaleToZero(configuration, context, currentNativeMemoryCapacity, reasonBuilder);
         }
 
-        MlMemoryAutoscalingCapacity memoryCapacity = memoryDecider.scale(configuration, context, mlContext);
+        MlMemoryAutoscalingCapacity memoryCapacity = memoryDecider.scale(configuration, context, mlContext, allocatedProcessorsScale);
         if (memoryCapacity.isUndetermined()) {
             // If we cannot determine memory capacity we shouldn't make any autoscaling decision
             // as it could lead to undesired capacity. For example, it could be that the processor decider decides
@@ -131,7 +146,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 reasonBuilder.setSimpleReason(format("[memory_decider] %s", memoryCapacity.reason())).build()
             );
         }
-        MlProcessorAutoscalingCapacity processorCapacity = processorDecider.scale(configuration, context, mlContext);
+        MlProcessorAutoscalingCapacity processorCapacity = processorDecider.scale(
+            configuration,
+            context,
+            mlContext,
+            allocatedProcessorsScale
+        );
         reasonBuilder.setSimpleReason(
             format("[memory_decider] %s; [processor_decider] %s", memoryCapacity.reason(), processorCapacity.reason())
         );

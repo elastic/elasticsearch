@@ -37,6 +37,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
@@ -69,6 +70,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String MODULES_CONFIGURATION = "clusterModules";
     private static final String PLUGINS_CONFIGURATION = "clusterPlugins";
     private static final String EXTRACTED_PLUGINS_CONFIGURATION = "extractedPlugins";
+    private static final Attribute<String> CONFIGURATION_ATTRIBUTE = Attribute.of("test-cluster-artifacts", String.class);
 
     private final ProviderFactory providerFactory;
 
@@ -249,6 +251,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     private Configuration createPluginConfiguration(Project project, String name, boolean useExploded, boolean isExtended) {
         return project.getConfigurations().create(name, c -> {
+            c.attributes(a -> a.attribute(CONFIGURATION_ATTRIBUTE, name));
             if (useExploded) {
                 c.attributes(a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE));
             } else {

@@ -48,7 +48,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
         writer.forceMerge(1, true);
         List<LeafReaderContext> contexts = refreshReader();
-        final MapperBuilderContext builderContext = MapperBuilderContext.root(false);
+        final MapperBuilderContext builderContext = MapperBuilderContext.root(false, false);
 
         {
             indexService.clearCaches(false, true);

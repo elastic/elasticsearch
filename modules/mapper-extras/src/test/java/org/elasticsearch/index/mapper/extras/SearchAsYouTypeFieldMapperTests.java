@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -60,6 +61,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -165,7 +167,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SearchAsYouTypeFieldMapper rootMapper = getRootFieldMapper(defaultMapper, "field");
-        assertRootFieldMapper(rootMapper, 3, "default");
+        assertSearchAsYouTypeFieldMapper(rootMapper, 3, "default");
 
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "field._index_prefix");
         assertPrefixFieldType(prefixFieldMapper, rootMapper.indexAnalyzers(), 3, "default");
@@ -196,7 +198,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         );
 
         SearchAsYouTypeFieldMapper rootMapper = getRootFieldMapper(defaultMapper, "field");
-        assertRootFieldMapper(rootMapper, maxShingleSize, analyzerName);
+        assertSearchAsYouTypeFieldMapper(rootMapper, maxShingleSize, analyzerName);
 
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "field._index_prefix");
         assertPrefixFieldType(prefixFieldMapper, rootMapper.indexAnalyzers(), maxShingleSize, analyzerName);
@@ -270,6 +272,10 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }));
             assertMultiField(shingleSize, mapperService, "field", "field.text");
+
+            Mapper mapper = mapperService.mappingLookup().getMapper("field");
+            assertThat(mapper, instanceOf(SearchAsYouTypeFieldMapper.class));
+            assertSearchAsYouTypeFieldMapper((SearchAsYouTypeFieldMapper) mapper, size, "default");
         }
     }
 
@@ -674,7 +680,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private static void assertRootFieldMapper(SearchAsYouTypeFieldMapper mapper, int maxShingleSize, String analyzerName) {
+    private static void assertSearchAsYouTypeFieldMapper(SearchAsYouTypeFieldMapper mapper, int maxShingleSize, String analyzerName) {
 
         assertThat(mapper.maxShingleSize(), equalTo(maxShingleSize));
         assertThat(mapper.fieldType(), notNullValue());
@@ -698,6 +704,24 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         final int numberOfShingleSubfields = (maxShingleSize - 2) + 1;
         assertThat(mapper.shingleFields().length, equalTo(numberOfShingleSubfields));
+
+        final Set<String> fieldsUsingSourcePath = new HashSet<>();
+        mapper.sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.name()));
+        int multiFields = 0;
+        for (FieldMapper ignored : mapper.multiFields()) {
+            multiFields++;
+        }
+        assertThat(fieldsUsingSourcePath.size(), equalTo(numberOfShingleSubfields + 1 + multiFields));
+
+        final Set<String> expectedFieldsUsingSourcePath = new HashSet<>();
+        expectedFieldsUsingSourcePath.add(mapper.prefixField().name());
+        for (ShingleFieldMapper shingleFieldMapper : mapper.shingleFields()) {
+            expectedFieldsUsingSourcePath.add(shingleFieldMapper.name());
+        }
+        for (FieldMapper multiField : mapper.multiFields()) {
+            expectedFieldsUsingSourcePath.add(multiField.name());
+        }
+        assertThat(fieldsUsingSourcePath, equalTo(expectedFieldsUsingSourcePath));
     }
 
     private static void assertSearchAsYouTypeFieldType(

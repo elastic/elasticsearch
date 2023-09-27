@@ -148,14 +148,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 } else {
                     managedBy = ManagedBy.UNMANAGED;
                 }
-                backingIndicesSettingsValues.put(
-                    index,
-                    new IndexProperties(
-                        preferIlm,
-                        indexMetadata.getLifecyclePolicyName(),
-                        managedBy
-                    )
-                );
+                backingIndicesSettingsValues.put(index, new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy));
             }
 
             GetDataStreamAction.Response.TimeSeries timeSeries = null;

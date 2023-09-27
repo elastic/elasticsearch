@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -41,13 +39,13 @@ public class StackTemplatesRestIT extends ESRestTestCase {
         // Disable the stack templates
         {
             Request request = new Request("PUT", "_cluster/settings");
-            request.setEntity(new StringEntity("""
+            request.setJsonEntity("""
                 {
                   "persistent": {
                     "stack.templates.enabled": false
                   }
                 }
-                """, ContentType.APPLICATION_JSON));
+                """);
             assertOK(client.performRequest(request));
         }
         Request getRequest = new Request("GET", "_index_template/logs");

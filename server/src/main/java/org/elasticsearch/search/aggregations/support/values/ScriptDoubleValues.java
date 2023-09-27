@@ -11,6 +11,7 @@ import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;
@@ -83,7 +84,7 @@ public class ScriptDoubleValues extends SortingNumericDoubleValues implements Sc
             // make sure of using true/false in the key_as_string field
             return ((Boolean) o).booleanValue() ? 1.0 : 0.0;
         } else {
-            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number, date, or boolean");
+            throw AggregationErrors.unsupportedScriptValue(o == null ? "null" : o.toString());
         }
     }
 

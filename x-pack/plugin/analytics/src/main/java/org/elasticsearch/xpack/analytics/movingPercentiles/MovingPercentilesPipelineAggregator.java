@@ -55,7 +55,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         switch (config.method) {
             case TDIGEST -> reduceTDigest(buckets, histo, newBuckets, factory, config);
             case HDR -> reduceHDR(buckets, histo, newBuckets, factory, config);
-            default -> throw new AggregationExecutionException(
+            default -> throw new IllegalArgumentException(
                 AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                     + " references an unknown percentile aggregation method: ["
                     + config.method

@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.simplify.StreamingGeometrySimplifier;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -288,10 +289,7 @@ class TimeSeriesGeoLineBuckets implements Releasable {
             if (docSortValues.advanceExact(doc)) {
                 // If we get here from TSDB `position` metric, this assertion should have been made during indexing
                 if (docSortValues.docValueCount() > 1) {
-                    throw new AggregationExecutionException(
-                        "Encountered more than one sort value for a "
-                            + "single document. Use a script to combine multiple sort-values-per-doc into a single value."
-                    );
+                    throw AggregationErrors.unsupportedMultivalue();
                 }
                 assert docSortValues.docValueCount() == 1;
                 simplifier.currentSortValue = docSortValues.nextValue();
@@ -306,10 +304,7 @@ class TimeSeriesGeoLineBuckets implements Releasable {
             }
 
             if (docGeoPointValues.docValueCount() > 1) {
-                throw new AggregationExecutionException(
-                    "Encountered more than one geo_point value for a "
-                        + "single document. Use a script to combine multiple geo_point-values-per-doc into a single value."
-                );
+                throw AggregationErrors.unsupportedMultivalue()
             }
 
             final GeoPoint point = docGeoPointValues.nextValue();

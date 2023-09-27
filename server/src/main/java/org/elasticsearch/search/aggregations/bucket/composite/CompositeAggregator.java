@@ -38,6 +38,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -606,11 +607,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public double bucketSize(long bucket, Rounding.DateTimeUnit unit) {
         if (innerSizedBucketAggregators.length != 1) {
-            throw new AggregationExecutionException(
-                "aggregation ["
-                    + name()
-                    + "] does not have exactly one date_histogram value source; exactly one is required when using with rate aggregation"
-            );
+            throw AggregationErrors.rateWithoutDateHistogram(name());
         }
         return innerSizedBucketAggregators[0].bucketSize(bucket, unit);
     }
@@ -618,11 +615,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public double bucketSize(Rounding.DateTimeUnit unit) {
         if (innerSizedBucketAggregators.length != 1) {
-            throw new AggregationExecutionException(
-                "aggregation ["
-                    + name()
-                    + "] does not have exactly one date_histogram value source; exactly one is required when using with rate aggregation"
-            );
+            throw AggregationErrors.rateWithoutDateHistogram(name());
         }
         return innerSizedBucketAggregators[0].bucketSize(unit);
     }

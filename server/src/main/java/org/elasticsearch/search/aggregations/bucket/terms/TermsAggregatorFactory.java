@@ -121,7 +121,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased()) && valuesSourceConfig.format() != DocValueFormat.RAW) {
                 // TODO this exception message is not really accurate for the string case. It's really disallowing regex + formatter
-                throw new AggregationExecutionException(
+                throw new IllegalArgumentException(
                     "Aggregation ["
                         + name
                         + "] cannot support regular expression style "
@@ -170,7 +170,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             metadata) -> {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                throw new AggregationExecutionException(
+                throw new IllegalArgumentException(
                     "Aggregation ["
                         + name
                         + "] cannot support regular expression style "

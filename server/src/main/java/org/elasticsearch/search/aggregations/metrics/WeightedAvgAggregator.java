@@ -77,7 +77,7 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
                 if (docValues.advanceExact(doc) && docWeights.advanceExact(doc)) {
                     if (docWeights.docValueCount() > 1) {
-                        throw new AggregationExecutionException(
+                        throw new IllegalArgumentException(
                             "Encountered more than one weight for a "
                                 + "single document. Use a script to combine multiple weights-per-doc into a single value."
                         );

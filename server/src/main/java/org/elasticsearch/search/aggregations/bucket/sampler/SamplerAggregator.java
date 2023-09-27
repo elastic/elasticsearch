@@ -232,7 +232,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (bdd == null) {
-            throw new AggregationExecutionException("Sampler aggregation must be used with child aggregations.");
+            throw new IllegalArgumentException("Sampler aggregation must be used with child aggregations.");
         }
         return bdd.getLeafCollector(aggCtx);
     }

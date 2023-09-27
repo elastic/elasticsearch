@@ -29,6 +29,7 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -552,6 +553,12 @@ public class BlockFactoryTests extends ESTestCase {
     <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
+        if (data instanceof Block block) {
+            assertThat(block.isReleased(), is(true));
+            Page page = new Page(block);
+            var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+            assertThat(e.getMessage(), containsString("can't read released block"));
+        }
         assertThat(breaker.getUsed(), is(0L));
     }
 

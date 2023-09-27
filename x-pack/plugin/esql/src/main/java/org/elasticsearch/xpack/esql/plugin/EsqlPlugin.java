@@ -77,7 +77,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     );
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
-        "esql.query.result_truncation_max_size",
+        "esql.query.result_truncation_default_size",
         500,
         1,
         10000,

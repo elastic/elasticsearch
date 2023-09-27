@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -79,7 +80,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TOO_OLD;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_CONFIG_TOO_OLD;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -127,7 +128,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             StartDatafeedAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -316,7 +317,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         throw ExceptionsHelper.badRequestException(
             Messages.getMessage(
-                REMOTE_CLUSTERS_TOO_OLD,
+                REMOTE_CLUSTERS_CONFIG_TOO_OLD,
                 minVersion.toString(),
                 reason,
                 Strings.collectionToCommaDelimitedString(clustersTooOld)

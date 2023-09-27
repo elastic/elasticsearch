@@ -27,6 +27,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -47,7 +48,6 @@ import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
@@ -55,11 +55,10 @@ import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
 
@@ -73,16 +72,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(DeleteInferenceModelAction.INSTANCE, TransportDeleteInferenceModelAction.class)
         );
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return InferenceNamedWriteablesProvider.getNamedWriteables();
-    }
-
-    @Override
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Collections.emptyList();
     }
 
     @Override
@@ -121,8 +110,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         IndicesService indicesService
     ) {
         ModelRegistry modelRegistry = new ModelRegistry(client);
-        ServiceRegistry serviceRegistry = new ServiceRegistry(new ElserMlNodeService(client));
-        return List.of(modelRegistry, serviceRegistry);
+        return List.of(modelRegistry);
     }
 
     @Override
@@ -154,5 +142,15 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     @Override
     public String getFeatureDescription() {
         return "Inference plugin for managing inference services and inference";
+    }
+
+    @Override
+    public List<Factory> getInferenceServiceFactories() {
+        return List.of(ElserMlNodeService::new);
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getInferenceServiceNamedWriteables() {
+        return InferenceNamedWriteablesProvider.getNamedWriteables();
     }
 }

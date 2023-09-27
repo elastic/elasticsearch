@@ -378,17 +378,18 @@ public class CsvTests extends ESTestCase {
                 Randomness.shuffle(drivers);
             }
             // Execute the driver
-            DriverRunner runner = new DriverRunner() {
+            DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
                     Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
                 }
             };
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)));
-            future.actionGet(TimeValue.timeValueSeconds(30));
-            var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
-            return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
+            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)).map(ignore -> {
+                var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
+                return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            }));
+            return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
             Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
             assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));

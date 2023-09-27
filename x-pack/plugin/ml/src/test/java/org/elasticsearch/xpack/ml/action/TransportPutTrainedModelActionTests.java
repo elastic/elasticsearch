@@ -215,7 +215,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         assertThat(returnedModel.getResponse().getModelId(), is(trainedModel.getModelId()));
     }
 
-    public void testVerifyMlNodesAndModelArchitectures_GivenArchitecturesMatch_ThenDoNothing() {
+    public void testVerifyMlNodesAndModelArchitectures_GivenIllegalArgumentException_ThenSetHeaderWarning() {
 
         TransportPutTrainedModelAction actionSpy = spy(createTransportPutTrainedModelAction());
         @SuppressWarnings("unchecked")
@@ -228,6 +228,19 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         String warningMessage = "TEST HEADER WARNING";
         failureListener.getValue().onFailure(new IllegalArgumentException(warningMessage));
         assertWarnings(warningMessage);
+    }
+
+    public void testVerifyMlNodesAndModelArchitectures_GivenArchitecturesMatch_ThenDoNothing() {
+
+        TransportPutTrainedModelAction actionSpy = spy(createTransportPutTrainedModelAction());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<Void>> failureListener = ArgumentCaptor.forClass(ActionListener.class);
+
+        doNothing().when(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), any(), any(), any());
+        actionSpy.verifyMlNodesAndModelArchitectures(null, null, threadPool);
+        verify(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), failureListener.capture(), any(), any());
+
+        ensureNoWarnings();
     }
 
     private static void prepareGetTrainedModelResponse(Client client, List<TrainedModelConfig> trainedModels) {

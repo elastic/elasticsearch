@@ -1427,6 +1427,35 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testRegisterCommitForUnpromotableRecovery() throws Exception {
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm)) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+            ClusterState stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            var initialCommits = generateIndexCommits(testHarness, 10);
+            var commit = initialCommits.get(initialCommits.size() - 1);
+            var nodeId = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId();
+
+            commitService.clusterChanged(new ClusterChangedEvent("test", state, stateWithNoSearchShards));
+            // Registration sent to an un-initialized shard
+            var commitToRegister = new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration());
+            PlainActionFuture<PrimaryTermAndGeneration> registerFuture = new PlainActionFuture<>();
+            commitService.registerCommitForUnpromotableRecovery(commitToRegister, shardId, nodeId, state, registerFuture);
+            expectThrows(NoShardAvailableActionException.class, registerFuture::actionGet);
+            // Registering after initialization is done should work
+            for (StatelessCommitRef initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), future);
+            future.actionGet();
+            registerFuture = new PlainActionFuture<>();
+            commitService.registerCommitForUnpromotableRecovery(commitToRegister, shardId, nodeId, state, registerFuture);
+            assertThat(registerFuture.get(), equalTo(commitToRegister));
+        }
+    }
+
     private Set<StaleCompoundCommit> staleCommits(List<StatelessCommitRef> commits, ShardId shardId) {
         return commits.stream().map(commit -> staleCommit(shardId, commit)).collect(Collectors.toSet());
     }

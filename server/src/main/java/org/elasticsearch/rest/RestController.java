@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpServerTransport;
@@ -719,7 +720,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
             this.methodHandlers = methodHandlers;
-            this.startTime = System.currentTimeMillis();
+            this.startTime = rawRelativeTimeInMillis();
         }
 
         @Override
@@ -779,7 +780,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             try {
                 close();
                 methodHandlers.addRequestStats(contentLength);
-                methodHandlers.addResponseTime(System.currentTimeMillis() - startTime);
+                methodHandlers.addResponseTime(rawRelativeTimeInMillis() - startTime);
                 if (response.isChunked() == false) {
                     methodHandlers.addResponseStats(response.content().length());
                 } else {
@@ -795,6 +796,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     releaseOutputBuffer();
                 }
             }
+        }
+
+        private static long rawRelativeTimeInMillis() {
+            return TimeValue.nsecToMSec(System.nanoTime());
         }
 
         private void close() {

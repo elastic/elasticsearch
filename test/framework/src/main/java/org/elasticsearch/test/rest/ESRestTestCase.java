@@ -1879,13 +1879,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".async-search":
             case ".profiling-ilm-lock": // TODO: Remove after switch to K/V indices
             case "saml-service-provider":
-            case "logs":
             case "logs@template":
             case "logs-settings":
             case "logs@settings":
             case "logs-mappings":
             case "logs@mappings":
-            case "metrics":
             case "metrics@template":
             case "metrics-settings":
             case "metrics@settings":
@@ -1893,7 +1891,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics@tsdb-settings":
             case "metrics-mappings":
             case "metrics@mappings":
-            case "synthetics":
             case "synthetics@template":
             case "synthetics-settings":
             case "synthetics@settings":
@@ -1908,7 +1905,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "ecs@dynamic_templates":
             case "ecs@mappings":
             case "search-acl-filter":
-            case ".kibana-reporting":
             case ".kibana-reporting@template":
                 return true;
             default:

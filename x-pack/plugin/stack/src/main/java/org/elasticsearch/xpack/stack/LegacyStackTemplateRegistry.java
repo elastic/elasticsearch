@@ -76,7 +76,6 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-mappings";
     public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs-settings";
     public static final String LOGS_ILM_POLICY_NAME = "logs";
-    public static final String LOGS_INDEX_TEMPLATE_NAME = "logs";
 
     //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
@@ -85,7 +84,6 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-settings";
     public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-tsdb-settings";
     public static final String METRICS_ILM_POLICY_NAME = "metrics";
-    public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
     //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
@@ -93,12 +91,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics-mappings";
     public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics-settings";
     public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics";
-    public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
 
-    ///////////////////////////////////
-    // Kibana reporting template
-    ///////////////////////////////////
-    public static final String KIBANA_REPORTING_INDEX_TEMPLATE_NAME = ".kibana-reporting";
 
     public LegacyStackTemplateRegistry(
         Settings nodeSettings,
@@ -246,25 +239,9 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(LOGS_INDEX_TEMPLATE_NAME, "/logs-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(METRICS_INDEX_TEMPLATE_NAME, "/metrics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(
-            KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
-            "/kibana-reporting-template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE
-        )
-    );
-
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        if (stackTemplateEnabled) {
-            return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
-        } else {
-            return Map.of();
-        }
+        return Map.of();
     }
 
     private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(

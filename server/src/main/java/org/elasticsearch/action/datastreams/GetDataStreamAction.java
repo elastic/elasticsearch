@@ -42,6 +42,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
     public static final GetDataStreamAction INSTANCE = new GetDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/get";
+
     private GetDataStreamAction() {
         super(NAME, Response::new);
     }
@@ -151,7 +152,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             LIFECYCLE("Data stream lifecycle"),
             UNMANAGED("Unmanaged");
 
-            public  final String displayValue;
+            public final String displayValue;
 
             ManagedBy(String displayValue) {
                 this.displayValue = displayValue;
@@ -435,9 +436,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-               out.writeBoolean(preferIlm);
-               out.writeOptionalString(ilmPolicyName);
-               out.writeEnum(managedBy);
+                out.writeBoolean(preferIlm);
+                out.writeOptionalString(ilmPolicyName);
+                out.writeEnum(managedBy);
             }
         }
 

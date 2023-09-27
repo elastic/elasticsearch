@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of IntBlocks.
+ * Builder for {@link IntVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.Builder {

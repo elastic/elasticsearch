@@ -15,7 +15,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
     private final double value;
 
@@ -55,7 +55,7 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(double.class);
+        return RAM_BYTES_USED;
     }
 
     @Override

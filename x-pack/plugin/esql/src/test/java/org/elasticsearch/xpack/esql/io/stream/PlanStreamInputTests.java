@@ -8,7 +8,13 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NameId;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -16,7 +22,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -86,4 +96,54 @@ public class PlanStreamInputTests extends ESTestCase {
         }
         return longs.stream().toList();
     }
+
+    public void testSourceSerialization() {
+        Function<String, String> queryFn = d -> d
+            + "FROM "
+            + d
+            + " test "
+            + d
+            + "| EVAL "
+            + d
+            + " x = CONCAT(first_name, \"baz\")"
+            + d
+            + "| EVAL last_name IN (\"foo\", "
+            + d
+            + " \"bar\")"
+            + d
+            + "| "
+            + d
+            + "WHERE emp_no == abs("
+            + d
+            + "emp_no)"
+            + d;
+
+        for (var delim : new String[] { "", "\r", "\n", "\r\n" }) {
+            String query = queryFn.apply(delim);
+            EsqlConfiguration config = configuration(query);
+
+            LogicalPlan planIn = analyze(query);
+            LogicalPlan planOut = serializeDeserialize(
+                planIn,
+                PlanStreamOutput::writeLogicalPlanNode,
+                PlanStreamInput::readLogicalPlanNode,
+                config
+            );
+            assertThat(planIn, equalTo(planOut));
+
+            Function<LogicalPlan, List<Source>> sources = plan -> {
+                List<Expression> exp = new ArrayList<>();
+                plan.forEachDown(p -> {
+                    if (p instanceof Eval e) {
+                        e.fields().forEach(a -> exp.add(a.child()));
+                    } else if (p instanceof Filter f) {
+                        exp.add(f.condition());
+                    }
+                });
+                return exp.stream().map(Expression::source).toList();
+            };
+            assertThat(sources.apply(planIn), equalTo(sources.apply(planOut)));
+        }
+    }
+
 }

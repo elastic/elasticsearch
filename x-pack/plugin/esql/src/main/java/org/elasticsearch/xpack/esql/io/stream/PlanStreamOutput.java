@@ -53,7 +53,7 @@ public final class PlanStreamOutput extends OutputStreamStreamOutput {
     public void writeSource(Source source) throws IOException {
         writeInt(source.source().getLineNumber());
         writeInt(source.source().getColumnNumber() - 1);
-        writeString(source.text());
+        writeInt(source.text().length());
     }
 
     public void writeExpression(Expression expression) throws IOException {

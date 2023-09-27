@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -64,7 +66,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
-    private EsqlConfiguration configuration;
+    private final EsqlConfiguration configuration;
 
     public PlanStreamInput(
         StreamInput streamInput,
@@ -106,8 +108,38 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
     public Source readSource() throws IOException {
         int line = readInt();
         int column = readInt();
-        String text = readString();
-        return new Source(new Location(line, column), text);
+        int length = readInt();
+        return new Source(new Location(line, column), sourceText(configuration.query(), line, column, length));
+    }
+
+    private static String sourceText(String query, int line, int column, int length) {
+        if (line <= 0 || column <= 0 || query.isEmpty()) {
+            return StringUtils.EMPTY;
+        }
+        int offset = textOffset(query, line, column);
+        if (offset + length > query.length()) {
+            throw new QlIllegalArgumentException(
+                "location [@" + line + ":" + column + "] and length [" + length + "] overrun query size [" + query.length() + "]"
+            );
+        }
+        return query.substring(offset, offset + length);
+    }
+
+    private static int textOffset(String query, int line, int column) {
+        int offset = 0;
+        if (line > 1) {
+            String[] lines = query.split("\n");
+            if (line > lines.length) {
+                throw new QlIllegalArgumentException(
+                    "line location [" + line + "] higher than max [" + lines.length + "] in query [" + query + "]"
+                );
+            }
+            for (int i = 0; i < line - 1; i++) {
+                offset += lines[i].length() + 1; // +1 accounts for the removed \n
+            }
+        }
+        offset += column;
+        return offset;
     }
 
     public Expression readExpression() throws IOException {

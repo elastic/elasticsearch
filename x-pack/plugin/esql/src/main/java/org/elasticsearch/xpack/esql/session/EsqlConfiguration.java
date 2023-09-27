@@ -27,6 +27,8 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     private final Locale locale;
 
+    private final String query;
+
     public EsqlConfiguration(
         ZoneId zi,
         Locale locale,
@@ -34,13 +36,15 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         String clusterName,
         QueryPragmas pragmas,
         int resultTruncationMaxSize,
-        int resultTruncationDefaultSize
+        int resultTruncationDefaultSize,
+        String query
     ) {
         super(zi, username, clusterName);
         this.locale = locale;
         this.pragmas = pragmas;
         this.resultTruncationMaxSize = resultTruncationMaxSize;
         this.resultTruncationDefaultSize = resultTruncationDefaultSize;
+        this.query = query;
     }
 
     public EsqlConfiguration(StreamInput in) throws IOException {
@@ -49,6 +53,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.pragmas = new QueryPragmas(in);
         this.resultTruncationMaxSize = in.readVInt();
         this.resultTruncationDefaultSize = in.readVInt();
+        this.query = in.readString();
     }
 
     @Override
@@ -63,6 +68,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         pragmas.writeTo(out);
         out.writeVInt(resultTruncationMaxSize);
         out.writeVInt(resultTruncationDefaultSize);
+        out.writeString(query);
     }
 
     public QueryPragmas pragmas() {
@@ -81,6 +87,10 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         return locale;
     }
 
+    public String query() {
+        return query;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (super.equals(o)) {
@@ -88,13 +98,14 @@ public class EsqlConfiguration extends Configuration implements Writeable {
             return resultTruncationMaxSize == that.resultTruncationMaxSize
                 && resultTruncationDefaultSize == that.resultTruncationDefaultSize
                 && Objects.equals(pragmas, that.pragmas)
-                && Objects.equals(locale, that.locale);
+                && Objects.equals(locale, that.locale)
+                && Objects.equals(that.query, query);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize, resultTruncationDefaultSize, locale);
+        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize, resultTruncationDefaultSize, locale, query);
     }
 }

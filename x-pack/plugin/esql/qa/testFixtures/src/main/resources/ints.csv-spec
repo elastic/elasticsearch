@@ -482,31 +482,31 @@ y:boolean
 null
 ;
 
-// https://github.com/elastic/elasticsearch/pull/99883#issuecomment-1734828977
+// waiting on https://github.com/elastic/elasticsearch/pull/99926
 // the test is also notable through having the "failing" operation in the filter, which will be part of the fragment sent to a data node
 multipleWarnings-Ignore
-from employees | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
-warning:Line 1:62: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100010000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100020000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100030000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100040000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100050000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100060000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100070000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100080000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100090000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100100000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100110000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100120000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100130000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100140000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100150000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100160000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100170000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100180000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100190000000] out of [integer] range
-warning:Line 1:62: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100200000000] out of [integer] range
+from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
+warning:Line 1:76: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100010000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100020000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100030000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100040000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100050000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100060000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100070000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100080000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100090000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100100000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100110000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100120000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100130000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100140000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100150000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100160000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100170000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100180000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100190000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100200000000] out of [integer] range
 
 x:long
 ;

@@ -64,16 +64,16 @@ public class ProjectOperatorTests extends OperatorTestCase {
         }
 
         var page = new Page(size, blocks);
-        var mask = randomProjection(size);
+        var randomProjection = randomProjection(size);
 
-        var projection = new ProjectOperator(mask);
+        var projection = new ProjectOperator(randomProjection);
         projection.addInput(page);
         var out = projection.getOutput();
-        assertThat(mask.size(), lessThanOrEqualTo(out.getBlockCount()));
+        assertThat(randomProjection.size(), lessThanOrEqualTo(out.getBlockCount()));
 
         for (int i = 0; i < out.getBlockCount(); i++) {
             var block = out.<IntBlock>getBlock(i);
-            assertEquals(block, page.getBlock(mask.get(i)));
+            assertEquals(block, page.getBlock(randomProjection.get(i)));
             block.close();
         }
     }

@@ -20,7 +20,8 @@ import java.util.Set;
 
 public class ProjectOperator extends AbstractPageMappingOperator {
 
-    private final List<Integer> projection;
+    private final Set<Integer> pagesUsed;
+    private final int[] projection;
     private Block[] blocks;
 
     public record ProjectOperatorFactory(List<Integer> projection) implements OperatorFactory {
@@ -37,31 +38,34 @@ public class ProjectOperator extends AbstractPageMappingOperator {
     }
 
     /**
-     * Creates a project that applies the given projection, encoded as an integer list where
+     * Creates an operator that applies the given projection, encoded as an integer list where
      * the ordinal indicates the output order and the value, the backing channel that to be used.
      * Given the input {a,b,c,d}, project {a,d,a} is encoded as {0,3,0}.
      *
      * @param projection list of blocks to keep and their order.
      */
     public ProjectOperator(List<Integer> projection) {
-        this.projection = projection;
+        this.pagesUsed = new HashSet<>(projection);
+        this.projection = projection.stream().mapToInt(Integer::intValue).toArray();
     }
 
     @Override
     protected Page process(Page page) {
-        if (page.getBlockCount() == 0) {
+        var blockCount = page.getBlockCount();
+        if (blockCount == 0) {
             return page;
         }
         if (blocks == null) {
-            blocks = new Block[projection.size()];
+            blocks = new Block[projection.length];
         }
 
         Arrays.fill(blocks, null);
         int b = 0;
-        int positionCount = page.getPositionCount();
-        for (Integer source : projection) {
-            if (source >= page.getBlockCount()) {
-                throw new IllegalArgumentException("Cannot project blocks outside of a Page");
+        for (int source : projection) {
+            if (source >= blockCount) {
+                throw new IllegalArgumentException(
+                    "Cannot project block with index [" + source + "] from a page with size [" + blockCount + "]"
+                );
             }
             var block = page.getBlock(source);
             blocks[b++] = block;
@@ -69,19 +73,17 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         // iterate the blocks to see which one isn't used
         List<Releasable> blocksToRelease = new ArrayList<>();
 
-        Set<Integer> offsets = new HashSet<>(projection);
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            if (offsets.contains(i) == false) {
+        for (int i = 0; i < blockCount; i++) {
+            if (pagesUsed.contains(i) == false) {
                 blocksToRelease.add(page.getBlock(i));
             }
         }
         Releasables.close(blocksToRelease);
-
-        return new Page(positionCount, blocks);
+        return new Page(page.getPositionCount(), blocks);
     }
 
     @Override
     public String toString() {
-        return "ProjectOperator[mask = " + projection + ']';
+        return "ProjectOperator[projection = " + projection + ']';
     }
 }

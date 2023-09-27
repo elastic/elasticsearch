@@ -245,11 +245,13 @@ public class EnrichLookupService {
 
     private static Operator droppingBlockOperator(int totalBlocks, int droppingPosition) {
         var size = totalBlocks - 1;
-        var projections = new ArrayList<Integer>(size);
-        for (int i = 0; i < size; i++) {
-            projections.add(i + (i >= droppingPosition ? 1 : 0));
+        var projection = new ArrayList<Integer>(size);
+        for (int i = 0; i < totalBlocks; i++) {
+            if (i != droppingPosition) {
+                projection.add(i);
+            }
         }
-        return new ProjectOperator(projections);
+        return new ProjectOperator(projection);
     }
 
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {

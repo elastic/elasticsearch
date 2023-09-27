@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,12 +42,15 @@ import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.ModelConfigurations;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class ModelRegistry {
-    public record ModelConfigMap(Map<String, Object> config) {}
+    public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
 
     private static final Logger logger = LogManager.getLogger(ModelRegistry.class);
     private final OriginSettingClient client;
@@ -57,47 +61,61 @@ public class ModelRegistry {
 
     public void getUnparsedModelMap(String modelId, ActionListener<ModelConfigMap> listener) {
         ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
-            if (searchResponse.getHits().getHits().length == 0) {
+            // There should be a hit for the configurations and secrets
+            if (searchResponse.getHits().getHits().length <= 1) {
                 listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
                 return;
             }
 
             var hits = searchResponse.getHits().getHits();
-            assert hits.length == 1;
-            listener.onResponse(new ModelConfigMap(hits[0].getSourceAsMap()));
+            assert hits.length == 2;
+            listener.onResponse(createModelConfigMap(hits, modelId));
 
         }, listener::onFailure);
 
         QueryBuilder queryBuilder = documentIdQuery(modelId);
-        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN).setQuery(queryBuilder).setSize(1).request();
+        SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
+            .setQuery(queryBuilder)
+            .setSize(2)
+            .request();
 
         client.search(modelSearch, searchListener);
     }
 
-    // public void storeModel(ModelConfigurations model, ActionListener<Boolean> listener) {
-    // IndexRequest request = createIndexRequest(
-    // ModelConfigurations.documentId(model.getModelId()),
-    // InferenceIndex.INDEX_NAME,
-    // model,
-    // false
-    // );
-    // request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-    //
-    // client.index(request, ActionListener.wrap(indexResponse -> listener.onResponse(true), e -> {
-    // if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-    // listener.onFailure(new ResourceAlreadyExistsException("Inference model [{}] already exists", model.getModelId()));
-    // } else {
-    // listener.onFailure(
-    // new ElasticsearchStatusException(
-    // "Failed to store inference model [{}]",
-    // RestStatus.INTERNAL_SERVER_ERROR,
-    // e,
-    // model.getModelId()
-    // )
-    // );
-    // }
-    // }));
-    // }
+    private ModelConfigMap createModelConfigMap(SearchHit[] hits, String modelId) {
+        Map<String, SearchHit> mappedHits = Arrays.stream(hits).collect(Collectors.toMap(hit -> {
+            if (hit.getIndex().startsWith(InferenceIndex.INDEX_NAME)) {
+                return InferenceIndex.INDEX_NAME;
+            }
+
+            if (hit.getIndex().startsWith(InferenceSecretsIndex.INDEX_NAME)) {
+                return InferenceSecretsIndex.INDEX_NAME;
+            }
+
+            logger.error(format("Found invalid index for model [%s] at index [%s]", modelId, hit.getIndex()));
+            throw new IllegalArgumentException(
+                format(
+                    "Invalid result while loading model [%s] index: [%s]. Try deleting and reinitializing the service",
+                    modelId,
+                    hit.getIndex()
+                )
+            );
+        }, Function.identity()));
+
+        if (mappedHits.containsKey(InferenceIndex.INDEX_NAME) == false
+            || mappedHits.containsKey(InferenceSecretsIndex.INDEX_NAME) == false
+            || mappedHits.size() > 2) {
+            logger.error(format("Failed to load model [%s], found model parts from index prefixes: [%s]", modelId, mappedHits.keySet()));
+            throw new IllegalStateException(
+                format("Failed to load model, model is in an invalid state [%s]. Try deleting and reinitializing the service", modelId)
+            );
+        }
+
+        return new ModelConfigMap(
+            mappedHits.get(InferenceIndex.INDEX_NAME).getSourceAsMap(),
+            mappedHits.get(InferenceSecretsIndex.INDEX_NAME).getSourceAsMap()
+        );
+    }
 
     public void storeModel(Model model, ActionListener<Boolean> listener) {
         ActionListener<BulkResponse> bulkResponseActionListener = ActionListener.wrap(bulkItemResponses -> {
@@ -138,7 +156,7 @@ public class ModelRegistry {
         configRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         IndexRequest secretsRequest = createIndexRequest(
-            Model.documentId(model.getSecrets().getModelId()),
+            Model.documentId(model.getConfigurations().getModelId()),
             InferenceSecretsIndex.INDEX_NAME,
             model.getSecrets(),
             false

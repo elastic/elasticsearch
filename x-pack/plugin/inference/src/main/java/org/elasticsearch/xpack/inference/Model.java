@@ -33,7 +33,7 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
     }
 
     public Model(ModelConfigurations configurations) {
-        this(configurations, new ModelSecrets(configurations));
+        this(configurations, new ModelSecrets());
 
     }
 

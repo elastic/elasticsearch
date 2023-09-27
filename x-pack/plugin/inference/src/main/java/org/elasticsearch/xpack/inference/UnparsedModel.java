@@ -12,15 +12,15 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.util.Map;
 
-public record UnparsedModel(String modelId, TaskType taskType, String service, Map<String, Object> settings) {
+public record UnparsedModel(String modelId, TaskType taskType, String service, Map<String, Object> settings, Map<String, Object> secrets) {
 
-    public static UnparsedModel unparsedModelFromMap(Map<String, Object> sourceMap) {
-        String modelId = removeStringOrThrowIfNull(sourceMap, ModelConfigurations.MODEL_ID);
-        String service = removeStringOrThrowIfNull(sourceMap, ModelConfigurations.SERVICE);
-        String taskTypeStr = removeStringOrThrowIfNull(sourceMap, TaskType.NAME);
+    public static UnparsedModel unparsedModelFromMap(Map<String, Object> configMap, Map<String, Object> secretsMap) {
+        String modelId = removeStringOrThrowIfNull(configMap, ModelConfigurations.MODEL_ID);
+        String service = removeStringOrThrowIfNull(configMap, ModelConfigurations.SERVICE);
+        String taskTypeStr = removeStringOrThrowIfNull(configMap, TaskType.NAME);
         TaskType taskType = TaskType.fromString(taskTypeStr);
 
-        return new UnparsedModel(modelId, taskType, service, sourceMap);
+        return new UnparsedModel(modelId, taskType, service, configMap, secretsMap);
     }
 
     private static String removeStringOrThrowIfNull(Map<String, Object> sourceMap, String fieldName) {

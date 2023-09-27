@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elser;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.ModelConfigurations;
 import org.elasticsearch.xpack.inference.TaskType;
 
@@ -21,7 +22,7 @@ import static org.mockito.Mockito.mock;
 
 public class ElserMlNodeServiceTests extends ESTestCase {
 
-    public static ModelConfigurations randomModelConfig(String modelId, TaskType taskType) {
+    public static Model randomModelConfig(String modelId, TaskType taskType) {
         return switch (taskType) {
             case SPARSE_EMBEDDING -> new ElserMlNodeModel(
                 modelId,

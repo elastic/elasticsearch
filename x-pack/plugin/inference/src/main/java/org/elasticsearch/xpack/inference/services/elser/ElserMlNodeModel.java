@@ -20,7 +20,7 @@ public class ElserMlNodeModel extends Model {
         ElserMlNodeServiceSettings serviceSettings,
         ElserMlNodeTaskSettings taskSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), null);
+        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings));
     }
 
     @Override

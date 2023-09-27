@@ -9,10 +9,16 @@
 package org.elasticsearch.features;
 
 /**
- * A feature reported that this node has
+ * A feature published by a node.
  */
 public interface NodeFeature {
+    /**
+     * The id of the feature. Must be unique across features.
+     */
     String id();
 
+    /**
+     * The era (ES major version) this feature was first introduced
+     */
     int era();
 }

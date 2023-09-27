@@ -20,22 +20,25 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * Service responsible for registering features this node should publish that it has.
+ * Service responsible for registering features this node should publish to other nodes
  */
 public class FeatureService {
 
+    /**
+     * The set of features that are implied by historical node versions.
+     */
     private static final Map<Version, Set<String>> HISTORICAL_FEATURES = Map.ofEntries();
+    private static final int CURRENT_ERA = Version.CURRENT.major;
 
     private static final NavigableMap<Version, Set<String>> AGGREGATED_FEATURES;
 
     static {
         NavigableMap<Version, Set<String>> consolidated = new TreeMap<>(HISTORICAL_FEATURES);
-        int thisEra = Version.CURRENT.major;
 
         // add in all features from previous versions
         Set<String> aggregatedFeatures = new HashSet<>();
         for (Map.Entry<Version, Set<String>> versions : consolidated.entrySet()) {
-            if (versions.getKey().major < thisEra - 1) continue;    // don't include, its past the valid eras
+            if (versions.getKey().major < CURRENT_ERA - 1) continue;    // don't include, it's before the valid eras
 
             // check the sizes to ensure we haven't got dups
             int sizeBefore = aggregatedFeatures.size();
@@ -44,13 +47,16 @@ public class FeatureService {
                 throw new IllegalStateException("Duplicated feature ids in historical versions list at version" + versions.getKey());
             }
 
-            // make them sorted so they're easier to diagnose
+            // make them sorted so they're easier to look through
             versions.setValue(Collections.unmodifiableNavigableSet(new TreeSet<>(aggregatedFeatures)));
         }
 
         AGGREGATED_FEATURES = Collections.unmodifiableNavigableMap(consolidated);
     }
 
+    /**
+     * Returns the features that are implied by a node with a specified {@code version}.
+     */
     public static Set<String> getHistoricalFeatures(Version version) {
         var features = AGGREGATED_FEATURES.floorEntry(version);
         return features != null ? features.getValue() : Set.of();
@@ -62,9 +68,13 @@ public class FeatureService {
     private record Feature(String id, int era) implements NodeFeature {}
 
     private static boolean isPublishableEra(int era) {
-        return era >= Version.CURRENT.major - 1;
+        return era >= CURRENT_ERA - 1;
     }
 
+    /**
+     * Register a new feature. This should only be called during node initialization.
+     * Once {@link #readPublishableFeatures} is called, no more features can be registered.
+     */
     public NodeFeature registerFeature(String id, int era) {
         // we don't need proper sync here, this is just a sanity check
         if (finalFeatureSet != null) throw new IllegalStateException("The node's feature set has already been read");
@@ -76,6 +86,10 @@ public class FeatureService {
         return new Feature(id, era);
     }
 
+    /**
+     * Returns the set of features published by this node.
+     * This prevents any further modifications to the feature set.
+     */
     public Set<String> readPublishableFeatures() {
         Set<String> finalFeatures = finalFeatureSet;
         if (finalFeatures == null) {

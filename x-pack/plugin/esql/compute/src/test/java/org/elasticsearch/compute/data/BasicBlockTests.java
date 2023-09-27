@@ -904,10 +904,6 @@ public class BasicBlockTests extends ESTestCase {
         releaseAndAssertBreaker(vector);
     }
 
-    // <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
-    // releaseAndAssertBreaker(data, breaker);
-    // }
-
     void releaseAndAssertBreaker(Block... blocks) {
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(blocks);

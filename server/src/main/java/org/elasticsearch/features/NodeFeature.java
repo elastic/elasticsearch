@@ -13,5 +13,6 @@ package org.elasticsearch.features;
  */
 public interface NodeFeature {
     String id();
+
     int era();
 }

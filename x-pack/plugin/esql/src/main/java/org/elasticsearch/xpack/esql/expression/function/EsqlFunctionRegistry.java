@@ -248,14 +248,9 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
         boolean variadic = false;
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-
                 Param paramInfo = params[i].getAnnotation(Param.class);
-
                 String name = paramInfo == null ? params[i].getName() : paramInfo.name();
-
-                if (List.class.isAssignableFrom(params[i].getType())) {
-                    variadic = true;
-                }
+                variadic |= List.class.isAssignableFrom(params[i].getType());
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description();
                 boolean optional = paramInfo == null ? false : paramInfo.optional();

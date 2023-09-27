@@ -93,6 +93,94 @@ trim                     |? trim(arg1:?)                                        
 ;
 
 
+showFunctionsSynopsis
+show functions | keep synopsis;
+
+synopsis:keyword          
+"? abs(n:integer|long|double|unsigned_long)"      
+"? acos(n:integer|long|double|unsigned_long)"     
+"? asin(n:integer|long|double|unsigned_long)"     
+"? atan(n:integer|long|double|unsigned_long)"     
+"? atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       
+? auto_bucket(arg1:?, arg2:?, arg3:?, arg4:?)           
+? avg(arg1:?)                                           
+? case(arg1:?, arg2...:?)                               
+"? ceil(n:integer|long|double|unsigned_long)"     
+? cidr_match(arg1:?, arg2...:?)                         
+? coalesce(arg1:?, arg2...:?)                           
+? concat(arg1:?, arg2...:?)                             
+"? cos(n:integer|long|double|unsigned_long)"      
+"? cosh(n:integer|long|double|unsigned_long)"     
+? count(arg1:?)                                         
+? count_distinct(arg1:?, arg2:?)                        
+? date_extract(arg1:?, arg2:?)                          
+? date_format(arg1:?, arg2:?)                           
+"date date_parse(?datePattern:keyword, dateString:keyword|text)"
+? date_trunc(arg1:?, arg2:?)                            
+? e()                                                   
+? ends_with(arg1:?, arg2:?)                             
+"? floor(n:integer|long|double|unsigned_long)"    
+"? greatest(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        
+? is_finite(arg1:?)                                     
+? is_infinite(arg1:?)                                   
+? is_nan(arg1:?)                                        
+"? least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        
+"? left(string:keyword, length:integer)"                              
+? length(arg1:?)                                        
+"? log10(n:integer|long|double|unsigned_long)"    
+? ltrim(arg1:?)                                         
+? max(arg1:?)                                           
+? median(arg1:?)                                        
+? median_absolute_deviation(arg1:?)                     
+? min(arg1:?)                                           
+? mv_avg(arg1:?)                                        
+? mv_concat(arg1:?, arg2:?)                             
+? mv_count(arg1:?)                                      
+? mv_dedupe(arg1:?)                                     
+? mv_max(arg1:?)                                        
+? mv_median(arg1:?)                                     
+? mv_min(arg1:?)                                        
+? mv_sum(arg1:?)                                        
+? now()                                                 
+? percentile(arg1:?, arg2:?)                            
+? pi()                                                  
+"? pow(base:integer|long|double, exponent:integer|double)" 
+"? right(string:keyword, length:integer)"     
+? round(arg1:?, arg2:?)                                 
+? rtrim(arg1:?)                                         
+"double sin(n:integer|long|double|unsigned_long)" 
+"? sinh(n:integer|long|double|unsigned_long)"
+? split(arg1:?, arg2:?)                                 
+"? sqrt(n:integer|long|double|unsigned_long)"     
+? starts_with(arg1:?, arg2:?)                           
+? substring(arg1:?, arg2:?, arg3:?)                     
+? sum(arg1:?)                                           
+"? tan(n:integer|long|double|unsigned_long)"      
+"? tanh(n:integer|long|double|unsigned_long)"     
+? tau()                                                 
+? to_bool(arg1:?)                                       
+? to_boolean(arg1:?)                                    
+? to_datetime(arg1:?)                                   
+? to_dbl(arg1:?)                                        
+? to_degrees(arg1:?)                                    
+? to_double(arg1:?)                                     
+? to_dt(arg1:?)                                         
+? to_int(arg1:?)                                        
+? to_integer(arg1:?)                                    
+? to_ip(arg1:?)                                         
+? to_long(arg1:?)                                       
+? to_radians(arg1:?)                                    
+"? to_str(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"                 
+"? to_string(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"                 
+? to_ul(arg1:?)                                         
+? to_ulong(arg1:?)                                      
+? to_unsigned_long(arg1:?)                              
+"? to_ver(v:keyword|text|version)"
+"? to_version(v:keyword|text|version)"
+? trim(arg1:?)                                          
+;
+
+
 showFunctionsFiltered
 show functions | where starts_with(name, "is_");
 

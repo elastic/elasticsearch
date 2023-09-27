@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

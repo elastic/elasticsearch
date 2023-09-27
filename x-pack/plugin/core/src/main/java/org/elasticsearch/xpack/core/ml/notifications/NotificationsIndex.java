@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.notifications;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Map;
@@ -24,7 +24,7 @@ public final class NotificationsIndex {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "notifications_index_mappings.json",
-            Version.CURRENT.toString(),
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
             MAPPINGS_VERSION_VARIABLE,
             Map.of("xpack.ml.managed.index.version", Integer.toString(NOTIFICATIONS_INDEX_MAPPINGS_VERSION))
         );

@@ -99,6 +99,7 @@ public class APMAgentSettings {
     }
 
     private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";
+    private static final String TRACING_SETTING_PREFIX = TELEMETRY_SETTING_PREFIX + "tracing.";
 
     /**
      * A list of APM agent config keys that should never be configured by the user.
@@ -126,19 +127,19 @@ public class APMAgentSettings {
     );
 
     public static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
-        TELEMETRY_SETTING_PREFIX + "names.include",
+        TRACING_SETTING_PREFIX + "names.include",
         OperatorDynamic,
         NodeScope
     );
 
     public static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
-        TELEMETRY_SETTING_PREFIX + "names.exclude",
+        TRACING_SETTING_PREFIX + "names.exclude",
         OperatorDynamic,
         NodeScope
     );
 
     public static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
-        TELEMETRY_SETTING_PREFIX + "sanitize_field_names",
+        TRACING_SETTING_PREFIX + "sanitize_field_names",
         List.of(
             "password",
             "passwd",
@@ -158,7 +159,7 @@ public class APMAgentSettings {
     );
 
     public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
-        TELEMETRY_SETTING_PREFIX + "tracing.enabled",
+        TRACING_SETTING_PREFIX + "enabled",
         false,
         OperatorDynamic,
         NodeScope

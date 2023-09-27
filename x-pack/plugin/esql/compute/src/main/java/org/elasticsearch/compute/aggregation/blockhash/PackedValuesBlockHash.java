@@ -238,6 +238,11 @@ final class PackedValuesBlockHash extends BlockHash {
         return keyBlocks;
     }
 
+    @Override
+    public long size() {
+        return bytesRefHash.size();
+    }
+
     private void readKeys(BatchEncoder.Decoder[] decoders, Block.Builder[] builders, BytesRef[] nulls, BytesRef[] values, int count) {
         for (int g = 0; g < builders.length; g++) {
             int nullByte = g / 8;

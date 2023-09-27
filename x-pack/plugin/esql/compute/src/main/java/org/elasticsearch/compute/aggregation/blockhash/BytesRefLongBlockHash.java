@@ -179,6 +179,11 @@ final class BytesRefLongBlockHash extends BlockHash {
     }
 
     @Override
+    public long size() {
+        return finalHash.size();
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(0, Math.toIntExact(finalHash.size())).seenGroupIds(bigArrays);
     }

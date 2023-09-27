@@ -39,7 +39,12 @@ public class HashAggregationOperator implements Operator {
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new HashAggregationOperator(aggregators, () -> BlockHash.build(groups, bigArrays, maxPageSize, false), driverContext);
+            return new HashAggregationOperator(
+                aggregators,
+                () -> BlockHash.build(groups, bigArrays, maxPageSize, false),
+                maxPageSize,
+                driverContext
+            );
         }
 
         @Override
@@ -52,26 +57,39 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    private boolean finished;
+    private boolean doneCollecting;
+    private boolean doneEmitting;
+
+    private final boolean chunkOutput;
     private Page output;
 
-    private final BlockHash blockHash;
+    private BlockHash blockHash;
+    private final Supplier<BlockHash> blockHashSupplier;
+    private final int maxPageSize;
 
     private final List<GroupingAggregator> aggregators;
+    private final List<GroupingAggregator.Factory> aggregatorFactories;
+    private final DriverContext driverContext;
 
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
-        List<GroupingAggregator.Factory> aggregators,
-        Supplier<BlockHash> blockHash,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        Supplier<BlockHash> blockHashSupplier,
+        int maxPageSize,
         DriverContext driverContext
     ) {
-        this.aggregators = new ArrayList<>(aggregators.size());
+        this.aggregatorFactories = aggregatorFactories;
+        this.maxPageSize = maxPageSize;
+        this.driverContext = driverContext;
         boolean success = false;
         try {
-            this.blockHash = blockHash.get();
-            for (GroupingAggregator.Factory a : aggregators) {
+            this.aggregators = new ArrayList<>(aggregatorFactories.size());
+            this.blockHashSupplier = blockHashSupplier;
+            this.blockHash = blockHashSupplier.get();
+            for (GroupingAggregator.Factory a : aggregatorFactories) {
                 this.aggregators.add(a.apply(driverContext));
             }
+            this.chunkOutput = aggregators.isEmpty() == false && aggregators.stream().allMatch(GroupingAggregator::isOutputPartial);
             success = true;
         } finally {
             if (success == false) {
@@ -82,12 +100,13 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return doneCollecting == false && output == null;
     }
 
     @Override
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
+        checkState(output == null, "Pending output");
         requireNonNull(page, "page is null");
 
         GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
@@ -115,39 +134,61 @@ public class HashAggregationOperator implements Operator {
                 }
             }
         });
+        if (chunkOutput && blockHash.size() >= maxPageSize) {
+            output = emitPage();
+            // TODO: reuse the BlockHash and Aggregators
+            blockHash = blockHashSupplier.get();
+            for (GroupingAggregator.Factory a : aggregatorFactories) {
+                this.aggregators.add(a.apply(driverContext));
+            }
+        }
     }
 
     @Override
     public Page getOutput() {
-        Page p = output;
-        output = null;
-        return p;
+        if (output != null) {
+            Page p = output;
+            output = null;
+            return p;
+        }
+        if (doneCollecting && doneEmitting == false) {
+            doneEmitting = true;
+            return emitPage();
+        }
+        return null;
+    }
+
+    private Page emitPage() {
+        try {
+            Block[] keys = blockHash.getKeys();
+            IntVector selected = blockHash.nonEmpty();
+
+            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+            Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
+            System.arraycopy(keys, 0, blocks, 0, keys.length);
+            int offset = keys.length;
+            for (int i = 0; i < aggregators.size(); i++) {
+                var aggregator = aggregators.get(i);
+                aggregator.evaluate(blocks, offset, selected);
+                offset += aggBlockCounts[i];
+            }
+            return new Page(blocks);
+        } finally {
+            Releasables.close(blockHash, () -> Releasables.close(aggregators), () -> {
+                this.blockHash = null;
+                aggregators.clear();
+            });
+        }
     }
 
     @Override
     public void finish() {
-        if (finished) {
-            return;
-        }
-        finished = true;
-        Block[] keys = blockHash.getKeys();
-        IntVector selected = blockHash.nonEmpty();
-
-        int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-        Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-        System.arraycopy(keys, 0, blocks, 0, keys.length);
-        int offset = keys.length;
-        for (int i = 0; i < aggregators.size(); i++) {
-            var aggregator = aggregators.get(i);
-            aggregator.evaluate(blocks, offset, selected);
-            offset += aggBlockCounts[i];
-        }
-        output = new Page(blocks);
+        doneCollecting = true;
     }
 
     @Override
     public boolean isFinished() {
-        return finished && output == null;
+        return doneEmitting && output == null;
     }
 
     @Override

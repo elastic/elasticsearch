@@ -107,6 +107,11 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     @Override
+    public long size() {
+        return bytesRefHash.size() + (seenNull ? 1 : 0);
+    }
+
+    @Override
     public IntVector nonEmpty() {
         return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(bytesRefHash.size() + 1));
     }

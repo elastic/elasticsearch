@@ -17,12 +17,17 @@ import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongGroupingAggregatorFunctionTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
@@ -38,6 +43,10 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+        return operatorFactory(bigArrays, mode, randomPageSize());
+    }
+
+    private Operator.OperatorFactory operatorFactory(BigArrays bigArrays, AggregatorMode mode, int maxPageSize) {
         List<Integer> sumChannels, maxChannels;
         if (mode.isInputPartial()) {
             int sumChannelCount = SumLongAggregatorFunction.intermediateStateDesc().size();
@@ -54,7 +63,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 new SumLongAggregatorFunctionSupplier(bigArrays, sumChannels).groupingAggregatorFactory(mode),
                 new MaxLongAggregatorFunctionSupplier(bigArrays, maxChannels).groupingAggregatorFactory(mode)
             ),
-            randomPageSize(),
+            maxPageSize,
             bigArrays
         );
     }
@@ -93,5 +102,57 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         return ByteSizeValue.ofBytes(between(1, 32));
+    }
+
+    public void testChunkIntermediateOutput() {
+        BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        int maxPageSize = randomIntBetween(2, 100);
+        var partialHashFactory = operatorFactory(BigArrays.NON_RECYCLING_INSTANCE, AggregatorMode.INITIAL, maxPageSize);
+        var finalHashFactory = operatorFactory(BigArrays.NON_RECYCLING_INSTANCE, AggregatorMode.FINAL, maxPageSize);
+        var partialHashOperator = partialHashFactory.get(new DriverContext(bigArrays, BlockFactory.getNonBreakingInstance()));
+        var finalHashOperator = finalHashFactory.get(new DriverContext(bigArrays, BlockFactory.getNonBreakingInstance()));
+        final Set<Long> partialKeys = new HashSet<>();
+        final Map<Long, Long> expectedSums = new HashMap<>();
+
+        int iters = randomIntBetween(1, 100);
+        for (int i = 0; i < iters; i++) {
+            int positions = between(1, maxPageSize * 2);
+            LongBlock.Builder b1 = LongBlock.newBlockBuilder(positions);
+            LongBlock.Builder b2 = LongBlock.newBlockBuilder(positions);
+            for (int p = 0; p < positions; p++) {
+                long k = randomIntBetween(1, 1000);
+                long v = randomIntBetween(1, 1000);
+                b1.appendLong(k);
+                b2.appendLong(v);
+                partialKeys.add(k);
+                expectedSums.merge(k, v, Long::sum);
+            }
+            Page p = new Page(b1.build(), b2.build());
+            partialHashOperator.addInput(p);
+            assertThat(partialHashOperator.needsInput(), equalTo(partialKeys.size() < maxPageSize));
+            Page intermediateOutput = partialHashOperator.getOutput();
+            assertTrue(partialHashOperator.needsInput());
+            if (partialKeys.size() >= maxPageSize) {
+                assertNotNull(intermediateOutput);
+                partialKeys.clear();
+                finalHashOperator.addInput(intermediateOutput);
+            } else {
+                assertNull(intermediateOutput);
+            }
+            assertFalse(partialHashOperator.isFinished());
+        }
+        partialHashOperator.finish();
+        assertFalse(partialHashOperator.isFinished());
+        finalHashOperator.addInput(partialHashOperator.getOutput());
+        assertTrue(partialHashOperator.isFinished());
+        finalHashOperator.finish();
+        Page finalOutput = finalHashOperator.getOutput();
+        LongBlock b0 = finalOutput.getBlock(0);
+        LongBlock b1 = finalOutput.getBlock(1);
+        Map<Long, Long> actualSums = new HashMap<>();
+        for (int i = 0; i < finalOutput.getPositionCount(); i++) {
+            actualSums.put(b0.getLong(i), b1.getLong(i));
+        }
+        assertThat(actualSums, equalTo(expectedSums));
     }
 }

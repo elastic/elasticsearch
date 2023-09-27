@@ -214,9 +214,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             List<GroupingAggregator.Factory> aggregators,
             Supplier<BlockHash> blockHash,
             String columnName,
+            int maxPageSize,
             DriverContext driverContext
         ) {
-            super(aggregators, blockHash, driverContext);
+            super(aggregators, blockHash, maxPageSize, driverContext);
             this.columnName = columnName;
         }
 
@@ -264,6 +265,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     false
                 ),
                 columnName,
+                pageSize,
                 driverContext
             );
         }

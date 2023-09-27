@@ -142,9 +142,11 @@ public class AggregatorBenchmark {
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
         DriverContext driverContext = driverContext();
+        int maxPageSize = 16 * 1024;
         return new HashAggregationOperator(
             List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
-            () -> BlockHash.build(groups, BIG_ARRAYS, 16 * 1024, false),
+            () -> BlockHash.build(groups, BIG_ARRAYS, maxPageSize, false),
+            maxPageSize,
             driverContext
         );
     }

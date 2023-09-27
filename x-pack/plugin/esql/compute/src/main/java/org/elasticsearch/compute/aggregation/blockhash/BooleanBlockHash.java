@@ -73,6 +73,17 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     @Override
+    public long size() {
+        int size = 0;
+        for (boolean b : everSeen) {
+            if (b) {
+                size++;
+            }
+        }
+        return size;
+    }
+
+    @Override
     public IntVector nonEmpty() {
         IntVector.Builder builder = IntVector.newVectorBuilder(everSeen.length);
         for (int i = 0; i < everSeen.length; i++) {

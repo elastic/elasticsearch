@@ -194,6 +194,11 @@ final class LongLongBlockHash extends BlockHash {
     }
 
     @Override
+    public long size() {
+        return hash.size();
+    }
+
+    @Override
     public IntVector nonEmpty() {
         return IntVector.range(0, Math.toIntExact(hash.size()));
     }

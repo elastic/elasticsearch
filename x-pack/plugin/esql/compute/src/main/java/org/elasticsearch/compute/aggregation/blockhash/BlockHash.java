@@ -46,6 +46,11 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     public abstract Block[] getKeys();
 
     /**
+     * The number of keys in this {@link BlockHash}
+     */
+    public abstract long size();
+
+    /**
      * The grouping ids that are not empty. We use this because some block hashes reserve
      * space for grouping ids and then don't end up using them. For example,
      * {@link BooleanBlockHash} does this by always assigning {@code false} to {@code 0}

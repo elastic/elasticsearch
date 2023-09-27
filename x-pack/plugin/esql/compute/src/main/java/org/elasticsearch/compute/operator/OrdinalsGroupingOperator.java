@@ -87,6 +87,8 @@ public class OrdinalsGroupingOperator implements Operator {
     private final int maxPageSize;
     private ValuesAggregator valuesAggregator;
 
+    private Page output;
+
     public OrdinalsGroupingOperator(
         List<ValueSourceInfo> sources,
         int docChannel,
@@ -115,12 +117,13 @@ public class OrdinalsGroupingOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return finished == false && output == null;
     }
 
     @Override
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
+        checkState(output == null, "pending output");
         requireNonNull(page, "page is null");
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         if (docVector.getPositionCount() == 0) {
@@ -170,7 +173,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     driverContext
                 );
             }
-            valuesAggregator.addInput(page);
+            output = valuesAggregator.addInput(page);
         }
     }
 
@@ -192,11 +195,17 @@ public class OrdinalsGroupingOperator implements Operator {
 
     @Override
     public Page getOutput() {
+        if (output != null) {
+            Page p = output;
+            output = null;
+            return p;
+        }
         if (finished == false) {
             return null;
         }
         if (valuesAggregator != null) {
             try {
+                valuesAggregator.finish();
                 return valuesAggregator.getOutput();
             } finally {
                 final ValuesAggregator aggregator = this.valuesAggregator;
@@ -219,9 +228,6 @@ public class OrdinalsGroupingOperator implements Operator {
     @Override
     public void finish() {
         finished = true;
-        if (valuesAggregator != null) {
-            valuesAggregator.finish();
-        }
     }
 
     private Page mergeOrdinalsSegmentResults() throws IOException {
@@ -276,7 +282,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && valuesAggregator == null && ordinalAggregators.isEmpty();
+        return finished && valuesAggregator == null && ordinalAggregators.isEmpty() && output == null;
     }
 
     @Override
@@ -423,16 +429,18 @@ public class OrdinalsGroupingOperator implements Operator {
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
                 () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays, maxPageSize, false),
+                maxPageSize,
                 driverContext
             );
         }
 
-        void addInput(Page page) {
+        Page addInput(Page page) {
             extractor.addInput(page);
             Page out = extractor.getOutput();
             if (out != null) {
                 aggregator.addInput(out);
             }
+            return aggregator.getOutput();
         }
 
         void finish() {

@@ -96,6 +96,11 @@ final class LongBlockHash extends BlockHash {
     }
 
     @Override
+    public long size() {
+        return longHash.size() + (seenNull ? 1 : 0);
+    }
+
+    @Override
     public IntVector nonEmpty() {
         return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1));
     }

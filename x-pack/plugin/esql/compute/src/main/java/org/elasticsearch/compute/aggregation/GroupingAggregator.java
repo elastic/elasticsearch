@@ -68,11 +68,15 @@ public class GroupingAggregator implements Releasable {
      *                 the results. Always ascending.
      */
     public void evaluate(Block[] blocks, int offset, IntVector selected) {
-        if (mode.isOutputPartial()) {
+        if (isOutputPartial()) {
             aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
         } else {
             aggregatorFunction.evaluateFinal(blocks, offset, selected);
         }
+    }
+
+    public boolean isOutputPartial() {
+        return mode.isOutputPartial();
     }
 
     @Override

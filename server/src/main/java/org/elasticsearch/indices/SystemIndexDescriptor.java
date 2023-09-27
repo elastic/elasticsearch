@@ -281,7 +281,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat) {
                 throw new IllegalArgumentException("Descriptor index format does not match index format in managed settings");
             }
-            this.mappingsNodeVersion = extractNodeVersionFromMappings(mappings, mappingsNodeVersionMetaKey);
+            this.mappingsNodeVersion = bestEffortExtractNodeVersionFromMappings(mappings, mappingsNodeVersionMetaKey);
             this.mappingsVersion = extractVersionFromMappings(mappings);
             assert mappingsVersion.version >= 0 : "The mappings version must not be negative";
 
@@ -951,6 +951,24 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             throw new IllegalArgumentException("mappings do not have a version in _meta." + VERSION_META_KEY);
         }
         return new MappingsVersion(value, Objects.hash(properties));
+    }
+
+    /**
+     * An accurate node version is no longer required in system index mappings metadata.
+     * because the mappings version should be used to determine if an upgrade is required,
+     * not the node version. However, some parts of the code are still relying on
+     * <code>mappingsNodeVersion</code>. This method allows sections of the code to stop
+     * accurately setting node version in their mappings while other sections continue to
+     * use it. Once all uses of <code>mappingsNodeVersion</code> are removed this method
+     * can be removed too.
+     */
+    @Deprecated
+    private static Version bestEffortExtractNodeVersionFromMappings(String mappings, String versionMetaKey) {
+        try {
+            return extractNodeVersionFromMappings(mappings, versionMetaKey);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @SuppressWarnings("unchecked")

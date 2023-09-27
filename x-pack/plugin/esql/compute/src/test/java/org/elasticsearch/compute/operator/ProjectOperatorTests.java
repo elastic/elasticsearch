@@ -74,8 +74,9 @@ public class ProjectOperatorTests extends OperatorTestCase {
         for (int i = 0; i < out.getBlockCount(); i++) {
             var block = out.<IntBlock>getBlock(i);
             assertEquals(block, page.getBlock(randomProjection.get(i)));
-            block.close();
         }
+        // close all blocks separately since the same block can be used by multiple columns (aliased)
+        out.releaseBlocks();
     }
 
     private List<Integer> randomProjection(int size) {

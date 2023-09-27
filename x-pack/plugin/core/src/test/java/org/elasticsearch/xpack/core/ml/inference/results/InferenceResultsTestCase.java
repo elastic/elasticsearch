@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;

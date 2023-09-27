@@ -7,22 +7,47 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantIntVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.BitSet;
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ProjectOperatorTests extends OperatorTestCase {
+
+    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+
+    @Before
+    @After
+    public void assertBreakerIsZero() {
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    @Override
+    protected DriverContext driverContext() {
+        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+    }
+
     public void testProjectionOnEmptyPage() {
         var page = new Page(0);
         var projection = new ProjectOperator(randomMask(randomIntBetween(2, 10)));
@@ -34,7 +59,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
         var size = randomIntBetween(2, 5);
         var blocks = new Block[size];
         for (int i = 0; i < blocks.length; i++) {
-            blocks[i] = new ConstantIntVector(i, size).asBlock();
+            blocks[i] = blockFactory.newConstantIntBlockWith(i, size);
         }
 
         var page = new Page(size, blocks);
@@ -52,6 +77,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
             assertTrue(mask.get(shouldBeSetInMask));
             lastSetIndex = mask.nextSetBit(lastSetIndex + 1);
             assertEquals(shouldBeSetInMask, lastSetIndex);
+            block.close();
         }
     }
 
@@ -65,7 +91,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
 
     @Override
     protected SourceOperator simpleInput(int end) {
-        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+        return new TupleBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
     @Override
@@ -105,5 +131,12 @@ public class ProjectOperatorTests extends OperatorTestCase {
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         assumeTrue("doesn't use big arrays so can't break", false);
         return null;
+    }
+
+    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        return breakerService;
     }
 }

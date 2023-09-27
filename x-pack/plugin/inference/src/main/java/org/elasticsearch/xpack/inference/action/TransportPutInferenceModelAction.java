@@ -19,16 +19,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.inference.Model;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
-import org.elasticsearch.xpack.inference.services.InferenceService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,7 +38,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     PutInferenceModelAction.Response> {
 
     private final ModelRegistry modelRegistry;
-    private final ServiceRegistry serviceRegistry;
+    private final InferenceServiceRegistry serviceRegistry;
 
     @Inject
     public TransportPutInferenceModelAction(
@@ -48,7 +48,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ModelRegistry modelRegistry,
-        ServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry
     ) {
         super(
             PutInferenceModelAction.NAME,

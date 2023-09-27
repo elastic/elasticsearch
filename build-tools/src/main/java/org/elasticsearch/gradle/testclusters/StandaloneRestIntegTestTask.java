@@ -33,7 +33,7 @@ import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.THROTTLE_
  * {@link Nested} inputs.
  */
 @CacheableTask
-public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
+public abstract class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();
     private boolean debugServer = false;

@@ -17,7 +17,6 @@ import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,7 +37,6 @@ public class IdleConnectionEvictor {
 
     private final ThreadPool threadPool;
     private final NHttpClientConnectionManager connectionManager;
-    // private final Thread thread;
     private final TimeValue sleepTime;
     private final TimeValue maxIdleTime;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -56,61 +54,7 @@ public class IdleConnectionEvictor {
         this.maxIdleTime = maxIdleTime;
     }
 
-    // public IdleConnectionEvictor(
-    // final NHttpClientConnectionManager connectionManager,
-    // final ThreadFactory threadFactory,
-    // final long sleepTime,
-    // final TimeUnit sleepTimeUnit,
-    // final long maxIdleTime,
-    // final TimeUnit maxIdleTimeUnit
-    // ) {
-    // this.connectionManager = Objects.requireNonNull(connectionManager);
-    // this.threadFactory = threadFactory != null ? threadFactory : new DefaultThreadFactory();
-    // this.sleepTimeMs = sleepTimeUnit != null ? sleepTimeUnit.toMillis(sleepTime) : sleepTime;
-    // this.maxIdleTimeMs = maxIdleTimeUnit != null ? maxIdleTimeUnit.toMillis(maxIdleTime) : maxIdleTime;
-    // this.thread = this.threadFactory.newThread(() -> {
-    // try {
-    // while (Thread.currentThread().isInterrupted() == false) {
-    // Thread.sleep(sleepTimeMs);
-    // connectionManager.closeExpiredConnections();
-    // if (maxIdleTimeMs > 0) {
-    // connectionManager.closeIdleConnections(maxIdleTimeMs, TimeUnit.MILLISECONDS);
-    // }
-    // }
-    // } catch (final Exception ex) {
-    // exception = ex;
-    // }
-    //
-    // });
-    // }
-    //
-    // public IdleConnectionEvictor(
-    // final HttpClientConnectionManager connectionManager,
-    // final long sleepTime,
-    // final TimeUnit sleepTimeUnit,
-    // final long maxIdleTime,
-    // final TimeUnit maxIdleTimeUnit
-    // ) {
-    // this(connectionManager, null, sleepTime, sleepTimeUnit, maxIdleTime, maxIdleTimeUnit);
-    // }
-    //
-    // public IdleConnectionEvictor(
-    // final HttpClientConnectionManager connectionManager,
-    // final long maxIdleTime,
-    // final TimeUnit maxIdleTimeUnit
-    // ) {
-    // this(
-    // connectionManager,
-    // null,
-    // maxIdleTime > 0 ? maxIdleTime : 5,
-    // maxIdleTimeUnit != null ? maxIdleTimeUnit : TimeUnit.SECONDS,
-    // maxIdleTime,
-    // maxIdleTimeUnit
-    // );
-    // }
-
     public void start() {
-        // thread.start();
         if (running.compareAndSet(false, true)) {
             startInternal();
         }
@@ -120,7 +64,6 @@ public class IdleConnectionEvictor {
         threadFuture = threadPool.executor(UTILITY_THREAD_POOL_NAME).submit(() -> {
             logger.debug("HTTP connection eviction thread starting");
             try {
-                // while (Thread.currentThread().isInterrupted() == false) {
                 while (running.get()) {
                     Thread.sleep(sleepTime.millis());
                     connectionManager.closeExpiredConnections();
@@ -140,7 +83,6 @@ public class IdleConnectionEvictor {
     }
 
     public void shutdown() {
-        // thread.interrupt();
         running.set(false);
     }
 
@@ -152,32 +94,18 @@ public class IdleConnectionEvictor {
     }
 
     public boolean isRunning() {
-        // return thread.isAlive();
         return running.get();
     }
 
-    // public void awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
     public void awaitTermination(long timeout, TimeUnit unit) throws TimeoutException {
         if (threadFuture == null) {
             return;
         }
 
-        // thread.join(timeout.millis());
         try {
             threadFuture.get(timeout, unit);
         } catch (CancellationException | InterruptedException | ExecutionException e) {
-            // ignore
+            logger.warn("The connection evictor received an exception while waiting for termination", e);
         }
     }
-
-    static class DefaultThreadFactory implements ThreadFactory {
-
-        @Override
-        public Thread newThread(final Runnable r) {
-            final Thread t = new Thread(r, "Connection evictor");
-            t.setDaemon(true);
-            return t;
-        }
-
-    };
 }

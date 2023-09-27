@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.concurrent.FutureCallback;
@@ -22,20 +21,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -54,7 +44,6 @@ public class HttpClient implements Closeable {
         STOPPED
     }
 
-    private final ByteSizeValue maxResponseSize;
     private final int maxConnections;
     private final CloseableHttpAsyncClient client;
     private final IdleConnectionEvictor connectionEvictor;
@@ -65,7 +54,6 @@ public class HttpClient implements Closeable {
     public HttpClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
-        this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
         this.maxConnections = HttpSettings.MAX_CONNECTIONS.get(settings);
 
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager();
@@ -111,29 +99,35 @@ public class HttpClient implements Closeable {
         SocketAccess.doPrivileged(() -> client.execute(request, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
-                handleResponse(response, listener);
+                respondUsingUtilityThread(response, request, listener);
             }
 
             @Override
             public void failed(Exception ex) {
-                listener.onFailure(ex);
+                logger.error(format("Request [%s] failed", request.getRequestLine()), ex);
+                failUsingUtilityThread(ex, listener);
             }
 
             @Override
             public void cancelled() {
-                listener.onFailure(new CancellationException(format("Request [%s] was cancelled", request.getRequestLine())));
+                failUsingUtilityThread(new CancellationException(format("Request [%s] was cancelled", request.getRequestLine())), listener);
             }
         }));
     }
 
-    private void handleResponse(HttpResponse response, ActionListener<HttpResult> listener) {
+    private void respondUsingUtilityThread(HttpResponse response, HttpUriRequest request, ActionListener<HttpResult> listener) {
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
                 listener.onResponse(HttpResult.create(settings, response));
             } catch (Exception e) {
+                logger.error(format("Failed to create http result for [%s]", request.getRequestLine()), e);
                 listener.onFailure(e);
             }
         });
+    }
+
+    private void failUsingUtilityThread(Exception exception, ActionListener<HttpResult> listener) {
+        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
     }
 
     private void start() {
@@ -141,40 +135,6 @@ public class HttpClient implements Closeable {
             client.start();
             connectionEvictor.start();
         }
-    }
-
-    private byte[] body(HttpResponse response) throws IOException {
-        if (response.getEntity() == null) {
-            return new byte[0];
-        }
-
-        final byte[] body;
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            try (InputStream is = new SizeLimitInputStream(maxResponseSize, response.getEntity().getContent())) {
-                Streams.copy(is, outputStream);
-            }
-            body = outputStream.toByteArray();
-        }
-
-        return body;
-    }
-
-    private Map<String, List<String>> headers(HttpResponse response) {
-        Header[] headers = response.getAllHeaders();
-        Map<String, List<String>> responseHeaders = Maps.newMapWithExpectedSize(headers.length);
-
-        for (Header header : headers) {
-            if (responseHeaders.containsKey(header.getName())) {
-                List<String> headerValues = responseHeaders.get(header.getName());
-                headerValues.add(header.getValue());
-            } else {
-                ArrayList<String> values = new ArrayList<>();
-                values.add(header.getValue());
-                responseHeaders.put(header.getName(), values);
-            }
-        }
-
-        return responseHeaders;
     }
 
     @Override

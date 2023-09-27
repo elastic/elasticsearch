@@ -97,7 +97,6 @@ public class OpenAiEmbeddingsService implements InferenceService {
 
         OpenAiEmbeddingsAction action = getOpenAiEmbeddingsAction(openAiModel.getServiceSettings(), taskSettings, input);
         action.execute(listener);
-        // threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> action.execute(listener));
     }
 
     private OpenAiEmbeddingsAction getOpenAiEmbeddingsAction(

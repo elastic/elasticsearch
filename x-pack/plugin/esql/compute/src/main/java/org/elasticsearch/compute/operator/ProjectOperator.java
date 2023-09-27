@@ -9,9 +9,13 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.List;
 
 public class ProjectOperator extends AbstractPageMappingOperator {
 
@@ -52,15 +56,28 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         Arrays.fill(blocks, null);
         int b = 0;
         int positionCount = page.getPositionCount();
-        for (int i = bs.nextSetBit(0); i >= 0 && i < page.getBlockCount(); i = bs.nextSetBit(i + 1)) {
+        List<Releasable> blocksToRelease = new ArrayList<>();
+        for (int i = 0; i < page.getBlockCount(); i++) {
             var block = page.getBlock(i);
-            blocks[b++] = block;
+            if (bs.get(i)) {
+                assertNotReleasing(blocksToRelease, block);
+                blocks[b++] = block;
+            } else {
+                blocksToRelease.add(block);
+            }
         }
+        Releasables.close(blocksToRelease);
         return new Page(positionCount, blocks);
     }
 
     @Override
     public String toString() {
         return "ProjectOperator[mask = " + bs + ']';
+    }
+
+    static void assertNotReleasing(List<Releasable> toRelease, Block toKeep) {
+        // verify by identity equality
+        assert toRelease.stream().anyMatch(r -> r == toKeep) == false
+            : "both releasing and keeping the same block: " + toRelease.stream().filter(r -> r == toKeep).toList();
     }
 }

@@ -12,26 +12,26 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.inference.UnparsedModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
 
 public class TransportGetInferenceModelAction extends HandledTransportAction<
     GetInferenceModelAction.Request,
     PutInferenceModelAction.Response> {
 
     private final ModelRegistry modelRegistry;
-    private final ServiceRegistry serviceRegistry;
+    private final InferenceServiceRegistry serviceRegistry;
 
     @Inject
     public TransportGetInferenceModelAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
-        ServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry
     ) {
         super(GetInferenceModelAction.NAME, transportService, actionFilters, GetInferenceModelAction.Request::new);
         this.modelRegistry = modelRegistry;

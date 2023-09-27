@@ -61,6 +61,9 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     /** The block factory associated with this block. */
     BlockFactory blockFactory();
 
+    /** Tells if this block has been released. A block is released by calling its {@link Block#close()} method. */
+    boolean isReleased();
+
     /**
      * Returns true if the value stored at the given position is null, false otherwise.
      *

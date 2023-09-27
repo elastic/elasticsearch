@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -166,7 +164,11 @@ public class BasicBlockTests extends ESTestCase {
             int pos = block.getInt(randomPosition(positionCount));
             assertThat(pos, is(block.getInt(pos)));
             assertSingleValueDenseBlock(block);
-            releaseAndAssertBreaker(block);
+
+            IntBlock.Builder blockBuilder = IntBlock.newBlockBuilder(1, blockFactory);
+            IntBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+            releaseAndAssertBreaker(block, copy);
 
             if (positionCount > 1) {
                 assertNullValues(
@@ -181,11 +183,6 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            IntBlock.Builder blockBuilder = IntBlock.newBlockBuilder(1, blockFactory);
-            IntBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
-            assertThat(copy, equalTo(block));
-            releaseAndAssertBreaker(copy);
-
             IntVector.Builder vectorBuilder = IntVector.newVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount,
                 blockFactory
@@ -193,7 +190,7 @@ public class BasicBlockTests extends ESTestCase {
             IntStream.range(0, positionCount).forEach(vectorBuilder::appendInt);
             IntVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
-            releaseAndAssertBreaker(vector);
+            releaseAndAssertBreaker(vector.asBlock());
         }
     }
 
@@ -238,7 +235,11 @@ public class BasicBlockTests extends ESTestCase {
             int pos = (int) block.getLong(randomPosition(positionCount));
             assertThat((long) pos, is(block.getLong(pos)));
             assertSingleValueDenseBlock(block);
-            releaseAndAssertBreaker(block);
+
+            LongBlock.Builder blockBuilder = blockFactory.newLongBlockBuilder(1);
+            LongBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+            releaseAndAssertBreaker(block, copy);
 
             if (positionCount > 1) {
                 assertNullValues(
@@ -253,16 +254,13 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            LongBlock.Builder blockBuilder = LongBlock.newBlockBuilder(1);
-            LongBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
-            assertThat(copy, equalTo(block));
-
-            LongVector.Builder vectorBuilder = LongVector.newVectorBuilder(
+            LongVector.Builder vectorBuilder = blockFactory.newLongVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
             LongStream.range(0, positionCount).forEach(vectorBuilder::appendLong);
             LongVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            releaseAndAssertBreaker(vector.asBlock());
         }
     }
 
@@ -287,21 +285,19 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
-    // TODO: continue to update the test, as above.
-    // Try to not complicate the "basic" test any more than necessary, but it already has great coverage
-    // for building all types of blocks!!
-
     public void testDoubleBlock() {
         for (int i = 0; i < 1000; i++) {
+            assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
             DoubleBlock block;
             if (randomBoolean()) {
                 final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-                var blockBuilder = DoubleBlock.newBlockBuilder(builderEstimateSize);
+                var blockBuilder = blockFactory.newDoubleBlockBuilder(builderEstimateSize);
                 LongStream.range(0, positionCount).asDoubleStream().forEach(blockBuilder::appendDouble);
                 block = blockBuilder.build();
             } else {
-                block = new DoubleArrayVector(LongStream.range(0, positionCount).asDoubleStream().toArray(), positionCount).asBlock();
+                block = blockFactory.newDoubleArrayVector(LongStream.range(0, positionCount).asDoubleStream().toArray(), positionCount)
+                    .asBlock();
             }
 
             assertThat(positionCount, is(block.getPositionCount()));
@@ -310,6 +306,11 @@ public class BasicBlockTests extends ESTestCase {
             int pos = (int) block.getDouble(randomPosition(positionCount));
             assertThat((double) pos, is(block.getDouble(pos)));
             assertSingleValueDenseBlock(block);
+
+            DoubleBlock.Builder blockBuilder = DoubleBlock.newBlockBuilder(1);
+            DoubleBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+            releaseAndAssertBreaker(block, copy);
 
             if (positionCount > 1) {
                 assertNullValues(
@@ -324,16 +325,13 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            DoubleBlock.Builder blockBuilder = DoubleBlock.newBlockBuilder(1);
-            DoubleBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
-            assertThat(copy, equalTo(block));
-
-            DoubleVector.Builder vectorBuilder = DoubleVector.newVectorBuilder(
+            DoubleVector.Builder vectorBuilder = blockFactory.newDoubleVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
             IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(vectorBuilder::appendDouble);
             DoubleVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            releaseAndAssertBreaker(vector.asBlock());
         }
     }
 
@@ -343,15 +341,16 @@ public class BasicBlockTests extends ESTestCase {
             double value = randomDouble();
             DoubleBlock block;
             if (randomBoolean()) {
-                block = DoubleBlock.newConstantBlockWith(value, positionCount);
+                block = DoubleBlock.newConstantBlockWith(value, positionCount, blockFactory);
             } else {
-                block = new ConstantDoubleVector(value, positionCount).asBlock();
+                block = blockFactory.newConstantDoubleBlockWith(value, positionCount);
             }
             assertThat(positionCount, is(block.getPositionCount()));
             assertThat(value, is(block.getDouble(0)));
             assertThat(value, is(block.getDouble(positionCount - 1)));
             assertThat(value, is(block.getDouble(randomPosition(positionCount))));
             assertSingleValueDenseBlock(block);
+            releaseAndAssertBreaker(block);
         }
     }
 
@@ -370,13 +369,13 @@ public class BasicBlockTests extends ESTestCase {
         BytesRefBlock block;
         if (randomBoolean()) {
             final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-            var blockBuilder = BytesRefBlock.newBlockBuilder(builderEstimateSize);
+            var blockBuilder = blockFactory.newBytesRefBlockBuilder(builderEstimateSize);
             Arrays.stream(values).map(obj -> randomBoolean() ? obj : BytesRef.deepCopyOf(obj)).forEach(blockBuilder::appendBytesRef);
             block = blockBuilder.build();
         } else {
             BytesRefArray array = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
             Arrays.stream(values).forEach(array::append);
-            block = new BytesRefArrayVector(array, positionCount).asBlock();
+            block = blockFactory.newBytesRefArrayVector(array, positionCount).asBlock();
         }
 
         assertThat(positionCount, is(block.getPositionCount()));
@@ -387,6 +386,11 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(bytes, equalTo(values[pos]));
         }
         assertSingleValueDenseBlock(block);
+
+        BytesRefBlock.Builder blockBuilder = BytesRefBlock.newBlockBuilder(1);
+        BytesRefBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+        assertThat(copy, equalTo(block));
+        releaseAndAssertBreaker(block, copy);
 
         if (positionCount > 1) {
             assertNullValues(
@@ -402,22 +406,19 @@ public class BasicBlockTests extends ESTestCase {
             );
         }
 
-        BytesRefBlock.Builder blockBuilder = BytesRefBlock.newBlockBuilder(1);
-        BytesRefBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
-        assertThat(copy, equalTo(block));
-
-        BytesRefVector.Builder vectorBuilder = BytesRefVector.newVectorBuilder(
+        BytesRefVector.Builder vectorBuilder = blockFactory.newBytesRefVectorBuilder(
             randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
         );
         IntStream.range(0, positionCount).mapToObj(ii -> new BytesRef(randomAlphaOfLength(5))).forEach(vectorBuilder::appendBytesRef);
         BytesRefVector vector = vectorBuilder.build();
         assertSingleValueDenseBlock(vector.asBlock());
+        releaseAndAssertBreaker(vector.asBlock());
     }
 
     public void testBytesRefBlockBuilderWithNulls() {
         int positionCount = randomIntBetween(0, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-        var blockBuilder = BytesRefBlock.newBlockBuilder(builderEstimateSize);
+        var blockBuilder = blockFactory.newBytesRefBlockBuilder(builderEstimateSize);
         BytesRef[] values = new BytesRef[positionCount];
         for (int i = 0; i < positionCount; i++) {
             if (randomBoolean()) {
@@ -451,6 +452,7 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(block.getBytesRef(pos, bytes), equalTo(values[pos]));
             }
         }
+        releaseAndAssertBreaker(block);
     }
 
     public void testConstantBytesRefBlock() {
@@ -459,9 +461,9 @@ public class BasicBlockTests extends ESTestCase {
             BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
             BytesRefBlock block;
             if (randomBoolean()) {
-                block = BytesRefBlock.newConstantBlockWith(value, positionCount);
+                block = BytesRefBlock.newConstantBlockWith(value, positionCount, blockFactory);
             } else {
-                block = new ConstantBytesRefVector(value, positionCount).asBlock();
+                block = blockFactory.newConstantBytesRefBlockWith(value, positionCount);
             }
             assertThat(block.getPositionCount(), is(positionCount));
 
@@ -473,6 +475,7 @@ public class BasicBlockTests extends ESTestCase {
             bytes = block.getBytesRef(randomPosition(positionCount), bytes);
             assertThat(bytes, is(value));
             assertSingleValueDenseBlock(block);
+            releaseAndAssertBreaker(block);
         }
     }
 
@@ -482,7 +485,7 @@ public class BasicBlockTests extends ESTestCase {
             BooleanBlock block;
             if (randomBoolean()) {
                 final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
-                var blockBuilder = BooleanBlock.newBlockBuilder(builderEstimateSize);
+                var blockBuilder = blockFactory.newBooleanBlockBuilder(builderEstimateSize);
                 IntStream.range(0, positionCount).forEach(p -> blockBuilder.appendBoolean(p % 10 == 0));
                 block = blockBuilder.build();
             } else {
@@ -490,13 +493,18 @@ public class BasicBlockTests extends ESTestCase {
                 for (int p = 0; p < positionCount; p++) {
                     values[p] = p % 10 == 0;
                 }
-                block = new BooleanArrayVector(values, positionCount).asBlock();
+                block = blockFactory.newBooleanArrayVector(values, positionCount).asBlock();
             }
 
             assertThat(block.getPositionCount(), is(positionCount));
             assertThat(block.getBoolean(0), is(true));
             assertThat(block.getBoolean(positionCount - 1), is((positionCount - 1) % 10 == 0));
             assertSingleValueDenseBlock(block);
+
+            BooleanBlock.Builder blockBuilder = BooleanBlock.newBlockBuilder(1);
+            BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
+            assertThat(copy, equalTo(block));
+            releaseAndAssertBreaker(block, copy);
 
             if (positionCount > 1) {
                 assertNullValues(
@@ -511,16 +519,13 @@ public class BasicBlockTests extends ESTestCase {
                 );
             }
 
-            BooleanBlock.Builder blockBuilder = BooleanBlock.newBlockBuilder(1);
-            BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
-            assertThat(copy, equalTo(block));
-
-            BooleanVector.Builder vectorBuilder = BooleanVector.newVectorBuilder(
+            BooleanVector.Builder vectorBuilder = blockFactory.newBooleanVectorBuilder(
                 randomBoolean() ? randomIntBetween(1, positionCount) : positionCount
             );
             IntStream.range(0, positionCount).mapToObj(ii -> randomBoolean()).forEach(vectorBuilder::appendBoolean);
             BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            releaseAndAssertBreaker(vector.asBlock());
         }
     }
 
@@ -530,15 +535,16 @@ public class BasicBlockTests extends ESTestCase {
             boolean value = randomBoolean();
             BooleanBlock block;
             if (randomBoolean()) {
-                block = BooleanBlock.newConstantBlockWith(value, positionCount);
+                block = BooleanBlock.newConstantBlockWith(value, positionCount, blockFactory);
             } else {
-                block = new ConstantBooleanVector(value, positionCount).asBlock();
+                block = blockFactory.newConstantBooleanBlockWith(value, positionCount);
             }
             assertThat(positionCount, is(block.getPositionCount()));
             assertThat(block.getBoolean(0), is(value));
             assertThat(block.getBoolean(positionCount - 1), is(value));
             assertThat(block.getBoolean(randomPosition(positionCount)), is(value));
             assertSingleValueDenseBlock(block);
+            releaseAndAssertBreaker(block);
         }
     }
 
@@ -856,7 +862,7 @@ public class BasicBlockTests extends ESTestCase {
         T getValue(int position);
     }
 
-    private static <B extends Block, BB extends Block.Builder, T> void assertNullValues(
+    <B extends Block, BB extends Block.Builder, T> void assertNullValues(
         int positionCount,
         BlockBuilderFactory<BB> blockBuilderFactory,
         ValueAppender<BB, T> valueAppender,
@@ -885,7 +891,7 @@ public class BasicBlockTests extends ESTestCase {
         asserter.accept(randomNonNullPosition, block);
         assertTrue(block.isNull(randomNullPosition));
         assertFalse(block.isNull(randomNonNullPosition));
-        releaseAndAssertBreaker(block, block.blockFactory().breaker());
+        releaseAndAssertBreaker(block);
     }
 
     void assertZeroPositionsAndRelease(Block block) {
@@ -898,14 +904,34 @@ public class BasicBlockTests extends ESTestCase {
         releaseAndAssertBreaker(vector);
     }
 
-    <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
-        releaseAndAssertBreaker(data, breaker);
+    // <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
+    // releaseAndAssertBreaker(data, breaker);
+    // }
+
+    void releaseAndAssertBreaker(Block... blocks) {
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        Releasables.closeExpectNoException(blocks);
+        Arrays.stream(blocks).forEach(block -> assertThat(block.isReleased(), is(true)));
+        Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotDoubleRelease);
+        Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotReadFromPage);
+        assertThat(breaker.getUsed(), is(0L));
     }
 
-    static <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data, CircuitBreaker breaker) {
+    void releaseAndAssertBreaker(Vector vector) {
         assertThat(breaker.getUsed(), greaterThan(0L));
-        Releasables.closeExpectNoException(data);
+        Releasables.closeExpectNoException(vector);
         assertThat(breaker.getUsed(), is(0L));
+    }
+
+    static void assertCannotDoubleRelease(Block block) {
+        var ex = expectThrows(IllegalStateException.class, () -> block.close());
+        assertThat(ex.getMessage(), containsString("can't release already released block"));
+    }
+
+    static void assertCannotReadFromPage(Block block) {
+        Page page = new Page(block);
+        var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+        assertThat(e.getMessage(), containsString("can't read released block"));
     }
 
     static int randomPosition(int positionCount) {

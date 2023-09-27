@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Map;
@@ -32,7 +32,7 @@ public final class MlMetaIndex {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             "/ml/meta_index_mappings.json",
-            Version.CURRENT.toString(),
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
             MAPPINGS_VERSION_VARIABLE,
             Map.of("xpack.ml.managed.index.version", Integer.toString(META_INDEX_MAPPINGS_VERSION))
         );

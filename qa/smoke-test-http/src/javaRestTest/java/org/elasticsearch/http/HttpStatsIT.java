@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 0, numClientNodes = 0)
 public class HttpStatsIT extends HttpSmokeTestCase {
@@ -86,25 +87,30 @@ public class HttpStatsIT extends HttpSmokeTestCase {
         final List<String> routes = List.of("/", "/_cat/nodes", "/{index}/_search", "/_cluster/state");
 
         for (var route : routes) {
-            assertThat(jsonMapView.get("http.routes." + route), notNullValue());
-            assertThat(jsonMapView.get("http.routes." + route + ".requests.count"), equalTo(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".requests.total_size_in_bytes"), greaterThanOrEqualTo(0));
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.count"), equalTo(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.total_size_in_bytes"), greaterThan(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".requests.size_histogram"), hasSize(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.count"), equalTo(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.lt_bytes"), notNullValue());
+            assertThat(route, jsonMapView.get("http.routes." + route), notNullValue());
+            assertThat(route, jsonMapView.get("http.routes." + route + ".requests.count"), equalTo(1));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".requests.total_size_in_bytes"), greaterThanOrEqualTo(0));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".responses.count"), equalTo(1));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".responses.total_size_in_bytes"), greaterThan(1));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".requests.size_histogram"), hasSize(1));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.count"), equalTo(1));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.lt_bytes"), notNullValue());
             if (route.equals("/{index}/_search")) {
-                assertThat(jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.ge_bytes"), notNullValue());
+                assertThat(route, jsonMapView.get("http.routes." + route + ".requests.size_histogram.0.ge_bytes"), notNullValue());
             }
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.size_histogram"), hasSize(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.count"), equalTo(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.lt_bytes"), notNullValue());
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.ge_bytes"), notNullValue());
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram"), hasSize(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.count"), equalTo(1));
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.lt_millis"), notNullValue());
-            assertThat(jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.ge_millis"), notNullValue());
+            assertThat(route, jsonMapView.get("http.routes." + route + ".responses.size_histogram"), hasSize(1));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.count"), equalTo(1));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.lt_bytes"), notNullValue());
+            assertThat(route, jsonMapView.get("http.routes." + route + ".responses.size_histogram.0.ge_bytes"), notNullValue());
+            assertThat(route, jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram"), hasSize(1));
+            assertThat(route, jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.count"), equalTo(1));
+            final int ltMillis = jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.lt_millis");
+            assertThat(route, ltMillis, notNullValue());
+            assertThat(
+                route,
+                jsonMapView.get("http.routes." + route + ".responses.handling_time_histogram.0.ge_millis"),
+                ltMillis > 1 ? notNullValue() : nullValue()
+            );
         }
     }
 }

@@ -11,15 +11,18 @@ package org.elasticsearch.rest;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -50,6 +53,7 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.StreamSupport;
@@ -779,7 +783,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 if (response.isChunked() == false) {
                     methodHandlers.addResponseStats(response.content().length());
                 } else {
-                    response.chunkedContent().setChunkedSizeListener(methodHandlers::addResponseStats);
+                    response = RestResponse.chunked(
+                        response.status(),
+                        new EncodeLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers::addResponseStats)
+                    );
                 }
                 delegate.sendResponse(response);
                 success = true;
@@ -796,6 +803,41 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 throw new IllegalStateException("Channel is already closed");
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+        }
+    }
+
+    private static class EncodeLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
+
+        private final ChunkedRestResponseBody delegate;
+        private final Consumer<Integer> encodedLengthConsumer;
+        private int encodedLength = 0;
+
+        private EncodeLengthTrackingChunkedRestResponseBody(ChunkedRestResponseBody delegate, Consumer<Integer> encodedLengthConsumer) {
+            this.delegate = delegate;
+            this.encodedLengthConsumer = encodedLengthConsumer;
+        }
+
+        @Override
+        public boolean isDone() {
+            return delegate.isDone();
+        }
+
+        @Override
+        public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
+            final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
+            encodedLength += bytesReference.length();
+            return bytesReference;
+        }
+
+        @Override
+        public String getResponseContentTypeString() {
+            return delegate.getResponseContentTypeString();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+            encodedLengthConsumer.accept(encodedLength);
         }
     }
 

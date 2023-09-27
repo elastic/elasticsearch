@@ -21,6 +21,21 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
+/**
+ * This class encapsulates the stats for a single HTTP route {@link org.elasticsearch.rest.MethodHandlers}
+ *
+ * @param requestCount          the number of request handled by the HTTP route
+ * @param totalRequestSize      the total body size (bytes) of requests handled by the HTTP route
+ * @param requestSizeHistogram  an array of frequencies of request size (bytes) in buckets with upper bounds
+ *                              as returned by {@link HttpRouteStatsTracker#getBucketUpperBounds()}, plus
+ *                              an extra bucket for handling size larger than the largest upper bound (currently 64MB).
+ * @param responseCount         the number of responses produced by the HTTP route
+ * @param totalResponseSize     the total body size (bytes) of responses produced by the HTTP route
+ * @param responseSizeHistogram similar to {@code requestSizeHistogram} but for response size
+ * @param responseTimeHistogram an array of frequencies of response time (millis) in buckets with upper bounds
+ *                              as returned by {@link HandlingTimeTracker#getBucketUpperBounds()}, plus
+ *                              an extra bucket for handling response time larger than the longest upper bound (currently 65536ms).
+ */
 public record HttpRouteStats(
     long requestCount,
     long totalRequestSize,

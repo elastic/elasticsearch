@@ -154,7 +154,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                 {
                   "test": "doc-with-ip",
                   "socket": {
-                    "ip": 127.0.0.1
+                    "ip": "127.0.0.1"
                   }
                 }
                 """);

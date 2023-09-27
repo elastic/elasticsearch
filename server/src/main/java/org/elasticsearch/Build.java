@@ -249,6 +249,14 @@ public record Build(
         return version;
     }
 
+    /**
+     * Get the build version without any suffices like "-SNAPSHOT" or "-rc1".
+     * @return the build version with no suffix
+     */
+    public String unqualifiedVersion() {
+        return version.replaceFirst("-.*", "");
+    }
+
     public boolean isProductionRelease() {
         return isSnapshot() == false && version.matches(".*(-alpha\\d+)|(-beta\\d+)|(-rc\\d+)") == false;
     }

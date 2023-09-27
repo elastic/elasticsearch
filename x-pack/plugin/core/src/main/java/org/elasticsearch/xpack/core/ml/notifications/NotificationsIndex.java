@@ -24,7 +24,7 @@ public final class NotificationsIndex {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "notifications_index_mappings.json",
-            Build.current().version(), // Only needed for BWC with pre-8.10.0 nodes
+            Build.current().unqualifiedVersion(), // Only needed for BWC with pre-8.10.0 nodes
             MAPPINGS_VERSION_VARIABLE,
             Map.of("xpack.ml.managed.index.version", Integer.toString(NOTIFICATIONS_INDEX_MAPPINGS_VERSION))
         );

@@ -30,7 +30,7 @@ public class HttpRouteStatsTracker {
 
     private static final int BUCKET_COUNT = getBucketUpperBounds().length + 1;
 
-    private static final long LAST_BUCKET_LOWER_BOUND = getBucketUpperBounds()[BUCKET_COUNT - 2];
+    private static final int LAST_BUCKET_LOWER_BOUND = getBucketUpperBounds()[BUCKET_COUNT - 2];
 
     private record StatsTracker(LongAdder count, LongAdder totalSize, AtomicLongArray histogram) {
         StatsTracker {
@@ -43,7 +43,7 @@ public class HttpRouteStatsTracker {
             this(new LongAdder(), new LongAdder(), new AtomicLongArray(BUCKET_COUNT));
         }
 
-        void addStats(int contentLength) {
+        void addStats(long contentLength) {
             count().increment();
             totalSize().add(contentLength);
             histogram().incrementAndGet(bucket(contentLength));
@@ -55,6 +55,14 @@ public class HttpRouteStatsTracker {
                 histogramCopy[i] = histogram().get(i);
             }
             return histogramCopy;
+        }
+    }
+
+    private static int bucket(long contentLength) {
+        if (contentLength > Integer.MAX_VALUE) {
+            return bucket(Integer.MAX_VALUE);
+        } else {
+            return bucket((int) contentLength);
         }
     }
 
@@ -76,7 +84,7 @@ public class HttpRouteStatsTracker {
         requestStats.addStats(contentLength);
     }
 
-    public void addResponseStats(int contentLength) {
+    public void addResponseStats(long contentLength) {
         responseStats.addStats(contentLength);
     }
 

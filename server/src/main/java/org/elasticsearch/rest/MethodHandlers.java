@@ -84,7 +84,7 @@ final class MethodHandlers {
         statsTracker.addRequestStats(contentLength);
     }
 
-    public void addResponseStats(int contentLength) {
+    public void addResponseStats(long contentLength) {
         statsTracker.addResponseStats(contentLength);
     }
 

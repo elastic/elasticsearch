@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -822,7 +821,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         private final ChunkedRestResponseBody delegate;
         private final MethodHandlers methodHandlers;
-        private int encodedLength = 0;
+        private long encodedLength = 0;
 
         private EncodedLengthTrackingChunkedRestResponseBody(ChunkedRestResponseBody delegate, MethodHandlers methodHandlers) {
             this.delegate = delegate;
@@ -837,16 +836,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
-            try {
-                encodedLength = Math.addExact(encodedLength, bytesReference.length());
-            } catch (ArithmeticException e) {
-                logger.debug(
-                    "response size for [{}] is greater than [{}]",
-                    methodHandlers.getPath(),
-                    ByteSizeValue.ofBytes(Integer.MAX_VALUE)
-                );
-                encodedLength = Integer.MAX_VALUE;
-            }
+            encodedLength += bytesReference.length();
             return bytesReference;
         }
 

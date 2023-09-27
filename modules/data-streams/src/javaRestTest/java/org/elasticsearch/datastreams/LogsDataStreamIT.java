@@ -8,11 +8,10 @@
 
 package org.elasticsearch.datastreams;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,6 +22,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
+
+    @After
+    public void cleanUp() throws IOException {
+        adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+    }
 
     @SuppressWarnings("unchecked")
     public void testDefaultLogsSettingAndMapping() throws Exception {
@@ -40,7 +44,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         // Extend the mapping and verify
         putMapping(client, backingIndex);
         Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
-        assertThat(((Map<String, Object>) mappingProperties.get("@timestamp")).get("ignore_malformed"), is(false));
+        assertThat(((Map<String, Object>) mappingProperties.get("@timestamp")).get("ignore_malformed"), equalTo(false));
         assertThat(((Map<String, Object>) mappingProperties.get("numeric_field")).get("type"), equalTo("integer"));
 
         // Insert valid doc and verify successful indexing
@@ -129,7 +133,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     private static void putMapping(RestClient client, String indexName) throws IOException {
         Request request = new Request("PUT", "/" + indexName + "/_mapping");
-        request.setEntity(new StringEntity("""
+        request.setJsonEntity("""
             {
               "properties": {
                 "numeric_field": {
@@ -137,7 +141,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                 }
               }
             }
-            """, ContentType.APPLICATION_JSON));
+            """);
         assertOK(client.performRequest(request));
     }
 

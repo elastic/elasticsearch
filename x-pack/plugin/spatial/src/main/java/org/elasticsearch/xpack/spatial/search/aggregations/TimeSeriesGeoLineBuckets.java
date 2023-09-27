@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
@@ -304,7 +303,7 @@ class TimeSeriesGeoLineBuckets implements Releasable {
             }
 
             if (docGeoPointValues.docValueCount() > 1) {
-                throw AggregationErrors.unsupportedMultivalue()
+                throw AggregationErrors.unsupportedMultivalue();
             }
 
             final GeoPoint point = docGeoPointValues.nextValue();

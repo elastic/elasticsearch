@@ -12,7 +12,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.util.Locale;
 

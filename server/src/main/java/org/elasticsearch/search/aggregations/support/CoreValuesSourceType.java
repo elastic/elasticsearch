@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;
 import java.time.ZoneId;

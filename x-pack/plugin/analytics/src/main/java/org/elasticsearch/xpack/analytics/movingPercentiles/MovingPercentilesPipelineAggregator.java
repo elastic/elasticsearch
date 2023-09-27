@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.movingPercentiles;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;

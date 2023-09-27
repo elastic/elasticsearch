@@ -13,7 +13,6 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.AggregationErrors;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.io.IOException;
 import java.lang.reflect.Array;

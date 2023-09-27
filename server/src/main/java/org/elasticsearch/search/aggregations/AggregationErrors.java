@@ -70,7 +70,9 @@ public class AggregationErrors {
         return new IllegalArgumentException(
             "Merging/Reducing the aggregations failed when computing the aggregation ["
                 + aggregationName
-                + "] because " + fieldString + " in the aggregation query existed as two different "
+                + "] because "
+                + fieldString
+                + " in the aggregation query existed as two different "
                 + "types in two different indices"
         );
     }

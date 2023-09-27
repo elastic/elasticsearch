@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -233,11 +232,7 @@ public class BucketHelpers {
     /**
      * Inspects where we are in the agg tree and tries to format a helpful error
      */
-    private static RuntimeException formatResolutionError(
-        MultiBucketsAggregation agg,
-        List<String> aggPathAsList,
-        Object propertyValue
-    ) {
+    private static RuntimeException formatResolutionError(MultiBucketsAggregation agg, List<String> aggPathAsList, Object propertyValue) {
         String currentAggName;
         Object currentAgg;
         if (aggPathAsList.isEmpty()) {

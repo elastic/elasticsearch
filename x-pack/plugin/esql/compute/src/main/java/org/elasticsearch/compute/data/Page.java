@@ -108,7 +108,7 @@ public final class Page implements Writeable {
         @SuppressWarnings("unchecked")
         B block = (B) blocks[blockIndex];
         if (block.isReleased()) {
-            throw new IllegalStateException("can't read released block");
+            throw new IllegalStateException("can't read released block [" + block + "]");
         }
         return block;
     }

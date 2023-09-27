@@ -907,11 +907,21 @@ public class BasicBlockTests extends ESTestCase {
         Releasables.closeExpectNoException(data);
         if (data instanceof Block block) {
             assertThat(block.isReleased(), is(true));
-            Page page = new Page(block);
-            var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
-            assertThat(e.getMessage(), containsString("can't read released block"));
+            assertCannotDoubleRelease(block);
+            assertCannotReadFromPage(block);
         }
         assertThat(breaker.getUsed(), is(0L));
+    }
+
+    static void assertCannotDoubleRelease(Block block) {
+        var ex = expectThrows(IllegalStateException.class, () -> block.close());
+        assertThat(ex.getMessage(), containsString("can't release already released block"));
+    }
+
+    static void assertCannotReadFromPage(Block block) {
+        Page page = new Page(block);
+        var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+        assertThat(e.getMessage(), containsString("can't read released block"));
     }
 
     static int randomPosition(int positionCount) {

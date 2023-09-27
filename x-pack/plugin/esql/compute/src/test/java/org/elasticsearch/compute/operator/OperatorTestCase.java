@@ -88,9 +88,10 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
          * The input blocks don't count against the memory usage for the limited operator that we
          * build.
          */
+        DriverContext inputFactoryContext = driverContext();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak())
             .withCircuitBreaking();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 10_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
         Exception e = expectThrows(
@@ -99,6 +100,10 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         );
         assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+
+        // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
+        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
     }
 
     /**
@@ -108,15 +113,24 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * in ctors.
      */
     public final void testSimpleWithCranky() {
-        CrankyCircuitBreakerService breaker = new CrankyCircuitBreakerService();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker).withCircuitBreaking();
-        BlockFactory blockFactory = BlockFactory.getInstance(breaker.getBreaker("request"), bigArrays);
+        DriverContext inputFactoryContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+
+        CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky).withCircuitBreaking();
+        BlockFactory blockFactory = BlockFactory.getInstance(cranky.getBreaker(CircuitBreaker.REQUEST), bigArrays);
         try {
-            assertSimple(new DriverContext(bigArrays, blockFactory), between(1_000, 10_000));
+            List<Page> result = drive(simple(bigArrays).get(new DriverContext(bigArrays, blockFactory)), input.iterator());
+            Releasables.close(() -> Iterators.map(result.iterator(), p -> p::releaseBlocks));
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
+
+        // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
+        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
     }
 
     /**

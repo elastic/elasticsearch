@@ -38,7 +38,9 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.junit.After;
 
 import java.lang.reflect.Field;
 import java.net.InetAddress;
@@ -210,23 +212,26 @@ public class TopNOperatorTests extends OperatorTestCase {
         // We under-count by a few bytes because of the lists. In that end that's fine, but we need to account for it here.
         long underCount = 200;
         DriverContext context = driverContext();
-        TopNOperator op = new TopNOperator.TopNOperatorFactory(
-            topCount,
-            List.of(LONG),
-            List.of(DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, true, false)),
-            pageSize
-        ).get(context);
-        long actualEmpty = RamUsageTester.ramUsed(op, acc);
-        assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
-        // But when we fill it then we're quite close
-        for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
-            op.addInput(p);
-        }
-        long actualFull = RamUsageTester.ramUsed(op, acc);
-        assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
+        try (
+            TopNOperator op = new TopNOperator.TopNOperatorFactory(
+                topCount,
+                List.of(LONG),
+                List.of(DEFAULT_UNSORTABLE),
+                List.of(new TopNOperator.SortOrder(0, true, false)),
+                pageSize
+            ).get(context)
+        ) {
+            long actualEmpty = RamUsageTester.ramUsed(op, acc);
+            assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
+            // But when we fill it then we're quite close
+            for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
+                op.addInput(p);
+            }
+            long actualFull = RamUsageTester.ramUsed(op, acc);
+            assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
 
-        // TODO empty it again and check.
+            // TODO empty it again and check.
+        }
     }
 
     public void testRandomTopN() {
@@ -637,6 +642,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     for (int i = 0; i < block1.getPositionCount(); i++) {
                         outputValues.add(tuple(block1.isNull(i) ? null : block1.getLong(i), block2.isNull(i) ? null : block2.getLong(i)));
                     }
+                    page.releaseBlocks();
                 }),
                 () -> {}
             )
@@ -1284,6 +1290,50 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat((Integer) actual.get(1).get(1), equalTo(100));
     }
 
+    public void testErrorBeforeFullyDraining() {
+        int maxPageSize = between(1, 100);
+        int topCount = maxPageSize * 4;
+        int docCount = topCount * 10;
+        List<List<Object>> actual = new ArrayList<>();
+        DriverContext driverContext = driverContext();
+        try (
+            Driver driver = new Driver(
+                driverContext,
+                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.range(0, docCount)),
+                List.of(
+                    new TopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        topCount,
+                        List.of(LONG),
+                        List.of(DEFAULT_UNSORTABLE),
+                        List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
+                        maxPageSize
+                    )
+                ),
+                new PageConsumerOperator(p -> {
+                    assertThat(p.getPositionCount(), equalTo(maxPageSize));
+                    if (actual.isEmpty()) {
+                        readInto(actual, p);
+                    } else {
+                        p.releaseBlocks();
+                        throw new RuntimeException("boo");
+                    }
+                }),
+                () -> {}
+            )
+        ) {
+            Exception e = expectThrows(RuntimeException.class, () -> runDriver(driver));
+            assertThat(e.getMessage(), equalTo("boo"));
+        }
+
+        ListMatcher values = matchesList();
+        for (int i = 0; i < maxPageSize; i++) {
+            values = values.item((long) i);
+        }
+        assertMap(actual, matchesList().item(values));
+    }
+
     public void testCloseWithoutCompleting() {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
         try (
@@ -1299,13 +1349,23 @@ public class TopNOperatorTests extends OperatorTestCase {
         ) {
             op.addInput(new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()));
         }
-        assertThat(breaker.getUsed(), equalTo(0L));
     }
+
+    private final List<CircuitBreaker> breakers = new ArrayList<>();
 
     @Override
     protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        return new DriverContext(bigArrays, new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays));
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        breakers.add(breaker);
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+    }
+
+    @After
+    public void allBreakersEmpty() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

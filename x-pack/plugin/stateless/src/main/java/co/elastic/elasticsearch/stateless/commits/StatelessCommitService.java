@@ -28,6 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -1039,7 +1040,36 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * Register commit used by unpromotable, returning the commit to use by the unpromotable.
          */
-        BlobReference registerCommitForUnpromotableRecovery(String nodeId, BlobReference compoundCommit) {
+        BlobReference registerCommitForUnpromotableRecovery(ClusterState state, String nodeId, PrimaryTermAndGeneration commit) {
+            // Find a commit (starting with the requested one) that could be used for unpromotable recovery
+            var compoundCommit = blobReferences.get(commit);
+            if (compoundCommit == null) {
+                long lastUploadedGeneration = getMaxUploadedGeneration();
+                if (lastUploadedGeneration != -1) {
+                    long primaryTerm = lastUploadedGeneration == recoveredGeneration ? recoveredPrimaryTerm : allocationPrimaryTerm;
+                    compoundCommit = blobReferences.get(new PrimaryTermAndGeneration(primaryTerm, lastUploadedGeneration));
+                }
+            }
+            // If the indexing shard is not finished initializing from the object store, we are not
+            // able to register the commit for recovery. For now, fail the registration request.
+            // TODO: we should be able to handle this case by either retrying the registration or keep the
+            // registration and run it after the indexing shard is finished initializing.
+            if (compoundCommit == null) {
+                throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
+            }
+            if (compoundCommit.primaryTermAndGeneration.compareTo(commit) < 0) {
+                var message = Strings.format(
+                    "requested commit to register (%s) is newer than the newest known local commit (%s)",
+                    commit,
+                    compoundCommit
+                );
+                if (state.getMinTransportVersion().onOrAfter(TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED)) {
+                    throw new RecoveryCommitTooNewException(shardId, message);
+                } else {
+                    throw new ElasticsearchException(message);
+                }
+            }
+            // Register the commit that is going to be used for unpromotable recovery
             long previousGenerationUploaded = -1;
             while (true) {
                 if (compoundCommit != null && registerUnpromoteableCommitRefs(Set.of(nodeId), compoundCommit)) {
@@ -1264,43 +1294,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // todo: assert clusterStateVersion <= clusterService.state().version();
         waitForClusterStateProcessed(state.version(), () -> {
             ActionListener.completeWith(listener, () -> {
-
                 var shardCommitsState = getSafe(shardsCommitsStates, shardId);
-                var compoundCommit = shardCommitsState.blobReferences.get(commit);
-                // todo: this should be moved to registerCommitForUnpromotableRecovery, noting that we'd need to ensure the loop still
-                // terminates possibly with some of the errors here.
-                if (compoundCommit == null) {
-                    // If the commit requested to be registered is being deleted, we shouldn't be able to acquire a reference to it.
-                    // In that case, try the latest commit.
-                    // TODO: add an accessor for the latest commit (should it also incRef?)
-                    long lastUploadedGeneration = shardCommitsState.getMaxUploadedGeneration();
-                    long primaryTerm = lastUploadedGeneration == shardCommitsState.recoveredGeneration
-                        ? shardCommitsState.recoveredPrimaryTerm
-                        : shardCommitsState.allocationPrimaryTerm;
-                    compoundCommit = shardCommitsState.blobReferences.get(
-                        new PrimaryTermAndGeneration(primaryTerm, lastUploadedGeneration)
-                    );
-
-                    // if the indexing shard is not finished initializing from the object store, we are not
-                    // able to register the commit for recovery. For now, fail the registration request.
-                    // TODO (ES-6698): we should be able to handle this case by either retrying the registration or keep the
-                    // registration and run it after the indexing shard is finished initializing.
-                    if (compoundCommit == null) {
-                        throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
-                    }
-                    if (compoundCommit.primaryTermAndGeneration.compareTo(commit) < 0
-                        && state.getMinTransportVersion().onOrAfter(TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED)) {
-                        throw new RecoveryCommitTooNewException(
-                            shardId,
-                            Strings.format(
-                                "requested commit to register (%s) is newer than the newest known local commit (%s)",
-                                commit,
-                                compoundCommit
-                            )
-                        );
-                    }
-                }
-                compoundCommit = shardCommitsState.registerCommitForUnpromotableRecovery(nodeId, compoundCommit);
+                var compoundCommit = shardCommitsState.registerCommitForUnpromotableRecovery(state, nodeId, commit);
                 var proposed = compoundCommit.primaryTermAndGeneration;
                 assert proposed.compareTo(commit) >= 0
                     : Strings.format(

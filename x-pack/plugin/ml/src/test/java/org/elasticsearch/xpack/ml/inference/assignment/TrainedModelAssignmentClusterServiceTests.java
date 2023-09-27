@@ -81,6 +81,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -229,7 +230,20 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         ClusterState mockClusterState = mock(ClusterState.class);
         StartTrainedModelDeploymentAction.TaskParams mockModelToAdd = mock(StartTrainedModelDeploymentAction.TaskParams.class);
         Optional<StartTrainedModelDeploymentAction.TaskParams> optionalModelToAdd = Optional.of(mockModelToAdd);
-        doReturn(mockUpdatedState).when(serviceSpy).callSetToStopping(architecturesSet, mockModelToAdd, mockClusterState);
+        String modelId = randomAlphaOfLength(10);
+        String deploymentId = randomAlphaOfLength(10);
+        when(mockModelToAdd.getModelId()).thenReturn(modelId);
+        when(mockModelToAdd.getDeploymentId()).thenReturn(deploymentId);
+
+        String reasonToStop = format(
+            "ML nodes in this cluster have multiple platform architectures, "
+                + "but can only have one for this model ([%s]); "
+                + "detected architectures: %s",
+            modelId,
+            architecturesSet
+        );
+
+        doReturn(mockUpdatedState).when(serviceSpy).callSetToStopping(reasonToStop, deploymentId, mockClusterState);
 
         ClusterState updatedMockClusterState = serviceSpy.stopPlatformSpecificModelsInHeterogeneousClusters(
             mockUpdatedState,
@@ -238,7 +252,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             mockClusterState
         );
 
-        verify(serviceSpy).callSetToStopping(architecturesSet, mockModelToAdd, mockClusterState);
+        verify(serviceSpy).callSetToStopping(reasonToStop, deploymentId, mockClusterState);
     }
 
     public void testUpdateModelRoutingTable() {

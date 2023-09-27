@@ -214,12 +214,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             @Override
             public void onResponse(Set<String> architectures) {
                 if (architectures.size() > 1) {
-                    String architecturesList = String.join(", ", architectures);
                     logger.warn(
                         format(
                             "Heterogeneous platform architectures were detected among ML nodes. "
-                                + "This will prevent the deployment of some trained models. Distinct platform architectures detected: [%s]",
-                            architecturesList
+                                + "This will prevent the deployment of some trained models. Distinct platform architectures detected: %s",
+                            architectures
                         )
                     );
                 }
@@ -601,29 +600,20 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ClusterState clusterState
     ) {
         if (mlNodesArchitectures.size() > 1 && modelToAdd.isPresent()) {
-            updatedState = callSetToStopping(mlNodesArchitectures, modelToAdd.get(), clusterState);
+            String reasonToStop = format(
+                "ML nodes in this cluster have multiple platform architectures, "
+                    + "but can only have one for this model ([%s]); "
+                    + "detected architectures: %s",
+                modelToAdd.get().getModelId(),
+                mlNodesArchitectures
+            );
+            updatedState = callSetToStopping(reasonToStop, modelToAdd.get().getDeploymentId(), clusterState);
         }
         return updatedState;
     }
 
-    ClusterState callSetToStopping(
-        Set<String> mlNodesArchitectures,
-        StartTrainedModelDeploymentAction.TaskParams modelToAdd,
-        ClusterState clusterState
-    ) {
-        ClusterState updatedState;
-        updatedState = setToStopping(
-            clusterState,
-            modelToAdd.getDeploymentId(),
-            format(
-                "ML nodes in this cluster have multiple platform architectures, "
-                    + "but can only have one for this model ([%s]); "
-                    + "detected architectures: [%s]",
-                modelToAdd.getModelId(),
-                mlNodesArchitectures.toString()
-            )
-        );
-        return updatedState;
+    ClusterState callSetToStopping(String reasonToStop, String deploymentId, ClusterState clusterState) {
+        return setToStopping(clusterState, deploymentId, reasonToStop);
     }
 
     private boolean areClusterStatesCompatibleForRebalance(ClusterState source, ClusterState target) {

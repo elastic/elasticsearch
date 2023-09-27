@@ -43,10 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
  * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
@@ -89,13 +89,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
-        this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
-        this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
-        this.labelFilters = APM_TRACING_SANITIZE_FIELD_NAMES.get(settings);
+        this.includeNames = TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
+        this.excludeNames = TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
+        this.labelFilters = TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
 
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
-        this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.enabled = TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
     }
 
     public void setEnabled(boolean enabled) {

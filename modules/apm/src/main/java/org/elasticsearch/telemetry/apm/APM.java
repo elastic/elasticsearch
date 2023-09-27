@@ -103,13 +103,13 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            APMAgentSettings.APM_ENABLED_SETTING,
-            APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING,
-            APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING,
-            APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES,
-            APMAgentSettings.APM_AGENT_SETTINGS,
-            APMAgentSettings.APM_SECRET_TOKEN_SETTING,
-            APMAgentSettings.APM_API_KEY_SETTING
+            APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
+            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
+            APMAgentSettings.TELEMETRY_AGENT_SETTINGS,
+            APMAgentSettings.TELEMETRY_SECRET_TOKEN_SETTING,
+            APMAgentSettings.TELEMETRY_API_KEY_SETTING
         );
     }
 }

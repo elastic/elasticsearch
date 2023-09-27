@@ -46,16 +46,16 @@ public class APMAgentSettings {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
 
-        clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
             this.setAgentSetting("recording", Boolean.toString(enabled));
         });
-        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
-        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
-        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
-        clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
+        clusterSettings.addAffixMapUpdateConsumer(TELEMETRY_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
     }
 
     /**
@@ -63,18 +63,21 @@ public class APMAgentSettings {
      * @param settings the settings to apply
      */
     public void syncAgentSystemProperties(Settings settings) {
-        this.setAgentSetting("recording", Boolean.toString(APM_ENABLED_SETTING.get(settings)));
+        this.setAgentSetting("recording", Boolean.toString(TELEMETRY_TRACING_ENABLED_SETTING.get(settings)));
 
         // Apply default values for some system properties. Although we configure
         // the settings in APM_AGENT_DEFAULT_SETTINGS to defer to the default values, they won't
         // do anything if those settings are never configured.
         APM_AGENT_DEFAULT_SETTINGS.keySet()
             .forEach(
-                key -> this.setAgentSetting(key, APM_AGENT_SETTINGS.getConcreteSetting(APM_AGENT_SETTINGS.getKey() + key).get(settings))
+                key -> this.setAgentSetting(
+                    key,
+                    TELEMETRY_AGENT_SETTINGS.getConcreteSetting(TELEMETRY_AGENT_SETTINGS.getKey() + key).get(settings)
+                )
             );
 
         // Then apply values from the settings in the cluster state
-        APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
+        TELEMETRY_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
     }
 
     /**
@@ -111,7 +114,7 @@ public class APMAgentSettings {
         "recording"
     );
 
-    public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
+    public static final Setting.AffixSetting<String> TELEMETRY_AGENT_SETTINGS = Setting.prefixKeySetting(
         TELEMETRY_SETTING_PREFIX + "agent.",
         (qualifiedKey) -> {
             final String[] parts = qualifiedKey.split("\\.");
@@ -126,19 +129,19 @@ public class APMAgentSettings {
         }
     );
 
-    public static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
+    public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         TRACING_SETTING_PREFIX + "names.include",
         OperatorDynamic,
         NodeScope
     );
 
-    public static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
+    public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
         TRACING_SETTING_PREFIX + "names.exclude",
         OperatorDynamic,
         NodeScope
     );
 
-    public static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
+    public static final Setting<List<String>> TELEMETRY_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
         TRACING_SETTING_PREFIX + "sanitize_field_names",
         List.of(
             "password",
@@ -158,17 +161,20 @@ public class APMAgentSettings {
         NodeScope
     );
 
-    public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> TELEMETRY_TRACING_ENABLED_SETTING = Setting.boolSetting(
         TRACING_SETTING_PREFIX + "enabled",
         false,
         OperatorDynamic,
         NodeScope
     );
 
-    public static final Setting<SecureString> APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
+    public static final Setting<SecureString> TELEMETRY_SECRET_TOKEN_SETTING = SecureSetting.secureString(
         TELEMETRY_SETTING_PREFIX + "secret_token",
         null
     );
 
-    public static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(TELEMETRY_SETTING_PREFIX + "api_key", null);
+    public static final Setting<SecureString> TELEMETRY_API_KEY_SETTING = SecureSetting.secureString(
+        TELEMETRY_SETTING_PREFIX + "api_key",
+        null
+    );
 }

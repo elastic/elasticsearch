@@ -143,6 +143,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
         List<Page> results = drive(simple(bigArrays).get(context), input.iterator());
         assertSimpleOutput(input, results);
+        results.forEach(Page::releaseBlocks);
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 

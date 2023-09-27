@@ -49,6 +49,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -162,7 +163,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             actionFilters,
             DownsampleAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.indicesService = indicesService;

@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 
 class CompositeAggregationFactory extends AggregatorFactory {
@@ -49,15 +48,7 @@ class CompositeAggregationFactory extends AggregatorFactory {
         try {
             return new CompositeAggregator(name, factories, context, parent, metadata, size, sources, afterKey);
         } catch (MultiBucketConsumerService.TooManyBucketsException e) {
-            logger.error(
-                String.format(
-                    Locale.ROOT,
-                    "Too many buckets for aggregation [%s] (max [%d], count [%d])",
-                    name,
-                    e.getMaxBuckets(),
-                    e.getBucketsCount()
-                )
-            );
+            logger.error("Too many buckets for aggregation [{}] (max [{}], count [{}])", name, e.getMaxBuckets(), e.getBucketCount());
             throw e;
         }
     }

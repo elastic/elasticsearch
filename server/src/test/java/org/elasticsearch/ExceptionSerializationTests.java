@@ -384,7 +384,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         );
         assertEquals("Too many buckets", ex.getMessage());
         assertEquals(max, ex.getMaxBuckets());
-        assertEquals(count, ex.getBucketsCount());
+        assertEquals(count, ex.getBucketCount());
     }
 
     public void testTimestampParsingException() throws IOException {

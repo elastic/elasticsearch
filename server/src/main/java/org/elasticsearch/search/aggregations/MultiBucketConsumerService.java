@@ -53,20 +53,20 @@ public class MultiBucketConsumerService {
 
     public static class TooManyBucketsException extends AggregationExecutionException {
         private final int maxBuckets;
-        private final int bucketsCount;
+        private final int bucketCount;
 
-        public TooManyBucketsException(String message, int maxBuckets, int bucketsCount) {
+        public TooManyBucketsException(String message, int maxBuckets, int bucketCount) {
             super(message);
             this.maxBuckets = maxBuckets;
-            this.bucketsCount = bucketsCount;
+            this.bucketCount = bucketCount;
         }
 
         public TooManyBucketsException(StreamInput in) throws IOException {
             super(in);
             maxBuckets = in.readInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.BUCKET_COUNT_ADDED_TO_TOO_MANY_BUCKETS_EXCEPTION)) bucketsCount = in
+            if (in.getTransportVersion().onOrAfter(TransportVersions.BUCKET_COUNT_ADDED_TO_TOO_MANY_BUCKETS_EXCEPTION)) bucketCount = in
                 .readVInt();
-            else bucketsCount = -1;
+            else bucketCount = -1;
         }
 
         @Override
@@ -74,7 +74,7 @@ public class MultiBucketConsumerService {
             super.writeTo(out, nestedExceptionsWriter);
             out.writeInt(maxBuckets);
             if (out.getTransportVersion().onOrAfter(TransportVersions.BUCKET_COUNT_ADDED_TO_TOO_MANY_BUCKETS_EXCEPTION)) {
-                out.writeVInt(bucketsCount);
+                out.writeVInt(bucketCount);
             }
         }
 
@@ -82,8 +82,8 @@ public class MultiBucketConsumerService {
             return maxBuckets;
         }
 
-        public int getBucketsCount() {
-            return bucketsCount;
+        public int getBucketCount() {
+            return bucketCount;
         }
 
         @Override
@@ -94,8 +94,8 @@ public class MultiBucketConsumerService {
         @Override
         protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("max_buckets", maxBuckets);
-            if (bucketsCount >= 0) {
-                builder.field("buckets_count", bucketsCount);
+            if (bucketCount >= 0) {
+                builder.field("buckets_count", bucketCount);
             }
         }
     }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,7 +39,7 @@ public class MlStatsIndex {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             "/ml/stats_index_mappings.json",
-            Build.current().unqualifiedVersion(), // Only needed for BWC with pre-8.10.0 nodes
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
             MAPPINGS_VERSION_VARIABLE,
             Map.of("xpack.ml.managed.index.version", Integer.toString(STATS_INDEX_MAPPINGS_VERSION))
         );

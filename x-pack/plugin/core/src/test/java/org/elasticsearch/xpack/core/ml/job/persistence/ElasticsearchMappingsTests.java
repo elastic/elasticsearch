@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -41,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.junit.Assert;
 import org.mockito.ArgumentCaptor;
 
@@ -154,7 +154,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         int newVersion = randomIntBetween(1, 100);
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
-                Collections.singletonMap("product_version_only", Build.current().unqualifiedVersion())
+                Collections.singletonMap("product_version_only", MlIndexAndAlias.BWC_MAPPINGS_VERSION)
             );
             String[] indices = new String[] { "product_version_only" };
             assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
@@ -188,7 +188,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         int newVersion = currentVersion + randomIntBetween(1, 100);
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
-                Collections.singletonMap("both", Build.current().unqualifiedVersion()),
+                Collections.singletonMap("both", MlIndexAndAlias.BWC_MAPPINGS_VERSION),
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
@@ -213,7 +213,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
-                Collections.singletonMap("both", Build.current().unqualifiedVersion()),
+                Collections.singletonMap("both", MlIndexAndAlias.BWC_MAPPINGS_VERSION),
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };

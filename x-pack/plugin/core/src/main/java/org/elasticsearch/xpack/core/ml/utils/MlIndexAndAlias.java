@@ -50,6 +50,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public final class MlIndexAndAlias {
 
+    public static final String BWC_MAPPINGS_VERSION = "8.11.0";
+
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
 
     // Visible for testing

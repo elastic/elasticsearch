@@ -301,7 +301,7 @@ public class ExchangeServiceTests extends ESTestCase {
             drivers.add(d);
         }
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        new DriverRunner() {
+        new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
                 Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);

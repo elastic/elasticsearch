@@ -86,4 +86,10 @@ public class ProjectOperator extends AbstractPageMappingOperator {
     public String toString() {
         return "ProjectOperator[projection = " + projection + ']';
     }
+
+    static void assertNotReleasing(List<Releasable> toRelease, Block toKeep) {
+        // verify by identity equality
+        assert toRelease.stream().anyMatch(r -> r == toKeep) == false
+            : "both releasing and keeping the same block: " + toRelease.stream().filter(r -> r == toKeep).toList();
+    }
 }

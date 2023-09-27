@@ -173,11 +173,10 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
 
         Message m = lastEvent.getMessage();
         String fm = m.getFormattedMessage();
-        String architecturesList = String.join(", ", architecturesSet);
         String expected = Strings.format(
             "Heterogeneous platform architectures were detected among ML nodes. "
-                + "This will prevent the deployment of some trained models. Distinct platform architectures detected: [%s]",
-            architecturesList
+                + "This will prevent the deployment of some trained models. Distinct platform architectures detected: %s",
+            architecturesSet
         );
 
         assertEquals(expected, fm);

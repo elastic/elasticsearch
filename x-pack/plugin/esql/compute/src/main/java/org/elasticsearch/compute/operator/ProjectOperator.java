@@ -33,7 +33,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "ProjectOperator[mask = " + projection + "]";
+            return "ProjectOperator[projection = " + projection + "]";
         }
     }
 
@@ -74,8 +74,16 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         List<Releasable> blocksToRelease = new ArrayList<>();
 
         for (int i = 0; i < blockCount; i++) {
-            if (pagesUsed.contains(i) == false) {
-                blocksToRelease.add(page.getBlock(i));
+            boolean used = false;
+            var current = page.getBlock(i);
+            for (int j = 0; j < blocks.length; j++) {
+                if (current == blocks[j]) {
+                    used = true;
+                    break;
+                }
+            }
+            if (used == false) {
+                blocksToRelease.add(current);
             }
         }
         Releasables.close(blocksToRelease);
@@ -84,7 +92,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return "ProjectOperator[projection = " + projection + ']';
+        return "ProjectOperator[projection = " + Arrays.toString(projection) + ']';
     }
 
     static void assertNotReleasing(List<Releasable> toRelease, Block toKeep) {

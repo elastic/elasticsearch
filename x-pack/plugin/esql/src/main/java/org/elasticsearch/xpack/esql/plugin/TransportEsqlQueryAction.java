@@ -96,7 +96,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(settings)
         );
         String sessionId = sessionID(task);
         planExecutor.esql(
@@ -104,13 +105,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             sessionId,
             configuration,
             listener.delegateFailureAndWrap(
-                (delegate, r) -> computeService.execute(sessionId, (CancellableTask) task, r, configuration, delegate.map(pages -> {
-                    List<ColumnInfo> columns = r.output()
-                        .stream()
-                        .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
-                        .toList();
-                    return new EsqlQueryResponse(columns, pages, request.columnar());
-                }))
+                (delegate, physicalPlan) -> computeService.execute(
+                    sessionId,
+                    (CancellableTask) task,
+                    physicalPlan,
+                    configuration,
+                    delegate.map(pages -> {
+                        List<ColumnInfo> columns = physicalPlan.output()
+                            .stream()
+                            .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
+                            .toList();
+                        return new EsqlQueryResponse(columns, pages, request.columnar());
+                    })
+                )
             )
         );
     }

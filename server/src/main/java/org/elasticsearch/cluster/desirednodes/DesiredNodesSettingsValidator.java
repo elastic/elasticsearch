@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.desirednodes;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -70,7 +71,12 @@ public class DesiredNodesSettingsValidator {
     private void validate(DesiredNode node) {
         if (node.version().before(Version.CURRENT)) {
             throw new IllegalArgumentException(
-                format(Locale.ROOT, "Illegal node version [%s]. Only [%s] or newer versions are supported", node.version(), Version.CURRENT)
+                format(
+                    Locale.ROOT,
+                    "Illegal node version [%s]. Only [%s] or newer versions are supported",
+                    node.version(),
+                    Build.current().version()
+                )
             );
         }
 

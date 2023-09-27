@@ -382,7 +382,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     final Map<?, ?> nodeDetailsMap = (Map<?, ?>) nodeDetails;
                     final String versionString = (String) nodeDetailsMap.get("version");
                     if (versionString.equals(Version.CURRENT.toString()) == false) {
-                        oldNodeNames.add((String) nodeDetailsMap.get("name"));
+                        oldNodeNames.add(versionString);
                     }
                 }
                 if (oldNodeNames.size() == 1) {

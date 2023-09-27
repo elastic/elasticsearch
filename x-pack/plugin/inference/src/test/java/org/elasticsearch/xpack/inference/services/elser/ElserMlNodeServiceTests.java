@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.ModelConfigurations;
-import org.elasticsearch.xpack.inference.TaskType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +37,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
     }
 
     public void testParseConfigStrict() {
-        var service = new ElserMlNodeService(mock(Client.class));
+        var service = createService(mock(Client.class));
 
         var settings = new HashMap<String, Object>();
         settings.put(
@@ -60,7 +61,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
     }
 
     public void testParseConfigStrictWithNoTaskSettings() {
-        var service = new ElserMlNodeService(mock(Client.class));
+        var service = createService(mock(Client.class));
 
         var settings = new HashMap<String, Object>();
         settings.put(
@@ -153,5 +154,10 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private ElserMlNodeService createService(Client client) {
+        var context = new InferenceServicePlugin.InferenceServiceFactoryContext(client);
+        return new ElserMlNodeService(context);
     }
 }

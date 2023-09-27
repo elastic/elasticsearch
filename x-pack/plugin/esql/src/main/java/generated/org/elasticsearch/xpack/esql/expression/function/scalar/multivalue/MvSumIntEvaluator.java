@@ -42,7 +42,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
   public Block evalNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
+    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {

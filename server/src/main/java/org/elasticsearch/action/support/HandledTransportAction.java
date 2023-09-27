@@ -44,19 +44,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         this(actionName, true, transportService, actionFilters, requestReader, executor);
     }
 
-    /**
-     * Temporary for serverless compatibility. TODO remove.
-     */
-    protected HandledTransportAction(
-        String actionName,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        String executor
-    ) {
-        this(actionName, true, transportService, actionFilters, requestReader, transportService.getThreadPool().executor(executor));
-    }
-
     protected HandledTransportAction(
         String actionName,
         boolean canTripCircuitBreaker,

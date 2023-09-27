@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -177,7 +178,7 @@ public class VersionUtils {
                 return v;
             }
         }
-        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + Version.CURRENT + "]");
+        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + Build.current().version() + "]");
     }
 
     /** Returns the oldest released {@link Version} */

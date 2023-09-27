@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.elser;
 
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.ModelConfigurations;
-import org.elasticsearch.xpack.inference.TaskType;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.TaskType;
 
 public class ElserMlNodeModel extends Model {
 

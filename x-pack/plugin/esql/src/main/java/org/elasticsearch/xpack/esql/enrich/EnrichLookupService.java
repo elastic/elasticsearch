@@ -66,7 +66,6 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -245,10 +244,14 @@ public class EnrichLookupService {
     }
 
     private static Operator droppingBlockOperator(int totalBlocks, int droppingPosition) {
-        BitSet bitSet = new BitSet(totalBlocks);
-        bitSet.set(0, totalBlocks);
-        bitSet.clear(droppingPosition);
-        return new ProjectOperator(bitSet);
+        var size = totalBlocks - 1;
+        var projection = new ArrayList<Integer>(size);
+        for (int i = 0; i < totalBlocks; i++) {
+            if (i != droppingPosition) {
+                projection.add(i);
+            }
+        }
+        return new ProjectOperator(projection);
     }
 
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {

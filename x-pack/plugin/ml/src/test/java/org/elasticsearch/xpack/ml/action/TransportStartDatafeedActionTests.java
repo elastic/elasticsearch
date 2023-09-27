@@ -137,7 +137,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "remote clusters are expected to run at least version [7.11.0] (reason: [runtime_mappings]), "
+                "remote clusters are expected to run at least config version [7.11.0] (reason: [runtime_mappings]), "
                     + "but the following clusters were too old: [old_cluster_1]"
             )
         );

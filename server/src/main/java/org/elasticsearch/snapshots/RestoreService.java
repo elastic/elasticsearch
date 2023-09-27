@@ -189,6 +189,7 @@ public class RestoreService implements ClusterStateApplier {
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
+    @SuppressWarnings("this-escape")
     public RestoreService(
         ClusterService clusterService,
         RepositoriesService repositoriesService,

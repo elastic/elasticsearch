@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeInt;
-import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 
@@ -53,7 +52,6 @@ final class IntBlockHash extends BlockHash {
         } else {
             addInput.add(0, add(vector));
         }
-        Releasables.closeExpectNoException(block);
     }
 
     private IntVector add(IntVector vector) {

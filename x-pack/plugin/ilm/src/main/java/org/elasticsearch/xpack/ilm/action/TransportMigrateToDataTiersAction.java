@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -69,7 +70,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             MigrateToDataTiersRequest::new,
             indexNameExpressionResolver,
             MigrateToDataTiersResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.xContentRegistry = xContentRegistry;
         this.client = client;

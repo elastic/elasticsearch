@@ -184,8 +184,10 @@ gradlePlugin {
  *****************************************************************************/
 
 def minCompilerJava = versions.get("minimumCompilerJava")
-targetCompatibility = minCompilerJava
-sourceCompatibility = minCompilerJava
+java {
+  targetCompatibility = minCompilerJava
+  sourceCompatibility = minCompilerJava
+}
 
 if (JavaVersion.current() < JavaVersion.toVersion(minCompilerJava)) {
   throw new GradleException("Java ${minCompilerJava} is required to build Elasticsearch but current Java is version ${JavaVersion.current()}.")
@@ -241,7 +243,6 @@ dependencies {
   api buildLibs.commons.codec
   api buildLibs.apache.compress
   api buildLibs.ant
-  api 'com.netflix.nebula:gradle-extra-configurations-plugin:7.0.0'
   api buildLibs.nebula.info
   api buildLibs.apache.rat
   api buildLibs.jna

@@ -34,7 +34,7 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.plugins.BasePluginConvention;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -78,37 +78,43 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
         final TaskProvider<Zip> bundleTask = createBundleTasks(project, extension);
         project.afterEvaluate(project1 -> {
-            final PluginPropertiesExtension extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
-            configurePublishing(project1, extension1);
-            String name = extension1.getName();
-            project1.setProperty("archivesBaseName", name);
-            project1.setDescription(extension1.getDescription());
+            final PluginPropertiesExtension pluginPropertiesExtension = project1.getExtensions().getByType(PluginPropertiesExtension.class);
+            configurePublishing(project1, pluginPropertiesExtension);
+            String name = pluginPropertiesExtension.getName();
 
-            if (extension1.getName() == null) {
+            final BasePluginExtension basepluginExtension = project1.getExtensions().getByType(BasePluginExtension.class);
+            basepluginExtension.getArchivesName().set(name);
+            project1.setDescription(pluginPropertiesExtension.getDescription());
+
+            if (pluginPropertiesExtension.getName() == null) {
                 throw new InvalidUserDataException("name is a required setting for esplugin");
             }
 
-            if (extension1.getDescription() == null) {
+            if (pluginPropertiesExtension.getDescription() == null) {
                 throw new InvalidUserDataException("description is a required setting for esplugin");
             }
 
-            if (extension1.getType().equals(PluginType.BOOTSTRAP) == false && extension1.getClassname() == null) {
+            if (pluginPropertiesExtension.getType().equals(PluginType.BOOTSTRAP) == false
+                && pluginPropertiesExtension.getClassname() == null) {
                 throw new InvalidUserDataException("classname is a required setting for esplugin");
             }
 
             Map<String, Object> map = new LinkedHashMap<>(12);
-            map.put("name", extension1.getName());
-            map.put("description", extension1.getDescription());
-            map.put("version", extension1.getVersion());
+            map.put("name", pluginPropertiesExtension.getName());
+            map.put("description", pluginPropertiesExtension.getDescription());
+            map.put("version", pluginPropertiesExtension.getVersion());
             map.put("elasticsearchVersion", Version.fromString(VersionProperties.getElasticsearch()).toString());
             map.put("javaVersion", project1.getExtensions().getByType(JavaPluginExtension.class).getTargetCompatibility().toString());
-            map.put("classname", extension1.getType().equals(PluginType.BOOTSTRAP) ? "" : extension1.getClassname());
-            map.put("extendedPlugins", extension1.getExtendedPlugins().stream().collect(Collectors.joining(",")));
-            map.put("hasNativeController", extension1.isHasNativeController());
-            map.put("requiresKeystore", extension1.isRequiresKeystore());
-            map.put("type", extension1.getType().toString());
-            map.put("javaOpts", extension1.getJavaOpts());
-            map.put("licensed", extension1.isLicensed());
+            map.put(
+                "classname",
+                pluginPropertiesExtension.getType().equals(PluginType.BOOTSTRAP) ? "" : pluginPropertiesExtension.getClassname()
+            );
+            map.put("extendedPlugins", pluginPropertiesExtension.getExtendedPlugins().stream().collect(Collectors.joining(",")));
+            map.put("hasNativeController", pluginPropertiesExtension.isHasNativeController());
+            map.put("requiresKeystore", pluginPropertiesExtension.isRequiresKeystore());
+            map.put("type", pluginPropertiesExtension.getType().toString());
+            map.put("javaOpts", pluginPropertiesExtension.getJavaOpts());
+            map.put("licensed", pluginPropertiesExtension.isLicensed());
             project1.getTasks().withType(Copy.class).named("pluginProperties").configure(copy -> {
                 copy.expand(map);
                 copy.getInputs().properties(map);
@@ -146,9 +152,10 @@ public class PluginBuildPlugin implements Plugin<Project> {
                     .withType(Jar.class)
                     .configureEach(jar -> jar.getArchiveBaseName().set(jar.getArchiveBaseName().get() + "-client"));
                 project.getTasks().withType(GenerateMavenPom.class).configureEach(pomTask -> {
-                    String archivesBaseName = project.getConvention().getPlugin(BasePluginConvention.class).getArchivesBaseName();
+                    final BasePluginExtension basepluginExtension = project.getExtensions().getByType(BasePluginExtension.class);
+                    String archivesName = basepluginExtension.getArchivesName().get();
                     pomTask.setDestination(
-                        new File(project.getBuildDir(), "/distributions/" + archivesBaseName + "-client-" + project.getVersion() + ".pom")
+                        new File(project.getBuildDir(), "/distributions/" + archivesName + "-client-" + project.getVersion() + ".pom")
                     );
                 });
                 elastic.setArtifactId(extension.getName() + "-client");

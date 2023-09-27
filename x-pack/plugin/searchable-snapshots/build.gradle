@@ -8,7 +8,10 @@ esplugin {
   classname 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-searchable-snapshots'
+
+base {
+  archivesName = 'x-pack-searchable-snapshots'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

@@ -228,6 +228,11 @@ allprojects {
     }
   }
 
+  allprojects {
+    tasks.withType(Test).configureEach { t ->
+      println "paaath: " + t.path
+    }
+  }
   tasks.register('resolveAllDependencies', ResolveAllDependencies) {
     configs = project.configurations
     if (project.path.contains("fixture")) {

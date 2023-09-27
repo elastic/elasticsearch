@@ -11,8 +11,9 @@ esplugin {
 ext {
   antlrVersion = "4.9.2"
 }
-
-archivesBaseName = 'x-pack-ql'
+base {
+  archivesName = 'x-pack-ql'
+}
 
 dependencies {
   api "org.antlr:antlr4-runtime:${antlrVersion}"

@@ -13,6 +13,8 @@ import io.opentelemetry.api.metrics.Meter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.metric.Instrument;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,7 +34,11 @@ public abstract class AbstractInstrument<T> implements Instrument {
         this.name = Objects.requireNonNull(name);
         this.description = Objects.requireNonNull(description);
         this.unit = Objects.requireNonNull(unit);
-        this.delegate = new AtomicReference<>(buildInstrument(meter));
+        this.delegate = new AtomicReference<>(doBuildInstrument(meter));
+    }
+
+    private T doBuildInstrument(Meter meter) {
+        return AccessController.doPrivileged((PrivilegedAction<T>) () -> buildInstrument(meter));
     }
 
     @Override
@@ -53,7 +59,7 @@ public abstract class AbstractInstrument<T> implements Instrument {
     }
 
     void setProvider(@Nullable Meter meter) {
-        delegate.set(buildInstrument(Objects.requireNonNull(meter)));
+        delegate.set(doBuildInstrument(Objects.requireNonNull(meter)));
     }
 
     abstract T buildInstrument(Meter meter);

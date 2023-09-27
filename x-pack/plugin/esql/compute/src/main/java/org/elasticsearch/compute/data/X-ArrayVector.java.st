@@ -25,7 +25,7 @@ $endif$
  */
 public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
 
 $if(BytesRef)$
     private final BytesRefArray values;

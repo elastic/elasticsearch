@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -39,7 +39,7 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
   public Block evalNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -72,7 +72,7 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
   public Vector evalNotNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
+    DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -80,7 +80,7 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
       if (valueCount == 1) {
         int value = v.getInt(first);
         double result = MvAvg.single(value);
-        values[p] = result;
+        builder.appendDouble(result);
         continue;
       }
       int end = first + valueCount;
@@ -89,9 +89,9 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
         MvAvg.process(work, value);
       }
       double result = MvAvg.finish(work, valueCount);
-      values[p] = result;
+      builder.appendDouble(result);
     }
-    return new DoubleArrayVector(values, positionCount);
+    return builder.build();
   }
 
   /**
@@ -101,7 +101,7 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
   public Block evalSingleValuedNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -125,7 +125,7 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
   public Vector evalSingleValuedNotNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
+    DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -133,8 +133,8 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
       int first = v.getFirstValueIndex(p);
       int value = v.getInt(first);
       double result = MvAvg.single(value);
-      values[p] = result;
+      builder.appendDouble(result);
     }
-    return new DoubleArrayVector(values, positionCount);
+    return builder.build();
   }
 }

@@ -188,7 +188,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ListenerTimeouts.wrapWithTimeout(
             threadPool,
             timeout,
-            threadPool.generic(),
+            ThreadPool.Names.GENERIC,
             ActionListener.wrap(infoBuilder -> {
                 if (context.getChangesLastDetectedAt() != null) {
                     infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());

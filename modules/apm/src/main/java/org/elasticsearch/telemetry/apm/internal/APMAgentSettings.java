@@ -98,7 +98,7 @@ public class APMAgentSettings {
         });
     }
 
-    private static final String APM_SETTING_PREFIX = "tracing.apm.";
+    private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";
 
     /**
      * A list of APM agent config keys that should never be configured by the user.
@@ -106,12 +106,12 @@ public class APMAgentSettings {
     private static final List<String> PROHIBITED_AGENT_KEYS = List.of(
         // ES generates a config file and sets this value
         "config_file",
-        // ES controls this via `tracing.apm.enabled`
+        // ES controls this via `telemetry.tracing.enabled`
         "recording"
     );
 
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
-        APM_SETTING_PREFIX + "agent.",
+        TELEMETRY_SETTING_PREFIX + "agent.",
         (qualifiedKey) -> {
             final String[] parts = qualifiedKey.split("\\.");
             final String key = parts[parts.length - 1];
@@ -126,19 +126,19 @@ public class APMAgentSettings {
     );
 
     public static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
-        APM_SETTING_PREFIX + "names.include",
+        TELEMETRY_SETTING_PREFIX + "names.include",
         OperatorDynamic,
         NodeScope
     );
 
     public static final Setting<List<String>> APM_TRACING_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
-        APM_SETTING_PREFIX + "names.exclude",
+        TELEMETRY_SETTING_PREFIX + "names.exclude",
         OperatorDynamic,
         NodeScope
     );
 
     public static final Setting<List<String>> APM_TRACING_SANITIZE_FIELD_NAMES = Setting.stringListSetting(
-        APM_SETTING_PREFIX + "sanitize_field_names",
+        TELEMETRY_SETTING_PREFIX + "sanitize_field_names",
         List.of(
             "password",
             "passwd",
@@ -158,16 +158,16 @@ public class APMAgentSettings {
     );
 
     public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
-        APM_SETTING_PREFIX + "enabled",
+        TELEMETRY_SETTING_PREFIX + "tracing.enabled",
         false,
         OperatorDynamic,
         NodeScope
     );
 
     public static final Setting<SecureString> APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
-        APM_SETTING_PREFIX + "secret_token",
+        TELEMETRY_SETTING_PREFIX + "secret_token",
         null
     );
 
-    public static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(APM_SETTING_PREFIX + "api_key", null);
+    public static final Setting<SecureString> APM_API_KEY_SETTING = SecureSetting.secureString(TELEMETRY_SETTING_PREFIX + "api_key", null);
 }

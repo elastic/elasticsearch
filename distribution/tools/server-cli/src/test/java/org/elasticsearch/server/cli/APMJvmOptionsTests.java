@@ -75,12 +75,12 @@ public class APMJvmOptionsTests extends ESTestCase {
 
     public void testExtractSettings() throws UserException {
         Settings settings = Settings.builder()
-            .put("tracing.apm.enabled", true)
-            .put("tracing.apm.agent.server_url", "https://myurl:443")
-            .put("tracing.apm.agent.service_node_name", "instance-0000000001")
-            .put("tracing.apm.agent.global_labels.deployment_id", "123")
-            .put("tracing.apm.agent.global_labels.deployment_name", "APM Tracing")
-            .put("tracing.apm.agent.global_labels.organization_id", "456")
+            .put("telemetry.tracing.enabled", true)
+            .put("telemetry.agent.server_url", "https://myurl:443")
+            .put("telemetry.agent.service_node_name", "instance-0000000001")
+            .put("telemetry.agent.global_labels.deployment_id", "123")
+            .put("telemetry.agent.global_labels.deployment_name", "APM Tracing")
+            .put("telemetry.agent.global_labels.organization_id", "456")
             .build();
 
         var extracted = APMJvmOptions.extractApmSettings(settings);
@@ -101,12 +101,12 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertThat(labels, containsInAnyOrder("deployment_name=APM Tracing", "organization_id=456", "deployment_id=123"));
 
         settings = Settings.builder()
-            .put("tracing.apm.enabled", true)
-            .put("tracing.apm.agent.server_url", "https://myurl:443")
-            .put("tracing.apm.agent.service_node_name", "instance-0000000001")
-            .put("tracing.apm.agent.global_labels.deployment_id", "")
-            .put("tracing.apm.agent.global_labels.deployment_name", "APM=Tracing")
-            .put("tracing.apm.agent.global_labels.organization_id", ",456")
+            .put("telemetry.tracing.enabled", true)
+            .put("telemetry.agent.server_url", "https://myurl:443")
+            .put("telemetry.agent.service_node_name", "instance-0000000001")
+            .put("telemetry.agent.global_labels.deployment_id", "")
+            .put("telemetry.agent.global_labels.deployment_name", "APM=Tracing")
+            .put("telemetry.agent.global_labels.organization_id", ",456")
             .build();
 
         extracted = APMJvmOptions.extractApmSettings(settings);

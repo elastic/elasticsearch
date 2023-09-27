@@ -182,8 +182,8 @@ class APMJvmOptions {
     private static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
         final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            if (settingNames.contains("tracing.apm." + key)) {
-                try (SecureString token = secrets.getString("tracing.apm." + key)) {
+            if (settingNames.contains("telemetry." + key)) {
+                try (SecureString token = secrets.getString("telemetry." + key)) {
                     propertiesMap.put(key, token.toString());
                 }
             }
@@ -213,11 +213,11 @@ class APMJvmOptions {
     static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
+        final Settings agentSettings = settings.getByPrefix("telemetry.agent.");
         agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
 
         // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
-        final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
+        final Settings globalLabelsSettings = settings.getByPrefix("telemetry.agent.global_labels.");
         final StringJoiner globalLabels = new StringJoiner(",");
 
         for (var globalLabel : globalLabelsSettings.keySet()) {
@@ -242,7 +242,7 @@ class APMJvmOptions {
             if (propertiesMap.containsKey(key)) {
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Do not set a value for [tracing.apm.agent." + key + "], as this is configured automatically by Elasticsearch"
+                    "Do not set a value for [telemetry.agent." + key + "], as this is configured automatically by Elasticsearch"
                 );
             }
         }

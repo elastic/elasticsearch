@@ -62,7 +62,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
     }
 
     @SuppressWarnings("unchecked")
-    public void testResponseILMandDataStreamLifecycleRepresentation() throws Exception {
+    public void testResponseIlmAndDataStreamLifecycleRepresentation() throws Exception {
         // we'll test a data stream with 3 backing indices - two managed by ILM (having the ILM policy configured for them)
         // and one without any ILM policy configured
         String dataStreamName = "logs";

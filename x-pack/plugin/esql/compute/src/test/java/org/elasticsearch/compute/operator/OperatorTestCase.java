@@ -194,7 +194,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             getTestClass().getSimpleName(),
             new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
-        var driverRunner = new DriverRunner() {
+        var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
                 Driver.start(threadPool.executor("esql"), driver, between(1, 10000), driverListener);

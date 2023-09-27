@@ -23,7 +23,7 @@ abstract class AbstractBlock implements Block {
 
     protected final BlockFactory blockFactory;
 
-    protected boolean released; // false
+    protected boolean released = false;
 
     /**
      * @param positionCount the number of values in this block

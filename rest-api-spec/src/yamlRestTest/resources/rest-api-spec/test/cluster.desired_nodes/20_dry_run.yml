@@ -87,6 +87,9 @@ teardown:
           - { settings: { node: { name: "instance-000187" } }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
 ---
 "Test validation works for dry run updates":
+  - skip:
+      version: "8.9.99 - "
+      reason: "We started skipping setting validations in 8.10"
   - do:
       cluster.state: { }
 

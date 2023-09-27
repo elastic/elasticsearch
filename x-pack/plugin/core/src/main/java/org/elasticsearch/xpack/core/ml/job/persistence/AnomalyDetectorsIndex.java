@@ -137,7 +137,7 @@ public final class AnomalyDetectorsIndex {
     public static String resultsMapping() {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "results_index_mappings.json",
-            Build.current().toString(), // Only needed for BWC with pre-8.10.0 nodes
+            Build.current().version(), // Only needed for BWC with pre-8.10.0 nodes
             RESULTS_MAPPINGS_VERSION_VARIABLE,
             Map.of("xpack.ml.managed.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
         );

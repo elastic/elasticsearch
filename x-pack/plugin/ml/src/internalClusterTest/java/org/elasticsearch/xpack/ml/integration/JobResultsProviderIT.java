@@ -519,7 +519,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) mappings.get("_meta");
         assertThat(meta.keySet(), hasItem("version"));
-        assertThat(meta.get("version"), equalTo(Build.current().toString()));
+        assertThat(meta.get("version"), equalTo(Build.current().version()));
         assertThat(
             meta.get("managed_index_mappings_version"),
             equalTo(Integer.toString(AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION))

@@ -51,7 +51,7 @@ public final class InferenceIndexConstants {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             "/ml/inference_index_mappings.json",
-            Build.current().toString(), // Only needed for BWC with pre-8.10.0 nodes
+            Build.current().version(), // Only needed for BWC with pre-8.10.0 nodes
             MAPPINGS_VERSION_VARIABLE,
             Map.of("xpack.ml.managed.index.version", Integer.toString(INFERENCE_INDEX_MAPPINGS_VERSION))
         );

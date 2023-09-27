@@ -1,5 +1,5 @@
 pr: 99584
-summary: Platform specific models
+summary: Adding an option for trained models to be platform specific
 area: Machine Learning
 type: enhancement
 issues: []

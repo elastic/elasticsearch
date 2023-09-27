@@ -50,7 +50,7 @@ esplugin.bundleSpec.exclude 'platform/licenses/**'
 
 ["bundlePlugin", "explodedBundlePlugin"].each { bundleTaskName ->
     tasks.named(bundleTaskName).configure {
-      dependsOn configurations.nativeBundle
+        dependsOn configurations.nativeBundle
     }
 }
 

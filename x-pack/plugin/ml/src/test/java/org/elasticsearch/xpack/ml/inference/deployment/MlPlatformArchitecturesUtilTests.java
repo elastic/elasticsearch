@@ -89,8 +89,6 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
 
     public void testVerifyMlNodesAndModelArchitectures_GivenAtLeastTwoArches_ThenThrowsISE() {
         var architectures = nArchitectures(randomIntBetween(2, 10));
-        String architecturesStr = architectures.toString();
-        architecturesStr = architecturesStr.substring(1, architecturesStr.length() - 1); // Remove the brackets
         var modelId = randomAlphaOfLength(10);
         var requiredArch = randomAlphaOfLength(10);
         String message = "ML nodes in this cluster have multiple platform architectures, "
@@ -99,9 +97,9 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
             + "]); "
             + "expected ["
             + requiredArch
-            + "]; but was ["
-            + architecturesStr
-            + "]";
+            + "]; but was "
+            + architectures
+            + "";
 
         Throwable exception = expectThrows(
             IllegalStateException.class,
@@ -146,7 +144,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
     }
 
     private Set<String> nArchitectures(Integer n) {
-        Set<String> architectures = new HashSet<String>();
+        Set<String> architectures = new HashSet<String>(n);
         for (int i = 0; i < n; i++) {
             architectures.add(randomAlphaOfLength(10));
         }

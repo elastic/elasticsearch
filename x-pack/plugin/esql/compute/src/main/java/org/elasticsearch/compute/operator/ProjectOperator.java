@@ -60,6 +60,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         for (int i = 0; i < page.getBlockCount(); i++) {
             var block = page.getBlock(i);
             if (bs.get(i)) {
+                assertNotReleasing(blocksToRelease, block);
                 blocks[b++] = block;
             } else {
                 blocksToRelease.add(block);
@@ -72,5 +73,11 @@ public class ProjectOperator extends AbstractPageMappingOperator {
     @Override
     public String toString() {
         return "ProjectOperator[mask = " + bs + ']';
+    }
+
+    static void assertNotReleasing(List<Releasable> toRelease, Block toKeep) {
+        // verify by identity equality
+        assert toRelease.stream().anyMatch(r -> r == toKeep) == false
+            : "both releasing and keeping the same block: " + toRelease.stream().filter(r -> r == toKeep).toList();
     }
 }

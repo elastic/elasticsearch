@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
@@ -346,6 +347,24 @@ public class HeaderWarningTests extends ESTestCase {
         HeaderWarning.addWarning(threadContexts, "\"");
         HeaderWarning.addWarning(threadContexts, "\\");
         HeaderWarning.addWarning(threadContexts, allNotAllowedChars());
+    }
+
+    public void testWarnAgentValidationStateful() {
+        var sampleWarningWithFullAgent = "299 Elasticsearch-8.11.0-SNAPSHOT-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+
+        var pattern = HeaderWarning.getPatternWithSemanticVersion();
+        final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
+        assertTrue("Warning on stateful/on-prem should match pattern with semantic version", matcher.matches());
+    }
+
+    public void testWarnAgentValidationStateless() {
+        var sampleWarningWithFullAgent = "299 Elasticsearch-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+
+        var pattern = HeaderWarning.getPatternWithoutSemanticVersion();
+        final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
+        assertTrue("Warning on stateless should match pattern without semantic version", matcher.matches());
     }
 
     private String allNotAllowedChars() {

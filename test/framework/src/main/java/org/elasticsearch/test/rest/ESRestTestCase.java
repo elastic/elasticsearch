@@ -312,9 +312,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static class VersionSensitiveWarningsHandler implements WarningsHandler {
         Set<String> requiredSameVersionClusterWarnings = new HashSet<>();
         Set<String> allowedWarnings = new HashSet<>();
-        final Set<String> testNodeVersions;
+        private final Set<String> testNodeVersions;
 
-        public VersionSensitiveWarningsHandler(Set<String> nodeVersions) {
+        VersionSensitiveWarningsHandler(Set<String> nodeVersions) {
             this.testNodeVersions = nodeVersions;
         }
 

@@ -128,7 +128,7 @@ public final class NodeMetadata {
 
         if (nodeVersion.after(Version.CURRENT)) {
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]"
+                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Build.current().version() + "]"
             );
         }
     }

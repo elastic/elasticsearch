@@ -88,21 +88,17 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
          * The input blocks don't count against the memory usage for the limited operator that we
          * build.
          */
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak())
+            .withCircuitBreaking();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 10_000)));
-        try {
-            BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak())
-                .withCircuitBreaking();
-            CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-            BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
-            Exception e = expectThrows(
-                CircuitBreakingException.class,
-                () -> drive(simple(bigArrays).get(new DriverContext(bigArrays, blockFactory)), input.iterator())
-            );
-            assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
-            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-        } finally {
-            Releasables.close(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks));
-        }
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+        Exception e = expectThrows(
+            CircuitBreakingException.class,
+            () -> drive(simple(bigArrays).get(new DriverContext(bigArrays, blockFactory)), input.iterator())
+        );
+        assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     /**

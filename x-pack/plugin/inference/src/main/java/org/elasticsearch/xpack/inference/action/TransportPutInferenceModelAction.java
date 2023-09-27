@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -58,7 +59,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             PutInferenceModelAction.Request::new,
             indexNameExpressionResolver,
             PutInferenceModelAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;

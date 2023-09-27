@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -67,7 +68,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             GetDataStreamAction.Request::new,
             indexNameExpressionResolver,
             GetDataStreamAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
         clusterSettings = clusterService.getClusterSettings();

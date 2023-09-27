@@ -146,6 +146,7 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -165,6 +166,7 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -532,6 +534,12 @@ public class Node implements Closeable {
 
             Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
 
+            var factoryContext = new InferenceServicePlugin.InferenceServiceFactoryContext(client);
+            final InferenceServiceRegistry inferenceServiceRegistry = new InferenceServiceRegistry(
+                pluginsService.filterPlugins(InferenceServicePlugin.class),
+                factoryContext
+            );
+
             final IngestService ingestService = new IngestService(
                 clusterService,
                 threadPool,
@@ -555,7 +563,8 @@ public class Node implements Closeable {
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.flatMap(Plugin::getNamedWriteables),
                 ClusterModule.getNamedWriteables().stream(),
-                SystemIndexMigrationExecutor.getNamedWriteables().stream()
+                SystemIndexMigrationExecutor.getNamedWriteables().stream(),
+                inferenceServiceRegistry.getNamedWriteables().stream()
             ).flatMap(Function.identity()).toList();
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
@@ -1170,6 +1179,7 @@ public class Node implements Closeable {
                 b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
                 b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
                 b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
+                b.bind(InferenceServiceRegistry.class).toInstance(inferenceServiceRegistry);
             });
 
             if (ReadinessService.enabled(environment)) {

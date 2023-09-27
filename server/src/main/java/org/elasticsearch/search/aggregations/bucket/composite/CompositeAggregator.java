@@ -116,8 +116,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                     + "]. This limit can be set by changing the ["
                     + MAX_BUCKET_SETTING.getKey()
                     + "] cluster level setting.",
-                bucketLimit,
-                size
+                bucketLimit
             );
         }
         this.sourceConfigs = sourceConfigs;

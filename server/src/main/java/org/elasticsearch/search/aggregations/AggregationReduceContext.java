@@ -219,7 +219,8 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
                 multiBucketConsumer.accept(size);
             } catch (MultiBucketConsumerService.TooManyBucketsException e) {
                 logger.error(
-                    "Too many buckets for aggregation [%s] (max [%d], count [%d])".formatted(
+                    String.format(
+                        "Too many buckets for aggregation [%s] (max [%d], count [%d])",
                         aggregationName,
                         e.getMaxBuckets(),
                         e.getBucketsCount()
@@ -228,7 +229,8 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
                 throw e;
             } catch (CircuitBreakingException e) {
                 logger.error(
-                    "Too much memory required for aggregation [%s] (max [%d] bytes, estimated [%d] bytes)".formatted(
+                    String.format(
+                        "Too much memory required for aggregation [%s] (max [%d] bytes, estimated [%d] bytes)",
                         aggregationName,
                         e.getByteLimit(),
                         e.getBytesWanted()

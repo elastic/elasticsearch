@@ -49,7 +49,7 @@ class CompositeAggregationFactory extends AggregatorFactory {
             return new CompositeAggregator(name, factories, context, parent, metadata, size, sources, afterKey);
         } catch (MultiBucketConsumerService.TooManyBucketsException e) {
             logger.error(
-                "Too many buckets for aggregation [%s] (max [%d], count [%d])".formatted(name, e.getMaxBuckets(), e.getBucketsCount())
+                String.format("Too many buckets for aggregation [%s] (max [%d], count [%d])", name, e.getMaxBuckets(), e.getBucketsCount())
             );
             throw e;
         }

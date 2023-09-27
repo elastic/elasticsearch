@@ -24,8 +24,6 @@ public class Warnings {
     private int addedWarnings;
 
     public Warnings(Source source) {
-        // assert trips with expressions whose source isn't serialized in PlanNamedTypes
-        // assert source.source().getLineNumber() > 0 && source.source().getColumnNumber() > 0 : "negative source location";
         location = format("Line {}:{}: ", source.source().getLineNumber(), source.source().getColumnNumber());
         first = format(
             null,

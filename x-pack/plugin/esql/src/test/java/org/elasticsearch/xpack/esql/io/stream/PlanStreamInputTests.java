@@ -118,6 +118,18 @@ public class PlanStreamInputTests extends ESTestCase {
             + "emp_no)"
             + d;
 
+        Function<LogicalPlan, List<Source>> sources = plan -> {
+            List<Expression> exp = new ArrayList<>();
+            plan.forEachDown(p -> {
+                if (p instanceof Eval e) {
+                    e.fields().forEach(a -> exp.add(a.child()));
+                } else if (p instanceof Filter f) {
+                    exp.add(f.condition());
+                }
+            });
+            return exp.stream().map(Expression::source).toList();
+        };
+
         for (var delim : new String[] { "", "\r", "\n", "\r\n" }) {
             String query = queryFn.apply(delim);
             EsqlConfiguration config = configuration(query);
@@ -130,18 +142,6 @@ public class PlanStreamInputTests extends ESTestCase {
                 config
             );
             assertThat(planIn, equalTo(planOut));
-
-            Function<LogicalPlan, List<Source>> sources = plan -> {
-                List<Expression> exp = new ArrayList<>();
-                plan.forEachDown(p -> {
-                    if (p instanceof Eval e) {
-                        e.fields().forEach(a -> exp.add(a.child()));
-                    } else if (p instanceof Filter f) {
-                        exp.add(f.condition());
-                    }
-                });
-                return exp.stream().map(Expression::source).toList();
-            };
             assertThat(sources.apply(planIn), equalTo(sources.apply(planOut)));
         }
     }

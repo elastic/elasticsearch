@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Map;

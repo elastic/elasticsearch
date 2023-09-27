@@ -9,7 +9,15 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -74,7 +82,9 @@ public class BlockBuilderTests extends ESTestCase {
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
             try (Block built = builder.build()) {
                 assertThat(built, equalTo(random.block()));
+                assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
             }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
@@ -86,9 +96,30 @@ public class BlockBuilderTests extends ESTestCase {
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
             try (Block built = builder.build()) {
                 assertThat(built, equalTo(random.block()));
+                assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
             }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
             Exception e = expectThrows(IllegalStateException.class, builder::build);
             assertThat(e.getMessage(), equalTo("already closed"));
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testCranky() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        try {
+            try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
+                BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+                builder.copyFrom(random.block(), 0, random.block().getPositionCount());
+                try (Block built = builder.build()) {
+                    assertThat(built, equalTo(random.block()));
+                }
+            }
+            // If we made it this far cranky didn't fail us!
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }

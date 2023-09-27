@@ -75,6 +75,7 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     public static long ramBytesEstimated(int[] values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+        // TODO mvordering is shared
     }
 
     @Override

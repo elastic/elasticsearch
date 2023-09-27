@@ -253,7 +253,6 @@ $if(BytesRef)$
             block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
             Releasables.closeExpectNoException(values);
         } else {
-            estimatedBytes += values.ramBytesUsed();
 $else$
             block = new Constant$Type$Vector(values[0], 1, blockFactory).asBlock();
         } else {
@@ -275,7 +274,12 @@ $endif$
          * still technically be open, meaning the calling code should close it
          * which will return all used memory to the breaker.
          */
+$if(BytesRef)$
+        blockFactory.adjustBreaker(block.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
+        assert estimatedBytes == 0;
+$else$
         blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
+$endif$
         built();
         return block;
     }

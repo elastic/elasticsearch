@@ -9,8 +9,18 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -18,6 +28,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@Seed("7E594D56CF8843C5:4B7F19DE1F496E74")
 public class VectorBuilderTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
@@ -50,7 +61,9 @@ public class VectorBuilderTests extends ESTestCase {
             fill(builder, random.block().asVector());
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));
+                assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
             }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
@@ -63,8 +76,28 @@ public class VectorBuilderTests extends ESTestCase {
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));
             }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
             Exception e = expectThrows(IllegalStateException.class, builder::build);
             assertThat(e.getMessage(), equalTo("already closed"));
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testCranky() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        try {
+            try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
+                BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+                fill(builder, random.block().asVector());
+                try (Vector built = builder.build()) {
+                    assertThat(built, equalTo(random.block().asVector()));
+                }
+            }
+            // If we made it this far cranky didn't fail us!
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
@@ -109,6 +142,5 @@ public class VectorBuilderTests extends ESTestCase {
                 }
             }
         }
-        ;
     }
 }

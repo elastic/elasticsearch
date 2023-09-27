@@ -60,9 +60,9 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
             vector = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory);
             Releasables.closeExpectNoException(values);
         } else {
-            estimatedBytes = values.ramBytesUsed();
             vector = new BytesRefArrayVector(values, valueCount, blockFactory);
         }
+        assert estimatedBytes == 0;
         /*
          * Update the breaker with the actual bytes used.
          * We pass false below even though we've used the bytes. That's weird,
@@ -71,7 +71,8 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
          * still technically be open, meaning the calling code should close it
          * which will return all used memory to the breaker.
          */
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, false);
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
+        values = null;
         built();
         return vector;
     }

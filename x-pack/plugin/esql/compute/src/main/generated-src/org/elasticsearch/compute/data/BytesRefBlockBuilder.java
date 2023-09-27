@@ -197,7 +197,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
             block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
             Releasables.closeExpectNoException(values);
         } else {
-            estimatedBytes += values.ramBytesUsed();
             if (isDense() && singleValued()) {
                 block = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
@@ -212,7 +211,8 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
          * still technically be open, meaning the calling code should close it
          * which will return all used memory to the breaker.
          */
-        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
+        blockFactory.adjustBreaker(block.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
+        assert estimatedBytes == 0;
         built();
         return block;
     }

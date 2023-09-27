@@ -160,7 +160,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         List<Page> results = new ArrayList<>();
 
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, false /* no throwing ops */);
-        var runner = new DriverRunner() {
+        var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
                 Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
@@ -182,7 +182,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         List<Page> results = new ArrayList<>();
 
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, true /* one throwing op */);
-        var runner = new DriverRunner() {
+        var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
                 Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);

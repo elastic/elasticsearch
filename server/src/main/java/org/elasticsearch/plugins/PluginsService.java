@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -295,7 +296,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     public void registerPluginFeatures(FeatureService service) {
         for (LoadedPlugin lp : plugins) {
             int era = lp.descriptor().getElasticsearchVersion().major;
-            lp.instance().registerFeatures(f -> service.registerFeature(f, era));
+            lp.instance().registerFeatures(f -> {
+                if (f.era() != era)
+                    throw new IllegalArgumentException(Strings.format("Incorrect era %s, should be %s", f.era(), era));
+                service.registerFeature(f);
+            });
         }
     }
 

@@ -11,13 +11,14 @@ package org.elasticsearch.features;
 import org.elasticsearch.Version;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+
+import static java.util.Map.entry;
 
 /**
  * Service responsible for registering features this node should publish to other nodes
@@ -27,7 +28,10 @@ public class FeatureService {
     /**
      * The set of features that are implied by historical node versions.
      */
-    private static final Map<Version, Set<String>> HISTORICAL_FEATURES = Map.ofEntries();
+    private static final Map<Version, Set<String>> HISTORICAL_FEATURES = Map.ofEntries(
+        entry(Version.V_8_10_0, Set.of("elastic-connectors.templates")),
+        entry(Version.V_8_11_0, Set.of("esql.stats_node"))
+    );
     private static final int CURRENT_ERA = Version.CURRENT.major;
 
     private static final NavigableMap<Version, Set<String>> AGGREGATED_FEATURES;
@@ -65,8 +69,6 @@ public class FeatureService {
     private final Set<String> features = new HashSet<>();
     private volatile boolean locked;
 
-    private record Feature(String id, int era) implements NodeFeature {}
-
     private static boolean isPublishableEra(int era) {
         return era >= CURRENT_ERA - 1;
     }
@@ -75,15 +77,13 @@ public class FeatureService {
      * Register a new feature. This should only be called during node initialization.
      * Once {@link #readPublishableFeatures} is called, no more features can be registered.
      */
-    public NodeFeature registerFeature(String id, int era) {
+    public void registerFeature(NodeFeature feature) {
         // we don't need proper sync here, this is just a sanity check
         if (locked) throw new IllegalStateException("The node's feature set has already been read");
 
-        if (isPublishableEra(era) && features.add(id) == false) {
-            throw new IllegalArgumentException("Feature " + id + " is already registered");
+        if (isPublishableEra(feature.era()) && features.add(feature.id()) == false) {
+            throw new IllegalArgumentException("Feature " + feature.id() + " is already registered");
         }
-
-        return new Feature(id, era);
     }
 
     /**

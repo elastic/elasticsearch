@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -121,6 +123,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE);
+    }
+
+    @Override
+    public void registerFeatures(Consumer<NodeFeature> registerFeature) {
+        registerFeature.accept(TransportEsqlStatsAction.ESQL_STATS_FEATURE);
     }
 
     @Override

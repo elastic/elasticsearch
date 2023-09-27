@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
@@ -335,6 +336,13 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             }
         }
         return false;
+    }
+
+    /**
+     * {@code true} if all nodes in the cluster have the specified feature
+     */
+    public boolean allNodesHaveFeature(NodeFeature feature) {
+        return nodes.values().stream().allMatch(n -> n.hasFeature(feature));
     }
 
     /**

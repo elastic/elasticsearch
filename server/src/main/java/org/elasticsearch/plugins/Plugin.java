@@ -40,6 +40,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -153,7 +154,7 @@ public abstract class Plugin implements Closeable {
     /**
      * Allows plugins to register additional features that can be checked against nodes
      */
-    public void registerFeatures(Function<String, NodeFeature> registerFeature) {}
+    public void registerFeatures(Consumer<NodeFeature> registerFeature) {}
 
     /**
      * Provides a function to modify index template meta data on startup.

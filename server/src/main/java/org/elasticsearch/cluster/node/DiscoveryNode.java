@@ -21,6 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -161,7 +162,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Set<String> features,
         @Nullable VersionInformation versionInfo
     ) {
         this(
@@ -173,9 +173,22 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             address,
             attributes,
             roles,
-            features,
             versionInfo
         );
+    }
+
+    public DiscoveryNode(
+        @Nullable String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        @Nullable VersionInformation versionInfo
+    ) {
+        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, inferFeaturesFrom(versionInfo), versionInfo);
     }
 
     /**
@@ -209,6 +222,27 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         @Nullable VersionInformation versionInfo
     ) {
         this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, features, versionInfo, null);
+    }
+
+    public DiscoveryNode(
+        @Nullable String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        @Nullable VersionInformation versionInfo,
+        @Nullable String externalId
+    ) {
+        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, inferFeaturesFrom(versionInfo), versionInfo, externalId);
+    }
+
+    private static Set<String> inferFeaturesFrom(VersionInformation versionInfo) {
+        return versionInfo != null && versionInfo.nodeVersion().before(Version.V_8_11_0)
+            ? FeatureService.getHistoricalFeatures(versionInfo.nodeVersion())
+            : Set.of();
     }
 
     /**
@@ -508,6 +542,19 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public Set<String> getFeatures() {
         return features;
+    }
+
+    /**
+     * {@code true} if this node has the specified feature
+     */
+    public boolean hasFeature(NodeFeature feature) {
+        int nodeEra = versionInfo.nodeVersion().major;
+        if (feature.era() != nodeEra) {
+            // check the era - true if this feature was added before this node's era
+            return feature.era() < nodeEra;
+        } else {
+            return features.contains(feature.id());
+        }
     }
 
     public VersionInformation getVersionInformation() {

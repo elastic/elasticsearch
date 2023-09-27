@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
-    static final Version MIN_NODE_VERSION = Version.V_8_10_0;
+    public static final NodeFeature CONNECTOR_TEMPLATES_FEATURE = new NodeFeature("elastic-connectors.templates", 8);
 
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 1;
@@ -177,7 +177,6 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected boolean isClusterReady(ClusterChangedEvent event) {
         // Ensure templates are installed only once all nodes are updated to 8.10.0.
-        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
-        return minNodeVersion.onOrAfter(MIN_NODE_VERSION);
+        return event.state().nodes().allNodesHaveFeature(CONNECTOR_TEMPLATES_FEATURE);
     }
 }

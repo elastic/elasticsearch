@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +32,8 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     EsqlStatsResponse,
     EsqlStatsRequest.NodeStatsRequest,
     EsqlStatsResponse.NodeStatsResponse> {
+
+    static final NodeFeature ESQL_STATS_FEATURE = new NodeFeature("esql.stats_node", 8);
 
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
@@ -62,7 +64,7 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
         DiscoveryNode[] concreteNodes = Arrays.stream(nodesIds)
             .map(clusterState.nodes()::get)
-            .filter(n -> n.getVersion().onOrAfter(Version.V_8_11_0))
+            .filter(n -> n.hasFeature(ESQL_STATS_FEATURE))
             .toArray(DiscoveryNode[]::new);
         request.setConcreteNodes(concreteNodes);
     }

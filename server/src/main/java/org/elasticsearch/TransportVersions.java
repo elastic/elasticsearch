@@ -145,7 +145,7 @@ public class TransportVersions {
     public static final TransportVersion WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED = def(8_502_00_0);
     public static final TransportVersion RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED = def(8_503_00_0);
     public static final TransportVersion NODE_INFO_COMPONENT_VERSIONS_ADDED = def(8_504_00_0);
-    public static final TransportVersion LOG_TOO_MANY_BUCKETS_ERROR = def(8_505_00_0);
+    public static final TransportVersion BUCKET_COUNT_ADDED_TO_TOO_MANY_BUCKETS_EXCEPTION = def(8_505_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

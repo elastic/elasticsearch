@@ -64,14 +64,18 @@ public class MultiBucketConsumerService {
         public TooManyBucketsException(StreamInput in) throws IOException {
             super(in);
             maxBuckets = in.readInt();
-            bucketsCount = in.getTransportVersion().onOrAfter(TransportVersions.LOG_TOO_MANY_BUCKETS_ERROR) ? in.readVInt() : -1;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.BUCKET_COUNT_ADDED_TO_TOO_MANY_BUCKETS_EXCEPTION)) bucketsCount = in
+                .readVInt();
+            else bucketsCount = -1;
         }
 
         @Override
         protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
             out.writeInt(maxBuckets);
-            out.writeVInt(out.getTransportVersion().onOrAfter(TransportVersions.LOG_TOO_MANY_BUCKETS_ERROR) ? bucketsCount : -1);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.BUCKET_COUNT_ADDED_TO_TOO_MANY_BUCKETS_EXCEPTION)) {
+                out.writeVInt(bucketsCount);
+            }
         }
 
         public int getMaxBuckets() {

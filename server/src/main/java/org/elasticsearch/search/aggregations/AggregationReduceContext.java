@@ -17,6 +17,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.tasks.TaskCancelledException;
 
+import java.util.Locale;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -220,6 +221,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             } catch (MultiBucketConsumerService.TooManyBucketsException e) {
                 logger.error(
                     String.format(
+                        Locale.ROOT,
                         "Too many buckets for aggregation [%s] (max [%d], count [%d])",
                         aggregationName,
                         e.getMaxBuckets(),
@@ -230,6 +232,7 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
             } catch (CircuitBreakingException e) {
                 logger.error(
                     String.format(
+                        Locale.ROOT,
                         "Too much memory required for aggregation [%s] (max [%d] bytes, estimated [%d] bytes)",
                         aggregationName,
                         e.getByteLimit(),

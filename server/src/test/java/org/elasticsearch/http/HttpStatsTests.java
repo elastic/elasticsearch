@@ -104,10 +104,10 @@ public class HttpStatsTests extends ESTestCase {
         return new HttpRouteStats(
             randomLongBetween(0, 99),
             randomLongBetween(0, 9999),
-            IntStream.range(0, 28).mapToLong(i -> randomLongBetween(0, 42)).toArray(),
+            IntStream.range(0, 32).mapToLong(i -> randomLongBetween(0, 42)).toArray(),
             randomLongBetween(0, 99),
             randomLongBetween(0, 9999),
-            IntStream.range(0, 28).mapToLong(i -> randomLongBetween(0, 42)).toArray(),
+            IntStream.range(0, 32).mapToLong(i -> randomLongBetween(0, 42)).toArray(),
             IntStream.range(0, 18).mapToLong(i -> randomLongBetween(0, 42)).toArray()
         );
     }

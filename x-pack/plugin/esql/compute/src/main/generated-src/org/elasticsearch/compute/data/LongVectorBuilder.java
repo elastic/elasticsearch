@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of LongBlocks.
+ * Builder for {@link LongVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class LongVectorBuilder extends AbstractVectorBuilder implements LongVector.Builder {

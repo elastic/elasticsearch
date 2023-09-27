@@ -115,10 +115,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getLifecyclePolicies(), not(empty()));
         assertThat(
-            disabledRegistry.getLifecyclePolicies()
-                .stream()
-                .filter(p -> p.getName().contains("@") == false)
-                .collect(Collectors.toSet()),
+            disabledRegistry.getLifecyclePolicies().stream().filter(p -> p.getName().contains("@") == false).collect(Collectors.toSet()),
             empty()
         );
     }

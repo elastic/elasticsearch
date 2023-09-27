@@ -771,11 +771,10 @@ public class MetadataIndexTemplateService {
             );
     }
 
-    private void validateUseOfDeprecatedIngestPipelines(
-        String name,
-        IngestMetadata ingestMetadata,
-        Settings combinedSettings) {
-        Map<String, PipelineConfiguration> pipelines = Optional.ofNullable(ingestMetadata).map(IngestMetadata::getPipelines).orElse(Map.of());
+    private void validateUseOfDeprecatedIngestPipelines(String name, IngestMetadata ingestMetadata, Settings combinedSettings) {
+        Map<String, PipelineConfiguration> pipelines = Optional.ofNullable(ingestMetadata)
+            .map(IngestMetadata::getPipelines)
+            .orElse(Map.of());
         emitWarningIfPipelineIsDeprecated(name, pipelines, combinedSettings.get("index.default_pipeline"));
         emitWarningIfPipelineIsDeprecated(name, pipelines, combinedSettings.get("index.final_pipeline"));
     }

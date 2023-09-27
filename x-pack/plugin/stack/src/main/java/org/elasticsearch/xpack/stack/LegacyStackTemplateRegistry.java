@@ -92,7 +92,6 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics-settings";
     public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics";
 
-
     public LegacyStackTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,

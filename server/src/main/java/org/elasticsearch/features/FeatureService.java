@@ -62,8 +62,8 @@ public class FeatureService {
         return features != null ? features.getValue() : Set.of();
     }
 
-    private final Map<String, String> features = new HashMap<>();
-    private volatile Set<String> finalFeatureSet;
+    private final Set<String> features = new HashSet<>();
+    private volatile boolean locked;
 
     private record Feature(String id, int era) implements NodeFeature {}
 
@@ -77,9 +77,9 @@ public class FeatureService {
      */
     public NodeFeature registerFeature(String id, int era) {
         // we don't need proper sync here, this is just a sanity check
-        if (finalFeatureSet != null) throw new IllegalStateException("The node's feature set has already been read");
+        if (locked) throw new IllegalStateException("The node's feature set has already been read");
 
-        if (isPublishableEra(era) && features.putIfAbsent(id, id) != null) {
+        if (isPublishableEra(era) && features.add(id) == false) {
             throw new IllegalArgumentException("Feature " + id + " is already registered");
         }
 
@@ -91,10 +91,7 @@ public class FeatureService {
      * This prevents any further modifications to the feature set.
      */
     public Set<String> readPublishableFeatures() {
-        Set<String> finalFeatures = finalFeatureSet;
-        if (finalFeatures == null) {
-            finalFeatures = finalFeatureSet = Set.copyOf(features.values());
-        }
-        return finalFeatures;
+        locked = true;
+        return Collections.unmodifiableSet(features);
     }
 }

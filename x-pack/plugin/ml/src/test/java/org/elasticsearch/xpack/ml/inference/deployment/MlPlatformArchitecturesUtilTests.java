@@ -18,7 +18,6 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,11 +38,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MlPlatformArchitecturesUtilTests extends ESTestCase {
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-    }
 
     public void testGetNodesOsArchitectures() throws InterruptedException {
         var threadPool = mock(ThreadPool.class);

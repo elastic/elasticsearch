@@ -525,7 +525,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return update(currentState, rebalanceAssignments(currentState, Optional.of(params)));
     }
 
-    void rebalanceAssignments(
+    private void rebalanceAssignments(
         ClusterState clusterState,
         Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd,
         String reason,

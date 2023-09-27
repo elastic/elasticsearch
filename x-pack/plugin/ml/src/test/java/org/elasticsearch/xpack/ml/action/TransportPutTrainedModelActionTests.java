@@ -220,16 +220,18 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         TransportPutTrainedModelAction actionSpy = spy(createTransportPutTrainedModelAction());
         @SuppressWarnings("unchecked")
         ArgumentCaptor<ActionListener<Void>> failureListener = ArgumentCaptor.forClass(ActionListener.class);
-        ArgumentCaptor<ActionListener<TrainedModelConfig>> configToReturnListener = ArgumentCaptor.forClass(ActionListener.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<TrainedModelConfig> mockConfigToReturnListener = mock(ActionListener.class);
         TrainedModelConfig mockConfigToReturn = mock(TrainedModelConfig.class);
+        doNothing().when(mockConfigToReturnListener).onResponse(any());
 
         doNothing().when(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), any(), any(), any());
-        actionSpy.verifyMlNodesAndModelArchitectures(mockConfigToReturn, null, threadPool, configToReturnListener.capture());
+        actionSpy.verifyMlNodesAndModelArchitectures(mockConfigToReturn, null, threadPool, mockConfigToReturnListener);
+        verify(actionSpy).verifyMlNodesAndModelArchitectures(any(), any(), any(), any());
         verify(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), failureListener.capture(), any(), any());
 
         String warningMessage = "TEST HEADER WARNING";
         failureListener.getValue().onFailure(new IllegalArgumentException(warningMessage));
-        configToReturnListener.getValue().onResponse(mockConfigToReturn);
         assertWarnings(warningMessage);
     }
 
@@ -239,10 +241,11 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<ActionListener<Void>> failureListener = ArgumentCaptor.forClass(ActionListener.class);
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<TrainedModelConfig>> configToReturnListener = ArgumentCaptor.forClass(ActionListener.class);
+        ActionListener<TrainedModelConfig> mockConfigToReturnListener = mock(ActionListener.class);
+        TrainedModelConfig mockConfigToReturn = mock(TrainedModelConfig.class);
 
         doNothing().when(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), any(), any(), any());
-        actionSpy.verifyMlNodesAndModelArchitectures(null, null, threadPool, configToReturnListener.capture());
+        actionSpy.verifyMlNodesAndModelArchitectures(mockConfigToReturn, null, threadPool, mockConfigToReturnListener);
         verify(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), failureListener.capture(), any(), any());
 
         ensureNoWarnings();

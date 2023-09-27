@@ -164,33 +164,7 @@ public class DeploymentManager {
             finalListener.onResponse(task);
         }, failedDeploymentListener::onFailure);
 
-        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
-            assert getModelResponse.getResources().results().size() == 1;
-            TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
-            String modelId = modelConfig.getModelId();
-            String platformArchitecture = modelConfig.getPlatformArchitecture();
-
-            ActionListener<TrainedModelConfig> failureListener = new ActionListener<TrainedModelConfig>() {
-
-                @Override
-                public void onResponse(TrainedModelConfig o) {
-
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    failedDeploymentListener.onFailure(e);
-                }
-            };
-
-            MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-                failureListener,
-                client,
-                threadPool,
-                platformArchitecture,
-                modelId
-            );
-
+        ActionListener<TrainedModelConfig> completeVerificationOfModelListener = ActionListener.wrap((modelConfig) -> {
             processContext.modelInput.set(modelConfig.getInput());
 
             if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
@@ -231,6 +205,18 @@ public class DeploymentManager {
                     )
                 );
             }
+        }, failedDeploymentListener::onFailure);
+
+        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
+            assert getModelResponse.getResources().results().size() == 1;
+            TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+            String modelId = modelConfig.getModelId();
+            String platformArchitecture = modelConfig.getPlatformArchitecture();
+
+            MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(ActionListener.wrap((v) -> {
+                completeVerificationOfModelListener.onResponse(modelConfig);
+            }, failedDeploymentListener::onFailure), client, threadPool, platformArchitecture, modelId);
+
         }, failedDeploymentListener::onFailure);
 
         executeAsyncWithOrigin(

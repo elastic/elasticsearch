@@ -88,40 +88,36 @@ public class MlPlatformArchitecturesUtil {
 
         String architecture = null;
         Iterator<String> architecturesIterator = architectures.iterator();
-
         // If there are no ML nodes at all in the current cluster we assume that any that are added later will work
-        if (architecturesIterator.hasNext()) {
-            architecture = architecturesIterator.next();
+        if (modelPlatformArchitecture == null || architectures.isEmpty() || architecturesIterator.hasNext() == false) {
+            return;
+        }
 
-            if (modelPlatformArchitecture != null) { // null value indicates platform agnostic, so these errors are
-                                                     // irrelevant
-                if (architectures.size() > 1) { // Platform architectures are not homogeneous among ML nodes
+        if (architectures.size() > 1) {
+            throw new IllegalStateException(
+                format(
+                    "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
+                        + "expected [%s]; "
+                        + "but was %s",
+                    modelID,
+                    modelPlatformArchitecture,
+                    architectures
+                )
+            );
+        }
 
-                    throw new IllegalStateException(
-                        format(
-                            "ML nodes in this cluster have multiple platform architectures, but can only have one for this model ([%s]); "
-                                + "expected [%s]; "
-                                + "but was %s",
-                            modelID,
-                            modelPlatformArchitecture,
-                            architectures
-                        )
-                    );
+        if (Objects.equals(architecturesIterator.next(), modelPlatformArchitecture) == false) {
 
-                } else if (Objects.equals(architecture, modelPlatformArchitecture) == false) {
-
-                    throw new IllegalArgumentException(
-                        format(
-                            "The model being deployed ([%s]) is platform specific and incompatible with ML nodes in the cluster; "
-                                + "expected [%s]; "
-                                + "but was %s",
-                            modelID,
-                            modelPlatformArchitecture,
-                            architectures
-                        )
-                    );
-                }
-            }
+            throw new IllegalArgumentException(
+                format(
+                    "The model being deployed ([%s]) is platform specific and incompatible with ML nodes in the cluster; "
+                        + "expected [%s]; "
+                        + "but was %s",
+                    modelID,
+                    modelPlatformArchitecture,
+                    architectures
+                )
+            );
         }
     }
 }

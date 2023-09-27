@@ -572,6 +572,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         );
 
         trainedModelConfig.setLocation(trainedModelConfig.getModelType().getDefaultLocation(trainedModelConfig.getModelId()));
+
     }
 
     static InferenceConfig parseInferenceConfigFromModelPackage(

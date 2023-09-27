@@ -62,6 +62,7 @@ public class HttpRouteStatsTracker {
         if (contentLength > Integer.MAX_VALUE) {
             return bucket(Integer.MAX_VALUE);
         } else {
+            assert contentLength >= 0;
             return bucket((int) contentLength);
         }
     }

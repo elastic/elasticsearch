@@ -33,6 +33,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -176,6 +177,49 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                 Settings.builder().put(NODE_ROLES_SETTING.getKey(), "master").build()
             );
             updateDesiredNodes(updateDesiredNodesRequest);
+        }
+    }
+
+    public void testUnknownSettingsAreAllowedInFutureVersions() {
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
+            Version.fromString("99.9.0"),
+            Settings.builder().put("desired_nodes.random_setting", Integer.MIN_VALUE).build()
+        );
+
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
+    }
+
+    public void testNodeProcessorsGetValidatedWithDesiredNodeProcessors() {
+        final int numProcessors = Math.max(Runtime.getRuntime().availableProcessors() + 1, 2048);
+        // This test verifies that the validation doesn't throw on desired nodes
+        // with a higher number of available processors than the node running the tests.
+        final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            randomList(
+                1,
+                20,
+                () -> randomDesiredNode(
+                    Version.CURRENT,
+                    Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
+                    numProcessors
+                )
+            ),
+            false
+        );
+
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
+
+        assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
+        for (final var desiredNodeWithStatus : latestDesiredNodes) {
+            final var desiredNode = desiredNodeWithStatus.desiredNode();
+            assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
         }
     }
 

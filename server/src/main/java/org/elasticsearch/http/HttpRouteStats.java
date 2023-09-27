@@ -13,12 +13,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /**
@@ -57,17 +59,32 @@ public record HttpRouteStats(
         builder.startObject("requests");
         builder.field("count", requestCount);
         builder.humanReadableField("total_size_in_bytes", "total_size", ByteSizeValue.ofBytes(totalRequestSize));
-        histogramToXContent(builder, "size_histogram", "bytes", requestSizeHistogram, HttpRouteStatsTracker.getBucketUpperBounds());
+        histogramToXContent(
+            builder,
+            "size_histogram",
+            "bytes",
+            ByteSizeValue::ofBytes,
+            requestSizeHistogram,
+            HttpRouteStatsTracker.getBucketUpperBounds()
+        );
         builder.endObject();
 
         builder.startObject("responses");
         builder.field("count", responseCount);
         builder.humanReadableField("total_size_in_bytes", "total_size", ByteSizeValue.ofBytes(totalResponseSize));
-        histogramToXContent(builder, "size_histogram", "bytes", responseSizeHistogram, HttpRouteStatsTracker.getBucketUpperBounds());
+        histogramToXContent(
+            builder,
+            "size_histogram",
+            "bytes",
+            ByteSizeValue::ofBytes,
+            responseSizeHistogram,
+            HttpRouteStatsTracker.getBucketUpperBounds()
+        );
         histogramToXContent(
             builder,
             "handling_time_histogram",
             "millis",
+            TimeValue::timeValueMillis,
             responseTimeHistogram,
             HandlingTimeTracker.getBucketUpperBounds()
         );
@@ -76,8 +93,14 @@ public record HttpRouteStats(
         return builder.endObject();
     }
 
-    static void histogramToXContent(XContentBuilder builder, String fieldName, String unitName, long[] histogram, int[] bucketBounds)
-        throws IOException {
+    static void histogramToXContent(
+        XContentBuilder builder,
+        String fieldName,
+        String unitName,
+        Function<Integer, Object> humanReadableValueFunc,
+        long[] histogram,
+        int[] bucketBounds
+    ) throws IOException {
         assert histogram.length == bucketBounds.length + 1;
         builder.startArray(fieldName);
 
@@ -93,10 +116,10 @@ public record HttpRouteStats(
         for (int i = firstBucket; i < histogram.length && 0 < remainingCount; i++) {
             builder.startObject();
             if (i > 0) {
-                builder.humanReadableField("ge_" + unitName, "ge", ByteSizeValue.ofBytes(bucketBounds[i - 1]));
+                builder.humanReadableField("ge_" + unitName, "ge", humanReadableValueFunc.apply(bucketBounds[i - 1]));
             }
             if (i < bucketBounds.length) {
-                builder.humanReadableField("lt_" + unitName, "lt", ByteSizeValue.ofBytes(bucketBounds[i]));
+                builder.humanReadableField("lt_" + unitName, "lt", humanReadableValueFunc.apply(bucketBounds[i]));
             }
             builder.field("count", histogram[i]);
             builder.endObject();

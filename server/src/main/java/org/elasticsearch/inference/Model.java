@@ -42,6 +42,30 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
         this(new ModelConfigurations(in), new ModelSecrets(in));
     }
 
+    /**
+     * Returns the model's non-sensitive configurations (e.g. service name).
+     */
+    public ModelConfigurations getConfigurations() {
+        return configurations;
+    }
+
+    /**
+     * Returns the model's sensitive configurations (e.g. api key).
+     *
+     * This returns an object that in json would look like:
+     *
+     * <pre>
+     * {@code
+     * {
+     *     "secret_settings": { "api_key": "abc" }
+     * }
+     * }
+     * </pre>
+     */
+    public ModelSecrets getSecrets() {
+        return secrets;
+    }
+
     public ServiceSettings getServiceSettings() {
         return configurations.getServiceSettings();
     }
@@ -50,16 +74,21 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
         return configurations.getTaskSettings();
     }
 
-    public ModelConfigurations getConfigurations() {
-        return configurations;
-    }
-
-    public ModelSecrets getSecrets() {
-        return secrets;
-    }
-
+    /**
+     * Returns the inner sensitive data defined by a particular service.
+     *
+     * This returns an object that in json would look like:
+     *
+     * <pre>
+     * {@code
+     * {
+     *     "api_key": "abc"
+     * }
+     * }
+     * </pre>
+     */
     public SecretSettings getSecretSettings() {
-        return secrets.getSecrets();
+        return secrets.getSecretSettings();
     }
 
     @Override

@@ -119,13 +119,14 @@ public class ModelRegistry {
 
     public void storeModel(Model model, ActionListener<Boolean> listener) {
         ActionListener<BulkResponse> bulkResponseActionListener = ActionListener.wrap(bulkItemResponses -> {
-            logBulkFailures(model.getConfigurations().getModelId(), bulkItemResponses);
             BulkItemResponse.Failure failure = getFirstBulkFailure(bulkItemResponses);
 
             if (failure == null) {
                 listener.onResponse(true);
                 return;
             }
+
+            logBulkFailures(model.getConfigurations().getModelId(), bulkItemResponses);
 
             if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
                 listener.onFailure(
@@ -153,7 +154,6 @@ public class ModelRegistry {
             model.getConfigurations(),
             false
         );
-        configRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         IndexRequest secretsRequest = createIndexRequest(
             Model.documentId(model.getConfigurations().getModelId()),
@@ -161,21 +161,26 @@ public class ModelRegistry {
             model.getSecrets(),
             false
         );
-        secretsRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        client.prepareBulk().add(configRequest).add(secretsRequest).execute(bulkResponseActionListener);
+        client.prepareBulk()
+            .add(configRequest)
+            .add(secretsRequest)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute(bulkResponseActionListener);
     }
 
     private static void logBulkFailures(String modelId, BulkResponse bulkResponse) {
         for (BulkItemResponse item : bulkResponse.getItems()) {
-            logger.error(
-                format(
-                    "Failed to store inference model [%s] index: [%s] bulk failure message [%s]",
-                    modelId,
-                    item.getIndex(),
-                    item.getFailureMessage()
-                )
-            );
+            if (item.isFailed()) {
+                logger.error(
+                    format(
+                        "Failed to store inference model [%s] index: [%s] bulk failure message [%s]",
+                        modelId,
+                        item.getIndex(),
+                        item.getFailureMessage()
+                    )
+                );
+            }
         }
     }
 
@@ -191,7 +196,7 @@ public class ModelRegistry {
 
     public void deleteModel(String modelId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
-        request.indices(InferenceIndex.INDEX_PATTERN);
+        request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
         request.setQuery(documentIdQuery(modelId));
         request.setRefresh(true);
 

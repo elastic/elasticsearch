@@ -83,16 +83,19 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         );
 
         var response = client().execute(PutInferenceModelAction.INSTANCE, request).actionGet();
-        assertEquals("test_service", response.getModel().getService());
+        assertEquals("test_service", response.getModel().getConfigurations().getService());
 
         assertThat(response.getModel().getServiceSettings(), instanceOf(TestInferenceServicePlugin.TestServiceSettings.class));
         var serviceSettings = (TestInferenceServicePlugin.TestServiceSettings) response.getModel().getServiceSettings();
         assertEquals("my_model", serviceSettings.model());
-        assertEquals("abc64", serviceSettings.apiKey());
 
         assertThat(response.getModel().getTaskSettings(), instanceOf(TestInferenceServicePlugin.TestTaskSettings.class));
         var taskSettings = (TestInferenceServicePlugin.TestTaskSettings) response.getModel().getTaskSettings();
         assertEquals(3, (int) taskSettings.temperature());
+
+        assertThat(response.getModel().getSecretSettings(), instanceOf(TestInferenceServicePlugin.TestSecretSettings.class));
+        var secretSettings = (TestInferenceServicePlugin.TestSecretSettings) response.getModel().getSecretSettings();
+        assertEquals("abc64", secretSettings.apiKey());
 
         return response.getModel();
     }
@@ -119,13 +122,14 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         // The test can't rely on Model::equals as the specific subclass
         // may be different. Model loses information about it's implemented
         // subtype when it is streamed across the wire.
-        assertEquals(model1.getModelId(), model2.getModelId());
-        assertEquals(model1.getService(), model2.getService());
-        assertEquals(model1.getTaskType(), model2.getTaskType());
+        assertEquals(model1.getConfigurations().getModelId(), model2.getConfigurations().getModelId());
+        assertEquals(model1.getConfigurations().getService(), model2.getConfigurations().getService());
+        assertEquals(model1.getConfigurations().getTaskType(), model2.getConfigurations().getTaskType());
 
         // TaskSettings and Service settings are named writables so
         // the actual implementing class type is not lost when streamed \
         assertEquals(model1.getServiceSettings(), model2.getServiceSettings());
         assertEquals(model1.getTaskSettings(), model2.getTaskSettings());
+        assertEquals(model1.getSecrets(), model2.getSecrets());
     }
 }

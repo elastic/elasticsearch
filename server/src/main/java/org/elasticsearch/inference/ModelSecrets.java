@@ -20,39 +20,42 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Represents the portion of a model that contains sensitive data
+ */
 public class ModelSecrets implements ToXContentObject, VersionedNamedWriteable {
-    public static final String SECRETS = "secrets";
+    public static final String SECRET_SETTINGS = "secret_settings";
     private static final String NAME = "inference_model_secrets";
-    private final SecretSettings secrets;
+    private final SecretSettings secretSettings;
 
     public ModelSecrets() {
-        this.secrets = null;
+        this.secretSettings = null;
     }
 
-    public ModelSecrets(@Nullable SecretSettings secrets) {
+    public ModelSecrets(@Nullable SecretSettings secretSettings) {
         // allow the secrets to be null in cases where the service does not have any secrets
-        this.secrets = secrets;
+        this.secretSettings = secretSettings;
     }
 
     public ModelSecrets(StreamInput in) throws IOException {
         this(in.readOptionalNamedWriteable(SecretSettings.class));
     }
 
-    public SecretSettings getSecrets() {
-        return secrets;
+    public SecretSettings getSecretSettings() {
+        return secretSettings;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalNamedWriteable(secrets);
+        out.writeOptionalNamedWriteable(secretSettings);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        if (secrets != null) {
-            builder.field(SECRETS, secrets);
+        if (secretSettings != null) {
+            builder.field(SECRET_SETTINGS, secretSettings);
         }
 
         builder.endObject();
@@ -74,11 +77,11 @@ public class ModelSecrets implements ToXContentObject, VersionedNamedWriteable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ModelSecrets that = (ModelSecrets) o;
-        return Objects.equals(secrets, that.secrets);
+        return Objects.equals(secretSettings, that.secretSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(secrets);
+        return Objects.hash(secretSettings);
     }
 }

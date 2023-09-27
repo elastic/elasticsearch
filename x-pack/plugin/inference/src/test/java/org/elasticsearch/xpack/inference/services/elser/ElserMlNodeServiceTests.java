@@ -46,7 +46,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
         );
         settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
 
-        ElserMlNodeModel parsedModel = service.parseConfigStrict("foo", TaskType.SPARSE_EMBEDDING, settings);
+        ElserMlNodeModel parsedModel = service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings);
 
         assertEquals(
             new ElserMlNodeModel(
@@ -69,7 +69,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
         );
 
-        ElserMlNodeModel parsedModel = service.parseConfigStrict("foo", TaskType.SPARSE_EMBEDDING, settings);
+        ElserMlNodeModel parsedModel = service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings);
 
         assertEquals(
             new ElserMlNodeModel(

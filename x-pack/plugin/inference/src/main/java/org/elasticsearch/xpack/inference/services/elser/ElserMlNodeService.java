@@ -41,7 +41,8 @@ public class ElserMlNodeService implements InferenceService {
         boolean throwOnUnknownFields,
         String modelId,
         TaskType taskType,
-        Map<String, Object> settings
+        Map<String, Object> settings,
+        Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettings = serviceSettingsFromMap(serviceSettingsMap);
@@ -72,13 +73,23 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parseConfigStrict(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parseConfig(true, modelId, taskType, config);
+    public ElserMlNodeModel parseConfigFromRequest(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> secrets
+    ) {
+        return parseConfig(true, modelId, taskType, config, secrets);
     }
 
     @Override
-    public ElserMlNodeModel parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parseConfig(false, modelId, taskType, config);
+    public ElserMlNodeModel parsePersistedConfig(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> secrets
+    ) {
+        return parseConfig(false, modelId, taskType, config, secrets);
     }
 
     @Override

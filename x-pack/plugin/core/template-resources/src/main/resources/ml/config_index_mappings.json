@@ -443,9 +443,6 @@
       "model_snapshot_retention_days" : {
         "type" : "long"
       },
-      "platform_architecture" : {
-        "type" : "keyword"
-      },
       "query" : {
         "type" : "object",
         "enabled" : false

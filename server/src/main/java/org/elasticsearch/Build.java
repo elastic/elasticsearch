@@ -130,6 +130,40 @@ public record Build(
         }
     }
 
+    public static boolean isWireCompatibleWithCurrent(String version) {
+        try {
+            TransportVersion transportVersion = TransportVersion.fromString(version);
+            return transportVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE);
+        } catch (NumberFormatException | IllegalStateException e) {
+            // not a transport version, continue
+        }
+
+        try {
+            Version esVersion = Version.fromString(version);
+            return esVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion());
+        } catch (IllegalArgumentException e) {
+            // not an es version, continue
+        }
+        throw new IllegalArgumentException("Cannot parse [" + version + "] as a transport version identifier");
+    }
+
+    public static boolean isIndexCompatibleWithCurrent(String version) {
+        try {
+            IndexVersion indexVersion = IndexVersion.fromId(Integer.parseInt(version));
+            return indexVersion.onOrAfter(IndexVersion.MINIMUM_COMPATIBLE);
+        } catch (NumberFormatException | IllegalStateException e) {
+            // not an index version, continue
+        }
+
+        try {
+            Version esVersion = Version.fromString(version);
+            return esVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion());
+        } catch (IllegalArgumentException e) {
+            // not an es version, continue
+        }
+        throw new IllegalArgumentException("Cannot parse [" + version + "] as an index version identifier");
+    }
+
     public static Build current() {
         return CurrentHolder.CURRENT;
     }

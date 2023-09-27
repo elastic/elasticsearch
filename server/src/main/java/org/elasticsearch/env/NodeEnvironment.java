@@ -525,19 +525,22 @@ public final class NodeEnvironment implements Closeable {
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
+            String bestDowngradeVersion = Build.isIndexCompatibleWithCurrent(metadata.previousNodeVersion().toString())
+                ? metadata.previousNodeVersion().toString()
+                : Build.current().minIndexCompatVersion();
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
                     + "] with which this node of version ["
                     + Build.current().version()
                     + "] is incompatible. Revert this node to version ["
-                    + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
+                    + bestDowngradeVersion
                     + "] and delete any indices with versions earlier than ["
                     + IndexVersion.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
                     + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
-                    + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
+                    + bestDowngradeVersion
                     + "] and wait for it to join the cluster to clean up any older indices from its metadata."
             );
         }

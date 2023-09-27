@@ -12,8 +12,12 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -117,6 +121,36 @@ public class BuildTests extends ESTestCase {
         @SuppressWarnings("ResultOfMethodCallIgnored")
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Build.Type.fromDisplayName(displayName, true));
         assertThat(e, hasToString(containsString("unexpected distribution type [" + displayName + "]; your distribution is broken")));
+    }
+
+    public void testIsWireCompatible() {
+        String legacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
+        assertTrue(Build.isWireCompatibleWithCurrent(legacyVersion));
+        legacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
+        assertFalse(Build.isWireCompatibleWithCurrent(legacyVersion));
+
+        String transportVersion = TransportVersionUtils.randomCompatibleVersion(random()).toString();
+        assertTrue(Build.isWireCompatibleWithCurrent(transportVersion));
+        transportVersion = TransportVersion.fromId(TransportVersions.MINIMUM_COMPATIBLE.id() - 1).toString();
+        assertFalse(Build.isWireCompatibleWithCurrent(transportVersion));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Build.isWireCompatibleWithCurrent("x.y.z"));
+        assertThat(e.getMessage(), equalTo("Cannot parse [x.y.z] as a transport version identifier"));
+    }
+
+    public void testIsIndexCompatible() {
+        String legacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
+        assertTrue(Build.isIndexCompatibleWithCurrent(legacyVersion));
+        legacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
+        assertFalse(Build.isIndexCompatibleWithCurrent(legacyVersion));
+
+        String indexVersion = IndexVersionUtils.randomCompatibleVersion(random()).toString();
+        assertTrue(Build.isIndexCompatibleWithCurrent(indexVersion));
+        indexVersion = IndexVersion.fromId(IndexVersion.MINIMUM_COMPATIBLE.id() - 1).toString();
+        assertFalse(Build.isIndexCompatibleWithCurrent(indexVersion));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Build.isIndexCompatibleWithCurrent("x.y.z"));
+        assertThat(e.getMessage(), equalTo("Cannot parse [x.y.z] as an index version identifier"));
     }
 
 }

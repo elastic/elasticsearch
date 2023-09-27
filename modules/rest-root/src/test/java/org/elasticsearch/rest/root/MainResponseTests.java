@@ -107,7 +107,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
                     build.date(),
                     build.isSnapshot(),
                     indexVersion.luceneVersion().toString(),
-                    version.minimumCompatibilityVersion().toString(),
+                    build.minWireCompatVersion(),
                     Build.minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE)
                 )
             ),

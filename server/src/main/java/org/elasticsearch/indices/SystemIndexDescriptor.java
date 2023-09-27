@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -737,7 +738,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private int indexFormat = 0;
         private String versionMetaKey = null;
         private String origin = null;
-        private Version minimumNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
+        private Version minimumNodeVersion = Version.fromString(Build.current().minWireCompatVersion());
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();

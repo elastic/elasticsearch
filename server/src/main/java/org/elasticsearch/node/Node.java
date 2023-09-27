@@ -509,7 +509,7 @@ public class Node implements Closeable {
                     .collect(Collectors.toCollection(LinkedHashSet::new))
             );
             resourcesToClose.add(nodeEnvironment);
-            localNodeFactory = new LocalNodeFactory(settings, featureService::readPublishedFeatures, nodeEnvironment.nodeId());
+            localNodeFactory = new LocalNodeFactory(settings, featureService::readPublishableFeatures, nodeEnvironment.nodeId());
 
             ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
             final NetworkService networkService = new NetworkService(

@@ -11,13 +11,13 @@ package org.elasticsearch.features;
 import org.elasticsearch.Version;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Service responsible for registering features this node should publish that it has.
@@ -56,13 +56,12 @@ public class FeatureService {
         return features != null ? features.getValue() : Set.of();
     }
 
-    private final Map<String, String> features = new ConcurrentHashMap<>();
+    private final Map<String, String> features = new HashMap<>();
     private volatile Set<String> finalFeatureSet;
-
 
     private record Feature(String id, int era) implements NodeFeature {}
 
-    private static boolean isRelevantEra(int era) {
+    private static boolean isPublishableEra(int era) {
         return era >= Version.CURRENT.major - 1;
     }
 
@@ -70,14 +69,14 @@ public class FeatureService {
         // we don't need proper sync here, this is just a sanity check
         if (finalFeatureSet != null) throw new IllegalStateException("The node's feature set has already been read");
 
-        if (isRelevantEra(era) && features.putIfAbsent(id, id) != null) {
+        if (isPublishableEra(era) && features.putIfAbsent(id, id) != null) {
             throw new IllegalArgumentException("Feature " + id + " is already registered");
         }
 
         return new Feature(id, era);
     }
 
-    public Set<String> readPublishedFeatures() {
+    public Set<String> readPublishableFeatures() {
         Set<String> finalFeatures = finalFeatureSet;
         if (finalFeatures == null) {
             finalFeatures = finalFeatureSet = Set.copyOf(features.values());

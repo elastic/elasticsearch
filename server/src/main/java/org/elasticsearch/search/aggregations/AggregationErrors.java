@@ -60,6 +60,14 @@ public class AggregationErrors {
         );
     }
 
+    /**
+     * This error indicates that the backing indices for a field have different, incompatible, types (e.g. IP and Keyword).  This
+     * causes a failure at reduce time, and is not retryable (and thus should be a 400 class error)
+     *
+     * @param aggregationName - The name of the aggregation
+     * @param position - optional, for multisource aggregations.  Indicates the position of the field causing the problem.
+     * @return - an appropriate exception
+     */
     public static RuntimeException reduceTypeMissmatch(String aggregationName, Optional<Integer> position) {
         String fieldString;
         if (position.isPresent()) {
@@ -85,10 +93,23 @@ public class AggregationErrors {
         return new IllegalArgumentException("Unsupported script value [" + actual + "], expected a number, date, or boolean");
     }
 
+    /**
+     * Indicates that a multivalued field was found where we only support a single valued field
+     * @return an appropriate exception
+     */
     public static RuntimeException unsupportedMultivalue() {
         return new IllegalArgumentException(
             "Encountered more than one value for a "
                 + "single document. Use a script to combine multiple values per doc into a single value."
         );
+    }
+
+    /**
+     * Indicates an attempt to use date rounding on a non-date values source
+     * @param typeName - name of the type we're attempting to round
+     * @return an appropriate exception
+     */
+    public static RuntimeException unsupportedRounding(String typeName) {
+        return new IllegalArgumentException("can't round a [" + typeName + "]");
     }
 }

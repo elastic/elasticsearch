@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of DoubleBlocks.
+ * Builder for {@link DoubleVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleVector.Builder {

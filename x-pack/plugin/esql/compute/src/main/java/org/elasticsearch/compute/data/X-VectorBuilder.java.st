@@ -18,7 +18,7 @@ import java.util.Arrays;
 $endif$
 
 /**
- * Block build of $Type$Blocks.
+ * Builder for {@link $Type$Vector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$Vector.Builder {

@@ -13,7 +13,7 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block build of BytesRefBlocks.
+ * Builder for {@link BytesRefVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class BytesRefVectorBuilder extends AbstractVectorBuilder implements BytesRefVector.Builder {

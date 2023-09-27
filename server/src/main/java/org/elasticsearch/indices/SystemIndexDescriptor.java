@@ -971,6 +971,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         }
     }
 
+    @Deprecated
     @SuppressWarnings("unchecked")
     private static Version extractNodeVersionFromMappings(String mappings, String versionMetaKey) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);

@@ -16,7 +16,7 @@ setup:
             settings:
               index:
                 mode: time_series
-                number_of_replicas: 0
+                number_of_replicas: 1
                 number_of_shards: 2
                 routing_path: [metricset, time_series_dimension]
                 time_series:
@@ -89,6 +89,10 @@ created the data stream:
   - skip:
       version: " - 8.0.99"
       reason: introduced in 8.1.0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       indices.get_data_stream:

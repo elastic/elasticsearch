@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +62,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
+            if (attr instanceof FieldAttribute fa && fa.getExactInfo().hasExact()) {
+                attr = fa.exactAttribute();
+            }
             layout.append(attr);
             Layout previousLayout = op.layout;
 

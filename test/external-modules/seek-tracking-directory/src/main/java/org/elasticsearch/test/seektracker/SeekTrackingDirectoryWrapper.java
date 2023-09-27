@@ -144,6 +144,11 @@ public class SeekTrackingDirectoryWrapper implements IndexModule.DirectoryWrappe
                 // return default impl
                 return new RandomAccessInput() {
                     @Override
+                    public long length() {
+                        return slice.length();
+                    }
+
+                    @Override
                     public byte readByte(long pos) throws IOException {
                         slice.seek(pos);
                         return slice.readByte();

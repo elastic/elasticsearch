@@ -19,24 +19,24 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final boolean[] values;
     /**
-     * The next byte to write into. {@code -1} means the vector has already
+     * The next value to write into. {@code -1} means the vector has already
      * been built.
      */
-    private int i;
+    private int nextIndex;
 
     BooleanVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        blockFactory.adjustBreaker(size(size), false);
+        blockFactory.adjustBreaker(ramBytesUsed(size), false);
         this.blockFactory = blockFactory;
         this.values = new boolean[size];
     }
 
     @Override
     public BooleanVectorFixedBuilder appendBoolean(boolean value) {
-        values[i++] = value;
+        values[nextIndex++] = value;
         return this;
     }
 
-    private static long size(int size) {
+    private static long ramBytesUsed(int size) {
         return size == 1
             ? ConstantBooleanVector.RAM_BYTES_USED
             : BooleanArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
@@ -46,13 +46,13 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
 
     @Override
     public BooleanVector build() {
-        if (i < 0) {
+        if (nextIndex < 0) {
             throw new IllegalStateException("already closed");
         }
-        if (i != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + i + "]");
+        if (nextIndex != values.length) {
+            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
         }
-        i = -1;
+        nextIndex = -1;
         if (values.length == 1) {
             return new ConstantBooleanVector(values[0], 1, blockFactory);
         }

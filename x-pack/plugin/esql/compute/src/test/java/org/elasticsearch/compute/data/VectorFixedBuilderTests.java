@@ -45,12 +45,6 @@ public class VectorFixedBuilderTests extends ESTestCase {
         this.elementType = elementType;
     }
 
-    public void testCloseWithoutBuilding() {
-        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        // vectorBuilder(10, blockFactory).close();
-        // assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
-    }
-
     public void testBuildSmall() {
         testBuild(between(1, 100));
     }

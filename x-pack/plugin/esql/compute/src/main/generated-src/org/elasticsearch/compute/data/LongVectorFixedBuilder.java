@@ -19,24 +19,24 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final long[] values;
     /**
-     * The next byte to write into. {@code -1} means the vector has already
+     * The next value to write into. {@code -1} means the vector has already
      * been built.
      */
-    private int i;
+    private int nextIndex;
 
     LongVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        blockFactory.adjustBreaker(size(size), false);
+        blockFactory.adjustBreaker(ramBytesUsed(size), false);
         this.blockFactory = blockFactory;
         this.values = new long[size];
     }
 
     @Override
     public LongVectorFixedBuilder appendLong(long value) {
-        values[i++] = value;
+        values[nextIndex++] = value;
         return this;
     }
 
-    private static long size(int size) {
+    private static long ramBytesUsed(int size) {
         return size == 1
             ? ConstantLongVector.RAM_BYTES_USED
             : LongArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
@@ -46,13 +46,13 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
 
     @Override
     public LongVector build() {
-        if (i < 0) {
+        if (nextIndex < 0) {
             throw new IllegalStateException("already closed");
         }
-        if (i != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + i + "]");
+        if (nextIndex != values.length) {
+            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
         }
-        i = -1;
+        nextIndex = -1;
         if (values.length == 1) {
             return new ConstantLongVector(values[0], 1, blockFactory);
         }

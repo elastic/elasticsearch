@@ -242,7 +242,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             return false;
         }
         final IndexRoutingTable routingTable = state.routingTable().index(metadata.getIndex());
-        if (routingTable == null || routingTable.allSearchShardsActive() == false) {
+        if (routingTable == null || routingTable.readyForSearch() == false) {
             logger.debug("Index [{}] is not yet active", aliasName);
             return false;
         } else {

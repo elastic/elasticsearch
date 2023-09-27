@@ -17,7 +17,7 @@ import java.util.List;
 
 public class IndexRoutingTableTests extends ESTestCase {
 
-    public void testAllSearchShardsActive() {
+    public void testReadyForSearch() {
         Index index = new Index(randomIdentifier(), UUIDs.randomBase64UUID());
         // 2 primaries that are search and index
         ShardId p1 = new ShardId(index, 0);
@@ -31,7 +31,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             List.of(getShard(p2, true, ShardRoutingState.STARTED, ShardRouting.Role.DEFAULT))
         );
         IndexRoutingTable indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertTrue(indexRoutingTable.allSearchShardsActive());
+        assertTrue(indexRoutingTable.readyForSearch());
 
         // 2 primaries that are index only
         shardTable1 = new IndexShardRoutingTable(
@@ -43,7 +43,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             List.of(getShard(p2, true, randomFrom(ShardRoutingState.values()), ShardRouting.Role.INDEX_ONLY))
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertFalse(indexRoutingTable.allSearchShardsActive());
+        assertFalse(indexRoutingTable.readyForSearch());
 
         // 2 primaries that are index only with replicas that are not all available
         shardTable1 = new IndexShardRoutingTable(
@@ -63,7 +63,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertFalse(indexRoutingTable.allSearchShardsActive());
+        assertFalse(indexRoutingTable.readyForSearch());
 
         // 2 primaries that are index only with some replicas that are all available
         shardTable1 = new IndexShardRoutingTable(
@@ -83,7 +83,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertTrue(indexRoutingTable.allSearchShardsActive());
+        assertTrue(indexRoutingTable.readyForSearch());
 
         // 2 primaries that are index only with at least 1 replica per primary that is available
         shardTable1 = new IndexShardRoutingTable(
@@ -103,7 +103,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertTrue(indexRoutingTable.allSearchShardsActive());
+        assertTrue(indexRoutingTable.readyForSearch());
     }
 
     private ShardRouting getShard(ShardId shardId, boolean isPrimary, ShardRoutingState state, ShardRouting.Role role) {

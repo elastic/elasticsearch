@@ -45,14 +45,12 @@ public class BlockFactoryTests extends ESTestCase {
 
     @ParametersFactory
     public static List<Object[]> params() {
-        Supplier<BlockFactory> supplier1 = () -> {
+        List<Supplier<BlockFactory>> l = List.of(() -> {
             CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
             BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
             return BlockFactory.getInstance(breaker, bigArrays);
-        };
-        Supplier<BlockFactory> supplier2 = BlockFactory::getGlobalInstance;
-
-        return List.of(supplier1, supplier2).stream().map(s -> new Object[] { s }).toList();
+        }, BlockFactory::getGlobalInstance);
+        return l.stream().map(s -> new Object[] { s }).toList();
     }
 
     public BlockFactoryTests(@Name("blockFactorySupplier") Supplier<BlockFactory> blockFactorySupplier) {

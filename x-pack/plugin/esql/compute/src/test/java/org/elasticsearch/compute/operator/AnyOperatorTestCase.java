@@ -95,7 +95,7 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
     /**
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
-    protected final DriverContext driverContext() {
+    protected DriverContext driverContext() {
         return new DriverContext(nonBreakingBigArrays(), BlockFactory.getNonBreakingInstance());
     }
 }

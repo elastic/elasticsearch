@@ -17,7 +17,7 @@ public final class NotificationsIndex {
 
     private static final String RESOURCE_PATH = "/ml/";
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final int NOTIFICATIONS_INDEX_MAPPINGS_VERSION = 1;
+    public static final int NOTIFICATIONS_INDEX_MAPPINGS_VERSION = 1;
 
     private NotificationsIndex() {}
 

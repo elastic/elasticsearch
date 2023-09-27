@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;

@@ -252,8 +252,11 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     modelPackageConfigHolder.get(),
                     request.isWaitForCompletion(),
                     ActionListener.wrap((downloadTriggered) -> {
-                        listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
-                        verifyMlNodesAndModelArchitectures(configToReturn, client, threadPool);
+                        ActionListener<TrainedModelConfig> completedCheckListener = ActionListener.wrap((configToReturnFromCheck) -> {
+                            listener.onResponse(new PutTrainedModelAction.Response(configToReturnFromCheck));
+                        }, listener::onFailure);
+                        verifyMlNodesAndModelArchitectures(configToReturn, client, threadPool, completedCheckListener);
+
                     }, listener::onFailure)
                 );
             } else {
@@ -343,18 +346,26 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         );
     }
 
-    void verifyMlNodesAndModelArchitectures(TrainedModelConfig configToReturn, Client client, ThreadPool threadPool) {
-        ActionListener<Void> failureListener = new ActionListener<Void>() {
+    void verifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        Client client,
+        ThreadPool threadPool,
+        ActionListener<TrainedModelConfig> configToReturnListener
+    ) {
+        ActionListener<Void> verifyConfigListener = new ActionListener<Void>() {
             @Override
-            public void onResponse(Void o) {}
+            public void onResponse(Void v) {
+                configToReturnListener.onResponse(configToReturn);
+            }
 
             @Override
             public void onFailure(Exception e) {
                 HeaderWarning.addWarning(e.getMessage());
+                configToReturnListener.onResponse(configToReturn);
             }
         };
 
-        callVerifyMlNodesAndModelArchitectures(configToReturn, failureListener, client, threadPool);
+        callVerifyMlNodesAndModelArchitectures(configToReturn, verifyConfigListener, client, threadPool);
     }
 
     void callVerifyMlNodesAndModelArchitectures(

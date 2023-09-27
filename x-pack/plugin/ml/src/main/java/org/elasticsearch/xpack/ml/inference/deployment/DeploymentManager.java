@@ -170,10 +170,10 @@ public class DeploymentManager {
             String modelId = modelConfig.getModelId();
             String platformArchitecture = modelConfig.getPlatformArchitecture();
 
-            ActionListener<Void> failureListener = new ActionListener<Void>() {
+            ActionListener<TrainedModelConfig> failureListener = new ActionListener<TrainedModelConfig>() {
 
                 @Override
-                public void onResponse(Void o) {
+                public void onResponse(TrainedModelConfig o) {
 
                 }
 

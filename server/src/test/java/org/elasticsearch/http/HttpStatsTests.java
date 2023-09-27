@@ -40,11 +40,11 @@ public class HttpStatsTests extends ESTestCase {
     }
 
     public void testToXContent() {
-        final var requestSizeHistogram = new long[28];
+        final var requestSizeHistogram = new long[32];
         requestSizeHistogram[2] = 9;
         requestSizeHistogram[4] = 10;
 
-        final var responseSizeHistogram = new long[28];
+        final var responseSizeHistogram = new long[32];
         responseSizeHistogram[3] = 13;
         responseSizeHistogram[5] = 14;
 

@@ -20,11 +20,11 @@ import java.util.Arrays;
 public class HttpRouteStatsTests extends ESTestCase {
 
     public void testToXContent() {
-        final var requestSizeHistogram = new long[28];
+        final var requestSizeHistogram = new long[32];
         requestSizeHistogram[2] = 9;
         requestSizeHistogram[4] = 10;
 
-        final var responseSizeHistogram = new long[28];
+        final var responseSizeHistogram = new long[32];
         responseSizeHistogram[3] = 13;
         responseSizeHistogram[5] = 14;
 
@@ -56,7 +56,7 @@ public class HttpRouteStatsTests extends ESTestCase {
     }
 
     public void testSizeHistogram() {
-        final var histogram = new long[28];
+        final var histogram = new long[32];
 
         asserSizeHistogram(histogram, """
             {"size_histogram":[]}""");
@@ -93,14 +93,14 @@ public class HttpRouteStatsTests extends ESTestCase {
         Arrays.fill(histogram, 0L);
         histogram[histogram.length - 1] = 5;
         asserSizeHistogram(histogram, """
-            {"size_histogram":[{"ge":"64mb","ge_bytes":67108864,"count":5}]}""");
+            {"size_histogram":[{"ge":"1gb","ge_bytes":1073741824,"count":5}]}""");
 
         histogram[histogram.length - 3] = 6;
         asserSizeHistogram(histogram, """
             {"size_histogram":[\
-            {"ge":"16mb","ge_bytes":16777216,"lt":"32mb","lt_bytes":33554432,"count":6},\
-            {"ge":"32mb","ge_bytes":33554432,"lt":"64mb","lt_bytes":67108864,"count":0},\
-            {"ge":"64mb","ge_bytes":67108864,"count":5}\
+            {"ge":"256mb","ge_bytes":268435456,"lt":"512mb","lt_bytes":536870912,"count":6},\
+            {"ge":"512mb","ge_bytes":536870912,"lt":"1gb","lt_bytes":1073741824,"count":0},\
+            {"ge":"1gb","ge_bytes":1073741824,"count":5}\
             ]}""");
 
         Arrays.fill(histogram, 1L);
@@ -133,7 +133,11 @@ public class HttpRouteStatsTests extends ESTestCase {
             {"ge":"8mb","ge_bytes":8388608,"lt":"16mb","lt_bytes":16777216,"count":1},\
             {"ge":"16mb","ge_bytes":16777216,"lt":"32mb","lt_bytes":33554432,"count":1},\
             {"ge":"32mb","ge_bytes":33554432,"lt":"64mb","lt_bytes":67108864,"count":1},\
-            {"ge":"64mb","ge_bytes":67108864,"count":1}\
+            {"ge":"64mb","ge_bytes":67108864,"lt":"128mb","lt_bytes":134217728,"count":1},\
+            {"ge":"128mb","ge_bytes":134217728,"lt":"256mb","lt_bytes":268435456,"count":1},\
+            {"ge":"256mb","ge_bytes":268435456,"lt":"512mb","lt_bytes":536870912,"count":1},\
+            {"ge":"512mb","ge_bytes":536870912,"lt":"1gb","lt_bytes":1073741824,"count":1},\
+            {"ge":"1gb","ge_bytes":1073741824,"count":1}\
             ]}""");
     }
 

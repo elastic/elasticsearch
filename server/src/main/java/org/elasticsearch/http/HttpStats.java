@@ -110,9 +110,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
             clientStats.iterator(),
             Iterators.single((builder, params) -> {
                 builder.endArray();
-                if (httpRouteStats.isEmpty() == false) {
-                    builder.startObject(Fields.ROUTES);
-                }
+                builder.startObject(Fields.ROUTES);
                 return builder;
             }),
             Iterators.map(httpRouteStats.entrySet().iterator(), entry -> (builder, params) -> {
@@ -120,12 +118,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
                 entry.getValue().toXContent(builder, params);
                 return builder;
             }),
-            Iterators.single((builder, params) -> {
-                if (httpRouteStats.isEmpty() == false) {
-                    builder.endObject();
-                }
-                return builder.endObject();
-            })
+            Iterators.single((builder, params) -> builder.endObject().endObject())
         );
     }
 

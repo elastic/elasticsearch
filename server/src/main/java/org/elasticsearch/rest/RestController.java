@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -45,19 +46,18 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -363,9 +363,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public Map<String, HttpRouteStats> getStats() {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(handlers.allNodeValues(), Spliterator.ORDERED), false)
-            .filter(mh -> mh.getStats().requestCount() > 0 || mh.getStats().responseCount() > 0)
-            .collect(Maps.toUnmodifiableSortedMap(MethodHandlers::getPath, MethodHandlers::getStats));
+        final Iterator<MethodHandlers> methodHandlersIterator = handlers.allNodeValues();
+        final SortedMap<String, HttpRouteStats> allStats = new TreeMap<>();
+        while (methodHandlersIterator.hasNext()) {
+            final MethodHandlers mh = methodHandlersIterator.next();
+            final HttpRouteStats stats = mh.getStats();
+            if (stats.requestCount() > 0 || stats.responseCount() > 0) {
+                allStats.put(mh.getPath(), stats);
+            }
+        }
+        return Collections.unmodifiableSortedMap(allStats);
     }
 
     private void dispatchRequest(
@@ -786,7 +793,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 } else {
                     response = RestResponse.chunked(
                         response.status(),
-                        new EncodeLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers::addResponseStats)
+                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), methodHandlers)
                     );
                 }
                 delegate.sendResponse(response);
@@ -811,15 +818,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static class EncodeLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
+    private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
 
         private final ChunkedRestResponseBody delegate;
-        private final Consumer<Integer> encodedLengthConsumer;
+        private final MethodHandlers methodHandlers;
         private int encodedLength = 0;
 
-        private EncodeLengthTrackingChunkedRestResponseBody(ChunkedRestResponseBody delegate, Consumer<Integer> encodedLengthConsumer) {
+        private EncodedLengthTrackingChunkedRestResponseBody(ChunkedRestResponseBody delegate, MethodHandlers methodHandlers) {
             this.delegate = delegate;
-            this.encodedLengthConsumer = encodedLengthConsumer;
+            this.methodHandlers = methodHandlers;
         }
 
         @Override
@@ -830,7 +837,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
-            encodedLength += bytesReference.length();
+            try {
+                encodedLength = Math.addExact(encodedLength, bytesReference.length());
+            } catch (ArithmeticException e) {
+                logger.debug(
+                    "response size for [{}] is greater than [{}]",
+                    methodHandlers.getPath(),
+                    ByteSizeValue.ofBytes(Integer.MAX_VALUE)
+                );
+                encodedLength = Integer.MAX_VALUE;
+            }
             return bytesReference;
         }
 
@@ -842,7 +858,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void close() {
             delegate.close();
-            encodedLengthConsumer.accept(encodedLength);
+            methodHandlers.addResponseStats(encodedLength);
         }
     }
 

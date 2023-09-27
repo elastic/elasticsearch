@@ -81,6 +81,11 @@ public class RestClusterInfoActionTests extends ESTestCase {
 
         var httpStats = (HttpStats) RestClusterInfoAction.RESPONSE_MAPPER.get("http").apply(response);
 
+        final Map<String, HttpRouteStats> httpRouteStatsMap = new HashMap<>();
+        for (var ns : nodeStats) {
+            ns.getHttp().httpRouteStats().forEach((k, v) -> httpRouteStatsMap.merge(k, v, HttpRouteStats::merge));
+        }
+
         assertEquals(
             httpStats,
             new HttpStats(
@@ -92,11 +97,7 @@ public class RestClusterInfoActionTests extends ESTestCase {
                     .map(Collection::stream)
                     .reduce(Stream.of(), Stream::concat)
                     .toList(),
-                nodeStats.stream().map(NodeStats::getHttp).map(HttpStats::httpRouteStats).reduce(Map.of(), (l, r) -> {
-                    final var m = new HashMap<>(l);
-                    r.forEach((k, v) -> m.merge(k, v, HttpRouteStats::merge));
-                    return Map.copyOf(m);
-                })
+                httpRouteStatsMap
             )
         );
     }

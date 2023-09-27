@@ -16,11 +16,12 @@ import java.util.concurrent.atomic.LongAdder;
 public class HttpRouteStatsTracker {
 
     /*
-     * default http.max_content_length is 100 MB so that the last histogram bucket is > 64MB (2^26)
+     * Default http.max_content_length is 100 MB. But response size can be much larger.
+     * So we choose the last histogram bucket to be > 1GB (2^30)
      */
 
     public static int[] getBucketUpperBounds() {
-        var bounds = new int[27];
+        var bounds = new int[31];
         for (int i = 0; i < bounds.length; i++) {
             bounds[i] = 1 << i;
         }

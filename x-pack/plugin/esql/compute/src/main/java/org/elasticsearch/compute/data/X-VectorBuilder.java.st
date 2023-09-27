@@ -86,22 +86,31 @@ $endif$
         finish();
         $Type$Vector vector;
 $if(BytesRef)$
+        assert estimatedBytes == 0;
         if (valueCount == 1) {
             vector = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory);
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(vector.ramBytesUsed(), false);
             Releasables.closeExpectNoException(values);
         } else {
             vector = new $Type$ArrayVector(values, valueCount, blockFactory);
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
         }
-        assert estimatedBytes == 0;
-        /*
-         * Update the breaker with the actual bytes used.
-         * We pass false below even though we've used the bytes. That's weird,
-         * but if we break here we will throw away the used memory, letting
-         * it be deallocated. The exception will bubble up and the builder will
-         * still technically be open, meaning the calling code should close it
-         * which will return all used memory to the breaker.
-         */
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
         values = null;
 $else$
         if (valueCount == 1) {

@@ -9,10 +9,6 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -28,7 +24,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@Seed("7E594D56CF8843C5:4B7F19DE1F496E74")
 public class VectorBuilderTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
@@ -54,10 +49,22 @@ public class VectorBuilderTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    public void testSingleBuild() {
+    public void testBuildSmall() {
+        testBuild(between(1, 100));
+    }
+
+    public void testBuildHuge() {
+        testBuild(between(1_000, 50_000));
+    }
+
+    public void testBuildSingle() {
+        testBuild(1);
+    }
+
+    private void testBuild(int size) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+        try (Vector.Builder builder = vectorBuilder(randomBoolean() ? size : 1, blockFactory)) {
+            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, false, 1, 1, 0, 0);
             fill(builder, random.block().asVector());
             try (Vector built = builder.build()) {
                 assertThat(built, equalTo(random.block().asVector()));

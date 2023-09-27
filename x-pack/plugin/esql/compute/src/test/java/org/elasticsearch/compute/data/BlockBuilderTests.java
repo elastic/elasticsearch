@@ -9,8 +9,6 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -75,10 +73,46 @@ public class BlockBuilderTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    public void testSingleBuild() {
+    public void testBuildSmallSingleValued() {
+        testBuild(between(1, 100), false, 1);
+    }
+
+    public void testBuildHugeSingleValued() {
+        testBuild(between(1_000, 50_000), false, 1);
+    }
+
+    public void testBuildSmallSingleValuedNullable() {
+        testBuild(between(1, 100), true, 1);
+    }
+
+    public void testBuildHugeSingleValuedNullable() {
+        testBuild(between(1_000, 50_000), true, 1);
+    }
+
+    public void testBuildSmallMultiValued() {
+        testBuild(between(1, 100), false, 3);
+    }
+
+    public void testBuildHugeMultiValued() {
+        testBuild(between(1_000, 50_000), false, 3);
+    }
+
+    public void testBuildSmallMultiValuedNullable() {
+        testBuild(between(1, 100), true, 3);
+    }
+
+    public void testBuildHugeMultiValuedNullable() {
+        testBuild(between(1_000, 50_000), true, 3);
+    }
+
+    public void testBuildSingle() {
+        testBuild(1, false, 1);
+    }
+
+    private void testBuild(int size, boolean nullable, int maxValueCount) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+        try (Block.Builder builder = elementType.newBlockBuilder(randomBoolean() ? size : 1, blockFactory)) {
+            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, nullable, 1, maxValueCount, 0, 0);
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
             try (Block built = builder.build()) {
                 assertThat(built, equalTo(random.block()));

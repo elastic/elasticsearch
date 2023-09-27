@@ -248,18 +248,44 @@ $endif$
     public $Type$Block build() {
         finish();
         $Type$Block block;
-        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
 $if(BytesRef)$
+        assert estimatedBytes == 0 || firstValueIndexes != null;
+        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
             Releasables.closeExpectNoException(values);
         } else {
+            if (isDense() && singleValued()) {
+                block = new $Type$ArrayVector(values, positionCount, blockFactory).asBlock();
+            } else {
+                block = new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+            }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed(), false);
+        }
+        values = null;
 $else$
+        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
             block = new Constant$Type$Vector(values[0], 1, blockFactory).asBlock();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
-$endif$
             if (isDense() && singleValued()) {
                 block = new $Type$ArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
@@ -274,10 +300,6 @@ $endif$
          * still technically be open, meaning the calling code should close it
          * which will return all used memory to the breaker.
          */
-$if(BytesRef)$
-        blockFactory.adjustBreaker(block.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
-        assert estimatedBytes == 0;
-$else$
         blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
 $endif$
         built();

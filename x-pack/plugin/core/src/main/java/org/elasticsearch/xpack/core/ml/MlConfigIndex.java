@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -34,7 +34,7 @@ public final class MlConfigIndex {
     public static String mapping() {
         return TemplateUtils.loadTemplate(
             "/ml/config_index_mappings.json",
-            Version.CURRENT.toString(),
+            Build.current().toString(), // Only needed for BWC with pre-8.10.0 nodes
             MAPPINGS_VERSION_VARIABLE,
             Map.of("xpack.ml.managed.index.version", Integer.toString(CONFIG_INDEX_MAPPINGS_VERSION))
         );

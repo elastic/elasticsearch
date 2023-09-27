@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -137,7 +137,7 @@ public final class AnomalyDetectorsIndex {
     public static String resultsMapping() {
         return TemplateUtils.loadTemplate(
             RESOURCE_PATH + "results_index_mappings.json",
-            Version.CURRENT.toString(),
+            Build.current().toString(), // Only needed for BWC with pre-8.10.0 nodes
             RESULTS_MAPPINGS_VERSION_VARIABLE,
             Map.of("xpack.ml.managed.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
         );

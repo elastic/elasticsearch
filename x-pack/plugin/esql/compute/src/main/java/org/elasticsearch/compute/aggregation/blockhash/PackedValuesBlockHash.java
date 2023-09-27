@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.logging.LogManager;
@@ -59,7 +60,8 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
+    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, DriverContext driverContext, int emitBatchSize) {
+        super(driverContext);
         this.groups = groups;
         this.emitBatchSize = emitBatchSize;
         this.bytesRefHash = new BytesRefHash(1, bigArrays);

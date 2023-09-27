@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
@@ -46,7 +47,8 @@ final class BytesRefBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    BytesRefBlockHash(int channel, BigArrays bigArrays) {
+    BytesRefBlockHash(int channel, DriverContext driverContext) {
+        super(driverContext);
         this.channel = channel;
         this.bytesRefHash = new BytesRefHash(1, bigArrays);
     }

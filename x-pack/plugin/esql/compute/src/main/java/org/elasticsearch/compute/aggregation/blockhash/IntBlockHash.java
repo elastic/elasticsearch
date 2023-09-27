@@ -40,6 +40,7 @@ final class IntBlockHash extends BlockHash {
     private boolean seenNull;
 
     IntBlockHash(int channel, DriverContext driverContext) {
+        super(driverContext);
         this.channel = channel;
         this.longHash = new LongHash(1, bigArrays);
     }
@@ -49,18 +50,23 @@ final class IntBlockHash extends BlockHash {
         IntBlock block = page.getBlock(channel);
         IntVector vector = block.asVector();
         if (vector == null) {
-            addInput.add(0, add(block));
+            try (IntBlock groupIds = add(block)) {
+                addInput.add(0, groupIds);
+            }
         } else {
-            addInput.add(0, add(vector));
+            try (IntVector groupIds = add(vector)) {
+                addInput.add(0, add(groupIds));
+            }
         }
     }
 
     private IntVector add(IntVector vector) {
+        long preAdjustBytes = blockFactory.preAdjustBreakerForInt(vector.getPositionCount());
         int[] groups = new int[vector.getPositionCount()];
         for (int i = 0; i < vector.getPositionCount(); i++) {
             groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getInt(i))));
         }
-        return new IntArrayVector(groups, groups.length);
+        return blockFactory.newIntArrayVector(groups, groups.length, preAdjustBytes);
     }
 
     private IntBlock add(IntBlock block) {

@@ -10,15 +10,19 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 
@@ -33,9 +37,15 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
+
+    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
 
     @ParametersFactory
     public static List<Object[]> params() {
@@ -167,10 +177,10 @@ public class BlockHashRandomizedTests extends ESTestCase {
         for (int c = 0; c < types.size(); c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
         return forcePackedHash
-            ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
-            : BlockHash.build(specs, bigArrays, emitBatchSize, true);
+            ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
+            : BlockHash.build(specs, driverContext, emitBatchSize, true);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {
@@ -235,5 +245,12 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 add(randomBlocks, p, newKey);
             }
         }
+    }
+
+    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        return breakerService;
     }
 }

@@ -488,6 +488,14 @@ then:datetime
 1957-07-19T00:00:00.000Z
 ;
 
+datePlusNegatedPeriod
+row dt = to_dt("2104-04-16T01:01:01.000Z")
+| eval plus = dt + (-(4 years + 3 months + 2 weeks + 1 day));
+
+dt:datetime              |plus:datetime
+2104-04-16T01:01:01.000Z |2100-01-01T01:01:01.000Z
+;
+
 dateMinusPeriod
 row dt = to_dt("2104-04-16T01:01:01.000Z")
 | eval minus = dt - 4 years - 3 months - 2 weeks - 1 day;
@@ -549,6 +557,14 @@ row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = (1 hour + 1 minute + 1 s
 
 then:datetime
 1953-04-04T01:01:01.001Z
+;
+
+datePlusNegatedDuration
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval plus = dt + (-(1 hour + 1 minute + 1 second + 1 milliseconds));
+
+dt:datetime              |plus:datetime
+2100-01-01T01:01:01.001Z |2100-01-01T00:00:00.000Z
 ;
 
 dateMinusDuration

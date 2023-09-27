@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeLong;
 
@@ -42,7 +43,8 @@ final class LongBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    LongBlockHash(int channel, BigArrays bigArrays) {
+    LongBlockHash(int channel, DriverContext driverContext) {
+        super(driverContext);
         this.channel = channel;
         this.longHash = new LongHash(1, bigArrays);
     }

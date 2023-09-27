@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
 
 import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.FALSE_ORD;
@@ -30,7 +31,8 @@ final class BooleanBlockHash extends BlockHash {
     private final int channel;
     private final boolean[] everSeen = new boolean[TRUE_ORD + 1];
 
-    BooleanBlockHash(int channel) {
+    BooleanBlockHash(int channel, DriverContext driverContext) {
+        super(driverContext);
         this.channel = channel;
     }
 

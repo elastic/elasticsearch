@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeDouble;
 
@@ -42,7 +43,8 @@ final class DoubleBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    DoubleBlockHash(int channel, BigArrays bigArrays) {
+    DoubleBlockHash(int channel, DriverContext driverContext) {
+        super(driverContext);
         this.channel = channel;
         this.longHash = new LongHash(1, bigArrays);
     }

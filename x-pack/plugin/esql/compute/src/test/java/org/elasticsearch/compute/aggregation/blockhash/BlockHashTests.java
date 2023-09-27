@@ -26,10 +26,10 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -1072,11 +1072,11 @@ public class BlockHashTests extends ESTestCase {
         for (int c = 0; c < values.length; c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
         }
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
         try (
             BlockHash blockHash = forcePackedHash
-                ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
-                : BlockHash.build(specs, bigArrays, emitBatchSize, true)
+                ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
+                : BlockHash.build(specs, driverContext, emitBatchSize, true)
         ) {
             hash(true, blockHash, callback, values);
         }

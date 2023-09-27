@@ -107,11 +107,11 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     private static BlockHash newForElementType(int channel, ElementType type, DriverContext driverContext) {
         return switch (type) {
-            case BOOLEAN -> new BooleanBlockHash(channel);
-            case INT -> new IntBlockHash(channel, bigArrays);
-            case LONG -> new LongBlockHash(channel, bigArrays);
-            case DOUBLE -> new DoubleBlockHash(channel, bigArrays);
-            case BYTES_REF -> new BytesRefBlockHash(channel, bigArrays);
+            case BOOLEAN -> new BooleanBlockHash(channel, driverContext);
+            case INT -> new IntBlockHash(channel, driverContext);
+            case LONG -> new LongBlockHash(channel, driverContext);
+            case DOUBLE -> new DoubleBlockHash(channel, driverContext);
+            case BYTES_REF -> new BytesRefBlockHash(channel, driverContext);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
     }

@@ -49,7 +49,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -1080,7 +1079,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             private final PrimaryTermAndGeneration primaryTermAndGeneration;
             private final Set<String> internalFiles;
             private final Set<BlobReference> references;
-            private final AtomicBoolean deleted = Assertions.ENABLED ? new AtomicBoolean() : null;
+            private final AtomicBoolean deleted = new AtomicBoolean();
             private final AtomicBoolean readersClosed = new AtomicBoolean();
             private final AtomicBoolean externalReadersClosed = new AtomicBoolean();
 

@@ -63,10 +63,12 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -101,9 +103,24 @@ public class StackTemplateRegistryTests extends ESTestCase {
             client,
             NamedXContentRegistry.EMPTY
         );
-        assertThat(disabledRegistry.getComponentTemplateConfigs(), anEmptyMap());
+        assertThat(disabledRegistry.getComponentTemplateConfigs(), not(anEmptyMap()));
+        assertThat(
+            disabledRegistry.getComponentTemplateConfigs()
+                .keySet()
+                .stream()
+                .filter(t -> t.contains("@") == false)
+                .collect(Collectors.toSet()),
+            empty()
+        );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
-        assertThat(disabledRegistry.getLifecyclePolicies(), hasSize(0));
+        assertThat(disabledRegistry.getLifecyclePolicies(), not(empty()));
+        assertThat(
+            disabledRegistry.getLifecyclePolicies()
+                .stream()
+                .filter(p -> p.getName().contains("@") == false)
+                .collect(Collectors.toSet()),
+            empty()
+        );
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
@@ -349,6 +366,9 @@ public class StackTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutLifecycleAction) {
                 // Ignore such
                 return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutPipelineAction) {
+                // Ignore such
+                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 calledTimes.incrementAndGet();
                 assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
@@ -356,7 +376,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 assertThat(putComposableTemplateRequest.name(), equalTo("syslog"));
                 ComposableIndexTemplate composableIndexTemplate = putComposableTemplateRequest.indexTemplate();
                 assertThat(composableIndexTemplate.composedOf(), hasSize(2));
-                assertThat(composableIndexTemplate.composedOf().get(0), equalTo("logs-settings"));
+                assertThat(composableIndexTemplate.composedOf().get(0), equalTo("logs@settings"));
                 assertThat(composableIndexTemplate.composedOf().get(1), equalTo("syslog@custom"));
                 assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates(), hasSize(1));
                 assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates().get(0), equalTo("syslog@custom"));

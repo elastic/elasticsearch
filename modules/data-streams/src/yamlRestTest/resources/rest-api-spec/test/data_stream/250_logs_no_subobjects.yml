@@ -1,6 +1,6 @@
 ---
 Test flattened document with subobjects-false:
-# NOTE: this doesn't work. In order to run this test set "subobjects: false" through logs-mappings.json
+# NOTE: this doesn't work. In order to run this test set "subobjects: false" through logs@mappings.json
   - skip:
       features: allowed_warnings
 

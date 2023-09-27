@@ -64,4 +64,9 @@ class ResultBuilderForBoolean implements ResultBuilder {
     public String toString() {
         return "ResultBuilderForBoolean[inKey=" + inKey + "]";
     }
+
+    @Override
+    public void close() {
+        builder.close();
+    }
 }

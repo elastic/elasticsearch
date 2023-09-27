@@ -37,6 +37,10 @@ import static org.mockito.Mockito.when;
 // BlockFactory is used and effectively tested in many other places, but this class contains tests
 // more specific to the factory implementation itself (and not necessarily tested elsewhere).
 public class BlockFactoryTests extends ESTestCase {
+    public static BlockFactory blockFactory(ByteSizeValue size) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, size).withCircuitBreaking();
+        return new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+    }
 
     final CircuitBreaker breaker;
     final BigArrays bigArrays;
@@ -44,11 +48,29 @@ public class BlockFactoryTests extends ESTestCase {
 
     @ParametersFactory
     public static List<Object[]> params() {
-        List<Supplier<BlockFactory>> l = List.of(() -> {
-            CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-            BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-            return BlockFactory.getInstance(breaker, bigArrays);
-        }, BlockFactory::getGlobalInstance);
+        List<Supplier<BlockFactory>> l = List.of(new Supplier<>() {
+            @Override
+            public BlockFactory get() {
+                CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+                BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+                return BlockFactory.getInstance(breaker, bigArrays);
+            }
+
+            @Override
+            public String toString() {
+                return "1gb";
+            }
+        }, new Supplier<>() {
+            @Override
+            public BlockFactory get() {
+                return BlockFactory.getGlobalInstance();
+            }
+
+            @Override
+            public String toString() {
+                return "global";
+            }
+        });
         return l.stream().map(s -> new Object[] { s }).toList();
     }
 

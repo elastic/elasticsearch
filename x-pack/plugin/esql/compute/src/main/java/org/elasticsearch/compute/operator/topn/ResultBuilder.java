@@ -11,11 +11,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Builds {@link Block}s from keys and values encoded into {@link BytesRef}s.
  */
-interface ResultBuilder {
+interface ResultBuilder extends Releasable {
     /**
      * Called for each sort key before {@link #decodeValue} to consume the sort key and
      * store the value of the key for {@link #decodeValue} can use it to reconstruct

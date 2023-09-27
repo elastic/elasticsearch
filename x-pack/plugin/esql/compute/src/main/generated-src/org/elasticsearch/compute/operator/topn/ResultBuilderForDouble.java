@@ -64,4 +64,9 @@ class ResultBuilderForDouble implements ResultBuilder {
     public String toString() {
         return "ResultBuilderForDouble[inKey=" + inKey + "]";
     }
+
+    @Override
+    public void close() {
+        builder.close();
+    }
 }

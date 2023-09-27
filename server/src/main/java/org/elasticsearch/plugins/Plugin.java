@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
@@ -39,6 +40,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -147,6 +149,11 @@ public abstract class Plugin implements Closeable {
     public List<String> getSettingsFilter() {
         return Collections.emptyList();
     }
+
+    /**
+     * Allows plugins to register additional features that can be checked against nodes
+     */
+    public void registerFeatures(Function<String, NodeFeature> registerFeature) {}
 
     /**
      * Provides a function to modify index template meta data on startup.

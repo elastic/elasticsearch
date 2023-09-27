@@ -104,6 +104,8 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
@@ -471,6 +473,8 @@ public class Node implements Closeable {
             SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
             client = new NodeClient(settings, threadPool);
 
+            final FeatureService featureService = new FeatureService();
+
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
             final ScriptService scriptService = newScriptService(
                 settings,
@@ -506,7 +510,7 @@ public class Node implements Closeable {
                     .collect(Collectors.toCollection(LinkedHashSet::new))
             );
             resourcesToClose.add(nodeEnvironment);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
+            localNodeFactory = new LocalNodeFactory(settings, featureService::readRegisteredFeatures, nodeEnvironment.nodeId());
 
             ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
             final NetworkService networkService = new NetworkService(
@@ -745,6 +749,8 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 threadPool
             );
+
+            pluginsService.registerPluginFeatures(featureService);
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(
@@ -2012,17 +2018,19 @@ public class Node implements Closeable {
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
+        private final Supplier<Set<NodeFeature>> features;
         private final String persistentNodeId;
         private final Settings settings;
 
-        private LocalNodeFactory(Settings settings, String persistentNodeId) {
+        private LocalNodeFactory(Settings settings, Supplier<Set<NodeFeature>> features, String persistentNodeId) {
+            this.features = features;
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
         }
 
         @Override
         public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
-            localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
+            localNode.set(DiscoveryNode.createLocal(settings, features.get(), boundTransportAddress.publishAddress(), persistentNodeId));
             return localNode.get();
         }
 

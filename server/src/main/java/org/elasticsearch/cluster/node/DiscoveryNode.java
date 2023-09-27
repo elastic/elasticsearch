@@ -20,6 +20,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -264,8 +266,19 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.externalId = Objects.requireNonNullElse(externalId, this.nodeName);
     }
 
+    /**
+     * Creates a DiscoveryNode representing the local node.
+     *
+     * @param settings
+     * @param publishAddress
+     * @param nodeId
+     */
+    public static DiscoveryNode createLocal(Settings settings,  TransportAddress publishAddress, String nodeId) {
+        return createLocal(settings, Set.of(), publishAddress, nodeId);
+    }
+
     /** Creates a DiscoveryNode representing the local node. */
-    public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
+    public static DiscoveryNode createLocal(Settings settings, Set<NodeFeature> nodeFeatures, TransportAddress publishAddress, String nodeId) {
         Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
         Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
         return new DiscoveryNode(

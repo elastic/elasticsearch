@@ -26,6 +26,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.node.ReportingService;
@@ -289,6 +290,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     protected List<LoadedPlugin> plugins() {
         return this.plugins;
+    }
+
+    public void registerPluginFeatures(FeatureService service) {
+        for (LoadedPlugin lp : plugins) {
+            int era = lp.descriptor().getElasticsearchVersion().major;
+            lp.instance().registerFeatures(f -> service.registerFeature(f, era));
+        }
     }
 
     private LinkedHashMap<String, LoadedPlugin> loadBundles(

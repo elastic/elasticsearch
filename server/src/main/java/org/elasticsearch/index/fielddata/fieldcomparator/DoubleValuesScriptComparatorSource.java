@@ -51,7 +51,7 @@ public class DoubleValuesScriptComparatorSource extends DoubleValuesComparatorSo
     }
 
     // TODO
-    //  - got rid of `throws IOException`, is ok?
+    // - got rid of `throws IOException`, is ok?
     private SortedNumericDoubleValues getValuesFromScript(NumberSortScript leafScript) throws IOException {
         final NumericDoubleValues values = new NumericDoubleValues() {
             @Override
@@ -117,7 +117,7 @@ public class DoubleValuesScriptComparatorSource extends DoubleValuesComparatorSo
                     );
                     private double docValue;
 
-                    // TODO this is weird, why don't we just call the script?  Seems like this is how it was done prior...
+                    // TODO this is weird, why don't we just call the script? Seems like this is how it was done prior...
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
                         if (docValues.advanceExact(doc)) {

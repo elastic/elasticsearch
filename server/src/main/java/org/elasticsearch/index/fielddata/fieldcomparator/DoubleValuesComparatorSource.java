@@ -57,7 +57,11 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         return indexFieldData.load(context).getDoubleValues();
     }
 
-    protected NumericDoubleValues getNumericDoubleDocValues(LeafReaderContext context, double missingValue, CheckedSupplier<SortedNumericDoubleValues, IOException> docValuesSupplier) throws IOException {
+    protected NumericDoubleValues getNumericDoubleDocValues(
+        LeafReaderContext context,
+        double missingValue,
+        CheckedSupplier<SortedNumericDoubleValues, IOException> docValuesSupplier
+    ) throws IOException {
         final SortedNumericDoubleValues values = docValuesSupplier.get();
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
@@ -82,8 +86,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                 return new DoubleLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return getNumericDoubleDocValues(context, dMissingValue, () -> getValues(context))
-                            .getRawDoubleValues();
+                        return getNumericDoubleDocValues(context, dMissingValue, () -> getValues(context)).getRawDoubleValues();
                     }
                 };
             }

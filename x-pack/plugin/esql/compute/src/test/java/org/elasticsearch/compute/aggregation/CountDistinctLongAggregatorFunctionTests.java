@@ -30,9 +30,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);
-        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
+        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
     }
 
     @Override

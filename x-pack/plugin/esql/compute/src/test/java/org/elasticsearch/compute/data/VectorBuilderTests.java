@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,9 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
-public class BlockBuilderTests extends ESTestCase {
+public class VectorBuilderTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
@@ -39,83 +39,35 @@ public class BlockBuilderTests extends ESTestCase {
 
     private final ElementType elementType;
 
-    public BlockBuilderTests(ElementType elementType) {
+    public VectorBuilderTests(ElementType elementType) {
         this.elementType = elementType;
-    }
-
-    public void testAllNulls() {
-        for (int numEntries : List.of(1, randomIntBetween(1, 100))) {
-            testAllNullsImpl(elementType.newBlockBuilder(0), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(100), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(1000), numEntries);
-            testAllNullsImpl(elementType.newBlockBuilder(randomIntBetween(0, 100)), numEntries);
-        }
-    }
-
-    private void testAllNullsImpl(Block.Builder builder, int numEntries) {
-        for (int i = 0; i < numEntries; i++) {
-            builder.appendNull();
-        }
-        Block block = builder.build();
-        assertThat(block.getPositionCount(), is(numEntries));
-        assertThat(block.isNull(0), is(true));
-        assertThat(block.isNull(numEntries - 1), is(true));
-        assertThat(block.isNull(randomPosition(numEntries)), is(true));
-    }
-
-    static int randomPosition(int positionCount) {
-        return positionCount == 1 ? 0 : randomIntBetween(0, positionCount - 1);
     }
 
     public void testCloseWithoutBuilding() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        elementType.newBlockBuilder(10, blockFactory).close();
+        vectorBuilder(10, blockFactory).close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
-    public void testBuildSmallSingleValued() {
-        testBuild(between(1, 100), false, 1);
+    public void testBuildSmall() {
+        testBuild(between(1, 100));
     }
 
-    public void testBuildHugeSingleValued() {
-        testBuild(between(1_000, 50_000), false, 1);
-    }
-
-    public void testBuildSmallSingleValuedNullable() {
-        testBuild(between(1, 100), true, 1);
-    }
-
-    public void testBuildHugeSingleValuedNullable() {
-        testBuild(between(1_000, 50_000), true, 1);
-    }
-
-    public void testBuildSmallMultiValued() {
-        testBuild(between(1, 100), false, 3);
-    }
-
-    public void testBuildHugeMultiValued() {
-        testBuild(between(1_000, 50_000), false, 3);
-    }
-
-    public void testBuildSmallMultiValuedNullable() {
-        testBuild(between(1, 100), true, 3);
-    }
-
-    public void testBuildHugeMultiValuedNullable() {
-        testBuild(between(1_000, 50_000), true, 3);
+    public void testBuildHuge() {
+        testBuild(between(1_000, 50_000));
     }
 
     public void testBuildSingle() {
-        testBuild(1, false, 1);
+        testBuild(1);
     }
 
-    private void testBuild(int size, boolean nullable, int maxValueCount) {
+    private void testBuild(int size) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (Block.Builder builder = elementType.newBlockBuilder(randomBoolean() ? size : 1, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, nullable, 1, maxValueCount, 0, 0);
-            builder.copyFrom(random.block(), 0, random.block().getPositionCount());
-            try (Block built = builder.build()) {
-                assertThat(built, equalTo(random.block()));
+        try (Vector.Builder builder = vectorBuilder(randomBoolean() ? size : 1, blockFactory)) {
+            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, false, 1, 1, 0, 0);
+            fill(builder, random.block().asVector());
+            try (Vector built = builder.build()) {
+                assertThat(built, equalTo(random.block().asVector()));
                 assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
             }
             assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
@@ -125,12 +77,11 @@ public class BlockBuilderTests extends ESTestCase {
 
     public void testDoubleBuild() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
+        try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
             BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-            builder.copyFrom(random.block(), 0, random.block().getPositionCount());
-            try (Block built = builder.build()) {
-                assertThat(built, equalTo(random.block()));
-                assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
+            fill(builder, random.block().asVector());
+            try (Vector built = builder.build()) {
+                assertThat(built, equalTo(random.block().asVector()));
             }
             assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
             Exception e = expectThrows(IllegalStateException.class, builder::build);
@@ -143,11 +94,11 @@ public class BlockBuilderTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
         BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
         try {
-            try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
+            try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
                 BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-                builder.copyFrom(random.block(), 0, random.block().getPositionCount());
-                try (Block built = builder.build()) {
-                    assertThat(built, equalTo(random.block()));
+                fill(builder, random.block().asVector());
+                try (Vector built = builder.build()) {
+                    assertThat(built, equalTo(random.block().asVector()));
                 }
             }
             // If we made it this far cranky didn't fail us!
@@ -156,5 +107,47 @@ public class BlockBuilderTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private Vector.Builder vectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return switch (elementType) {
+            case NULL, DOC, UNKNOWN -> throw new UnsupportedOperationException();
+            case BOOLEAN -> BooleanVector.newVectorBuilder(estimatedSize, blockFactory);
+            case BYTES_REF -> BytesRefVector.newVectorBuilder(estimatedSize, blockFactory);
+            case DOUBLE -> DoubleVector.newVectorBuilder(estimatedSize, blockFactory);
+            case INT -> IntVector.newVectorBuilder(estimatedSize, blockFactory);
+            case LONG -> LongVector.newVectorBuilder(estimatedSize, blockFactory);
+        };
+    }
+
+    private void fill(Vector.Builder builder, Vector from) {
+        switch (elementType) {
+            case NULL, DOC, UNKNOWN -> throw new UnsupportedOperationException();
+            case BOOLEAN -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((BooleanVector.Builder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));
+                }
+            }
+            case BYTES_REF -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((BytesRefVector.Builder) builder).appendBytesRef(((BytesRefVector) from).getBytesRef(p, new BytesRef()));
+                }
+            }
+            case DOUBLE -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((DoubleVector.Builder) builder).appendDouble(((DoubleVector) from).getDouble(p));
+                }
+            }
+            case INT -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((IntVector.Builder) builder).appendInt(((IntVector) from).getInt(p));
+                }
+            }
+            case LONG -> {
+                for (int p = 0; p < from.getPositionCount(); p++) {
+                    ((LongVector.Builder) builder).appendLong(((LongVector) from).getLong(p));
+                }
+            }
+        }
     }
 }

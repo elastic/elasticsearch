@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.BitSet;
 import java.util.List;
-import java.util.stream.IntStream;
 
 public class DoubleBlockEqualityTests extends ESTestCase {
 
@@ -224,10 +223,14 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testSimpleBlockWithManyNulls() {
         int positions = randomIntBetween(1, 256);
         boolean grow = randomBoolean();
-        var builder = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
-        IntStream.range(0, positions).forEach(i -> builder.appendNull());
-        DoubleBlock block1 = builder.build();
-        DoubleBlock block2 = builder.build();
+        DoubleBlock.Builder builder1 = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
+        DoubleBlock.Builder builder2 = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
+        for (int p = 0; p < positions; p++) {
+            builder1.appendNull();
+            builder2.appendNull();
+        }
+        DoubleBlock block1 = builder1.build();
+        DoubleBlock block2 = builder2.build();
         assertEquals(positions, block1.getPositionCount());
         assertTrue(block1.mayHaveNulls());
         assertTrue(block1.isNull(0));
@@ -248,15 +251,27 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testSimpleBlockWithManyMultiValues() {
         int positions = randomIntBetween(1, 256);
         boolean grow = randomBoolean();
-        var builder = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
+        DoubleBlock.Builder builder1 = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
+        DoubleBlock.Builder builder2 = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
+        DoubleBlock.Builder builder3 = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
         for (int pos = 0; pos < positions; pos++) {
-            builder.beginPositionEntry();
+            builder1.beginPositionEntry();
+            builder2.beginPositionEntry();
+            builder3.beginPositionEntry();
             int values = randomIntBetween(1, 16);
-            IntStream.range(0, values).forEach(i -> builder.appendDouble(randomDouble()));
+            for (int i = 0; i < values; i++) {
+                double value = randomDouble();
+                builder1.appendDouble(value);
+                builder2.appendDouble(value);
+                builder3.appendDouble(value);
+            }
+            builder1.endPositionEntry();
+            builder2.endPositionEntry();
+            builder3.endPositionEntry();
         }
-        DoubleBlock block1 = builder.build();
-        DoubleBlock block2 = builder.build();
-        DoubleBlock block3 = builder.build();
+        DoubleBlock block1 = builder1.build();
+        DoubleBlock block2 = builder2.build();
+        DoubleBlock block3 = builder3.build();
 
         assertEquals(positions, block1.getPositionCount());
         assertAllEquals(List.of(block1, block2, block3));

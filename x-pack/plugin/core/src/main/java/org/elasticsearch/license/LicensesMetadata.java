@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.license.internal.TrialLicenseEra;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -57,9 +57,9 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     // is null, then no trial has been exercised. We keep the version to leave open the possibility that we
     // may eventually allow a cluster to exercise a trial every time they upgrade to a new major version.
     @Nullable
-    private Version trialVersion;
+    private TrialLicenseEra trialVersion;
 
-    public LicensesMetadata(License license, Version trialVersion) {
+    public LicensesMetadata(License license, TrialLicenseEra trialVersion) {
         this.license = license;
         this.trialVersion = trialVersion;
     }
@@ -72,10 +72,10 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
         if (trialVersion == null) {
             return true;
         }
-        return Version.CURRENT.major > trialVersion.major;
+        return trialVersion.ableToStartNewTrialSince(TrialLicenseEra.CURRENT);
     }
 
-    Version getMostRecentTrialVersion() {
+    TrialLicenseEra getMostRecentTrialEra() {
         return trialVersion;
     }
 
@@ -118,7 +118,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
     public static LicensesMetadata fromXContent(XContentParser parser) throws IOException {
         License license = LICENSE_TOMBSTONE;
-        Version trialLicense = null;
+        TrialLicenseEra trialLicense = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -133,7 +133,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
                         }
                     } else if (fieldName.equals(Fields.TRIAL_LICENSE)) {
                         parser.nextToken();
-                        trialLicense = Version.fromString(parser.text());
+                        trialLicense = TrialLicenseEra.fromString(parser.text());
                     }
                 }
             }
@@ -170,7 +170,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
             streamOutput.writeBoolean(false);
         } else {
             streamOutput.writeBoolean(true);
-            Version.writeVersion(trialVersion, streamOutput);
+            trialVersion.writeTo(streamOutput);
         }
     }
 
@@ -182,7 +182,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
         }
         boolean hasExercisedTrial = streamInput.readBoolean();
         if (hasExercisedTrial) {
-            this.trialVersion = Version.readVersion(streamInput);
+            this.trialVersion = new TrialLicenseEra(streamInput);
         }
     }
 

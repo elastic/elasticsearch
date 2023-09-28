@@ -155,7 +155,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
 
     Meter createOtelMeter() {
         assert this.enabled;
-        return AccessController.doPrivileged((PrivilegedAction<Meter>) () -> otelMeterSupplier.get());
+        return AccessController.doPrivileged((PrivilegedAction<Meter>) otelMeterSupplier::get);
     }
 
     private Meter createNoopMeter() {

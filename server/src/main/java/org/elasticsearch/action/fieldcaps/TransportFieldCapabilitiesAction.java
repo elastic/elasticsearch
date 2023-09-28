@@ -417,10 +417,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
-            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
-                fieldCap.type(),
-                key -> new FieldCapabilities.Builder(field, key)
-            );
+            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.type(), key -> new FieldCapabilities.Builder(field, key));
             builder.add(
                 indices,
                 fieldCap.isMetadatafield(),

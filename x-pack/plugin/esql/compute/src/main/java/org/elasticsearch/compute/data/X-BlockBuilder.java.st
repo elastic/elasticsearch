@@ -289,6 +289,7 @@ $else$
             if (isDense() && singleValued()) {
                 block = new $Type$ArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
+                var mvOrdering = singleValued() ? Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING : this.mvOrdering;
                 block = new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }

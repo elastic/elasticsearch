@@ -191,6 +191,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
             if (isDense() && singleValued()) {
                 block = new DoubleArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
+                var mvOrdering = singleValued() ? Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING : this.mvOrdering;
                 block = new DoubleArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }

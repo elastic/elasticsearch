@@ -191,6 +191,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
             if (isDense() && singleValued()) {
                 block = new BooleanArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
+                var mvOrdering = singleValued() ? Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING : this.mvOrdering;
                 block = new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }

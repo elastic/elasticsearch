@@ -1118,7 +1118,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testIPSortingOrderedMultiValues() throws UnknownHostException {
         List<List<String>> ips = new ArrayList<>();
-        ips.add(List.of("123.4.245.23", "123.4.245.23"));
+        ips.add(List.of("123.4.245.23", "123.4.245.24"));
         ips.add(null);
         ips.add(List.of("104.30.244.2", "127.0.0.1"));
         ips.add(null);
@@ -1135,17 +1135,17 @@ public class TopNOperatorTests extends OperatorTestCase {
             expectedDecodedIps.add(List.of("104.30.244.2", "127.0.0.1"));
             expectedDecodedIps.add(List.of("104.30.244.2", "124.255.255.255"));
             expectedDecodedIps.add(List.of("104.244.4.1"));
-            expectedDecodedIps.add(List.of("123.4.245.23", "123.4.245.23"));
+            expectedDecodedIps.add(List.of("123.4.245.23", "123.4.245.24"));
         } else {
             expectedDecodedIps.add(List.of("1.198.3.93", "2.3.4.5", "255.123.123.0"));
             expectedDecodedIps.add(List.of("104.30.244.2", "127.0.0.1"));
             expectedDecodedIps.add(List.of("104.30.244.2", "124.255.255.255"));
-            expectedDecodedIps.add(List.of("123.4.245.23", "123.4.245.23"));
+            expectedDecodedIps.add(List.of("123.4.245.23", "123.4.245.24"));
             expectedDecodedIps.add(List.of("104.244.4.1"));
             expectedDecodedIps.add(List.of("1.1.1.0", "32.183.93.40"));
         }
 
-        assertIPSortingOnMultiValues(ips, asc, Block.MvOrdering.ASCENDING, expectedDecodedIps);
+        assertIPSortingOnMultiValues(ips, asc, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING, expectedDecodedIps);
     }
 
     private void assertIPSortingOnMultiValues(

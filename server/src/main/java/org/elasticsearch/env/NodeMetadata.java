@@ -113,7 +113,7 @@ public final class NodeMetadata {
         assert (nodeVersion.equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
 
-        if (Build.isWireCompatibleWithCurrent(nodeVersion.toString()) == false) {
+        if (Build.isWireCompatibleWithCurrentAllowingLegacy(nodeVersion.toString()) == false) {
             throw new IllegalStateException(
                 "cannot upgrade a node from version ["
                     + nodeVersion

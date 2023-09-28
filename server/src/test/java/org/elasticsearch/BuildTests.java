@@ -124,32 +124,90 @@ public class BuildTests extends ESTestCase {
     }
 
     public void testIsWireCompatible() {
-        String legacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
-        assertTrue(Build.isWireCompatibleWithCurrent(legacyVersion));
-        legacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
-        assertFalse(Build.isWireCompatibleWithCurrent(legacyVersion));
+        String compatibleLegacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isWireCompatibleWithCurrent(compatibleLegacyVersion)
+        );
+        assertThat(e1.getMessage(), equalTo("Cannot parse [" + compatibleLegacyVersion + "] as a transport version identifier"));
+        String nonCompatibleLegacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isWireCompatibleWithCurrent(nonCompatibleLegacyVersion)
+        );
+        assertThat(e2.getMessage(), equalTo("Cannot parse [" + nonCompatibleLegacyVersion + "] as a transport version identifier"));
 
         String transportVersion = TransportVersionUtils.randomCompatibleVersion(random()).toString();
         assertTrue(Build.isWireCompatibleWithCurrent(transportVersion));
         transportVersion = TransportVersion.fromId(TransportVersions.MINIMUM_COMPATIBLE.id() - 1).toString();
         assertFalse(Build.isWireCompatibleWithCurrent(transportVersion));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Build.isWireCompatibleWithCurrent("x.y.z"));
+        IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isWireCompatibleWithCurrentAllowingLegacy("x.y.z")
+        );
+        assertThat(e3.getMessage(), equalTo("Cannot parse [x.y.z] as a transport version identifier"));
+    }
+
+    public void testIsWireCompatibleAllowingLegacy() {
+        String legacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
+        assertTrue(Build.isWireCompatibleWithCurrentAllowingLegacy(legacyVersion));
+        legacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
+        assertFalse(Build.isWireCompatibleWithCurrentAllowingLegacy(legacyVersion));
+
+        String transportVersion = TransportVersionUtils.randomCompatibleVersion(random()).toString();
+        assertTrue(Build.isWireCompatibleWithCurrentAllowingLegacy(transportVersion));
+        transportVersion = TransportVersion.fromId(TransportVersions.MINIMUM_COMPATIBLE.id() - 1).toString();
+        assertFalse(Build.isWireCompatibleWithCurrentAllowingLegacy(transportVersion));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isWireCompatibleWithCurrentAllowingLegacy("x.y.z")
+        );
         assertThat(e.getMessage(), equalTo("Cannot parse [x.y.z] as a transport version identifier"));
     }
 
     public void testIsIndexCompatible() {
-        String legacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
-        assertTrue(Build.isIndexCompatibleWithCurrent(legacyVersion));
-        legacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
-        assertFalse(Build.isIndexCompatibleWithCurrent(legacyVersion));
+        String compatibleLegacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isIndexCompatibleWithCurrent(compatibleLegacyVersion)
+        );
+        assertThat(e1.getMessage(), equalTo("Cannot parse [" + compatibleLegacyVersion + "] as an index version identifier"));
+        String nonCompatibleLegacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isIndexCompatibleWithCurrent(nonCompatibleLegacyVersion)
+        );
+        assertThat(e2.getMessage(), equalTo("Cannot parse [" + nonCompatibleLegacyVersion + "] as an index version identifier"));
 
         String indexVersion = IndexVersionUtils.randomCompatibleVersion(random()).toString();
-        assertTrue(Build.isIndexCompatibleWithCurrent(indexVersion));
+        assertTrue(Build.isIndexCompatibleWithCurrentAllowingLegacy(indexVersion));
         indexVersion = IndexVersion.fromId(IndexVersion.MINIMUM_COMPATIBLE.id() - 1).toString();
-        assertFalse(Build.isIndexCompatibleWithCurrent(indexVersion));
+        assertFalse(Build.isIndexCompatibleWithCurrentAllowingLegacy(indexVersion));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Build.isIndexCompatibleWithCurrent("x.y.z"));
+        IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isIndexCompatibleWithCurrentAllowingLegacy("x.y.z")
+        );
+        assertThat(e3.getMessage(), equalTo("Cannot parse [x.y.z] as an index version identifier"));
+    }
+
+    public void testIsIndexCompatibleAllowingLegacy() {
+        String legacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
+        assertTrue(Build.isIndexCompatibleWithCurrentAllowingLegacy(legacyVersion));
+        legacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
+        assertFalse(Build.isIndexCompatibleWithCurrentAllowingLegacy(legacyVersion));
+
+        String indexVersion = IndexVersionUtils.randomCompatibleVersion(random()).toString();
+        assertTrue(Build.isIndexCompatibleWithCurrentAllowingLegacy(indexVersion));
+        indexVersion = IndexVersion.fromId(IndexVersion.MINIMUM_COMPATIBLE.id() - 1).toString();
+        assertFalse(Build.isIndexCompatibleWithCurrentAllowingLegacy(indexVersion));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isIndexCompatibleWithCurrentAllowingLegacy("x.y.z")
+        );
         assertThat(e.getMessage(), equalTo("Cannot parse [x.y.z] as an index version identifier"));
     }
 

@@ -525,7 +525,7 @@ public final class NodeEnvironment implements Closeable {
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
-            String bestDowngradeVersion = Build.isIndexCompatibleWithCurrent(metadata.previousNodeVersion().toString())
+            String bestDowngradeVersion = Build.isIndexCompatibleWithCurrentAllowingLegacy(metadata.previousNodeVersion().toString())
                 ? metadata.previousNodeVersion().toString()
                 : Build.current().minIndexCompatVersion();
             throw new IllegalStateException(

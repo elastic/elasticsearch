@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,18 +35,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
-    // This registry requires all nodes to be at least 8.8.0
-    static final Version MIN_NODE_VERSION = Version.V_8_8_0;
+    // This registry requires all nodes to be at least 8.11.0
+    static final Version MIN_NODE_VERSION = Version.V_8_11_0;
 
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 2;
+    static final int REGISTRY_VERSION = 3;
 
     // ILM Policies configuration
-    static final String EVENT_DATA_STREAM_ILM_POLICY_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default_policy";
-
-    static final List<LifecyclePolicyConfig> LIFECYCLE_POLICIES_CONFIG = List.of(
-        new LifecyclePolicyConfig(EVENT_DATA_STREAM_ILM_POLICY_NAME, ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_ILM_POLICY_NAME + ".json")
-    );
+    static final String EVENT_DATA_STREAM_LEGACY_ILM_POLICY_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default_policy";
 
     // Index template components configuration
     static final String EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "settings";
@@ -123,11 +118,6 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return ENT_SEARCH_ORIGIN;
-    }
-
-    @Override
-    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
-        return LIFECYCLE_POLICIES_CONFIG;
     }
 
     @Override

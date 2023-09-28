@@ -2,6 +2,8 @@
 # TextExpansionQueryIT.java to create the token weights.
 setup:
   - skip:
+      version: ' - 8.10.99'
+      reason: "sparse_vector field type reintroduced in 8.11"
       features: headers
   - do:
       headers:

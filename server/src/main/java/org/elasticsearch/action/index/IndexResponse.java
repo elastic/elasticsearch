@@ -39,12 +39,12 @@ public class IndexResponse extends DocWriteResponse {
         this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
     }
 
-    private IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
-        super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
+    public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdatedOrNoop(result));
     }
 
-    private static Result assertCreatedOrUpdated(Result result) {
-        assert result == Result.CREATED || result == Result.UPDATED;
+    private static Result assertCreatedOrUpdatedOrNoop(Result result) {
+        assert result == Result.CREATED || result == Result.UPDATED || result == Result.NOOP;
         return result;
     }
 

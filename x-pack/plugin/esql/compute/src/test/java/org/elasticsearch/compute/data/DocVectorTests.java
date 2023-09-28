@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -15,7 +16,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DocVectorTests extends ESTestCase {
     public void testNonDecreasingSetTrue() {
@@ -122,5 +125,20 @@ public class DocVectorTests extends ESTestCase {
         }
 
         assertThat(result, equalTo(data));
+    }
+
+    public void testCannotDoubleRelease() {
+        var block = new DocVector(IntVector.range(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), null)
+            .asBlock();
+        assertThat(block.isReleased(), is(false));
+        Releasables.closeExpectNoException(block);
+        assertThat(block.isReleased(), is(true));
+
+        var ex = expectThrows(IllegalStateException.class, () -> block.close());
+        assertThat(ex.getMessage(), containsString("can't release already released block"));
+
+        Page page = new Page(block);
+        var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+        assertThat(e.getMessage(), containsString("can't read released block"));
     }
 }

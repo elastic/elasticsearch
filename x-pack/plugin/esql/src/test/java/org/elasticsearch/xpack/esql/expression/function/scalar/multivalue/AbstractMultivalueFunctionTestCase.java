@@ -26,6 +26,8 @@ import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.DoubleStream;
@@ -385,7 +387,17 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         switch (ordering) {
             case UNORDERED -> {
             }
-            case ASCENDING -> Collections.sort(mvData);
+            case DEDUPLICATED_UNORDERD -> {
+                var dedup = new LinkedHashSet<>(mvData);
+                mvData.clear();
+                mvData.addAll(dedup);
+            }
+            case DEDUPLICATED_AND_SORTED_ASCENDING -> {
+                var dedup = new HashSet<>(mvData);
+                mvData.clear();
+                mvData.addAll(dedup);
+                Collections.sort(mvData);
+            }
             default -> throw new UnsupportedOperationException("unsupported ordering [" + ordering + "]");
         }
     }

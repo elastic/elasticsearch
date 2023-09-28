@@ -102,18 +102,40 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
 
     /**
      * How are multivalued fields ordered?
-     * <p>Note that there isn't a {@code DESCENDING} because we don't have
-     * anything that makes descending fields.</p>
+     * Some operators can enable its optimization when mv_values are sorted ascending or de-duplicated.
      */
     enum MvOrdering {
-        ASCENDING,
-        UNORDERED;
+        UNORDERED(false, false),
+        DEDUPLICATED_UNORDERD(true, false),
+        DEDUPLICATED_AND_SORTED_ASCENDING(true, true);
+
+        private final boolean deduplicated;
+        private final boolean sortedAscending;
+
+        MvOrdering(boolean deduplicated, boolean sortedAscending) {
+            this.deduplicated = deduplicated;
+            this.sortedAscending = sortedAscending;
+        }
     }
 
     /**
      * How are multivalued fields ordered?
      */
     MvOrdering mvOrdering();
+
+    /**
+     * Are multivalued fields de-duplicated in each position
+     */
+    default boolean mvDeduplicated() {
+        return mayHaveMultivaluedFields() == false || mvOrdering().deduplicated;
+    }
+
+    /**
+     * Are multivalued fields sorted ascending in each position
+     */
+    default boolean mvSortedAscending() {
+        return mayHaveMultivaluedFields() == false || mvOrdering().sortedAscending;
+    }
 
     /**
      * Expand multivalued fields into one row per value. Returns the
@@ -172,7 +194,7 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
 
         /**
          * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
-         * but when you set it to {@link Block.MvOrdering#ASCENDING} some operators can optimize
+         * but when you set it to {@link Block.MvOrdering#DEDUPLICATED_AND_SORTED_ASCENDING} some operators can optimize
          * themselves. This is a <strong>promise</strong> that is never checked. If you set this
          * to anything other than {@link Block.MvOrdering#UNORDERED} be sure the values are in
          * that order or other operators will make mistakes. The actual ordering isn't checked

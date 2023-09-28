@@ -61,7 +61,7 @@ public class DriverContext {
      * The {@link CircuitBreaker} to use to track memory.
      */
     public CircuitBreaker breaker() {
-        return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        return blockFactory.breaker();
     }
 
     public BlockFactory blockFactory() {

@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -108,7 +109,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             final NodesInfoRequest nodesInfoRequest = invocation.getArgument(2);
-            assertThat(nodesInfoRequest.requestedMetrics(), containsInAnyOrder(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName()));
+            assertThat(nodesInfoRequest.requestedMetrics(), containsInAnyOrder(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName()));
             final ActionListenerResponseHandler<NodesInfoResponse> handler = invocation.getArgument(3);
             handler.handleResponse(nodesInfoResponse);
             return null;

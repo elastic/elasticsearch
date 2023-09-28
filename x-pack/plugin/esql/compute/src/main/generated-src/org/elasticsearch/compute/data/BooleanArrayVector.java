@@ -17,7 +17,7 @@ import java.util.Arrays;
  */
 public final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class);
 
     private final boolean[] values;
 

@@ -423,11 +423,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return spans;
     }
 
-    // TODO(stu): remove
-    APMServices getServices() {
-        return services;
-    }
-
     private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
         Automaton includeAutomaton = patternsToAutomaton(includePatterns);
         Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);

@@ -149,6 +149,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     BytesRef v = encoders[g].read(valueOffsets[g] + loopedIndices[g], scratch);
                     ++loopedIndices[g];
                     if (v.length == 0) {
+                        assert valueCounts[g] == 1 : "null value in non-singleton list";
                         int nullByte = g / 8;
                         int nullShift = g % 8;
                         bytes.bytes()[nullByte] |= (byte) (1 << nullShift);

@@ -117,7 +117,7 @@ public class APMAgentSettings {
     private static final List<String> PROHIBITED_AGENT_KEYS = List.of(
         // ES generates a config file and sets this value
         "config_file",
-        // ES controls this via `apm.metrics.enabled`
+        // ES controls this via `telemetry.metrics.enabled`
         "recording",
         // ES controls this via `apm.enabled`
         "instrument"
@@ -178,7 +178,7 @@ public class APMAgentSettings {
     );
 
     public static final Setting<Boolean> APM_METRICS_ENABLED_SETTING = Setting.boolSetting(
-        APM_SETTING_PREFIX + "metrics.enabled",
+        "telemetry.metrics.enabled",
         false,
         OperatorDynamic,
         NodeScope

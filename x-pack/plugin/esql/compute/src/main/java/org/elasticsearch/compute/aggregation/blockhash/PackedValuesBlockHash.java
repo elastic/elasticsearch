@@ -105,7 +105,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 boolean singleEntry = true;
                 for (int g = 0; g < encoders.length; g++) {
                     positionOffsets[g]++;
-                    while (positionOffsets[g] >= encoders[g].positionCount()) {
+                    if (positionOffsets[g] >= encoders[g].positionCount()) {
                         encoders[g].encodeNextBatch();
                         positionOffsets[g] = 0;
                         valueOffsets[g] = 0;
@@ -167,7 +167,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     loopedIndices[g] = 0;
                     if (g == 0) {
                         break outer;
-                    } else{
+                    } else {
                         bytes.setLength(bytesStarts[--g]);
                     }
                 }

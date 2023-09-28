@@ -50,8 +50,6 @@ public class DoubleValuesScriptComparatorSource extends DoubleValuesComparatorSo
         this.searchLookup = searchLookup;
     }
 
-    // TODO
-    // - got rid of `throws IOException`, is ok?
     private SortedNumericDoubleValues getValuesFromScript(NumberSortScript leafScript) throws IOException {
         final NumericDoubleValues values = new NumericDoubleValues() {
             @Override

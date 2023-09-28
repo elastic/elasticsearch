@@ -191,7 +191,6 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
             if (isDense() && singleValued()) {
                 block = new IntArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                var mvOrdering = singleValued() ? Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING : this.mvOrdering;
                 block = new IntArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
         }

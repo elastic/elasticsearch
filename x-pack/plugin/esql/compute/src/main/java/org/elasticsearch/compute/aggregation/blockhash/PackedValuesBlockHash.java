@@ -79,19 +79,19 @@ final class PackedValuesBlockHash extends BlockHash {
         final BatchEncoder[] encoders = new BatchEncoder[groups.size()];
         final int[] positionOffsets = new int[groups.size()];
         final int[] valueOffsets = new int[groups.size()];
-        final BytesRef[] scratches = new BytesRef[groups.size()];
+        final BytesRef scratch = new BytesRef();
+        final int[] loopedIndices = new int[groups.size()];
+        final int[] valueCounts = new int[groups.size()];
+        final int[] bytesStarts = new int[groups.size()];
         final BytesRefBuilder bytes = new BytesRefBuilder();
         final int positionCount;
 
         int position;
-        int count;
-        int bufferedGroup;
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             super(emitBatchSize, addInput);
             for (int g = 0; g < groups.size(); g++) {
                 encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), batchSize);
-                scratches[g] = new BytesRef();
             }
             bytes.grow(nullTrackingBytes);
             this.positionCount = page.getPositionCount();
@@ -104,91 +104,79 @@ final class PackedValuesBlockHash extends BlockHash {
          */
         void add() {
             for (position = 0; position < positionCount; position++) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("position {}", position);
-                }
                 // Make sure all encoders have encoded the current position and the offsets are queued to it's start
+                boolean singleEntry = true;
                 for (int g = 0; g < encoders.length; g++) {
                     positionOffsets[g]++;
-                    while (positionOffsets[g] >= encoders[g].positionCount()) {
+                    if (positionOffsets[g] >= encoders[g].positionCount()) {
                         encoders[g].encodeNextBatch();
                         positionOffsets[g] = 0;
                         valueOffsets[g] = 0;
                     }
+                    valueCounts[g] = encoders[g].valueCount(positionOffsets[g]);
+                    singleEntry &= (valueCounts[g] == 1);
                 }
-
-                count = 0;
                 Arrays.fill(bytes.bytes(), 0, nullTrackingBytes, (byte) 0);
                 bytes.setLength(nullTrackingBytes);
-                addPosition(0);
-                switch (count) {
-                    case 0 -> throw new IllegalStateException("didn't find any values");
-                    case 1 -> {
-                        ords.appendInt(bufferedGroup);
-                        addedValue(position);
-                    }
-                    default -> ords.endPositionEntry();
-                }
-                for (int g = 0; g < encoders.length; g++) {
-                    valueOffsets[g] += encoders[g].valueCount(positionOffsets[g]);
+                if (singleEntry) {
+                    addSingleEntry();
+                } else {
+                    addMultipleEntries();
                 }
             }
             emitOrds();
         }
 
-        private void addPosition(int g) {
-            if (g == groups.size()) {
-                addBytes();
-                return;
-            }
-            int start = bytes.length();
-            int count = encoders[g].valueCount(positionOffsets[g]);
-            assert count > 0;
-            int valueOffset = valueOffsets[g];
-            BytesRef v = encoders[g].read(valueOffset++, scratches[g]);
-            if (logger.isTraceEnabled()) {
-                logger.trace("\t".repeat(g + 1) + v);
-            }
-            if (v.length == 0) {
-                assert count == 1 : "null value in non-singleton list";
-                int nullByte = g / 8;
-                int nullShift = g % 8;
-                bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
-            }
-            bytes.setLength(start);
-            bytes.append(v);
-            addPosition(g + 1);  // TODO stack overflow protection
-            for (int i = 1; i < count; i++) {
-                v = encoders[g].read(valueOffset++, scratches[g]);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("\t".repeat(g + 1) + v);
+        private void addSingleEntry() {
+            for (int g = 0; g < encoders.length; g++) {
+                BytesRef v = encoders[g].read(valueOffsets[g]++, scratch);
+                if (v.length == 0) {
+                    int nullByte = g / 8;
+                    int nullShift = g % 8;
+                    bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
+                } else {
+                    bytes.append(v);
                 }
-                assert v.length > 0 : "null value after the first position";
-                bytes.setLength(start);
-                bytes.append(v);
-                addPosition(g + 1);
             }
+            int group = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
+            ords.appendInt(group);
+            addedValue(position);
         }
 
-        private void addBytes() {
-            int group = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
-            switch (count) {
-                case 0 -> bufferedGroup = group;
-                case 1 -> {
-                    ords.beginPositionEntry();
-                    ords.appendInt(bufferedGroup);
-                    addedValueInMultivaluePosition(position);
-                    ords.appendInt(group);
-                    addedValueInMultivaluePosition(position);
+        private void addMultipleEntries() {
+            ords.beginPositionEntry();
+            int g = 0;
+            outer: for (;;) {
+                for (; g < encoders.length; g++) {
+                    BytesRef v = encoders[g].read(valueOffsets[g] + loopedIndices[g], scratch);
+                    ++loopedIndices[g];
+                    if (v.length == 0) {
+                        int nullByte = g / 8;
+                        int nullShift = g % 8;
+                        bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
+                    } else {
+                        bytes.append(v);
+                        bytesStarts[g] = bytes.length();
+                    }
                 }
-                default -> {
-                    ords.appendInt(group);
-                    addedValueInMultivaluePosition(position);
+                // emit ords
+                int group = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
+                ords.appendInt(group);
+                addedValueInMultivaluePosition(position);
+
+                // rewind
+                --g;
+                while (loopedIndices[g] == valueCounts[g]) {
+                    loopedIndices[g] = 0;
+                    if (g == 0) {
+                        break outer;
+                    }
+                    bytes.setLength(bytesStarts[g--]);
                 }
             }
-            count++;
-            if (logger.isTraceEnabled()) {
-                logger.trace("{} = {}", bytes.get(), group);
+            ords.endPositionEntry();
+            for (g = 0; g < encoders.length; g++) {
+                valueOffsets[g] += valueCounts[g];
             }
         }
     }
@@ -204,8 +192,8 @@ final class PackedValuesBlockHash extends BlockHash {
             builders[g] = elementType.newBlockBuilder(size);
         }
 
-        BytesRef values[] = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
-        BytesRef nulls[] = new BytesRef[values.length];
+        BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
+        BytesRef[] nulls = new BytesRef[values.length];
         for (int offset = 0; offset < values.length; offset++) {
             values[offset] = new BytesRef();
             nulls[offset] = new BytesRef();

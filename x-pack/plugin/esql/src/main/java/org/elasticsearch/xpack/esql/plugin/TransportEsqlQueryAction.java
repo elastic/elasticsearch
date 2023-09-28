@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -45,6 +46,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ExchangeService exchangeService;
     private final ClusterService clusterService;
     private final Executor requestExecutor;
+    private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
     private final Settings settings;
 
@@ -69,6 +71,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.exchangeService = exchangeService;
         EsqlBlockFactoryParams.init(bigArrays);
         var blockFactory = BlockFactory.getGlobalInstance();
+        this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.computeService = new ComputeService(
             searchService,
@@ -96,21 +99,29 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(settings)
         );
         String sessionId = sessionID(task);
         planExecutor.esql(
             request,
             sessionId,
             configuration,
+            enrichPolicyResolver,
             listener.delegateFailureAndWrap(
-                (delegate, r) -> computeService.execute(sessionId, (CancellableTask) task, r, configuration, delegate.map(pages -> {
-                    List<ColumnInfo> columns = r.output()
-                        .stream()
-                        .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
-                        .toList();
-                    return new EsqlQueryResponse(columns, pages, request.columnar());
-                }))
+                (delegate, physicalPlan) -> computeService.execute(
+                    sessionId,
+                    (CancellableTask) task,
+                    physicalPlan,
+                    configuration,
+                    delegate.map(pages -> {
+                        List<ColumnInfo> columns = physicalPlan.output()
+                            .stream()
+                            .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))
+                            .toList();
+                        return new EsqlQueryResponse(columns, pages, request.columnar());
+                    })
+                )
             )
         );
     }

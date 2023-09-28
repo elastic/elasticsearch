@@ -11,4 +11,6 @@ testClusters.configureEach {
   user username: "user1", password: 'x-pack-test-password', role: "user1"
   user username: "user2", password: 'x-pack-test-password', role: "user2"
   user username: "user3", password: 'x-pack-test-password', role: "user3"
+  user username: "user4", password: 'x-pack-test-password', role: "user4"
+  user username: "user5", password: 'x-pack-test-password', role: "user5"
 }

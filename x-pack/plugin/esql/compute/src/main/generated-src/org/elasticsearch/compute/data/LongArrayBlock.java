@@ -109,6 +109,10 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

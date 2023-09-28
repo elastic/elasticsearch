@@ -301,7 +301,7 @@ public class ExchangeServiceTests extends ESTestCase {
             drivers.add(d);
         }
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        new DriverRunner() {
+        new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
                 Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
@@ -345,7 +345,7 @@ public class ExchangeServiceTests extends ESTestCase {
         sinkExchanger.fetchPageAsync(true, future);
         ExchangeResponse resp = future.actionGet();
         assertTrue(resp.finished());
-        assertNull(resp.page());
+        assertNull(resp.takePage());
         assertTrue(sink.waitForWriting().isDone());
         assertTrue(sink.isFinished());
     }
@@ -394,8 +394,9 @@ public class ExchangeServiceTests extends ESTestCase {
                     @Override
                     public void sendResponse(TransportResponse response) throws IOException {
                         ExchangeResponse exchangeResponse = (ExchangeResponse) response;
-                        if (exchangeResponse.page() != null) {
-                            IntBlock block = exchangeResponse.page().getBlock(0);
+                        Page page = exchangeResponse.takePage();
+                        if (page != null) {
+                            IntBlock block = page.getBlock(0);
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getInt(i) == disconnectOnSeqNo) {
                                     throw new IOException("page is too large");

@@ -42,6 +42,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
     private static RestRequest request = new FakeRestRequest();
     private static FakeRestChannel channel = new FakeRestChannel(request, true, 0);
     private static RestGetSourceResponseListener listener = new RestGetSourceResponseListener(channel, request);
+    @SuppressWarnings("this-escape")
     private final List<String> compatibleMediaType = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     @Before

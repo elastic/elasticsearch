@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
@@ -67,5 +68,10 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
   @Override
   public String toString() {
     return "CastIntToUnsignedLongEvaluator[" + "v=" + v + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(v);
   }
 }

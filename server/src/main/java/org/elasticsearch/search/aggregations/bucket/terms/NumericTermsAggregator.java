@@ -51,6 +51,7 @@ public class NumericTermsAggregator extends TermsAggregator {
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
 
+    @SuppressWarnings("this-escape")
     public NumericTermsAggregator(
         String name,
         AggregatorFactories factories,

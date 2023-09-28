@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BytesRefBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -23,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, Math.min(Integer.MAX_VALUE, Integer.MAX_VALUE / size));
         return new BytesRefBlockSourceOperator(
             LongStream.range(0, size).mapToObj(l -> new BytesRef(String.valueOf(between(-max, max)))).toList()

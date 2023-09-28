@@ -102,6 +102,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
 
+    @SuppressWarnings("this-escape")
     public RepositoriesService(
         Settings settings,
         ClusterService clusterService,

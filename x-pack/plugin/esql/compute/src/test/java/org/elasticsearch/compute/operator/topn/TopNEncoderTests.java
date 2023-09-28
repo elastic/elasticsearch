@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -38,37 +38,37 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     public void testLong() {
-        BytesRefBuilder builder = new BytesRefBuilder();
+        BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
         long v = randomLong();
         encoder.encodeLong(v, builder);
-        BytesRef encoded = builder.toBytesRef();
+        BytesRef encoded = builder.bytesRefView();
         assertThat(encoder.decodeLong(encoded), equalTo(v));
         assertThat(encoded.length, equalTo(0));
     }
 
     public void testInt() {
-        BytesRefBuilder builder = new BytesRefBuilder();
+        BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
         int v = randomInt();
         encoder.encodeInt(v, builder);
-        BytesRef encoded = builder.toBytesRef();
+        BytesRef encoded = builder.bytesRefView();
         assertThat(encoder.decodeInt(encoded), equalTo(v));
         assertThat(encoded.length, equalTo(0));
     }
 
     public void testDouble() {
-        BytesRefBuilder builder = new BytesRefBuilder();
+        BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
         double v = randomDouble();
         encoder.encodeDouble(v, builder);
-        BytesRef encoded = builder.toBytesRef();
+        BytesRef encoded = builder.bytesRefView();
         assertThat(encoder.decodeDouble(encoded), equalTo(v));
         assertThat(encoded.length, equalTo(0));
     }
 
     public void testBoolean() {
-        BytesRefBuilder builder = new BytesRefBuilder();
+        BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
         boolean v = randomBoolean();
         encoder.encodeBoolean(v, builder);
-        BytesRef encoded = builder.toBytesRef();
+        BytesRef encoded = builder.bytesRefView();
         assertThat(encoder.decodeBoolean(encoded), equalTo(v));
         assertThat(encoded.length, equalTo(0));
     }
@@ -110,9 +110,9 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     private void roundTripBytesRef(BytesRef v) {
-        BytesRefBuilder builder = new BytesRefBuilder();
+        BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
         int reportedSize = encoder.encodeBytesRef(v, builder);
-        BytesRef encoded = builder.toBytesRef();
+        BytesRef encoded = builder.bytesRefView();
         assertThat(encoded.length, equalTo(reportedSize));
         assertThat(encoder.decodeBytesRef(encoded, new BytesRef()), equalTo(v));
         assertThat(encoded.length, equalTo(0));

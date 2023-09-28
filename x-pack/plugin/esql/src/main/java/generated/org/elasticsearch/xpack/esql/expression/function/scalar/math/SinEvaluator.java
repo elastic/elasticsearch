@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Sin}.
@@ -64,5 +65,10 @@ public final class SinEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public String toString() {
     return "SinEvaluator[" + "val=" + val + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

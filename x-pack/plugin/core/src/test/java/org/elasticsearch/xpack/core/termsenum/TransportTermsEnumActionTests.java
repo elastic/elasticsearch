@@ -66,7 +66,8 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
+     * TransportVersions.MINIMUM_CCS_VERSION works
      */
     public void testCCSCheckCompatibility() throws Exception {
         TermsEnumRequest request = new TermsEnumRequest().field("field").timeout(TimeValue.timeValueSeconds(5));

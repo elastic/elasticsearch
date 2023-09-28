@@ -35,7 +35,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
    */
   @Override
   public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNullable(fieldVal);
     }
     IntBlock v = (IntBlock) fieldVal;
@@ -65,7 +65,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
    */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNotNullable(fieldVal);
     }
     IntBlock v = (IntBlock) fieldVal;

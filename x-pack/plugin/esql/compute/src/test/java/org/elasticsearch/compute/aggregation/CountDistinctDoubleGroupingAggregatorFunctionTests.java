@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
@@ -34,7 +35,7 @@ public class CountDistinctDoubleGroupingAggregatorFunctionTests extends Grouping
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongDoubleTupleBlockSourceOperator(
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), randomDoubleBetween(0, 100, true)))
         );

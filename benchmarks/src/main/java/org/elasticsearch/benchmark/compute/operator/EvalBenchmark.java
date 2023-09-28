@@ -229,7 +229,7 @@ public class EvalBenchmark {
             case "mv_min", "mv_min_ascending" -> {
                 var builder = LongBlock.newBlockBuilder(BLOCK_LENGTH);
                 if (operation.endsWith("ascending")) {
-                    builder.mvOrdering(Block.MvOrdering.ASCENDING);
+                    builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
                 }
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.beginPositionEntry();

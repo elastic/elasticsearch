@@ -7,7 +7,8 @@ emp_no:integer |_index:keyword |_version:long
 10002          |employees      |1
 ;
 
-aliasWithSameName
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+aliasWithSameName-Ignore
 from employees [metadata _index, _version] | sort emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
 
 emp_no:integer |_index:keyword |_version:long

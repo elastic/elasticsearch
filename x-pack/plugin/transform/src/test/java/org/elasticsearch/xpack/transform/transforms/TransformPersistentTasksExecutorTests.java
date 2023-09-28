@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -323,7 +322,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                             DiscoveryNodeRole.TRANSFORM_ROLE
                         )
                     )
-                    .version(Version.V_7_7_0)
                     .attributes(
                         Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.V_7_7_0.toString())
                     )

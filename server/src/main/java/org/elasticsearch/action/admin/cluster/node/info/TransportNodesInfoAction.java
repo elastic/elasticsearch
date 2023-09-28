@@ -16,8 +16,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -76,41 +78,72 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
     @Override
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest, Task task) {
-        NodesInfoRequest request = nodeRequest.request;
-        Set<String> metrics = request.requestedMetrics();
+        Set<String> metrics = nodeRequest.requestedMetrics();
         return nodeService.info(
-            metrics.contains(NodesInfoRequest.Metric.SETTINGS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.OS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.PROCESS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.JVM.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.THREAD_POOL.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.TRANSPORT.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.HTTP.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.PLUGINS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.INGEST.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.INDICES.metricName())
+            metrics.contains(NodesInfoMetrics.Metric.SETTINGS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.OS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.PROCESS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.JVM.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.THREAD_POOL.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.TRANSPORT.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.HTTP.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.PLUGINS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.INGEST.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.AGGREGATIONS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.INDICES.metricName())
         );
     }
 
     public static class NodeInfoRequest extends TransportRequest {
 
-        NodesInfoRequest request;
+        private NodesInfoMetrics nodesInfoMetrics;
+        private String[] nodesIds;
+        private DiscoveryNode[] concreteNodes;
+        private TimeValue timeout;
+        private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);
-            request = new NodesInfoRequest(in);
+            parentTaskId = TaskId.readFromStream(in);
+            nodesIds = in.readStringArray();
+            concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
+            timeout = in.readOptionalTimeValue();
+            nodesInfoMetrics = new NodesInfoMetrics(in);
         }
 
         public NodeInfoRequest(NodesInfoRequest request) {
-            this.request = request;
+            nodesInfoMetrics = request.getNodesInfoMetrics();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
+            parentTaskId.writeTo(out);
+            out.writeStringArrayNullable(nodesIds);
+            out.writeOptionalArray(concreteNodes);
+            out.writeOptionalTimeValue(timeout);
+            nodesInfoMetrics.writeTo(out);
+        }
+
+        public Set<String> requestedMetrics() {
+            return nodesInfoMetrics.requestedMetrics();
+        }
+
+        public String[] getNodesIds() {
+            return nodesIds;
+        }
+
+        public DiscoveryNode[] getConcreteNodes() {
+            return concreteNodes;
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
+        public TaskId getParentTaskId() {
+            return parentTaskId;
         }
     }
 }

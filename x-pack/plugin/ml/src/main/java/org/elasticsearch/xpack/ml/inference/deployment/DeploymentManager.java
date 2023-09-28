@@ -165,17 +165,13 @@ public class DeploymentManager {
         }, failedDeploymentListener::onFailure);
 
         ActionListener<TrainedModelConfig> executeStartAndLoad = ActionListener.wrap((modelConfig) -> {
+            // here, we are being called back on the searching thread, which MAY be a network thread
+            // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
+            // executor.
             executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
         }, failedDeploymentListener::onFailure);
 
-        ActionListener<TrainedModelConfig> verifyMlNodesAndModelArchitectures = ActionListener.wrap((modelConfig) -> {
-            verifyMlNodesAndModelArchitectures(modelConfig, client, threadPool, executeStartAndLoad);
-        }, failedDeploymentListener::onFailure);
-
-        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
-            assert getModelResponse.getResources().results().size() == 1;
-            TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
-
+        ActionListener<TrainedModelConfig> getVerifiedModel = ActionListener.wrap((modelConfig) -> {
             processContext.modelInput.set(modelConfig.getInput());
 
             if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
@@ -200,11 +196,8 @@ public class DeploymentManager {
                     NlpTask nlpTask = new NlpTask(nlpConfig, vocabulary);
                     NlpTask.Processor processor = nlpTask.createProcessor();
                     processContext.nlpTaskProcessor.set(processor);
-                    // here, we are being called back on the searching thread, which MAY be a network thread
-                    // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
-                    // executor.
 
-                    verifyMlNodesAndModelArchitectures.onResponse(modelConfig);
+                    executeStartAndLoad.onResponse(modelConfig);
                 }, failedDeploymentListener::onFailure));
             } else {
                 failedDeploymentListener.onFailure(
@@ -219,12 +212,20 @@ public class DeploymentManager {
             }
         }, failedDeploymentListener::onFailure);
 
+        ActionListener<GetTrainedModelsAction.Response> verifyModelAndClusterArchitecturesListener = ActionListener.wrap(getModelResponse -> {
+            assert getModelResponse.getResources().results().size() == 1;
+            TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+
+            verifyMlNodesAndModelArchitectures(modelConfig, client, threadPool, getVerifiedModel);
+
+        }, failedDeploymentListener::onFailure);
+
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
             GetTrainedModelsAction.INSTANCE,
             new GetTrainedModelsAction.Request(task.getParams().getModelId()),
-            getModelListener
+            verifyModelAndClusterArchitecturesListener
         );
     }
 
@@ -242,7 +243,7 @@ public class DeploymentManager {
 
             @Override
             public void onFailure(Exception e) {
-                configToReturnListener.onResponse(configToReturn);
+                configToReturnListener.onFailure(e);
             }
         };
 

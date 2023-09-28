@@ -60,7 +60,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -866,9 +865,10 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             // the template ILM policy should still be reflected at the top level
             assertThat(dataStreamInfo.getIlmPolicy(), is(policy));
 
-            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
-            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
-            String writeIndex = getDefaultBackingIndexName(dataStreamName, 3);
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String writeIndex = backingIndices.get(2);
             assertThat(
                 indices.stream().map(i -> i.getName()).toList(),
                 containsInAnyOrder(firstGenerationIndex, secondGenerationIndex, writeIndex)

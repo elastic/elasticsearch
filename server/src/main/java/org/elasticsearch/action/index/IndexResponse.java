@@ -42,16 +42,16 @@ public class IndexResponse extends DocWriteResponse {
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
-            executedPipelines = in.readCollectionAsList(StreamInput::readString);
+            executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
-            executedPipelines = List.of();
+            executedPipelines = null;
         }
     }
 
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
-            executedPipelines = in.readCollectionAsList(StreamInput::readString);
+            executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
             executedPipelines = null;
         }

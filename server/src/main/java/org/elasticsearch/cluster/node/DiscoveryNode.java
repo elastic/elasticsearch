@@ -241,7 +241,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     private static Set<String> inferFeaturesFrom(VersionInformation versionInfo) {
         return versionInfo != null && versionInfo.nodeVersion().before(Version.V_8_11_0)
-            ? FeatureService.getHistoricalFeatures(versionInfo.nodeVersion())
+            ? FeatureService.readHistoricalFeatures(versionInfo.nodeVersion())
             : Set.of();
     }
 
@@ -396,7 +396,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().onOrAfter(TransportVersions.DISCOVERY_NODE_FEATURES_ADDED)) {
             this.features = in.readCollectionAsSet(StreamInput::readString);
         } else {
-            this.features = FeatureService.getHistoricalFeatures(versionInfo.nodeVersion());
+            this.features = FeatureService.readHistoricalFeatures(versionInfo.nodeVersion());
         }
         if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             this.externalId = readStringLiteral.read(in);

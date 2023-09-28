@@ -154,7 +154,7 @@ public abstract class Plugin implements Closeable {
     /**
      * Allows plugins to register additional features that can be checked against nodes
      */
-    public void registerFeatures(Consumer<NodeFeature> registerFeature) {}
+    public void registerFeatures(FeatureRegistration registerFeature) {}
 
     /**
      * Provides a function to modify index template meta data on startup.

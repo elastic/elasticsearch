@@ -1510,9 +1510,13 @@ public class IngestServiceTests extends ESTestCase {
 
         logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
         int numRequest = scaledRandomIntBetween(8, 64);
+        List<Boolean> executedPipelinesExpected = new ArrayList<>();
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
             indexRequest.source(xContentType, "field1", "value1");
+            boolean shouldListExecutedPiplines = randomBoolean();
+            executedPipelinesExpected.add(shouldListExecutedPiplines);
+            indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
             bulkRequest.add(indexRequest);
         }
 
@@ -1551,10 +1555,16 @@ public class IngestServiceTests extends ESTestCase {
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-        for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
+        for (int i = 0; i < bulkRequest.requests().size(); i++) {
+            DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(i);
             IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
             assertThat(indexRequest, notNullValue());
             assertThat(indexRequest.getContentType(), equalTo(xContentType.canonical()));
+            if (executedPipelinesExpected.get(i)) {
+                assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of(pipelineId)));
+            } else {
+                assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of()));
+            }
         }
     }
 

@@ -459,7 +459,6 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(copy.getListExecutedPipelines(), equalTo(indexRequest.getListExecutedPipelines()));
         assertThat(copy.getExecutedPipelines(), equalTo(indexRequest.getExecutedPipelines()));
         assertThat(copy.getPipeline(), equalTo(indexRequest.getPipeline()));
-        // assertThat(copy.getRequestId(), equalTo(indexRequest.getRequestId()));
         assertThat(copy.isRequireAlias(), equalTo(indexRequest.isRequireAlias()));
         assertThat(copy.ifSeqNo(), equalTo(indexRequest.ifSeqNo()));
         assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));

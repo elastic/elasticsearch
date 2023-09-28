@@ -85,7 +85,6 @@ import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -150,6 +149,12 @@ public class LocalExecutionPlanner {
             configuration.pragmas().pageSize(),
             bigArrays,
             blockFactory
+        );
+
+        // workaround for https://github.com/elastic/elasticsearch/issues/99782
+        node = node.transformUp(
+            AggregateExec.class,
+            a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
 
         PhysicalOperation physicalOperation = plan(node, context);
@@ -506,9 +511,14 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
+        List<? extends NamedExpression> projections = project.projections();
+        List<Integer> projectionList = new ArrayList<>(projections.size());
 
+        Layout.Builder layout = new Layout.Builder();
         Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
-        for (NamedExpression ne : project.projections()) {
+        for (int index = 0, size = projections.size(); index < size; index++) {
+            NamedExpression ne = projections.get(index);
+
             NameId inputId;
             if (ne instanceof Alias a) {
                 inputId = ((NamedExpression) a.child()).id();
@@ -524,26 +534,12 @@ public class LocalExecutionPlanner {
                 throw new IllegalArgumentException("type mismatch for aliases");
             }
             channelSet.nameIds().add(ne.id());
+
+            layout.append(channelSet);
+            projectionList.add(input.channel());
         }
 
-        BitSet mask = new BitSet();
-        Layout.Builder layout = new Layout.Builder();
-
-        for (int inChannel = 0; inChannel < source.layout.numberOfChannels(); inChannel++) {
-            Layout.ChannelSet outputSet = inputChannelToOutputIds.get(inChannel);
-
-            if (outputSet != null) {
-                mask.set(inChannel);
-                layout.append(outputSet);
-            }
-        }
-
-        if (mask.cardinality() == source.layout.numberOfChannels()) {
-            // all columns are retained, project operator is not needed but the layout needs to be updated
-            return source.with(layout.build());
-        } else {
-            return source.with(new ProjectOperatorFactory(mask), layout.build());
-        }
+        return source.with(new ProjectOperatorFactory(projectionList), layout.build());
     }
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {

@@ -76,7 +76,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         this(
             actionName,
@@ -102,14 +102,14 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = threadPool.executor(executor);
+        this.executor = executor;
         this.responseReader = response;
     }
 

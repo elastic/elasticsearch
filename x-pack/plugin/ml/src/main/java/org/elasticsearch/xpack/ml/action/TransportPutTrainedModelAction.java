@@ -80,6 +80,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -359,9 +360,10 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ThreadPool threadPool,
         ActionListener<TrainedModelConfig> configToReturnListener
     ) {
-        ActionListener<Void> verifyConfigListener = new ActionListener<Void>() {
+        ActionListener<TrainedModelConfig> addWarningHeaderOnFailureListener = new ActionListener<TrainedModelConfig>() {
             @Override
-            public void onResponse(Void v) {
+            public void onResponse(TrainedModelConfig config) {
+                assert Objects.equals(config, configToReturn);
                 configToReturnListener.onResponse(configToReturn);
             }
 
@@ -372,22 +374,16 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
         };
 
-        callVerifyMlNodesAndModelArchitectures(configToReturn, verifyConfigListener, client, threadPool);
+        callVerifyMlNodesAndModelArchitectures(configToReturn, addWarningHeaderOnFailureListener, client, threadPool);
     }
 
     void callVerifyMlNodesAndModelArchitectures(
         TrainedModelConfig configToReturn,
-        ActionListener<Void> failureListener,
+        ActionListener<TrainedModelConfig> failureListener,
         Client client,
         ThreadPool threadPool
     ) {
-        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-            failureListener,
-            client,
-            threadPool,
-            configToReturn.getPlatformArchitecture(),
-            configToReturn.getModelId()
-        );
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(failureListener, client, threadPool, configToReturn);
     }
 
     /**

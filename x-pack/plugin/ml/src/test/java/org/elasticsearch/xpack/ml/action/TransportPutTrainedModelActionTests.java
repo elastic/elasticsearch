@@ -219,7 +219,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
         TransportPutTrainedModelAction actionSpy = spy(createTransportPutTrainedModelAction());
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<Void>> failureListener = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<ActionListener<TrainedModelConfig>> failureListener = ArgumentCaptor.forClass(ActionListener.class);
         @SuppressWarnings("unchecked")
         ActionListener<TrainedModelConfig> mockConfigToReturnListener = mock(ActionListener.class);
         TrainedModelConfig mockConfigToReturn = mock(TrainedModelConfig.class);
@@ -235,18 +235,18 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         assertWarnings(warningMessage);
     }
 
-    public void testVerifyMlNodesAndModelArchitectures_GivenArchitecturesMatch_ThenDoNothing() {
+    public void testVerifyMlNodesAndModelArchitectures_GivenArchitecturesMatch_ThenTriggerOnResponse() {
 
         TransportPutTrainedModelAction actionSpy = spy(createTransportPutTrainedModelAction());
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<ActionListener<Void>> failureListener = ArgumentCaptor.forClass(ActionListener.class);
+        ArgumentCaptor<ActionListener<TrainedModelConfig>> successListener = ArgumentCaptor.forClass(ActionListener.class);
         @SuppressWarnings("unchecked")
         ActionListener<TrainedModelConfig> mockConfigToReturnListener = mock(ActionListener.class);
         TrainedModelConfig mockConfigToReturn = mock(TrainedModelConfig.class);
 
         doNothing().when(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), any(), any(), any());
         actionSpy.verifyMlNodesAndModelArchitectures(mockConfigToReturn, null, threadPool, mockConfigToReturnListener);
-        verify(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), failureListener.capture(), any(), any());
+        verify(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), successListener.capture(), any(), any());
 
         ensureNoWarnings();
     }

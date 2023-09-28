@@ -551,20 +551,20 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     @Override
                     public ClusterState execute(ClusterState currentState) {
 
+                        currentState = stopPlatformSpecificModelsInHeterogeneousClusters(
+                            currentState,
+                            mlNodesArchitectures,
+                            modelToAdd,
+                            clusterState
+                        );
+
                         if (areClusterStatesCompatibleForRebalance(clusterState, currentState)) {
                             isUpdated = true;
                             ClusterState updatedState = update(currentState, rebalancedMetadata);
                             isChanged = updatedState != currentState;
-
-                            updatedState = stopPlatformSpecificModelsInHeterogeneousClusters(
-                                updatedState,
-                                mlNodesArchitectures,
-                                modelToAdd,
-                                clusterState
-                            );
-
                             return updatedState;
                         }
+
                         rebalanceAssignments(currentState, modelToAdd, reason, listener);
                         return currentState;
                     }

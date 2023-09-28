@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Iterator;
@@ -67,18 +68,21 @@ public class MlPlatformArchitecturesUtil {
     }
 
     public static void verifyMlNodesAndModelArchitectures(
-        ActionListener<Void> failureListener,
+        ActionListener<TrainedModelConfig> successOrFailureListener,
         Client client,
         ThreadPool threadPool,
-        String modelPlatformArchitecture,
-        String modelID
+        TrainedModelConfig configToReturn
     ) {
+        String modelID = configToReturn.getModelId();
+        String modelPlatformArchitecture = configToReturn.getPlatformArchitecture();
+
         String modifiedPlatformArchitecture = (modelPlatformArchitecture == null && modelID.contains("linux-x86_64"))
             ? "linux-x86_64"
             : null;
         ActionListener<Set<String>> architecturesListener = ActionListener.wrap((architectures) -> {
             verifyMlNodesAndModelArchitectures(architectures, modifiedPlatformArchitecture, modelID);
-        }, failureListener::onFailure);
+            successOrFailureListener.onResponse(configToReturn);
+        }, successOrFailureListener::onFailure);
 
         getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
     }

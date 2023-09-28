@@ -164,13 +164,6 @@ public class DeploymentManager {
             finalListener.onResponse(task);
         }, failedDeploymentListener::onFailure);
 
-        ActionListener<TrainedModelConfig> executeStartAndLoad = ActionListener.wrap((modelConfig) -> {
-            // here, we are being called back on the searching thread, which MAY be a network thread
-            // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
-            // executor.
-            executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
-        }, failedDeploymentListener::onFailure);
-
         ActionListener<TrainedModelConfig> getVerifiedModel = ActionListener.wrap((modelConfig) -> {
             processContext.modelInput.set(modelConfig.getInput());
 
@@ -196,8 +189,10 @@ public class DeploymentManager {
                     NlpTask nlpTask = new NlpTask(nlpConfig, vocabulary);
                     NlpTask.Processor processor = nlpTask.createProcessor();
                     processContext.nlpTaskProcessor.set(processor);
-
-                    executeStartAndLoad.onResponse(modelConfig);
+                    // here, we are being called back on the searching thread, which MAY be a network thread
+                    // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
+                    // executor.
+                    executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
                 }, failedDeploymentListener::onFailure));
             } else {
                 failedDeploymentListener.onFailure(
@@ -238,9 +233,10 @@ public class DeploymentManager {
         ThreadPool threadPool,
         ActionListener<TrainedModelConfig> configToReturnListener
     ) {
-        ActionListener<Void> verifyConfigListener = new ActionListener<Void>() {
+        ActionListener<TrainedModelConfig> verifyConfigListener = new ActionListener<TrainedModelConfig>() {
             @Override
-            public void onResponse(Void v) {
+            public void onResponse(TrainedModelConfig config) {
+                assert Objects.equals(config, configToReturn);
                 configToReturnListener.onResponse(configToReturn);
             }
 
@@ -255,17 +251,11 @@ public class DeploymentManager {
 
     void callVerifyMlNodesAndModelArchitectures(
         TrainedModelConfig configToReturn,
-        ActionListener<Void> failureListener,
+        ActionListener<TrainedModelConfig> configToReturnListener,
         Client client,
         ThreadPool threadPool
     ) {
-        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-            failureListener,
-            client,
-            threadPool,
-            configToReturn.getPlatformArchitecture(),
-            configToReturn.getModelId()
-        );
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(configToReturnListener, client, threadPool, configToReturn);
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {

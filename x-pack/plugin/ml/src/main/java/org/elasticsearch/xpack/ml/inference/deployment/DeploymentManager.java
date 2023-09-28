@@ -17,7 +17,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocati
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
@@ -166,7 +164,6 @@ public class DeploymentManager {
             finalListener.onResponse(task);
         }, failedDeploymentListener::onFailure);
 
-
         ActionListener<TrainedModelConfig> executeStartAndLoad = ActionListener.wrap((modelConfig) -> {
             executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
         }, failedDeploymentListener::onFailure);
@@ -174,7 +171,6 @@ public class DeploymentManager {
         ActionListener<TrainedModelConfig> verifyMlNodesAndModelArchitectures = ActionListener.wrap((modelConfig) -> {
             verifyMlNodesAndModelArchitectures(modelConfig, client, threadPool, executeStartAndLoad);
         }, failedDeploymentListener::onFailure);
-
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             assert getModelResponse.getResources().results().size() == 1;

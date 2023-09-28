@@ -210,7 +210,7 @@ public final class BlockUtils {
     private static Object valueAtOffset(Block block, int offset) {
         return switch (block.elementType()) {
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
-            case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(offset, new BytesRef());
+            case BYTES_REF -> BytesRef.deepCopyOf(((BytesRefBlock) block).getBytesRef(offset, new BytesRef()));
             case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
             case INT -> ((IntBlock) block).getInt(offset);
             case LONG -> ((LongBlock) block).getLong(offset);

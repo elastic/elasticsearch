@@ -26,6 +26,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -115,7 +116,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         // The test wants more than one segment. We shoot for about 10.
         int commitEvery = Math.max(1, size / 10);
         try (
@@ -198,21 +199,35 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testLoadAll() {
-        loadSimpleAndAssert(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024))));
+        DriverContext driverContext = driverContext();
+        loadSimpleAndAssert(
+            driverContext,
+            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100 * 1024)))
+        );
     }
 
     public void testLoadAllInOnePage() {
+        DriverContext driverContext = driverContext();
         loadSimpleAndAssert(
-            List.of(CannedSourceOperator.mergePages(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024)))))
+            driverContext,
+            List.of(
+                CannedSourceOperator.mergePages(
+                    CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100 * 1024)))
+                )
+            )
         );
     }
 
     public void testEmpty() {
-        loadSimpleAndAssert(CannedSourceOperator.collectPages(simpleInput(0)));
+        DriverContext driverContext = driverContext();
+        loadSimpleAndAssert(driverContext, CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 0)));
     }
 
     public void testLoadAllInOnePageShuffled() {
-        Page source = CannedSourceOperator.mergePages(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024))));
+        DriverContext driverContext = driverContext();
+        Page source = CannedSourceOperator.mergePages(
+            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100 * 1024)))
+        );
         List<Integer> shuffleList = new ArrayList<>();
         IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
         Randomness.shuffle(shuffleList);
@@ -222,11 +237,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
         }
         source = new Page(shuffledBlocks);
-        loadSimpleAndAssert(List.of(source));
+        loadSimpleAndAssert(driverContext, List.of(source));
     }
 
-    private void loadSimpleAndAssert(List<Page> input) {
-        DriverContext driverContext = driverContext();
+    private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input) {
         List<Page> results = new ArrayList<>();
         List<Operator> operators = List.of(
             factory(

@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -37,16 +38,21 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.junit.After;
 
+import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -143,8 +149,12 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
-        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> ESTestCase.randomLong()), between(1, size * 2));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return new SequenceLongBlockSourceOperator(
+            blockFactory,
+            LongStream.range(0, size).map(l -> ESTestCase.randomLong()),
+            between(1, size * 2)
+        );
     }
 
     @Override
@@ -180,26 +190,48 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testRamBytesUsed() {
+        RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
+            @Override
+            public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
+                if (o instanceof ElementType) {
+                    return 0; // shared
+                }
+                if (o instanceof TopNEncoder) {
+                    return 0; // shared
+                }
+                if (o instanceof CircuitBreaker) {
+                    return 0; // shared
+                }
+                if (o instanceof BlockFactory) {
+                    return 0; // shard
+                }
+                return super.accumulateObject(o, shallowSize, fieldValues, queue);
+            }
+        };
         int topCount = 10_000;
         // We under-count by a few bytes because of the lists. In that end that's fine, but we need to account for it here.
-        long underCount = 100;
-        TopNOperator op = new TopNOperator.TopNOperatorFactory(
-            topCount,
-            List.of(LONG),
-            List.of(DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, true, false)),
-            pageSize
-        ).get(driverContext());
-        long actualEmpty = RamUsageTester.ramUsed(op) - RamUsageTester.ramUsed(LONG) - RamUsageTester.ramUsed(DEFAULT_UNSORTABLE)
-            - RamUsageTester.ramUsed(op.breaker());
-        assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
-        // But when we fill it then we're quite close
-        for (Page p : CannedSourceOperator.collectPages(simpleInput(topCount))) {
-            op.addInput(p);
+        long underCount = 200;
+        DriverContext context = driverContext();
+        try (
+            TopNOperator op = new TopNOperator.TopNOperatorFactory(
+                topCount,
+                List.of(LONG),
+                List.of(DEFAULT_UNSORTABLE),
+                List.of(new TopNOperator.SortOrder(0, true, false)),
+                pageSize
+            ).get(context)
+        ) {
+            long actualEmpty = RamUsageTester.ramUsed(op, acc);
+            assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
+            // But when we fill it then we're quite close
+            for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
+                op.addInput(p);
+            }
+            long actualFull = RamUsageTester.ramUsed(op, acc);
+            assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
+
+            // TODO empty it again and check.
         }
-        long actualFull = RamUsageTester.ramUsed(op) - RamUsageTester.ramUsed(LONG) - RamUsageTester.ramUsed(DEFAULT_UNSORTABLE)
-            - RamUsageTester.ramUsed(op.breaker());
-        assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
     }
 
     public void testRandomTopN() {
@@ -471,6 +503,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
                     new TopNOperator(
+                        blockFactory,
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
                         topCount,
                         elementTypes,
@@ -559,6 +592,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
                     new TopNOperator(
+                        blockFactory,
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
                         topCount,
                         elementTypes,
@@ -590,9 +624,10 @@ public class TopNOperatorTests extends OperatorTestCase {
         try (
             Driver driver = new Driver(
                 driverContext,
-                new TupleBlockSourceOperator(inputValues, randomIntBetween(1, 1000)),
+                new TupleBlockSourceOperator(driverContext.blockFactory(), inputValues, randomIntBetween(1, 1000)),
                 List.of(
                     new TopNOperator(
+                        driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
                         limit,
                         elementTypes,
@@ -607,6 +642,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     for (int i = 0; i < block1.getPositionCount(); i++) {
                         outputValues.add(tuple(block1.isNull(i) ? null : block1.getLong(i), block2.isNull(i) ? null : block2.getLong(i)));
                     }
+                    page.releaseBlocks();
                 }),
                 () -> {}
             )
@@ -848,6 +884,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         TopNEncoder encoder,
         TopNOperator.SortOrder... sortOrders
     ) {
+        DriverContext driverContext = driverContext();
         Block block = TestBlockBuilder.blockFromValues(values, blockType);
         assert block.mvOrdering() == Block.MvOrdering.UNORDERED : "Blocks created for this test must have unordered multi-values";
         Page page = new Page(block);
@@ -856,10 +893,11 @@ public class TopNOperatorTests extends OperatorTestCase {
         int topCount = randomIntBetween(1, values.size());
         try (
             Driver driver = new Driver(
-                driverContext(),
+                driverContext,
                 new CannedSourceOperator(List.of(page).iterator()),
                 List.of(
                     new TopNOperator(
+                        driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
                         topCount,
                         List.of(blockType),
@@ -878,6 +916,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testRandomMultiValuesTopN() {
+        DriverContext driverContext = driverContext();
         int rows = randomIntBetween(50, 100);
         int topCount = randomIntBetween(1, rows);
         int blocksCount = randomIntBetween(20, 30);
@@ -969,8 +1008,9 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<List<Object>>> actualValues = new ArrayList<>();
-        List<Page> results = this.drive(
+        List<Page> results = drive(
             new TopNOperator(
+                driverContext.blockFactory(),
                 nonBreakingBigArrays().breakerService().getBreaker("request"),
                 topCount,
                 elementTypes,
@@ -982,6 +1022,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
         for (Page p : results) {
             readAsRows(actualValues, p);
+            p.releaseBlocks();
         }
 
         List<List<List<Object>>> topNExpectedValues = expectedValues.stream()
@@ -1003,13 +1044,15 @@ public class TopNOperatorTests extends OperatorTestCase {
             append(builder, new BytesRef(InetAddressPoint.encode(InetAddress.getByName(ip))));
         }
 
+        DriverContext driverContext = driverContext();
         List<List<Object>> actual = new ArrayList<>();
         try (
             Driver driver = new Driver(
-                driverContext(),
+                driverContext,
                 new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                 List.of(
                     new TopNOperator(
+                        driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
                         ips.size(),
                         List.of(BYTES_REF),
@@ -1128,12 +1171,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<Object>> actual = new ArrayList<>();
+        DriverContext driverContext = driverContext();
         try (
             Driver driver = new Driver(
-                driverContext(),
+                driverContext,
                 new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                 List.of(
                     new TopNOperator(
+                        driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
                         ips.size(),
                         List.of(BYTES_REF),
@@ -1210,12 +1255,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         blocks.add(builderInt.build());
 
         List<List<Object>> actual = new ArrayList<>();
+        DriverContext driverContext = driverContext();
         try (
             Driver driver = new Driver(
-                driverContext(),
+                driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
                     new TopNOperator(
+                        driverContext.blockFactory(),
                         nonBreakingBigArrays().breakerService().getBreaker("request"),
                         2,
                         List.of(BYTES_REF, INT),
@@ -1243,10 +1290,55 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat((Integer) actual.get(1).get(1), equalTo(100));
     }
 
+    public void testErrorBeforeFullyDraining() {
+        int maxPageSize = between(1, 100);
+        int topCount = maxPageSize * 4;
+        int docCount = topCount * 10;
+        List<List<Object>> actual = new ArrayList<>();
+        DriverContext driverContext = driverContext();
+        try (
+            Driver driver = new Driver(
+                driverContext,
+                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.range(0, docCount)),
+                List.of(
+                    new TopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        topCount,
+                        List.of(LONG),
+                        List.of(DEFAULT_UNSORTABLE),
+                        List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
+                        maxPageSize
+                    )
+                ),
+                new PageConsumerOperator(p -> {
+                    assertThat(p.getPositionCount(), equalTo(maxPageSize));
+                    if (actual.isEmpty()) {
+                        readInto(actual, p);
+                    } else {
+                        p.releaseBlocks();
+                        throw new RuntimeException("boo");
+                    }
+                }),
+                () -> {}
+            )
+        ) {
+            Exception e = expectThrows(RuntimeException.class, () -> runDriver(driver));
+            assertThat(e.getMessage(), equalTo("boo"));
+        }
+
+        ListMatcher values = matchesList();
+        for (int i = 0; i < maxPageSize; i++) {
+            values = values.item((long) i);
+        }
+        assertMap(actual, matchesList().item(values));
+    }
+
     public void testCloseWithoutCompleting() {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1));
         try (
             TopNOperator op = new TopNOperator(
+                driverContext().blockFactory(),
                 breaker,
                 2,
                 List.of(INT),
@@ -1257,7 +1349,23 @@ public class TopNOperatorTests extends OperatorTestCase {
         ) {
             op.addInput(new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()));
         }
-        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    private final List<CircuitBreaker> breakers = new ArrayList<>();
+
+    @Override
+    protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        breakers.add(breaker);
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+    }
+
+    @After
+    public void allBreakersEmpty() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

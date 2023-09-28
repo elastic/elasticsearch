@@ -328,7 +328,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvKeywords.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvKeywords.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvKeywords.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
 
                 assertThat(bools.getBoolean(i), equalTo(key % 2 == 0));
@@ -338,7 +338,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvBools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvBools.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvBools.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
 
                 assertThat(mvInts.getValueCount(i), equalTo(key % 3 + 1));
@@ -347,7 +347,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvInts.getInt(offset + v), equalTo(1_000 * key + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvInts.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvInts.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
 
                 assertThat(mvLongs.getValueCount(i), equalTo(key % 3 + 1));
@@ -356,7 +356,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvLongs.getLong(offset + v), equalTo(-1_000L * key + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvLongs.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvLongs.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
 
                 assertThat(doubles.getDouble(i), equalTo(key / 123_456d));
@@ -365,7 +365,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvDoubles.getDouble(offset + v), equalTo(key / 123_456d + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvDoubles.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvDoubles.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
             }
         }

@@ -261,7 +261,7 @@ public class MvEvaluatorImplementer {
             if (ascendingFunction == null) {
                 return;
             }
-            builder.beginControlFlow("if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING)");
+            builder.beginControlFlow("if (fieldVal.mvSortedAscending())");
             builder.addStatement("return $L(fieldVal)", name.replace("eval", "evalAscending"));
             builder.endControlFlow();
         }, builder -> {

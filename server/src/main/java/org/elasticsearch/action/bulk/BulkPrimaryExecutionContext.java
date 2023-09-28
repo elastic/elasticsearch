@@ -235,7 +235,7 @@ class BulkPrimaryExecutionContext {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     List<String> executedPipelines;
                     if (docWriteRequest instanceof IndexRequest indexRequest) {
-                        executedPipelines = indexRequest.pipelinesHaveRun() ? indexRequest.getExecutedPipelines() : null;
+                        executedPipelines = indexRequest.getListExecutedPipelines() ? indexRequest.getExecutedPipelines() : null;
                     } else {
                         executedPipelines = null;
                     }

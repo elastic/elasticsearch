@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
@@ -98,33 +99,37 @@ public class DocVectorTests extends ESTestCase {
     }
 
     private void assertShardSegmentDocMap(int[][] data, int[][] expected) {
-        DocBlock.Builder builder = DocBlock.newBlockBuilder(data.length);
-        for (int r = 0; r < data.length; r++) {
-            builder.appendShard(data[r][0]);
-            builder.appendSegment(data[r][1]);
-            builder.appendDoc(data[r][2]);
-        }
-        DocVector docVector = builder.build().asVector();
-        int[] forwards = docVector.shardSegmentDocMapForwards();
+        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(data.length, blockFactory)) {
+            for (int r = 0; r < data.length; r++) {
+                builder.appendShard(data[r][0]);
+                builder.appendSegment(data[r][1]);
+                builder.appendDoc(data[r][2]);
+            }
+            try (DocVector docVector = builder.build().asVector()) {
+                int[] forwards = docVector.shardSegmentDocMapForwards();
 
-        int[][] result = new int[docVector.getPositionCount()][];
-        for (int p = 0; p < result.length; p++) {
-            result[p] = new int[] {
-                docVector.shards().getInt(forwards[p]),
-                docVector.segments().getInt(forwards[p]),
-                docVector.docs().getInt(forwards[p]) };
-        }
-        assertThat(result, equalTo(expected));
+                int[][] result = new int[docVector.getPositionCount()][];
+                for (int p = 0; p < result.length; p++) {
+                    result[p] = new int[] {
+                        docVector.shards().getInt(forwards[p]),
+                        docVector.segments().getInt(forwards[p]),
+                        docVector.docs().getInt(forwards[p]) };
+                }
+                assertThat(result, equalTo(expected));
 
-        int[] backwards = docVector.shardSegmentDocMapBackwards();
-        for (int p = 0; p < result.length; p++) {
-            result[p] = new int[] {
-                docVector.shards().getInt(backwards[forwards[p]]),
-                docVector.segments().getInt(backwards[forwards[p]]),
-                docVector.docs().getInt(backwards[forwards[p]]) };
-        }
+                int[] backwards = docVector.shardSegmentDocMapBackwards();
+                for (int p = 0; p < result.length; p++) {
+                    result[p] = new int[] {
+                        docVector.shards().getInt(backwards[forwards[p]]),
+                        docVector.segments().getInt(backwards[forwards[p]]),
+                        docVector.docs().getInt(backwards[forwards[p]]) };
+                }
 
-        assertThat(result, equalTo(data));
+                assertThat(result, equalTo(data));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     public void testCannotDoubleRelease() {

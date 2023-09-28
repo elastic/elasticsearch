@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 
 class ResultBuilderForBytesRef implements ResultBuilder {
@@ -24,10 +25,10 @@ class ResultBuilderForBytesRef implements ResultBuilder {
      */
     private BytesRef key;
 
-    ResultBuilderForBytesRef(TopNEncoder encoder, boolean inKey, int initialSize) {
+    ResultBuilderForBytesRef(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         this.encoder = encoder;
         this.inKey = inKey;
-        this.builder = BytesRefBlock.newBlockBuilder(initialSize);
+        this.builder = BytesRefBlock.newBlockBuilder(initialSize, blockFactory);
     }
 
     @Override
@@ -66,5 +67,10 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     @Override
     public String toString() {
         return "ResultBuilderForBytesRef[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

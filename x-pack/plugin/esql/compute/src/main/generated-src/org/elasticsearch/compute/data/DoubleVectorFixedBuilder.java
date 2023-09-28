@@ -58,4 +58,12 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
         }
         return new DoubleArrayVector(values, values.length, blockFactory);
     }
+
+    @Override
+    public void close() {
+        if (nextIndex >= 0) {
+            // If nextIndex < 0 we've already built the vector
+            blockFactory.adjustBreaker(-ramBytesUsed(values.length), false);
+        }
+    }
 }

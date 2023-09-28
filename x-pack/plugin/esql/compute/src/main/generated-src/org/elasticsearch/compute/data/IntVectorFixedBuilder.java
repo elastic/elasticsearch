@@ -58,4 +58,12 @@ final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         }
         return new IntArrayVector(values, values.length, blockFactory);
     }
+
+    @Override
+    public void close() {
+        if (nextIndex >= 0) {
+            // If nextIndex < 0 we've already built the vector
+            blockFactory.adjustBreaker(-ramBytesUsed(values.length), false);
+        }
+    }
 }

@@ -111,9 +111,6 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
-Dense vector fields cannot be indexed if they are within
-<<nested, `nested`>> mappings.
-
 [role="child_attributes"]
 [[dense-vector-params]]
 ==== Parameters for dense vector fields

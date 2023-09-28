@@ -74,12 +74,12 @@ public class DfsPhaseTests extends ESTestCase {
 
             int k = 10;
             // run without profiling enabled
-            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, null, searcher);
+            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, null, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
 
             // run with profiling enabled
             Profilers profilers = new Profilers(searcher);
-            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher);
+            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();
             List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();

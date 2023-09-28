@@ -128,17 +128,27 @@ public final class MultivalueDedupe {
      * and then encodes the results into a {@link byte[]} which can be used for
      * things like hashing many fields together.
      */
-    public static BatchEncoder batchEncoder(Block block, int batchSize) {
-        // TODO collect single-valued block handling here. And maybe vector. And maybe all null?
-        // TODO check for for unique multivalued fields and for ascending multivalue fields.
-        return switch (block.elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).batchEncoder(batchSize);
-            case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).batchEncoder(batchSize);
-            case INT -> new MultivalueDedupeInt((IntBlock) block).batchEncoder(batchSize);
-            case LONG -> new MultivalueDedupeLong((LongBlock) block).batchEncoder(batchSize);
-            case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).batchEncoder(batchSize);
-            default -> throw new IllegalArgumentException();
-        };
+    public static BatchEncoder batchEncoder(Block block, int batchSize, boolean allowDirectEncoder) {
+        var elementType = block.elementType();
+        if (allowDirectEncoder && block.mvDeduplicated()) {
+            return switch (elementType) {
+                case BOOLEAN -> new BatchEncoder.DirectBooleans((BooleanBlock) block);
+                case BYTES_REF -> new BatchEncoder.DirectBytesRefs((BytesRefBlock) block);
+                case INT -> new BatchEncoder.DirectInts((IntBlock) block);
+                case LONG -> new BatchEncoder.DirectLongs((LongBlock) block);
+                case DOUBLE -> new BatchEncoder.DirectDoubles((DoubleBlock) block);
+                default -> throw new IllegalArgumentException("Unknown [" + elementType + "]");
+            };
+        } else {
+            return switch (elementType) {
+                case BOOLEAN -> new MultivalueDedupeBoolean((BooleanBlock) block).batchEncoder(batchSize);
+                case BYTES_REF -> new MultivalueDedupeBytesRef((BytesRefBlock) block).batchEncoder(batchSize);
+                case INT -> new MultivalueDedupeInt((IntBlock) block).batchEncoder(batchSize);
+                case LONG -> new MultivalueDedupeLong((LongBlock) block).batchEncoder(batchSize);
+                case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).batchEncoder(batchSize);
+                default -> throw new IllegalArgumentException("Unknown [" + elementType + "]");
+            };
+        }
     }
 
     private abstract static class MvDedupeEvaluator implements EvalOperator.ExpressionEvaluator {

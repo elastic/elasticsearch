@@ -17,7 +17,6 @@ apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   testImplementation project(path: ':x-pack:plugin:ent-search')
-  testImplementation project(path: ':x-pack:plugin:ent-search')
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 

@@ -95,7 +95,8 @@ emp_no:integer |_version:long |_index:keyword
 10002          |1             |employees
 ;
 
-withMvFunction
+# awaitsfix https://github.com/elastic/elasticsearch/issues/99826
+withMvFunction-Ignore
 from employees [metadata _version] | eval i = mv_avg(_version) + 2 | stats min = min(emp_no) by i;
 
 min:integer |i:double

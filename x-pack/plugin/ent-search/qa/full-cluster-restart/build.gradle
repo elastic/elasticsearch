@@ -16,6 +16,8 @@ apply plugin: 'elasticsearch.bwc-test'
 
 
 dependencies {
+  testImplementation project(path: ':x-pack:plugin:ent-search')
+  testImplementation project(path: ':x-pack:plugin:ent-search')
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 
@@ -24,7 +26,7 @@ assert Version.fromString(VersionProperties.getVersions().get("elasticsearch")).
 
 // once we are ready to test migrations from 8.x to 9.x, we can set the compatible version to 8.0.0
 // see https://github.com/elastic/elasticsearch/pull/93666
-BuildParams.bwcVersions.withWireCompatible(v -> v.before("8.11.0")) { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.8.0") && v.before("8.11.0")) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

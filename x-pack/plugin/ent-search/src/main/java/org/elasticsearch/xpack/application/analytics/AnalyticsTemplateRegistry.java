@@ -17,7 +17,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
@@ -40,9 +39,6 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 3;
-
-    // ILM Policies configuration
-    static final String EVENT_DATA_STREAM_LEGACY_ILM_POLICY_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default_policy";
 
     // Index template components configuration
     static final String EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "settings";
@@ -128,12 +124,6 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return COMPOSABLE_INDEX_TEMPLATES;
-    }
-
-    // overriden to be visible in tests
-    @Override
-    protected List<LifecyclePolicy> getLifecyclePolicies() {
-        return super.getLifecyclePolicies();
     }
 
     @Override

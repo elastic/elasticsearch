@@ -117,9 +117,8 @@ public class IndexRoutingTableTests extends ESTestCase {
         assertTrue(indexRoutingTable.readyForSearch(clusterState));
 
         // 2 unassigned primaries that are index only with some replicas that are all available
-        // TODO: Is this correct behavior for fastRefresh ? Fast refresh indices do not support replicas so this can not practically happen.
-        // However, if we add support we will want to ensure that readyForSearch/canSearchShard allows for searching replicas for
-        // indices with fast refresh for when the index shard is not available.
+        // Fast refresh indices do not support replicas so this can not practically happen. If we add support we will want to ensure
+        // that readyForSearch allows for searching replicas when the index shard is not available.
         shardTable1 = new IndexShardRoutingTable(
             p1,
             List.of(
@@ -138,7 +137,7 @@ public class IndexRoutingTableTests extends ESTestCase {
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
         if (fastRefresh) {
-            assertFalse(indexRoutingTable.readyForSearch(clusterState)); // this is wrong if ever support replicas for fast refreshes
+            assertFalse(indexRoutingTable.readyForSearch(clusterState)); // if we support replicas for fast refreshes this needs to change
         } else {
             assertTrue(indexRoutingTable.readyForSearch(clusterState));
         }

@@ -96,7 +96,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             ta,
             attributes,
             ROLES_WITH_ML,
-            VersionInformation.inferVersions(Version.fromString("8.7.0"))
+            VersionInformation.inferVersions(Version.V_8_7_0)
         );
         assertEquals("{_node_name2}{ML config version=8.7.0}", JobNodeSelector.nodeNameAndVersion(node));
     }

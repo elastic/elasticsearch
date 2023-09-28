@@ -13,5 +13,6 @@ import org.elasticsearch.features.NodeFeature;
 
 public interface FeatureRegistration {
     void registerFeature(NodeFeature feature);
+
     void registerHistoricalFeature(NodeFeature feature, Version version);
 }

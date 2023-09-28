@@ -42,10 +42,15 @@ public class FeatureService {
         if (feature.era() != version.major) {
             throw new IllegalArgumentException(Strings.format("Incorrect feature era %s for version %s", feature.era(), version.major));
         }
-        if (AGGREGATED_FEATURES != null) {  // best-effort check
-            throw new IllegalStateException("Aggregated historical features have already been calculated");
+
+        // make this method idempotent (so it can be called multiple times in the same JVM for tests)
+        if (HISTORICAL_FEATURES.getOrDefault(version, Set.of()).contains(feature.id())) {
+            return;
         }
 
+        if (AGGREGATED_FEATURES != null) {  // best-effort check before we modify anything
+            throw new IllegalStateException("Aggregated historical features have already been calculated");
+        }
         HISTORICAL_FEATURES.computeIfAbsent(version, k -> Collections.synchronizedSet(new HashSet<>())).add(feature.id());
     }
 

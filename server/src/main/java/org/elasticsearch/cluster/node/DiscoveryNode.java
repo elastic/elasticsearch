@@ -236,7 +236,19 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         @Nullable VersionInformation versionInfo,
         @Nullable String externalId
     ) {
-        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, inferFeaturesFrom(versionInfo), versionInfo, externalId);
+        this(
+            nodeName,
+            nodeId,
+            ephemeralId,
+            hostName,
+            hostAddress,
+            address,
+            attributes,
+            roles,
+            inferFeaturesFrom(versionInfo),
+            versionInfo,
+            externalId
+        );
     }
 
     private static Set<String> inferFeaturesFrom(VersionInformation versionInfo) {

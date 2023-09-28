@@ -299,23 +299,22 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (LoadedPlugin lp : plugins) {
             int pluginEra = lp.descriptor().getElasticsearchVersion().major;
             lp.instance().registerFeatures(new FeatureRegistration() {
-                   @Override
-                   public void registerFeature(NodeFeature feature) {
-                       if (feature.era() != pluginEra)
-                           throw new IllegalArgumentException(Strings.format("Incorrect era %s, should be %s", feature.era(), pluginEra));
-                       service.registerFeature(feature);
-                   }
+                @Override
+                public void registerFeature(NodeFeature feature) {
+                    if (feature.era() != pluginEra) throw new IllegalArgumentException(
+                        Strings.format("Incorrect era %s, should be %s", feature.era(), pluginEra)
+                    );
+                    service.registerFeature(feature);
+                }
 
-                   @Override
-                   public void registerHistoricalFeature(NodeFeature feature, Version version) {
-                       if (feature.era() != pluginEra)
-                           throw new IllegalArgumentException(Strings.format("Incorrect era %s, should be %s", feature.era(), pluginEra));
-                       if (version.major < pluginEra)
-                           throw new IllegalArgumentException(Strings.format("Incorrect major version %s, should be at least %s",
-                               version.major, pluginEra));
-                       FeatureService.registerHistoricalFeature(feature, version);
-                   }
-               });
+                @Override
+                public void registerHistoricalFeature(NodeFeature feature, Version version) {
+                    if (feature.era() != pluginEra) throw new IllegalArgumentException(
+                        Strings.format("Incorrect era %s, should be %s", feature.era(), pluginEra)
+                    );
+                    FeatureService.registerHistoricalFeature(feature, version);
+                }
+            });
         }
     }
 

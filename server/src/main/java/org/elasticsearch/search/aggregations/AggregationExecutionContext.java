@@ -54,7 +54,7 @@ public class AggregationExecutionContext {
 
     public int getTsidOrd() {
         if (tsidOrdProvider == null) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "Aggregation on a time-series field is misconfigured, likely due to lack of wrapping "
                     + "a metric aggregation within a `time-series` aggregation"
             );

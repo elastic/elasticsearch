@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -23,8 +24,12 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDoubleFromLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
+  private final DriverContext driverContext;
+
+  public ToDoubleFromLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
     super(field, source);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -72,7 +77,7 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
   public Block evalBlock(Block b) {
     LongBlock block = (LongBlock) b;
     int positionCount = block.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = block.getValueCount(p);
       int start = block.getFirstValueIndex(p);

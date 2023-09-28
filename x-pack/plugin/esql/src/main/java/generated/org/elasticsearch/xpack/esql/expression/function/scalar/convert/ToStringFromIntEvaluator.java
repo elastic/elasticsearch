@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -26,8 +27,12 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToStringFromIntEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromIntEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
+  private final DriverContext driverContext;
+
+  public ToStringFromIntEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
     super(field, source);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -76,7 +81,7 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
   public Block evalBlock(Block b) {
     IntBlock block = (IntBlock) b;
     int positionCount = block.getPositionCount();
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = block.getValueCount(p);
       int start = block.getFirstValueIndex(p);

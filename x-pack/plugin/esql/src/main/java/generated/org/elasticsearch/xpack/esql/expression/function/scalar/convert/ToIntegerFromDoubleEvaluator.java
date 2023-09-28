@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -23,8 +24,12 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToIntegerFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
+  private final DriverContext driverContext;
+
+  public ToIntegerFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
     super(field, source);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -72,7 +77,7 @@ public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.
   public Block evalBlock(Block b) {
     DoubleBlock block = (DoubleBlock) b;
     int positionCount = block.getPositionCount();
-    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
+    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = block.getValueCount(p);
       int start = block.getFirstValueIndex(p);

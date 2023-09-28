@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -25,8 +26,12 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToVersionFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
+  private final DriverContext driverContext;
+
+  public ToVersionFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
     super(field, source);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -76,7 +81,7 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     BytesRef scratchPad = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = block.getValueCount(p);

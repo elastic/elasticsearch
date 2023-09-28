@@ -28,6 +28,7 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
@@ -79,6 +80,8 @@ public class ConvertEvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.superclass(ABSTRACT_CONVERT_FUNCTION_EVALUATOR);
 
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
+
         builder.addMethod(ctor());
         builder.addMethod(name());
         builder.addMethod(evalVector());
@@ -92,7 +95,9 @@ public class ConvertEvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
         builder.addParameter(SOURCE, "source");
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("super($N, $N)", "field", "source");
+        builder.addStatement("this.driverContext = driverContext");
         return builder.build();
     }
 
@@ -196,7 +201,11 @@ public class ConvertEvaluatorImplementer {
         builder.addStatement("$T block = ($T) b", blockType, blockType);
         builder.addStatement("int positionCount = block.getPositionCount()");
         TypeName resultBlockType = blockType(resultType);
-        builder.addStatement("$T.Builder builder = $T.newBlockBuilder(positionCount)", resultBlockType, resultBlockType);
+        builder.addStatement(
+            "$T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory())",
+            resultBlockType,
+            resultBlockType
+        );
         String scratchPadName = null;
         if (argumentType.equals(BYTES_REF)) {
             scratchPadName = "scratchPad";

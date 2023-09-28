@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
@@ -22,7 +23,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -52,8 +53,30 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
+    public int hashCode() {
+        return vector.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DocBlock == false) {
+            return false;
+        }
+        return vector.equals(((DocBlock) obj).vector);
+    }
+
+    @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 
     /**

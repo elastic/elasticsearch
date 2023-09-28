@@ -13,6 +13,8 @@ import java.util.stream.IntStream;
 
 abstract class AbstractBlockBuilder implements Block.Builder {
 
+    protected final BlockFactory blockFactory;
+
     protected int[] firstValueIndexes; // lazily initialized, if multi-values
 
     protected BitSet nullsMask; // lazily initialized, if sparse
@@ -28,7 +30,12 @@ abstract class AbstractBlockBuilder implements Block.Builder {
 
     protected Block.MvOrdering mvOrdering = Block.MvOrdering.UNORDERED;
 
-    protected AbstractBlockBuilder() {}
+    /** The number of bytes currently estimated with the breaker. */
+    protected long estimatedBytes;
+
+    protected AbstractBlockBuilder(BlockFactory blockFactory) {
+        this.blockFactory = blockFactory;
+    }
 
     @Override
     public AbstractBlockBuilder appendNull() {
@@ -105,12 +112,16 @@ abstract class AbstractBlockBuilder implements Block.Builder {
 
     protected abstract void growValuesArray(int newSize);
 
+    /** The number of bytes used to represent each value element. */
+    protected abstract int elementSize();
+
     protected final void ensureCapacity() {
         int valuesLength = valuesLength();
         if (valueCount < valuesLength) {
             return;
         }
         int newSize = calculateNewArraySize(valuesLength);
+        adjustBreaker((long) (newSize - valuesLength) * elementSize());
         growValuesArray(newSize);
     }
 
@@ -119,8 +130,15 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         return currentSize + (currentSize >> 1);
     }
 
+    protected void adjustBreaker(long deltaBytes) {
+        blockFactory.adjustBreaker(deltaBytes, false);
+        estimatedBytes += deltaBytes;
+    }
+
     private void setFirstValue(int position, int value) {
         if (position >= firstValueIndexes.length) {
+            final int currentSize = firstValueIndexes.length;
+            adjustBreaker((long) (position + 1 - currentSize) * Integer.BYTES);
             firstValueIndexes = Arrays.copyOf(firstValueIndexes, position + 1);
         }
         firstValueIndexes[position] = value;

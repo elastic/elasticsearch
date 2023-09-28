@@ -13,7 +13,9 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
@@ -24,10 +26,13 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
 
   private final DateFormatter formatter;
 
-  public DateFormatConstantEvaluator(EvalOperator.ExpressionEvaluator val,
-      DateFormatter formatter) {
+  private final DriverContext driverContext;
+
+  public DateFormatConstantEvaluator(EvalOperator.ExpressionEvaluator val, DateFormatter formatter,
+      DriverContext driverContext) {
     this.val = val;
     this.formatter = formatter;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -67,5 +72,10 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   @Override
   public String toString() {
     return "DateFormatConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

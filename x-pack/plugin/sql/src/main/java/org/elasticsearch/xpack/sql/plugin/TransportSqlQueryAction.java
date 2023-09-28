@@ -74,6 +74,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final TransportService transportService;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportSqlQueryAction(
         Settings settings,

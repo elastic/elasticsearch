@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -27,11 +29,14 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final EvalOperator.ExpressionEvaluator exponent;
 
+  private final DriverContext driverContext;
+
   public PowIntEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
-      EvalOperator.ExpressionEvaluator exponent) {
+      EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.base = base;
     this.exponent = exponent;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -94,5 +99,10 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public String toString() {
     return "PowIntEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(base, exponent);
   }
 }

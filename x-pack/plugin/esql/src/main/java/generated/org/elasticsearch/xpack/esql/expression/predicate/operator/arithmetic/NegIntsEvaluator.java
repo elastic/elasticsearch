@@ -11,7 +11,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -24,9 +26,13 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
 
   private final EvalOperator.ExpressionEvaluator v;
 
-  public NegIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator v) {
+  private final DriverContext driverContext;
+
+  public NegIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
+      DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.v = v;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -76,5 +82,10 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public String toString() {
     return "NegIntsEvaluator[" + "v=" + v + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(v);
   }
 }

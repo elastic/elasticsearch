@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.function.Supplier;
 
@@ -19,13 +21,13 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
     public record Factory(
         ElementType[] types,
-        Supplier<EvalOperator.ExpressionEvaluator> inputEvalSupplier,
+        ExpressionEvaluator.Factory inputEvalSupplier,
         Supplier<ColumnExtractOperator.Evaluator> evaluatorSupplier
     ) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ColumnExtractOperator(types, inputEvalSupplier.get(), evaluatorSupplier.get());
+            return new ColumnExtractOperator(types, inputEvalSupplier.get(driverContext), evaluatorSupplier.get());
         }
 
         @Override
@@ -90,4 +92,8 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
         void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare);
     }
 
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(inputEvaluator);
+    }
 }

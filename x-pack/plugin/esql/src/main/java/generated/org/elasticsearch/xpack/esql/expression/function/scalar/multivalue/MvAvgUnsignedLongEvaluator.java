@@ -7,10 +7,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -19,8 +20,12 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
  * This class is generated. Do not edit it.
  */
 public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvAvgUnsignedLongEvaluator(EvalOperator.ExpressionEvaluator field) {
+  private final DriverContext driverContext;
+
+  public MvAvgUnsignedLongEvaluator(EvalOperator.ExpressionEvaluator field,
+      DriverContext driverContext) {
     super(field);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -35,7 +40,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
   public Block evalNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -68,7 +73,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
   public Vector evalNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
+    DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -76,7 +81,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
       if (valueCount == 1) {
         long value = v.getLong(first);
         double result = MvAvg.singleUnsignedLong(value);
-        values[p] = result;
+        builder.appendDouble(result);
         continue;
       }
       int end = first + valueCount;
@@ -85,9 +90,9 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
         MvAvg.processUnsignedLong(work, value);
       }
       double result = MvAvg.finish(work, valueCount);
-      values[p] = result;
+      builder.appendDouble(result);
     }
-    return new DoubleArrayVector(values, positionCount);
+    return builder.build();
   }
 
   /**
@@ -97,7 +102,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
   public Block evalSingleValuedNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -121,7 +126,7 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
   public Vector evalSingleValuedNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
+    DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -129,8 +134,8 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
       int first = v.getFirstValueIndex(p);
       long value = v.getLong(first);
       double result = MvAvg.singleUnsignedLong(value);
-      values[p] = result;
+      builder.appendDouble(result);
     }
-    return new DoubleArrayVector(values, positionCount);
+    return builder.build();
   }
 }

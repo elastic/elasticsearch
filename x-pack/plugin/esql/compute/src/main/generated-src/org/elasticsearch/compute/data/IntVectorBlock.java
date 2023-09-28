@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a IntVector.
@@ -15,12 +15,10 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
 
-    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntVectorBlock.class);
-
     private final IntVector vector;
 
     IntVectorBlock(IntVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -51,7 +49,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -70,5 +68,14 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

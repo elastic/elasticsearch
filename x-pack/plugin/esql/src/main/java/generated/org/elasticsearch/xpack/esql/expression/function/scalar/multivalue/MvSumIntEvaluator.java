@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,9 +21,13 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public final class MvSumIntEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
   private final Warnings warnings;
 
-  public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field) {
+  private final DriverContext driverContext;
+
+  public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
+      DriverContext driverContext) {
     super(field);
     this.warnings = new Warnings(source);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -37,7 +42,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
   public Block evalNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
+    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {

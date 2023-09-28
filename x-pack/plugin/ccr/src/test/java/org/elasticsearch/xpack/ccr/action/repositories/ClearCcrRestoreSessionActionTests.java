@@ -55,10 +55,8 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
 
     public void testActionNames() {
         final ActionFilters actionFilters = mock(ActionFilters.class);
-        final TransportService transportService = mock(TransportService.class);
+        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
-
-        MockUtils.setupTransportServiceWithThreadpoolExecutor(transportService);
         final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
         assertThat(action.actionName, equalTo(ClearCcrRestoreSessionAction.NAME));
 
@@ -72,7 +70,7 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
 
     public void testRequestedShardIdMustBeConsistentWithSessionShardId() {
         final ActionFilters actionFilters = mock(ActionFilters.class);
-        final TransportService transportService = mock(TransportService.class);
+        final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
 
         final ShardId expectedShardId = mock(ShardId.class);
@@ -89,7 +87,6 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
             }
         }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any());
 
-        MockUtils.setupTransportServiceWithThreadpoolExecutor(transportService);
         final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
 
         final String sessionUUID = UUIDs.randomBase64UUID();

@@ -13,7 +13,9 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Substring}.
@@ -26,11 +28,15 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final EvalOperator.ExpressionEvaluator length;
 
+  private final DriverContext driverContext;
+
   public SubstringEvaluator(EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator length) {
+      EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator length,
+      DriverContext driverContext) {
     this.str = str;
     this.start = start;
     this.length = length;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -100,5 +106,10 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public String toString() {
     return "SubstringEvaluator[" + "str=" + str + ", start=" + start + ", length=" + length + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(str, start, length);
   }
 }

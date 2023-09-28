@@ -28,6 +28,7 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
 
     protected AbstractGetResourcesResponse() {}
 
+    @SuppressWarnings("this-escape")
     protected AbstractGetResourcesResponse(StreamInput in) throws IOException {
         super(in);
         resources = new QueryPage<>(in, getReader());

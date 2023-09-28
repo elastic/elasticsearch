@@ -74,3 +74,8 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
   SNYK_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
   export SNYK_TOKEN
 fi
+
+if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
+  # Run in the background, while the job continues
+  nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+fi

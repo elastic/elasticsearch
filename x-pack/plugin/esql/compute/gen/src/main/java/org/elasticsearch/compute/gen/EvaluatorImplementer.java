@@ -34,6 +34,7 @@ import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
@@ -46,9 +47,15 @@ public class EvaluatorImplementer {
     private final ProcessFunction processFunction;
     private final ClassName implementation;
 
-    public EvaluatorImplementer(Elements elements, ExecutableElement processFunction, String extraName, List<TypeMirror> warnExceptions) {
+    public EvaluatorImplementer(
+        Elements elements,
+        javax.lang.model.util.Types types,
+        ExecutableElement processFunction,
+        String extraName,
+        List<TypeMirror> warnExceptions
+    ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
-        this.processFunction = new ProcessFunction(processFunction, warnExceptions);
+        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -77,6 +84,7 @@ public class EvaluatorImplementer {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
         processFunction.args.stream().forEach(a -> a.declareField(builder));
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         builder.addMethod(ctor());
         builder.addMethod(eval());
@@ -85,6 +93,7 @@ public class EvaluatorImplementer {
         }
         builder.addMethod(realEval(false));
         builder.addMethod(toStringMethod());
+        builder.addMethod(close());
         return builder.build();
     }
 
@@ -95,6 +104,8 @@ public class EvaluatorImplementer {
             builder.addStatement("this.warnings = new Warnings(source)");
         }
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("this.driverContext = driverContext");
         return builder.build();
     }
 
@@ -215,6 +226,20 @@ public class EvaluatorImplementer {
         return builder.build();
     }
 
+    private MethodSpec close() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("close").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+
+        List<String> invocations = processFunction.args.stream().map(ProcessFunctionArg::closeInvocation).filter(s -> s != null).toList();
+        if (invocations.isEmpty() == false) {
+            builder.addStatement(
+                "$T.closeExpectNoException(" + invocations.stream().collect(Collectors.joining(", ")) + ")",
+                Types.RELEASABLES
+            );
+        }
+        return builder.build();
+    }
+
     private interface ProcessFunctionArg {
         /**
          * Type containing the actual data for a page of values for this field. Usually a
@@ -272,7 +297,15 @@ public class EvaluatorImplementer {
          */
         void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle);
 
+        /**
+         * Accumulate invocation pattern and arguments to implement {@link Object#toString()}.
+         */
         void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix);
+
+        /**
+         * The string to close this argument or {@code null}.
+         */
+        String closeInvocation();
     }
 
     private record StandardProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
@@ -363,6 +396,11 @@ public class EvaluatorImplementer {
             pattern.append(" + $S + $L");
             args.add(prefix + name + "=");
             args.add(name);
+        }
+
+        @Override
+        public String closeInvocation() {
+            return name;
         }
     }
 
@@ -466,9 +504,16 @@ public class EvaluatorImplementer {
             args.add(Arrays.class);
             args.add(name);
         }
+
+        @Override
+        public String closeInvocation() {
+            return "() -> Releasables.close(" + name + ")";
+        }
     }
 
-    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString) implements ProcessFunctionArg {
+    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, boolean releasable)
+        implements
+            ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
             return type;
@@ -530,6 +575,11 @@ public class EvaluatorImplementer {
                 args.add(name);
             }
         }
+
+        @Override
+        public String closeInvocation() {
+            return releasable ? name : null;
+        }
     }
 
     private record BuilderProcessFunctionArg(ClassName type, String name) implements ProcessFunctionArg {
@@ -589,6 +639,11 @@ public class EvaluatorImplementer {
         public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
             // Don't want to include
         }
+
+        @Override
+        public String closeInvocation() {
+            return null;
+        }
     }
 
     private static class ProcessFunction {
@@ -597,7 +652,12 @@ public class EvaluatorImplementer {
         private final BuilderProcessFunctionArg builderArg;
         private final List<TypeMirror> warnExceptions;
 
-        private ProcessFunction(ExecutableElement function, List<TypeMirror> warnExceptions) {
+        private ProcessFunction(
+            Elements elements,
+            javax.lang.model.util.Types types,
+            ExecutableElement function,
+            List<TypeMirror> warnExceptions
+        ) {
             this.function = function;
             args = new ArrayList<>();
             BuilderProcessFunctionArg builderArg = null;
@@ -606,7 +666,14 @@ public class EvaluatorImplementer {
                 String name = v.getSimpleName().toString();
                 Fixed fixed = v.getAnnotation(Fixed.class);
                 if (fixed != null) {
-                    args.add(new FixedProcessFunctionArg(type, name, fixed.includeInToString()));
+                    args.add(
+                        new FixedProcessFunctionArg(
+                            type,
+                            name,
+                            fixed.includeInToString(),
+                            Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
+                        )
+                    );
                     continue;
                 }
                 if (type instanceof ClassName c

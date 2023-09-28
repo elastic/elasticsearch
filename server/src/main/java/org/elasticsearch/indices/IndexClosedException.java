@@ -20,6 +20,7 @@ import java.io.IOException;
  */
 public class IndexClosedException extends ElasticsearchException {
 
+    @SuppressWarnings("this-escape")
     public IndexClosedException(Index index) {
         super("closed");
         setIndex(index);

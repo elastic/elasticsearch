@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Releasable;
 
 import java.util.List;
 
@@ -31,7 +32,7 @@ import java.util.List;
  *
  * <p> Block are immutable and can be passed between threads.
  */
-public interface Block extends Accountable, NamedWriteable {
+public interface Block extends Accountable, NamedWriteable, Releasable {
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -56,6 +57,12 @@ public interface Block extends Accountable, NamedWriteable {
      * {@return the element type of this block}
      */
     ElementType elementType();
+
+    /** The block factory associated with this block. */
+    BlockFactory blockFactory();
+
+    /** Tells if this block has been released. A block is released by calling its {@link Block#close()} method. */
+    boolean isReleased();
 
     /**
      * Returns true if the value stored at the given position is null, false otherwise.
@@ -115,10 +122,15 @@ public interface Block extends Accountable, NamedWriteable {
     Block expand();
 
     /**
-     * {@return a constant null block with the given number of positions}.
+     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
      */
+    // Eventually, this should use the GLOBAL breaking instance
     static Block constantNullBlock(int positions) {
-        return new ConstantNullBlock(positions);
+        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantNullBlock(positions);
     }
 
     interface Builder {

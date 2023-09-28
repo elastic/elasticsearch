@@ -13,7 +13,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -28,11 +30,14 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
   private final TemporalAmount temporalAmount;
 
+  private final DriverContext driverContext;
+
   public SubDatetimesEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
-      TemporalAmount temporalAmount) {
+      TemporalAmount temporalAmount, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.datetime = datetime;
     this.temporalAmount = temporalAmount;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -82,5 +87,10 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public String toString() {
     return "SubDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(datetime);
   }
 }

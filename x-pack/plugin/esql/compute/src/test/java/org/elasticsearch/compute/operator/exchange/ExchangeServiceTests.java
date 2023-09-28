@@ -10,15 +10,18 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -28,6 +31,7 @@ import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.test.ESTestCase;
@@ -93,7 +97,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertThat(sourceExchanger.refCount(), equalTo(2));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
         assertThat(sourceExchanger.refCount(), equalTo(3));
-        ListenableActionFuture<Void> waitForReading = source.waitForReading();
+        SubscribableListener<Void> waitForReading = source.waitForReading();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
         assertTrue(sink1.waitForWriting().isDone());
@@ -267,19 +271,37 @@ public class ExchangeServiceTests extends ESTestCase {
         for (int i = 0; i < numSinks; i++) {
             String description = "sink-" + i;
             ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get(), Function.identity());
-            DriverContext dc = new DriverContext();
-            Driver d = new Driver("test-session:1", dc, () -> description, seqNoGenerator.get(dc), List.of(), sinkOperator, () -> {});
+            DriverContext dc = driverContext();
+            Driver d = new Driver(
+                "test-session:1",
+                dc,
+                () -> description,
+                seqNoGenerator.get(dc),
+                List.of(),
+                sinkOperator,
+                Driver.DEFAULT_STATUS_INTERVAL,
+                () -> {}
+            );
             drivers.add(d);
         }
         for (int i = 0; i < numSources; i++) {
             String description = "source-" + i;
             ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(exchangeSource.get());
-            DriverContext dc = new DriverContext();
-            Driver d = new Driver("test-session:2", dc, () -> description, sourceOperator, List.of(), seqNoCollector.get(dc), () -> {});
+            DriverContext dc = driverContext();
+            Driver d = new Driver(
+                "test-session:2",
+                dc,
+                () -> description,
+                sourceOperator,
+                List.of(),
+                seqNoCollector.get(dc),
+                Driver.DEFAULT_STATUS_INTERVAL,
+                () -> {}
+            );
             drivers.add(d);
         }
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        new DriverRunner() {
+        new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
                 Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
@@ -323,7 +345,7 @@ public class ExchangeServiceTests extends ESTestCase {
         sinkExchanger.fetchPageAsync(true, future);
         ExchangeResponse resp = future.actionGet();
         assertTrue(resp.finished());
-        assertNull(resp.page());
+        assertNull(resp.takePage());
         assertTrue(sink.waitForWriting().isDone());
         assertTrue(sink.isFinished());
     }
@@ -372,8 +394,9 @@ public class ExchangeServiceTests extends ESTestCase {
                     @Override
                     public void sendResponse(TransportResponse response) throws IOException {
                         ExchangeResponse exchangeResponse = (ExchangeResponse) response;
-                        if (exchangeResponse.page() != null) {
-                            IntBlock block = exchangeResponse.page().getBlock(0);
+                        Page page = exchangeResponse.takePage();
+                        if (page != null) {
+                            IntBlock block = page.getBlock(0);
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getInt(i) == disconnectOnSeqNo) {
                                     throw new IOException("page is too large");
@@ -450,5 +473,15 @@ public class ExchangeServiceTests extends ESTestCase {
         public void sendResponse(Exception exception) throws IOException {
             in.sendResponse(exception);
         }
+    }
+
+    /**
+     * A {@link DriverContext} with a BigArrays that does not circuit break.
+     */
+    DriverContext driverContext() {
+        return new DriverContext(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+            BlockFactory.getNonBreakingInstance()
+        );
     }
 }

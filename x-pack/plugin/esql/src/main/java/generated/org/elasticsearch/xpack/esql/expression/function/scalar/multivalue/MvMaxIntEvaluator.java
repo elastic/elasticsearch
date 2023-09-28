@@ -7,9 +7,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -17,8 +18,11 @@ import org.elasticsearch.compute.operator.EvalOperator;
  * This class is generated. Do not edit it.
  */
 public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvMaxIntEvaluator(EvalOperator.ExpressionEvaluator field) {
+  private final DriverContext driverContext;
+
+  public MvMaxIntEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
     super(field);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -36,7 +40,7 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
     }
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
+    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -66,7 +70,7 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
     }
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    int[] values = new int[positionCount];
+    IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
@@ -77,9 +81,9 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
         value = MvMax.process(value, next);
       }
       int result = value;
-      values[p] = result;
+      builder.appendInt(result);
     }
-    return new IntArrayVector(values, positionCount);
+    return builder.build();
   }
 
   /**
@@ -88,7 +92,7 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
   private Block evalAscendingNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
+    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -109,14 +113,14 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
   private Vector evalAscendingNotNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    int[] values = new int[positionCount];
+    IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
       int idx = MvMax.ascendingIndex(valueCount);
       int result = v.getInt(first + idx);
-      values[p] = result;
+      builder.appendInt(result);
     }
-    return new IntArrayVector(values, positionCount);
+    return builder.build();
   }
 }

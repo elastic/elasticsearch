@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
@@ -55,12 +55,10 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEval = toEvaluator.apply(left());
-        Supplier<EvalOperator.ExpressionEvaluator> delimEval = toEvaluator.apply(right());
-        return () -> new MvConcatEvaluator(fieldEval.get(), delimEval.get());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var fieldEval = toEvaluator.apply(left());
+        var delimEval = toEvaluator.apply(right());
+        return dvrCtx -> new MvConcatEvaluator(fieldEval.get(dvrCtx), delimEval.get(dvrCtx));
     }
 
     @Override
@@ -109,7 +107,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
 
             int positionCount = page.getPositionCount();
             BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
-            BytesRefBuilder work = new BytesRefBuilder();
+            BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don't blow past circuit breakers
             BytesRef fieldScratch = new BytesRef();
             BytesRef delimScratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
@@ -144,5 +142,8 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
         public final String toString() {
             return "MvConcat[field=" + field + ", delim=" + delim + "]";
         }
+
+        @Override
+        public void close() {}
     }
 }

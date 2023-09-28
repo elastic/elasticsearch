@@ -71,7 +71,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             actionFilters,
             ShardRequest::new,
             ShardRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -166,6 +166,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             clusterBlock = new ClusterBlock(in);
         }
 
+        @SuppressWarnings("this-escape")
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
             super(shardId);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);

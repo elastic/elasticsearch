@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -31,12 +33,15 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final ZoneId zoneId;
 
+  private final DriverContext driverContext;
+
   public DateParseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId) {
+      EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
     this.zoneId = zoneId;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -104,5 +109,10 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public String toString() {
     return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val, formatter);
   }
 }

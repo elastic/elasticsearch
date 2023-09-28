@@ -590,7 +590,8 @@ public final class IndexSettings {
         Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999),
         v -> {},
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     /**
@@ -619,7 +620,8 @@ public final class IndexSettings {
             }
         },
         Property.IndexScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.ServerlessPublic
     );
 
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
@@ -658,7 +660,8 @@ public final class IndexSettings {
             }
         },
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     /**

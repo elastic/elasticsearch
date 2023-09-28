@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter vector for $Type$Vectors.
@@ -23,7 +24,7 @@ public final class Filter$Type$Vector extends AbstractFilterVector implements $T
     private final $Type$Vector vector;
 
     Filter$Type$Vector($Type$Vector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
     }
 
@@ -99,5 +100,15 @@ $else$
             sb.append(get$Type$(i));
 $endif$
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

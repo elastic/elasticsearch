@@ -65,6 +65,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -652,7 +653,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
-            null,
+            MapperServiceTestCase.this::compileScript,
             parserConfig(),
             writableRegistry(),
             null,
@@ -719,10 +720,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     private String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
-        SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-        LeafReader leafReader = getOnlyLeafReader(reader);
-        SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
-        Source synthetic = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
+        SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping());
+        Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), docId);
         return synthetic.internalSourceRef().utf8ToString();
     }
 

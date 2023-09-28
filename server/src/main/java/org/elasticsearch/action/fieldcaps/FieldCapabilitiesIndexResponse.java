@@ -16,12 +16,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 final class FieldCapabilitiesIndexResponse implements Writeable {
     private static final TransportVersion MAPPING_HASH_VERSION = TransportVersions.V_8_2_0;
@@ -48,7 +47,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
         this.indexName = in.readString();
-        this.responseMap = in.readMap(IndexFieldCapabilities::new);
+        this.responseMap = in.readMap(IndexFieldCapabilities::readFrom);
         this.canMatch = in.readBoolean();
         this.originVersion = in.getTransportVersion();
         if (in.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
@@ -68,32 +67,25 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         }
     }
 
-    private record GroupByMappingHash(List<String> indices, String indexMappingHash, Map<String, IndexFieldCapabilities> responseMap)
-        implements
-            Writeable {
-        GroupByMappingHash(StreamInput in) throws IOException {
-            this(in.readStringCollectionAsList(), in.readString(), in.readMap(IndexFieldCapabilities::new));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(indices);
-            out.writeString(indexMappingHash);
-            out.writeMap(responseMap, StreamOutput::writeWriteable);
-        }
-
-        Stream<FieldCapabilitiesIndexResponse> getResponses() {
-            return indices.stream().map(index -> new FieldCapabilitiesIndexResponse(index, indexMappingHash, responseMap, true));
-        }
-    }
-
     static List<FieldCapabilitiesIndexResponse> readList(StreamInput input) throws IOException {
         if (input.getTransportVersion().before(MAPPING_HASH_VERSION)) {
             return input.readCollectionAsList(FieldCapabilitiesIndexResponse::new);
         }
-        final List<FieldCapabilitiesIndexResponse> ungroupedList = input.readCollectionAsList(FieldCapabilitiesIndexResponse::new);
-        final List<GroupByMappingHash> groups = input.readCollectionAsList(GroupByMappingHash::new);
-        return Stream.concat(ungroupedList.stream(), groups.stream().flatMap(GroupByMappingHash::getResponses)).toList();
+        final int ungrouped = input.readVInt();
+        final ArrayList<FieldCapabilitiesIndexResponse> responses = new ArrayList<>(ungrouped);
+        for (int i = 0; i < ungrouped; i++) {
+            responses.add(new FieldCapabilitiesIndexResponse(input));
+        }
+        final int groups = input.readVInt();
+        for (int i = 0; i < groups; i++) {
+            final List<String> indices = input.readStringCollectionAsList();
+            final String mappingHash = input.readString();
+            final Map<String, IndexFieldCapabilities> ifc = input.readMap(IndexFieldCapabilities::readFrom);
+            for (String index : indices) {
+                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, ifc, true));
+            }
+        }
+        return responses;
     }
 
     static void writeList(StreamOutput output, List<FieldCapabilitiesIndexResponse> responses) throws IOException {
@@ -101,22 +93,23 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
             output.writeCollection(responses);
             return;
         }
-        final Predicate<FieldCapabilitiesIndexResponse> canGroup = r -> r.canMatch && r.indexMappingHash != null;
-        final List<FieldCapabilitiesIndexResponse> ungroupedResponses = responses.stream().filter(r -> canGroup.test(r) == false).toList();
-        final List<GroupByMappingHash> groupedResponses = responses.stream()
-            .filter(canGroup)
-            .collect(Collectors.groupingBy(r -> r.indexMappingHash))
-            .values()
-            .stream()
-            .map(rs -> {
-                final String indexMappingHash = rs.get(0).indexMappingHash;
-                final Map<String, IndexFieldCapabilities> responseMap = rs.get(0).responseMap;
-                final List<String> indices = rs.stream().map(r -> r.indexName).toList();
-                return new GroupByMappingHash(indices, indexMappingHash, responseMap);
-            })
-            .toList();
+
+        Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponsesMap = new HashMap<>();
+        final List<FieldCapabilitiesIndexResponse> ungroupedResponses = new ArrayList<>();
+        for (FieldCapabilitiesIndexResponse r : responses) {
+            if (r.canMatch && r.indexMappingHash != null) {
+                groupedResponsesMap.computeIfAbsent(r.indexMappingHash, k -> new ArrayList<>()).add(r);
+            } else {
+                ungroupedResponses.add(r);
+            }
+        }
         output.writeCollection(ungroupedResponses);
-        output.writeCollection(groupedResponses);
+        output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
+            o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
+            var first = fieldCapabilitiesIndexResponses.get(0);
+            o.writeString(first.indexMappingHash);
+            o.writeMap(first.responseMap, StreamOutput::writeWriteable);
+        });
     }
 
     /**

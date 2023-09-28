@@ -31,7 +31,7 @@ public final class ToStringFromVersionEvaluator extends AbstractConvertFunction.
 
   @Override
   public String name() {
-    return "ToString";
+    return "ToStringFromVersion";
   }
 
   @Override
@@ -58,6 +58,7 @@ public final class ToStringFromVersionEvaluator extends AbstractConvertFunction.
           nullsMask = new BitSet(positionCount);
         }
         nullsMask.set(p);
+        values.append(BytesRefBlock.NULL_VALUE);
       }
     }
     return nullsMask == null

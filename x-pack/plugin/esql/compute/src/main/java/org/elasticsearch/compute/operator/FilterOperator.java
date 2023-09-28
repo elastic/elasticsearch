@@ -10,24 +10,25 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
-import java.util.function.Supplier;
 
 public class FilterOperator extends AbstractPageMappingOperator {
 
     private final EvalOperator.ExpressionEvaluator evaluator;
 
-    public record FilterOperatorFactory(Supplier<EvalOperator.ExpressionEvaluator> evaluatorSupplier) implements OperatorFactory {
+    public record FilterOperatorFactory(ExpressionEvaluator.Factory evaluatorSupplier) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new FilterOperator(evaluatorSupplier.get());
+            return new FilterOperator(evaluatorSupplier.get(driverContext));
         }
 
         @Override
         public String describe() {
-            return "FilterOperator[evaluator=" + evaluatorSupplier.get() + "]";
+            return "FilterOperator[evaluator=" + evaluatorSupplier.get(new ThrowingDriverContext()) + "]";
         }
     }
 
@@ -78,5 +79,10 @@ public class FilterOperator extends AbstractPageMappingOperator {
     @Override
     public String toString() {
         return "FilterOperator[" + "evaluator=" + evaluator + ']';
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(evaluator);
     }
 }

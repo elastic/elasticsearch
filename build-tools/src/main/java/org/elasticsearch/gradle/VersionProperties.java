@@ -65,6 +65,7 @@ public class VersionProperties {
             versions.put(property, props.getProperty(property));
         }
     }
+
     private static Properties getVersionProperties() {
         Properties props = new Properties();
         InputStream propsStream = VersionProperties.class.getResourceAsStream("/version.properties");

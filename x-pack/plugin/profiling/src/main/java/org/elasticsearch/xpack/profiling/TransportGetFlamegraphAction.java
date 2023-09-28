@@ -190,11 +190,9 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             this.sourceLines = new ArrayList<>(capacity);
             this.countInclusive = new ArrayList<>(capacity);
             this.countExclusive = new ArrayList<>(capacity);
-            if (frames > 0) {
-                // root node
-                int nodeId = this.addNode("", 0, false, "", 0, "", 0, "", 0, 0, null);
-                this.setCurrentNode(nodeId);
-            }
+            // always insert root node
+            int nodeId = this.addNode("", 0, false, "", 0, "", 0, "", 0, 0, null);
+            this.setCurrentNode(nodeId);
             this.samplingRate = samplingRate;
         }
 

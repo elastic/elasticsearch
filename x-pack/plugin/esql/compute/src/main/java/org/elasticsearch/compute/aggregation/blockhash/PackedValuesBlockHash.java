@@ -51,16 +51,18 @@ import java.util.List;
 final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
-    private final List<HashAggregationOperator.GroupSpec> groups;
     private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
+    private final BytesRef scratch = new BytesRef();
+    private final BytesRefBuilder bytes = new BytesRefBuilder();
+    private final Group[] groups;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
-        this.groups = groups;
+    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> specs, BigArrays bigArrays, int emitBatchSize) {
+        this.groups = specs.stream().map(Group::new).toArray(Group[]::new);
         this.emitBatchSize = emitBatchSize;
         this.bytesRefHash = new BytesRefHash(1, bigArrays);
-        this.nullTrackingBytes = groups.size() / 8 + 1;
+        this.nullTrackingBytes = (groups.length + 7) / 8;
     }
 
     @Override
@@ -72,23 +74,28 @@ final class PackedValuesBlockHash extends BlockHash {
         new AddWork(page, addInput, batchSize).add();
     }
 
-    class AddWork extends LongLongBlockHash.AbstractAddBlock {
-        final BatchEncoder[] encoders = new BatchEncoder[groups.size()];
-        final int[] positionOffsets = new int[groups.size()];
-        final int[] valueOffsets = new int[groups.size()];
-        final BytesRef scratch = new BytesRef();
-        final int[] loopedIndices = new int[groups.size()];
-        final int[] valueCounts = new int[groups.size()];
-        final int[] bytesStarts = new int[groups.size()];
-        final BytesRefBuilder bytes = new BytesRefBuilder();
-        final int positionCount;
+    private static class Group {
+        final HashAggregationOperator.GroupSpec spec;
+        BatchEncoder encoder;
+        int positionOffset;
+        int valueOffset;
+        int loopedIndex;
+        int valueCount;
+        int bytesStart;
 
+        Group(HashAggregationOperator.GroupSpec spec) {
+            this.spec = spec;
+        }
+    }
+
+    class AddWork extends LongLongBlockHash.AbstractAddBlock {
+        final int positionCount;
         int position;
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             super(emitBatchSize, addInput);
-            for (int g = 0; g < groups.size(); g++) {
-                encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), batchSize);
+            for (Group group : groups) {
+                group.encoder = MultivalueDedupe.batchEncoder(page.getBlock(group.spec.channel()), batchSize);
             }
             bytes.grow(nullTrackingBytes);
             this.positionCount = page.getPositionCount();
@@ -103,15 +110,16 @@ final class PackedValuesBlockHash extends BlockHash {
             for (position = 0; position < positionCount; position++) {
                 // Make sure all encoders have encoded the current position and the offsets are queued to it's start
                 boolean singleEntry = true;
-                for (int g = 0; g < encoders.length; g++) {
-                    positionOffsets[g]++;
-                    while (positionOffsets[g] >= encoders[g].positionCount()) {
-                        encoders[g].encodeNextBatch();
-                        positionOffsets[g] = 0;
-                        valueOffsets[g] = 0;
+                for (Group g : groups) {
+                    var encoder = g.encoder;
+                    g.positionOffset++;
+                    while (g.positionOffset >= encoder.positionCount()) {
+                        encoder.encodeNextBatch();
+                        g.positionOffset = 0;
+                        g.valueOffset = 0;
                     }
-                    valueCounts[g] = encoders[g].valueCount(positionOffsets[g]);
-                    singleEntry &= (valueCounts[g] == 1);
+                    g.valueCount = encoder.valueCount(g.positionOffset);
+                    singleEntry &= (g.valueCount == 1);
                 }
                 Arrays.fill(bytes.bytes(), 0, nullTrackingBytes, (byte) 0);
                 bytes.setLength(nullTrackingBytes);
@@ -125,8 +133,9 @@ final class PackedValuesBlockHash extends BlockHash {
         }
 
         private void addSingleEntry() {
-            for (int g = 0; g < encoders.length; g++) {
-                BytesRef v = encoders[g].read(valueOffsets[g]++, scratch);
+            for (int g = 0; g < groups.length; g++) {
+                Group group = groups[g];
+                BytesRef v = group.encoder.read(group.valueOffset++, scratch);
                 if (v.length == 0) {
                     int nullByte = g / 8;
                     int nullShift = g % 8;
@@ -135,8 +144,8 @@ final class PackedValuesBlockHash extends BlockHash {
                     bytes.append(v);
                 }
             }
-            int group = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
-            ords.appendInt(group);
+            int ord = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
+            ords.appendInt(ord);
             addedValue(position);
         }
 
@@ -144,12 +153,13 @@ final class PackedValuesBlockHash extends BlockHash {
             ords.beginPositionEntry();
             int g = 0;
             outer: for (;;) {
-                for (; g < encoders.length; g++) {
-                    bytesStarts[g] = bytes.length();
-                    BytesRef v = encoders[g].read(valueOffsets[g] + loopedIndices[g], scratch);
-                    ++loopedIndices[g];
+                for (; g < groups.length; g++) {
+                    Group group = groups[g];
+                    group.bytesStart = bytes.length();
+                    BytesRef v = group.encoder.read(group.valueOffset + group.loopedIndex, scratch);
+                    ++group.loopedIndex;
                     if (v.length == 0) {
-                        assert valueCounts[g] == 1 : "null value in non-singleton list";
+                        assert group.valueCount == 1 : "null value in non-singleton list";
                         int nullByte = g / 8;
                         int nullShift = g % 8;
                         bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
@@ -158,24 +168,26 @@ final class PackedValuesBlockHash extends BlockHash {
                     }
                 }
                 // emit ords
-                int group = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
-                ords.appendInt(group);
+                int ord = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
+                ords.appendInt(ord);
                 addedValueInMultivaluePosition(position);
 
                 // rewind
-                bytes.setLength(bytesStarts[--g]);
-                while (loopedIndices[g] == valueCounts[g]) {
-                    loopedIndices[g] = 0;
+                Group group = groups[--g];
+                bytes.setLength(group.bytesStart);
+                while (group.loopedIndex == group.valueCount) {
+                    group.loopedIndex = 0;
                     if (g == 0) {
                         break outer;
                     } else {
-                        bytes.setLength(bytesStarts[--g]);
+                        group = groups[--g];
+                        bytes.setLength(group.bytesStart);
                     }
                 }
             }
             ords.endPositionEntry();
-            for (g = 0; g < encoders.length; g++) {
-                valueOffsets[g] += valueCounts[g];
+            for (Group group : groups) {
+                group.valueOffset += group.valueCount;
             }
         }
     }
@@ -183,10 +195,10 @@ final class PackedValuesBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         int size = Math.toIntExact(bytesRefHash.size());
-        BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[groups.size()];
-        Block.Builder[] builders = new Block.Builder[groups.size()];
+        BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[groups.length];
+        Block.Builder[] builders = new Block.Builder[groups.length];
         for (int g = 0; g < builders.length; g++) {
-            ElementType elementType = groups.get(g).elementType();
+            ElementType elementType = groups[g].spec.elementType();
             decoders[g] = BatchEncoder.decoder(elementType);
             builders[g] = elementType.newBlockBuilder(size);
         }
@@ -218,7 +230,7 @@ final class PackedValuesBlockHash extends BlockHash {
             readKeys(decoders, builders, nulls, values, offset);
         }
 
-        Block[] keyBlocks = new Block[groups.size()];
+        Block[] keyBlocks = new Block[groups.length];
         for (int g = 0; g < keyBlocks.length; g++) {
             keyBlocks[g] = builders[g].build();
         }
@@ -258,13 +270,12 @@ final class PackedValuesBlockHash extends BlockHash {
         StringBuilder b = new StringBuilder();
         b.append("PackedValuesBlockHash{groups=[");
         boolean first = true;
-        for (HashAggregationOperator.GroupSpec spec : groups) {
-            if (first) {
-                first = false;
-            } else {
+        for (int i = 0; i < groups.length; i++) {
+            if (i > 0) {
                 b.append(", ");
             }
-            b.append(spec.channel()).append(':').append(spec.elementType());
+            Group group = groups[i];
+            b.append(group.spec.channel()).append(':').append(group.spec.elementType());
         }
         b.append("], entries=").append(bytesRefHash.size());
         b.append(", size=").append(ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()));

@@ -34,9 +34,9 @@ toolchainManagement {
       repository('bundledOracleOpendJdk') {
         resolverClass = OracleOpenJdkToolchainResolver
       }
-      //repository('adoptiumJdks') {
-      //  resolverClass = AdoptiumJdkToolchainResolver
-      //}
+      repository('adoptiumJdks') {
+        resolverClass = AdoptiumJdkToolchainResolver
+      }
       repository('archivedOracleJdks') {
         resolverClass = ArchivedOracleJdkToolchainResolver
       }

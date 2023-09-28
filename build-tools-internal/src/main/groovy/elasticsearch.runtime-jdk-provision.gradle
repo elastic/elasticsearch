@@ -18,7 +18,6 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 // gradle has an open issue of failing applying plugins in
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
 
-
 configure(allprojects) {
     def launcher = javaToolchains.launcherFor {
       languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
@@ -44,7 +43,6 @@ configure(allprojects) {
         project.plugins.withId("elasticsearch.internal-testclusters") { internalPlugin ->
             if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
                 // If no runtime java home is set, use the bundled JDK for test clusters
-                //testClustersPlugin.setRuntimeJava(providers.provider(() -> file("${project.jdks.provisioned_runtime.javaHomePath}")))
                 testClustersPlugin.setRuntimeJava(launcher.map { it.metadata.installationPath.asFile })
             }
         }
@@ -53,7 +51,6 @@ configure(allprojects) {
     project.plugins.withType(RestTestBasePlugin) {
       tasks.withType(StandaloneRestIntegTestTask).configureEach {
         if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
-          dependsOn(project.jdks.provisioned_runtime)
           nonInputProperties.systemProperty("tests.runtime.java", "${-> launcher.map { it.metadata.installationPath.asFile.path }.get()}")
         }
       }

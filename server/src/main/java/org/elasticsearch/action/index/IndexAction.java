@@ -17,6 +17,9 @@ public class IndexAction extends ActionType<DocWriteResponse> {
     public static final String NAME = "indices:data/write/index";
 
     private IndexAction() {
-        super(NAME, in -> { throw new UnsupportedOperationException(); });
+        super(NAME, in -> {
+            assert false : "Might not be an IndexResponse!";
+            return new IndexResponse(in);
+        });
     }
 }

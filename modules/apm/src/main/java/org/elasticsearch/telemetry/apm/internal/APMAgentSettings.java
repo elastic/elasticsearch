@@ -55,6 +55,9 @@ public class APMAgentSettings {
 
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
+            this.setAgentSetting("instrument", Boolean.toString(enabled));
+        });
+        clusterSettings.addSettingsUpdateConsumer(APM_METRICS_ENABLED_SETTING, enabled -> {
             apmMeter.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
@@ -114,8 +117,10 @@ public class APMAgentSettings {
     private static final List<String> PROHIBITED_AGENT_KEYS = List.of(
         // ES generates a config file and sets this value
         "config_file",
-        // ES controls this via `tracing.apm.enabled`
-        "recording"
+        // ES controls this via `apm.metrics.enabled`
+        "recording",
+        // ES controls this via `apm.enabled`
+        "instrument"
     );
 
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
@@ -167,6 +172,13 @@ public class APMAgentSettings {
 
     public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
         APM_SETTING_PREFIX + "enabled",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
+
+    public static final Setting<Boolean> APM_METRICS_ENABLED_SETTING = Setting.boolSetting(
+        APM_SETTING_PREFIX + "metrics.enabled",
         false,
         OperatorDynamic,
         NodeScope

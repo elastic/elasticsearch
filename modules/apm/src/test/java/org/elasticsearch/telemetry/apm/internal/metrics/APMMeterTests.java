@@ -31,14 +31,14 @@ public class APMMeterTests extends ESTestCase {
         assertThat(meter, sameInstance(noopOtel));
 
         // test explicitly enabled
-        var settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
+        var settings = Settings.builder().put(APMAgentSettings.APM_METRICS_ENABLED_SETTING.getKey(), true).build();
         apmMeter = new APMMeter(settings, () -> testOtel, () -> noopOtel);
 
         meter = apmMeter.getInstruments().getMeter();
         assertThat(meter, sameInstance(testOtel));
 
         // test explicitly disabled
-        settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
+        settings = Settings.builder().put(APMAgentSettings.APM_METRICS_ENABLED_SETTING.getKey(), true).build();
         apmMeter = new APMMeter(settings, () -> testOtel, () -> noopOtel);
 
         meter = apmMeter.getInstruments().getMeter();
@@ -58,7 +58,7 @@ public class APMMeterTests extends ESTestCase {
     }
 
     public void testLookupByName() {
-        var settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
+        var settings = Settings.builder().put(APMAgentSettings.APM_METRICS_ENABLED_SETTING.getKey(), true).build();
 
         var apmMeter = new APMMeter(settings, () -> testOtel, () -> noopOtel);
 
@@ -69,7 +69,7 @@ public class APMMeterTests extends ESTestCase {
     }
 
     public void testNoopIsSetOnStop() {
-        var settings = Settings.builder().put(APMAgentSettings.APM_ENABLED_SETTING.getKey(), true).build();
+        var settings = Settings.builder().put(APMAgentSettings.APM_METRICS_ENABLED_SETTING.getKey(), true).build();
         APMMeter apmMeter = new APMMeter(settings, () -> testOtel, () -> noopOtel);
         apmMeter.start();
 

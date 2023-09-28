@@ -2115,7 +2115,7 @@ public abstract class Engine implements Closeable {
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
      */
-    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+    public void addSegmentGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
         throw new UnsupportedOperationException();
     }
 

@@ -60,7 +60,11 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     ) {
         ActionListener.run(responseListener, listener -> {
             IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-            shard.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> ActionResponse.Empty.INSTANCE));
+            shard.waitForSegmentGeneration(
+                shard.getOperationPrimaryTerm(),
+                request.getSegmentGeneration(),
+                listener.map(l -> ActionResponse.Empty.INSTANCE)
+            );
         });
     }
 

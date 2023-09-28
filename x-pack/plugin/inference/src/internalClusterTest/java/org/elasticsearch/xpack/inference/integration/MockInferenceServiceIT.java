@@ -93,9 +93,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         var taskSettings = (TestInferenceServicePlugin.TestTaskSettings) response.getModel().getTaskSettings();
         assertEquals(3, (int) taskSettings.temperature());
 
-        assertThat(response.getModel().getSecretSettings(), instanceOf(TestInferenceServicePlugin.TestSecretSettings.class));
-        var secretSettings = (TestInferenceServicePlugin.TestSecretSettings) response.getModel().getSecretSettings();
-        assertEquals("abc64", secretSettings.apiKey());
+        assertNull(response.getModel().getSecretSettings());
 
         return response.getModel();
     }
@@ -130,6 +128,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         // the actual implementing class type is not lost when streamed \
         assertEquals(model1.getServiceSettings(), model2.getServiceSettings());
         assertEquals(model1.getTaskSettings(), model2.getTaskSettings());
-        assertEquals(model1.getSecrets(), model2.getSecrets());
+        assertNull(model1.getSecretSettings());
+        assertNull(model2.getSecretSettings());
     }
 }

@@ -18,7 +18,8 @@ public interface InferenceService {
 
     /**
      * Parse model configuration from the {@code config map} from a request and return
-     * the parsed {@link Model}.
+     * the parsed {@link Model}. This requires that both the secrets and service settings be contained in the
+     * {@code service_settings} field.
      * This function modifies {@code config map}, fields are removed
      * from the map as they are read.
      *
@@ -33,7 +34,8 @@ public interface InferenceService {
     Model parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
     /**
-     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
+     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
+     * secrets and service settings be in two separate maps.
      * This function modifies {@code config map}, fields are removed from the map as they are read.
      *
      * If the map contains unrecognized configuration options, no error is thrown.

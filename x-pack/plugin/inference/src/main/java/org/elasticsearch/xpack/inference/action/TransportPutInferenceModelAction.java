@@ -87,7 +87,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        var model = service.get().parseRequestConfig(request.getModelId(), request.getTaskType(), requestAsMap, requestAsMap);
+        var model = service.get().parseRequestConfig(request.getModelId(), request.getTaskType(), requestAsMap);
         // model is valid good to persist then start
         this.modelRegistry.storeModel(
             model,

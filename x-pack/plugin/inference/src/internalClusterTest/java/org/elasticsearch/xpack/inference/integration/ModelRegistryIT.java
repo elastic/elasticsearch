@@ -30,7 +30,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -101,13 +100,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(modelHolder.get(), not(nullValue()));
 
-        UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config(), Collections.emptyMap());
+        UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config(), modelHolder.get().secrets());
         assertEquals(model.getConfigurations().getService(), unparsedModel.service());
         ElserMlNodeModel roundTripModel = ElserMlNodeService.parseConfig(
             false,
             unparsedModel.modelId(),
             unparsedModel.taskType(),
-            unparsedModel.settings()
+            unparsedModel.settings(),
+            unparsedModel.secrets()
         );
         assertEquals(model, roundTripModel);
     }

@@ -62,13 +62,12 @@ public class ModelRegistry {
     public void getUnparsedModelMap(String modelId, ActionListener<ModelConfigMap> listener) {
         ActionListener<SearchResponse> searchListener = ActionListener.wrap(searchResponse -> {
             // There should be a hit for the configurations and secrets
-            if (searchResponse.getHits().getHits().length <= 1) {
+            if (searchResponse.getHits().getHits().length == 0) {
                 listener.onFailure(new ResourceNotFoundException("Model not found [{}]", modelId));
                 return;
             }
 
             var hits = searchResponse.getHits().getHits();
-            assert hits.length == 2;
             listener.onResponse(createModelConfigMap(hits, modelId));
 
         }, listener::onFailure);

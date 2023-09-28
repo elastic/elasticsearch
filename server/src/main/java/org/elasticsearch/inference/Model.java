@@ -39,7 +39,7 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
     }
 
     public Model(StreamInput in) throws IOException {
-        this(new ModelConfigurations(in), new ModelSecrets(in));
+        this(new ModelConfigurations(in), new ModelSecrets());
     }
 
     /**

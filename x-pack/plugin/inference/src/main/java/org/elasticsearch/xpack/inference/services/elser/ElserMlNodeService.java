@@ -73,13 +73,8 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parseConfigFromRequest(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        return parseConfig(true, modelId, taskType, config, secrets);
+    public ElserMlNodeModel parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        return parseConfig(true, modelId, taskType, config, config);
     }
 
     @Override

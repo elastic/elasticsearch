@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -98,14 +99,26 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 if (throwOnUnknown) {
                     var e = expectThrows(
                         ElasticsearchStatusException.class,
-                        () -> ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings)
+                        () -> ElserMlNodeService.parseConfig(
+                            throwOnUnknown,
+                            "foo",
+                            TaskType.SPARSE_EMBEDDING,
+                            settings,
+                            Collections.emptyMap()
+                        )
                     );
                     assertThat(
                         e.getMessage(),
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser_mlnode] service")
                     );
                 } else {
-                    var parsed = ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings);
+                    var parsed = ElserMlNodeService.parseConfig(
+                        throwOnUnknown,
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
 
@@ -120,14 +133,26 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 if (throwOnUnknown) {
                     var e = expectThrows(
                         ElasticsearchStatusException.class,
-                        () -> ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings)
+                        () -> ElserMlNodeService.parseConfig(
+                            throwOnUnknown,
+                            "foo",
+                            TaskType.SPARSE_EMBEDDING,
+                            settings,
+                            Collections.emptyMap()
+                        )
                     );
                     assertThat(
                         e.getMessage(),
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser_mlnode] service")
                     );
                 } else {
-                    var parsed = ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings);
+                    var parsed = ElserMlNodeService.parseConfig(
+                        throwOnUnknown,
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
 
@@ -143,14 +168,26 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 if (throwOnUnknown) {
                     var e = expectThrows(
                         ElasticsearchStatusException.class,
-                        () -> ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings)
+                        () -> ElserMlNodeService.parseConfig(
+                            throwOnUnknown,
+                            "foo",
+                            TaskType.SPARSE_EMBEDDING,
+                            settings,
+                            Collections.emptyMap()
+                        )
                     );
                     assertThat(
                         e.getMessage(),
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser_mlnode] service")
                     );
                 } else {
-                    var parsed = ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings);
+                    var parsed = ElserMlNodeService.parseConfig(
+                        throwOnUnknown,
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
         }

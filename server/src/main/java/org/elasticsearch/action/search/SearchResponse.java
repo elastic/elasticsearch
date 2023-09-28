@@ -471,9 +471,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final int total;
         private final int successful;   // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
         private final int skipped;      // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
-        // private final int running; // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
-        // private final int partial; // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
-        // private final int failed; // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
 
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
         // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
@@ -536,33 +533,30 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
-            // this.running = 0;
-            // this.partial = 0;
-            // this.failed = 0;
             this.ccsMinimizeRoundtrips = false;
             this.clusterInfo = Collections.emptyMap();  // will never be used if created from this constructor
         }
 
         public Clusters(StreamInput in) throws IOException {
             this.total = in.readVInt();
-            int successful = in.readVInt();
-            int skipped = in.readVInt();
+            int successfulTemp = in.readVInt();
+            int skippedTemp = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
                     this.clusterInfo = Collections.emptyMap();
-                    this.successful = successful;
-                    this.skipped = skipped;
+                    this.successful = successfulTemp;
+                    this.skipped = skippedTemp;
                 } else {
                     Map<String, AtomicReference<Cluster>> m = new HashMap<>();
                     clusterList.forEach(c -> m.put(c.getClusterAlias(), new AtomicReference<>(c)));
                     this.clusterInfo = Collections.unmodifiableMap(m);
-                    this.successful = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL);
-                    this.skipped = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SKIPPED);
+                    this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
+                    this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
                 }
             } else {
-                this.successful = successful;
-                this.skipped = skipped;
+                this.successful = successfulTemp;
+                this.skipped = skippedTemp;
                 this.clusterInfo = Collections.emptyMap();
             }
             int running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);

@@ -295,13 +295,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                         builder.startObject();
                         index.toXContentFragment(builder);
                         IndexProperties indexProperties = indexSettingsValues.get(index);
-                        assert indexProperties != null
-                            : "additional index display values must be passed for every index in the data stream";
-                        builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
-                        if (indexProperties.ilmPolicyName() != null) {
-                            builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                        if (indexProperties != null) {
+                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
                         }
-                        builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
                         builder.endObject();
                     }
                     builder.endArray();

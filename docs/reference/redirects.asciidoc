@@ -1939,7 +1939,7 @@ Refer to <<remote-clusters>>.
 coming::[8.11.0]
 
 [role="exclude",id="ingest-pipeline-search-inference"]
-=== Inference processing for search indices
+=== Inference processing for Search indices
 
 coming::[8.11.0]
 

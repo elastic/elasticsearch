@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -45,6 +46,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ExchangeService exchangeService;
     private final ClusterService clusterService;
     private final Executor requestExecutor;
+    private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
     private final Settings settings;
 
@@ -69,6 +71,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.exchangeService = exchangeService;
         EsqlBlockFactoryParams.init(bigArrays);
         var blockFactory = BlockFactory.getGlobalInstance();
+        this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.computeService = new ComputeService(
             searchService,
@@ -104,6 +107,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request,
             sessionId,
             configuration,
+            enrichPolicyResolver,
             listener.delegateFailureAndWrap(
                 (delegate, physicalPlan) -> computeService.execute(
                     sessionId,

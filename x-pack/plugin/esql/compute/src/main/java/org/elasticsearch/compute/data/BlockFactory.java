@@ -46,7 +46,7 @@ public class BlockFactory {
 
     private final BigArrays bigArrays;
 
-    private BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
         this.breaker = breaker;
         this.bigArrays = bigArrays;
     }
@@ -134,6 +134,10 @@ public class BlockFactory {
         return new BooleanBlockBuilder(estimatedSize, this);
     }
 
+    BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
+        return new BooleanVectorFixedBuilder(size, this);
+    }
+
     public BooleanBlock newBooleanArrayBlock(
         boolean[] values,
         int positionCount,
@@ -178,6 +182,10 @@ public class BlockFactory {
 
     public IntVector.Builder newIntVectorBuilder(int estimatedSize) {
         return new IntVectorBuilder(estimatedSize, this);
+    }
+
+    IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
+        return new IntVectorFixedBuilder(size, this);
     }
 
     /**
@@ -225,6 +233,10 @@ public class BlockFactory {
         return new LongVectorBuilder(estimatedSize, this);
     }
 
+    LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
+        return new LongVectorFixedBuilder(size, this);
+    }
+
     public LongVector newLongArrayVector(long[] values, int positionCount) {
         return newLongArrayVector(values, positionCount, 0L);
     }
@@ -259,6 +271,10 @@ public class BlockFactory {
 
     public DoubleVector.Builder newDoubleVectorBuilder(int estimatedSize) {
         return new DoubleVectorBuilder(estimatedSize, this);
+    }
+
+    DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
+        return new DoubleVectorFixedBuilder(size, this);
     }
 
     public DoubleVector newDoubleArrayVector(double[] values, int positionCount) {

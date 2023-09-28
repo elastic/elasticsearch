@@ -9,6 +9,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -66,7 +67,7 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         ingestService.putPipeline(request, listener, (nodeListener) -> {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
             nodesInfoRequest.clear();
-            nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+            nodesInfoRequest.addMetric(NodesInfoMetrics.Metric.INGEST.metricName());
             client.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
         });
     }

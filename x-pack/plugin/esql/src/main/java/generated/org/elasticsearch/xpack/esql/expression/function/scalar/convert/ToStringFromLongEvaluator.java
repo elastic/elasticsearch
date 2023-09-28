@@ -6,13 +6,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefArrayBlock;
-import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -51,24 +46,16 @@ public final class ToStringFromLongEvaluator extends AbstractConvertFunction.Abs
         return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
-    BitSet nullsMask = null;
-    BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        values.append(evalValue(vector, p));
+        builder.appendBytesRef(evalValue(vector, p));;
       } catch (Exception e) {
         registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
-        }
-        nullsMask.set(p);
-        values.append(BytesRefBlock.NULL_VALUE);
+        builder.appendNull();
       }
     }
-    return nullsMask == null
-          ? driverContext.blockFactory().newBytesRefArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : driverContext.blockFactory().newBytesRefArrayBlock(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED);
+    return builder.build();
   }
 
   private static BytesRef evalValue(LongVector container, int index) {

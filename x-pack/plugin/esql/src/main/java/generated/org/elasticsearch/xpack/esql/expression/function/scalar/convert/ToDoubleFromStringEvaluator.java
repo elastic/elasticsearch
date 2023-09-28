@@ -6,13 +6,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -50,23 +47,16 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
         return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
-    BitSet nullsMask = null;
-    double[] values = new double[positionCount];
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        values[p] = evalValue(vector, p, scratchPad);
+        builder.appendDouble(evalValue(vector, p, scratchPad));;
       } catch (Exception e) {
         registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
-        }
-        nullsMask.set(p);
+        builder.appendNull();
       }
     }
-    return nullsMask == null
-          ? driverContext.blockFactory().newDoubleArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : driverContext.blockFactory().newDoubleArrayBlock(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED);
+    return builder.build();
   }
 
   private static double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {

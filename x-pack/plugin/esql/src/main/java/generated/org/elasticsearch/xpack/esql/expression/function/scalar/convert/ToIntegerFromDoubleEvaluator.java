@@ -6,12 +6,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -48,23 +45,16 @@ public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.
         return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
-    BitSet nullsMask = null;
-    int[] values = new int[positionCount];
+    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        values[p] = evalValue(vector, p);
+        builder.appendInt(evalValue(vector, p));;
       } catch (Exception e) {
         registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
-        }
-        nullsMask.set(p);
+        builder.appendNull();
       }
     }
-    return nullsMask == null
-          ? driverContext.blockFactory().newIntArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : driverContext.blockFactory().newIntArrayBlock(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED);
+    return builder.build();
   }
 
   private static int evalValue(DoubleVector container, int index) {

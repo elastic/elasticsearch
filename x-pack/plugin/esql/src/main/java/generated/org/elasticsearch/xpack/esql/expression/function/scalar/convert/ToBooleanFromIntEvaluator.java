@@ -6,10 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanArrayBlock;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -48,23 +45,16 @@ public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.Abs
         return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
-    BitSet nullsMask = null;
-    boolean[] values = new boolean[positionCount];
+    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        values[p] = evalValue(vector, p);
+        builder.appendBoolean(evalValue(vector, p));;
       } catch (Exception e) {
         registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
-        }
-        nullsMask.set(p);
+        builder.appendNull();
       }
     }
-    return nullsMask == null
-          ? driverContext.blockFactory().newBooleanArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : driverContext.blockFactory().newBooleanArrayBlock(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED);
+    return builder.build();
   }
 
   private static boolean evalValue(IntVector container, int index) {

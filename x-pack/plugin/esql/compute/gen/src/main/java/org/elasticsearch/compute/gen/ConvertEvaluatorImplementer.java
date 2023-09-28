@@ -13,8 +13,6 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
-import java.util.BitSet;
-
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
@@ -23,17 +21,12 @@ import javax.lang.model.util.Elements;
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_CONVERT_FUNCTION_EVALUATOR;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
-import static org.elasticsearch.compute.gen.Types.arrayBlockType;
-import static org.elasticsearch.compute.gen.Types.arrayVectorType;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -141,53 +134,28 @@ public class ConvertEvaluatorImplementer {
         }
         builder.endControlFlow();
 
-        builder.addStatement("$T nullsMask = null", BitSet.class);
-        if (resultType.equals(BYTES_REF)) {
-            builder.addStatement(
-                "$T values = new $T(positionCount, $T.NON_RECYCLING_INSTANCE)", // TODO: see note in MvEvaluatorImplementer
-                BYTES_REF_ARRAY,
-                BYTES_REF_ARRAY,
-                BIG_ARRAYS
-            );
-        } else {
-            builder.addStatement("$T[] values = new $T[positionCount]", resultType, resultType);
-        }
+        ClassName returnBlockType = blockType(resultType);
+        builder.addStatement(
+            "$T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory())",
+            returnBlockType,
+            returnBlockType
+        );
         builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
         {
             builder.beginControlFlow("try");
             {
-                if (resultType.equals(BYTES_REF)) {
-                    builder.addStatement("values.append($N)", evalValueCall("vector", "p", scratchPadName));
-                } else {
-                    builder.addStatement("values[p] = $N", evalValueCall("vector", "p", scratchPadName));
-                }
+                builder.addStatement("builder.$L($N);", appendMethod(resultType), evalValueCall("vector", "p", scratchPadName));
             }
             builder.nextControlFlow("catch (Exception e)");
             {
                 builder.addStatement("registerException(e)");
-                builder.beginControlFlow("if (nullsMask == null)");
-                {
-                    builder.addStatement("nullsMask = new BitSet(positionCount)");
-                }
-                builder.endControlFlow();
-                builder.addStatement("nullsMask.set(p)");
-                if (resultType.equals(BYTES_REF)) {
-                    builder.addStatement("values.append($T.NULL_VALUE)", BYTES_REF_BLOCK);
-                }
+                builder.addStatement("builder.appendNull()");
             }
             builder.endControlFlow();
         }
         builder.endControlFlow();
 
-        builder.addStatement(
-            """
-                return nullsMask == null
-                  ? driverContext.blockFactory().new$T(values, positionCount).asBlock()
-                  // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-                  : driverContext.blockFactory().new$T(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED)""",
-            arrayVectorType(resultType),
-            arrayBlockType(resultType)
-        );
+        builder.addStatement("return builder.build()");
 
         return builder.build();
     }

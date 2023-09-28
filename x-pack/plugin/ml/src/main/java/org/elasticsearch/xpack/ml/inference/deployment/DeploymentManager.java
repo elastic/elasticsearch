@@ -212,13 +212,16 @@ public class DeploymentManager {
             }
         }, failedDeploymentListener::onFailure);
 
-        ActionListener<GetTrainedModelsAction.Response> verifyModelAndClusterArchitecturesListener = ActionListener.wrap(getModelResponse -> {
-            assert getModelResponse.getResources().results().size() == 1;
-            TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+        ActionListener<GetTrainedModelsAction.Response> verifyModelAndClusterArchitecturesListener = ActionListener.wrap(
+            getModelResponse -> {
+                assert getModelResponse.getResources().results().size() == 1;
+                TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
 
-            verifyMlNodesAndModelArchitectures(modelConfig, client, threadPool, getVerifiedModel);
+                verifyMlNodesAndModelArchitectures(modelConfig, client, threadPool, getVerifiedModel);
 
-        }, failedDeploymentListener::onFailure);
+            },
+            failedDeploymentListener::onFailure
+        );
 
         executeAsyncWithOrigin(
             client,

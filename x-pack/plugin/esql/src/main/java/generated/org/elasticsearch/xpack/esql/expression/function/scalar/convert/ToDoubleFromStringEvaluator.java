@@ -45,10 +45,10 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
       try {
-        return new ConstantDoubleVector(evalValue(vector, 0, scratchPad), positionCount).asBlock();
+        return new ConstantDoubleVector(evalValue(vector, 0, scratchPad), positionCount, driverContext.blockFactory()).asBlock();
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount);
+        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
     BitSet nullsMask = null;
@@ -65,9 +65,9 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
       }
     }
     return nullsMask == null
-          ? new DoubleArrayVector(values, positionCount).asBlock()
+          ? new DoubleArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new DoubleArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
+          : new DoubleArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
   }
 
   private static double evalValue(BytesRefVector container, int index, BytesRef scratchPad) {

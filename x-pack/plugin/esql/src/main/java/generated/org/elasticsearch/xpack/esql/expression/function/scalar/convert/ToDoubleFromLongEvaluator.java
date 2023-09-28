@@ -43,10 +43,10 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return new ConstantDoubleVector(evalValue(vector, 0), positionCount).asBlock();
+        return new ConstantDoubleVector(evalValue(vector, 0), positionCount, driverContext.blockFactory()).asBlock();
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount);
+        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
     BitSet nullsMask = null;
@@ -63,9 +63,9 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
       }
     }
     return nullsMask == null
-          ? new DoubleArrayVector(values, positionCount).asBlock()
+          ? new DoubleArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new DoubleArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
+          : new DoubleArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
   }
 
   private static double evalValue(LongVector container, int index) {

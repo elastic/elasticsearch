@@ -128,7 +128,7 @@ public class ConvertEvaluatorImplementer {
             {
                 var constVectType = constantVectorType(resultType);
                 builder.addStatement(
-                    "return new $T($N, positionCount).asBlock()",
+                    "return new $T($N, positionCount, driverContext.blockFactory()).asBlock()",
                     constVectType,
                     evalValueCall("vector", "0", scratchPadName)
                 );
@@ -136,7 +136,7 @@ public class ConvertEvaluatorImplementer {
             builder.nextControlFlow("catch (Exception e)");
             {
                 builder.addStatement("registerException(e)");
-                builder.addStatement("return Block.constantNullBlock(positionCount)");
+                builder.addStatement("return Block.constantNullBlock(positionCount, driverContext.blockFactory())");
             }
             builder.endControlFlow();
         }
@@ -183,9 +183,9 @@ public class ConvertEvaluatorImplementer {
         builder.addStatement(
             """
                 return nullsMask == null
-                  ? new $T(values, positionCount).asBlock()
+                  ? new $T(values, positionCount, driverContext.blockFactory()).asBlock()
                   // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-                  : new $T(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED)""",
+                  : new $T(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory())""",
             arrayVectorType(resultType),
             arrayBlockType(resultType)
         );

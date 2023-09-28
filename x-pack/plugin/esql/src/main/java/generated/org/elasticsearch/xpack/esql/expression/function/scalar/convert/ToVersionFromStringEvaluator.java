@@ -46,10 +46,10 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
       try {
-        return new ConstantBytesRefVector(evalValue(vector, 0, scratchPad), positionCount).asBlock();
+        return new ConstantBytesRefVector(evalValue(vector, 0, scratchPad), positionCount, driverContext.blockFactory()).asBlock();
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount);
+        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
     BitSet nullsMask = null;
@@ -67,9 +67,9 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
       }
     }
     return nullsMask == null
-          ? new BytesRefArrayVector(values, positionCount).asBlock()
+          ? new BytesRefArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new BytesRefArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
+          : new BytesRefArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
   }
 
   private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {

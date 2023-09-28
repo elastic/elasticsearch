@@ -46,10 +46,10 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return new ConstantBytesRefVector(evalValue(vector, 0), positionCount).asBlock();
+        return new ConstantBytesRefVector(evalValue(vector, 0), positionCount, driverContext.blockFactory()).asBlock();
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount);
+        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
     BitSet nullsMask = null;
@@ -67,9 +67,9 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
       }
     }
     return nullsMask == null
-          ? new BytesRefArrayVector(values, positionCount).asBlock()
+          ? new BytesRefArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new BytesRefArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
+          : new BytesRefArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
   }
 
   private static BytesRef evalValue(BooleanVector container, int index) {

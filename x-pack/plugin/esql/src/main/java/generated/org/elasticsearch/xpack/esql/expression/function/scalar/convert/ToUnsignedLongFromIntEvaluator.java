@@ -43,10 +43,10 @@ public final class ToUnsignedLongFromIntEvaluator extends AbstractConvertFunctio
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return new ConstantLongVector(evalValue(vector, 0), positionCount).asBlock();
+        return new ConstantLongVector(evalValue(vector, 0), positionCount, driverContext.blockFactory()).asBlock();
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount);
+        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
     BitSet nullsMask = null;
@@ -63,9 +63,9 @@ public final class ToUnsignedLongFromIntEvaluator extends AbstractConvertFunctio
       }
     }
     return nullsMask == null
-          ? new LongArrayVector(values, positionCount).asBlock()
+          ? new LongArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new LongArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
+          : new LongArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
   }
 
   private static long evalValue(IntVector container, int index) {

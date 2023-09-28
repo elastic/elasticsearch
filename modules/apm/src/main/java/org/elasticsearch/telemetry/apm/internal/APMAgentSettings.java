@@ -57,7 +57,7 @@ public class APMAgentSettings {
             apmTracer.setEnabled(enabled);
             this.setAgentSetting("instrument", Boolean.toString(enabled));
         });
-        clusterSettings.addSettingsUpdateConsumer(APM_METRICS_ENABLED_SETTING, enabled -> {
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, enabled -> {
             apmMeter.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
@@ -177,7 +177,7 @@ public class APMAgentSettings {
         NodeScope
     );
 
-    public static final Setting<Boolean> APM_METRICS_ENABLED_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> TELEMETRY_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "telemetry.metrics.enabled",
         false,
         OperatorDynamic,

@@ -29,7 +29,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING;
 
 public class APMMeter extends AbstractLifecycleComponent implements org.elasticsearch.telemetry.metric.Meter {
     private final Instruments instruments;
@@ -44,7 +44,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     public APMMeter(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
-        this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.enabled = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
         this.instruments = new Instruments(enabled ? createOtelMeter() : createNoopMeter());

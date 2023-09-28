@@ -16,8 +16,8 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class ConstantBytesRefVector extends AbstractVector implements BytesRefVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class);
-
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
+        .shallowSizeOfInstance(BytesRef.class);
     private final BytesRef value;
 
     public ConstantBytesRefVector(BytesRef value, int positionCount) {
@@ -56,7 +56,7 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
     }
 
     @Override

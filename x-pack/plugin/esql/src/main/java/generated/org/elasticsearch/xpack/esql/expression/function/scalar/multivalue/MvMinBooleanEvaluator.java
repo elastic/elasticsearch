@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -41,7 +41,7 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     }
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount);
+    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -71,7 +71,7 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     }
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    boolean[] values = new boolean[positionCount];
+    BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
@@ -82,9 +82,9 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
         value = MvMin.process(value, next);
       }
       boolean result = value;
-      values[p] = result;
+      builder.appendBoolean(result);
     }
-    return new BooleanArrayVector(values, positionCount);
+    return builder.build();
   }
 
   /**
@@ -93,7 +93,7 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
   private Block evalAscendingNullable(Block fieldVal) {
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount);
+    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -114,14 +114,14 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
   private Vector evalAscendingNotNullable(Block fieldVal) {
     BooleanBlock v = (BooleanBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    boolean[] values = new boolean[positionCount];
+    BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
       int idx = MvMin.ascendingIndex(valueCount);
       boolean result = v.getBoolean(first + idx);
-      values[p] = result;
+      builder.appendBoolean(result);
     }
-    return new BooleanArrayVector(values, positionCount);
+    return builder.build();
   }
 }

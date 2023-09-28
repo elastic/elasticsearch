@@ -38,6 +38,10 @@ import static org.mockito.Mockito.when;
 // BlockFactory is used and effectively tested in many other places, but this class contains tests
 // more specific to the factory implementation itself (and not necessarily tested elsewhere).
 public class BlockFactoryTests extends ESTestCase {
+    public static BlockFactory blockFactory(ByteSizeValue size) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, size).withCircuitBreaking();
+        return new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+    }
 
     final CircuitBreaker breaker;
     final BigArrays bigArrays;

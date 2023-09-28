@@ -17,13 +17,16 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -71,12 +74,15 @@ public class ProjectOperatorTests extends OperatorTestCase {
         var out = projection.getOutput();
         assertThat(randomProjection.size(), lessThanOrEqualTo(out.getBlockCount()));
 
+        Set<Block> blks = new HashSet<>();
         for (int i = 0; i < out.getBlockCount(); i++) {
             var block = out.<IntBlock>getBlock(i);
             assertEquals(block, page.getBlock(randomProjection.get(i)));
+            blks.add(block);
         }
+
         // close all blocks separately since the same block can be used by multiple columns (aliased)
-        out.releaseBlocks();
+        Releasables.closeWhileHandlingException(blks.toArray(new Block[0]));
     }
 
     private List<Integer> randomProjection(int size) {

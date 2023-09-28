@@ -13,10 +13,10 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DoubleComparator;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -36,7 +36,7 @@ import java.io.IOException;
  */
 public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    final IndexNumericFieldData indexFieldData;
 
     public DoubleValuesComparatorSource(
         IndexNumericFieldData indexFieldData,
@@ -53,12 +53,12 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         return SortField.Type.DOUBLE;
     }
 
-    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
+    private SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
         return indexFieldData.load(context).getDoubleValues();
     }
 
-    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, double missingValue) throws IOException {
-        final SortedNumericDoubleValues values = getValues(context);
+    protected NumericDoubleValues getNumericDoubleDocValues(LeafReaderContext context, double missingValue, CheckedSupplier<SortedNumericDoubleValues, IOException> docValuesSupplier) throws IOException {
+        final SortedNumericDoubleValues values = docValuesSupplier.get();
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
         } else {
@@ -68,8 +68,6 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
             return sortMode.select(values, missingValue, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
         }
     }
-
-    protected void setScorer(Scorable scorer) {}
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
@@ -84,12 +82,8 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                 return new DoubleLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return DoubleValuesComparatorSource.this.getNumericDocValues(context, dMissingValue).getRawDoubleValues();
-                    }
-
-                    @Override
-                    public void setScorer(Scorable scorer) {
-                        DoubleValuesComparatorSource.this.setScorer(scorer);
+                        return getNumericDoubleDocValues(context, dMissingValue, () -> getValues(context))
+                            .getRawDoubleValues();
                     }
                 };
             }
@@ -108,9 +102,13 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
             private final double dMissingValue = (Double) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
-            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
-                return new Leaf(ctx) {
-                    private final NumericDoubleValues docValues = getNumericDocValues(ctx, dMissingValue);
+            public Leaf forLeaf(LeafReaderContext leafReaderContext) throws IOException {
+                return new Leaf(leafReaderContext) {
+                    private final NumericDoubleValues docValues = getNumericDoubleDocValues(
+                        leafReaderContext,
+                        dMissingValue,
+                        () -> DoubleValuesComparatorSource.this.getValues(leafReaderContext)
+                    );
                     private double docValue;
 
                     @Override

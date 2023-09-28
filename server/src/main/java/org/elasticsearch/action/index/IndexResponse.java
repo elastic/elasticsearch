@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,6 +32,11 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class IndexResponse extends DocWriteResponse {
 
+    /*
+     * This is the optional list of ingest pipelines that were executed while indexing the data. A null value means that there is no
+     * information about the pipelines executed. An empty list means that there were no pipelines executed.
+     */
+    @Nullable
     private final List<String> executedPipelines;
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
@@ -47,12 +53,12 @@ public class IndexResponse extends DocWriteResponse {
         if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
             executedPipelines = in.readCollectionAsList(StreamInput::readString);
         } else {
-            executedPipelines = List.of();
+            executedPipelines = null;
         }
     }
 
     public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
-        this(shardId, id, seqNo, primaryTerm, version, created, List.of());
+        this(shardId, id, seqNo, primaryTerm, version, created, null);
     }
 
     public IndexResponse(
@@ -62,7 +68,7 @@ public class IndexResponse extends DocWriteResponse {
         long primaryTerm,
         long version,
         boolean created,
-        List<String> executedPipelines
+        @Nullable List<String> executedPipelines
     ) {
         this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED, executedPipelines);
     }
@@ -74,7 +80,7 @@ public class IndexResponse extends DocWriteResponse {
         long primaryTerm,
         long version,
         Result result,
-        List<String> executedPipelines
+        @Nullable List<String> executedPipelines
     ) {
         super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
         this.executedPipelines = executedPipelines;
@@ -84,12 +90,16 @@ public class IndexResponse extends DocWriteResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
-            out.writeCollection(executedPipelines, StreamOutput::writeString);
+            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        return super.innerToXContent(builder, params).field("executed_pipelines", executedPipelines.toArray());
+        XContentBuilder updatedBuilder = super.innerToXContent(builder, params);
+        if (executedPipelines != null) {
+            updatedBuilder = updatedBuilder.field("executed_pipelines", executedPipelines.toArray());
+        }
+        return updatedBuilder;
     }
 
     private static Result assertCreatedOrUpdated(Result result) {
@@ -141,7 +151,7 @@ public class IndexResponse extends DocWriteResponse {
     public static class Builder extends DocWriteResponse.Builder {
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result, List.of());
+            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result, null);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

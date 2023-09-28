@@ -235,9 +235,9 @@ class BulkPrimaryExecutionContext {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     List<String> executedPipelines;
                     if (docWriteRequest instanceof IndexRequest indexRequest) {
-                        executedPipelines = indexRequest.getExecutedPipelines();
+                        executedPipelines = indexRequest.pipelinesHaveRun() ? indexRequest.getExecutedPipelines() : null;
                     } else {
-                        executedPipelines = List.of();
+                        executedPipelines = null;
                     }
                     response = new IndexResponse(
                         primary.shardId(),

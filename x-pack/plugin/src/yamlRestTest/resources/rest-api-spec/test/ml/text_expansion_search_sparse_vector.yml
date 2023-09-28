@@ -4,7 +4,7 @@ setup:
   - skip:
       features: headers
       version: ' - 8.7.99'
-      reason: "text_expansion query reintroduced in 8.8"
+      reason: "text_expansion query introduced in 8.8"
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

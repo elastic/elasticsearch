@@ -1,0 +1,6 @@
+pr: 99995
+summary: Inactive replica of new primary shard is green
+area: Health
+type: enhancement
+issues:
+ - 99951

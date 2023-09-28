@@ -125,8 +125,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
         assertThat(clusters.getTotal(), equalTo(2));
-        assertThat(clusters.getSuccessful(), equalTo(2));
-        assertThat(clusters.getSkipped(), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
         SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
         assertNotNull(localClusterSearchInfo);
@@ -186,8 +189,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
         assertThat(clusters.getTotal(), equalTo(2));
-        assertThat(clusters.getSuccessful(), equalTo(2));
-        assertThat(clusters.getSkipped(), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
         SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
         assertNotNull(localClusterSearchInfo);
@@ -250,8 +256,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertThat(clusters.getTotal(), equalTo(2));
-        assertThat(clusters.getSuccessful(), equalTo(2));
-        assertThat(clusters.getSkipped(), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(2));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
         SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
         assertNotNull(localClusterSearchInfo);
@@ -314,8 +323,16 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(clusters.isCcsMinimizeRoundtrips(), equalTo(minimizeRoundtrips));
             }
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(1));
-            assertThat(clusters.getSkipped(), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            if (skipUnavailable) {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+            } else {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
+            }
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -386,8 +403,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertThat(clusters.getTotal(), equalTo(2));
-        assertThat(clusters.getSuccessful(), equalTo(2));
-        assertThat(clusters.getSkipped(), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(2));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
         SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
         assertNotNull(localClusterSearchInfo);
@@ -439,8 +459,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
         assertThat(clusters.getTotal(), equalTo(1));
-        assertThat(clusters.getSuccessful(), equalTo(1));
-        assertThat(clusters.getSkipped(), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
         assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 
@@ -482,8 +505,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
         SearchResponse.Clusters clusters = searchResponse.getClusters();
         assertThat(clusters.getTotal(), equalTo(1));
-        assertThat(clusters.getSuccessful(), equalTo(1));
-        assertThat(clusters.getSkipped(), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(1));
+        assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
         assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 
@@ -530,8 +556,16 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(searchResponse);
             SearchResponse.Clusters clusters = searchResponse.getClusters();
             assertThat(clusters.getTotal(), equalTo(1));
-            assertThat(clusters.getSuccessful(), equalTo(0));
-            assertThat(clusters.getSkipped(), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            if (skipUnavailable) {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+            } else {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
+            }
 
             assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 

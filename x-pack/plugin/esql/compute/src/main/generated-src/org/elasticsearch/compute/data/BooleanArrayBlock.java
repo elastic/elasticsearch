@@ -109,6 +109,10 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

@@ -17,7 +17,7 @@ import java.util.Arrays;
  */
 public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
 
     private final double[] values;
 

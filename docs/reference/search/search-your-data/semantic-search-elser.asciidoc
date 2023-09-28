@@ -44,12 +44,13 @@ you must provide suitably sized nodes yourself.
 
 First, the mapping of the destination index - the index that contains the tokens 
 that the model created based on your text - must be created.  The destination 
-index must have a field with the <<rank-features, `sparse_vector`>> field type 
-to index the ELSER output.
+index must have a field with the 
+<<rank-features, `sparse_vector` or `rank_features`>> field type to index the 
+ELSER output.
 
-NOTE: ELSER output must be ingested into a field with the `sparse_vector` field 
-type. Otherwise, {es} interprets the token-weight pairs as a massive amount of 
-fields in a document. If you get an error similar to this 
+NOTE: ELSER output must be ingested into a field with the `sparse_vector` or 
+`rank_features` field type. Otherwise, {es} interprets the token-weight pairs as 
+a massive amount of fields in a document. If you get an error similar to this 
 `"Limit of total fields [1000] has been exceeded while adding new fields"` then 
 the ELSER output field is not mapped properly and it has a field type different 
 than `sparse_vector` or `rank_features`.

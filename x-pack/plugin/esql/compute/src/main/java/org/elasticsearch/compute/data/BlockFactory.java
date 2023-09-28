@@ -305,7 +305,7 @@ public class BlockFactory {
         MvOrdering mvOrdering
     ) {
         var b = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed() - values.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), true);
         return b;
     }
 
@@ -315,7 +315,7 @@ public class BlockFactory {
 
     public BytesRefVector newBytesRefArrayVector(BytesRefArray values, int positionCount) {
         var b = new BytesRefArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - values.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), true);
         return b;
     }
 

@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.IndexProperties;
+import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +23,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -39,8 +42,11 @@ import org.elasticsearch.transport.TransportService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction<
     GetDataStreamAction.Request,
@@ -95,6 +101,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
         for (DataStream dataStream : dataStreams) {
             final String indexTemplate;
+            boolean indexTemplatePreferIlmValue = true;
             String ilmPolicyName = null;
             if (dataStream.isSystem()) {
                 SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
@@ -104,13 +111,15 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                         dataStreamDescriptor.getComposableIndexTemplate(),
                         dataStreamDescriptor.getComponentTemplates()
                     );
-                    ilmPolicyName = settings.get("index.lifecycle.name");
+                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 }
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
                 if (indexTemplate != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                    ilmPolicyName = settings.get("index.lifecycle.name");
+                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {
                     LOGGER.warn(
                         "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"
@@ -125,18 +134,35 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)
             );
 
+            Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
+            Metadata metadata = state.getMetadata();
+            for (Index index : dataStream.getIndices()) {
+                IndexMetadata indexMetadata = metadata.index(index);
+                Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+                assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
+                ManagedBy managedBy;
+                if (metadata.isIndexManagedByILM(indexMetadata)) {
+                    managedBy = ManagedBy.ILM;
+                } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
+                    managedBy = ManagedBy.LIFECYCLE;
+                } else {
+                    managedBy = ManagedBy.UNMANAGED;
+                }
+                backingIndicesSettingsValues.put(index, new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy));
+            }
+
             GetDataStreamAction.Response.TimeSeries timeSeries = null;
             if (dataStream.getIndexMode() == IndexMode.TIME_SERIES) {
                 List<Tuple<Instant, Instant>> ranges = new ArrayList<>();
                 Tuple<Instant, Instant> current = null;
                 String previousIndexName = null;
                 for (Index index : dataStream.getIndices()) {
-                    IndexMetadata metadata = state.getMetadata().index(index);
-                    if (metadata.getIndexMode() != IndexMode.TIME_SERIES) {
+                    IndexMetadata indexMetadata = metadata.index(index);
+                    if (indexMetadata.getIndexMode() != IndexMode.TIME_SERIES) {
                         continue;
                     }
-                    Instant start = metadata.getTimeSeriesStart();
-                    Instant end = metadata.getTimeSeriesEnd();
+                    Instant start = indexMetadata.getTimeSeriesStart();
+                    Instant end = indexMetadata.getTimeSeriesEnd();
                     if (current == null) {
                         current = new Tuple<>(start, end);
                     } else if (current.v2().compareTo(start) == 0) {
@@ -175,7 +201,9 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                     streamHealth.getStatus(),
                     indexTemplate,
                     ilmPolicyName,
-                    timeSeries
+                    timeSeries,
+                    backingIndicesSettingsValues,
+                    indexTemplatePreferIlmValue
                 )
             );
         }

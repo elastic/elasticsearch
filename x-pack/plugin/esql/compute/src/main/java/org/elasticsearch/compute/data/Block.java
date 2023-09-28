@@ -133,7 +133,11 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
         return blockFactory.newConstantNullBlock(positions);
     }
 
-    interface Builder {
+    /**
+     * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
+     * This is {@link Releasable} and should be released after building the block or if building the block fails.
+     */
+    interface Builder extends Releasable {
 
         /**
          * Appends a null value to the block.

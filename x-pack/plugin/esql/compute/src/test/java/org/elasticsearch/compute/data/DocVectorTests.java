@@ -23,22 +23,22 @@ import static org.hamcrest.Matchers.is;
 public class DocVectorTests extends ESTestCase {
     public void testNonDecreasingSetTrue() {
         int length = between(1, 100);
-        DocVector docs = new DocVector(IntVector.range(0, length), IntVector.range(0, length), IntVector.range(0, length), true);
+        DocVector docs = new DocVector(intRange(0, length), intRange(0, length), intRange(0, length), true);
         assertTrue(docs.singleSegmentNonDecreasing());
     }
 
     public void testNonDecreasingSetFalse() {
-        DocVector docs = new DocVector(IntVector.range(0, 2), IntVector.range(0, 2), new IntArrayVector(new int[] { 1, 0 }, 2), false);
+        DocVector docs = new DocVector(intRange(0, 2), intRange(0, 2), new IntArrayVector(new int[] { 1, 0 }, 2), false);
         assertFalse(docs.singleSegmentNonDecreasing());
     }
 
     public void testNonDecreasingNonConstantShard() {
-        DocVector docs = new DocVector(IntVector.range(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), null);
+        DocVector docs = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null);
         assertFalse(docs.singleSegmentNonDecreasing());
     }
 
     public void testNonDecreasingNonConstantSegment() {
-        DocVector docs = new DocVector(IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), IntVector.range(0, 2), null);
+        DocVector docs = new DocVector(IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), intRange(0, 2), null);
         assertFalse(docs.singleSegmentNonDecreasing());
     }
 
@@ -128,7 +128,7 @@ public class DocVectorTests extends ESTestCase {
     }
 
     public void testCannotDoubleRelease() {
-        var block = new DocVector(IntVector.range(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), null)
+        var block = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null)
             .asBlock();
         assertThat(block.isReleased(), is(false));
         Releasables.closeExpectNoException(block);
@@ -140,5 +140,9 @@ public class DocVectorTests extends ESTestCase {
         Page page = new Page(block);
         var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
         assertThat(e.getMessage(), containsString("can't read released block"));
+    }
+
+    IntVector intRange(int startInclusive, int endExclusive) {
+        return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance());
     }
 }

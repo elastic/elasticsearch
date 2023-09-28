@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
@@ -54,11 +56,13 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     }
 
     public final void testInitialFinal() {
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
-
         try (
             Driver d = new Driver(
                 driverContext,
@@ -73,14 +77,17 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
     }
 
     public final void testManyInitialFinal() {
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
@@ -94,14 +101,17 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
     }
 
     public final void testInitialIntermediateFinal() {
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         try (
@@ -119,7 +129,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
     }
 
@@ -155,10 +165,12 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // Similar to testManyInitialManyPartialFinal, but uses with the DriverRunner infrastructure
     // to move the data through the pipeline.
     public final void testManyInitialManyPartialFinalRunner() {
-        BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
-        List<Page> results = new ArrayList<>();
+        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
 
+        BigArrays bigArrays = nonBreakingBigArrays();
+        List<Page> results = new ArrayList<>();
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, false /* no throwing ops */);
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
@@ -169,13 +181,14 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         runner.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         drivers.stream().map(Driver::driverContext).forEach(OperatorTestCase::assertDriverContext);
     }
 
     // Similar to testManyInitialManyPartialFinalRunner, but creates a pipeline that contains an
     // operator that throws - fails. The primary motivation for this is to ensure that the driver
     // runner behaves correctly and also releases all resources (bigArrays) appropriately.
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public final void testManyInitialManyPartialFinalRunnerThrowing() {
         BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));

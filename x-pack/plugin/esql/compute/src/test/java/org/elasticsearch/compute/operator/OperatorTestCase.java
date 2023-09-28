@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.data.BlockTestUtils.releasePageBlocksWhileHandlingException;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -97,6 +99,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * properly cleaning up things like {@link BigArray}s, particularly
      * in ctors.
      */
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public final void testSimpleWithCranky() {
         CrankyCircuitBreakerService breaker = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker).withCircuitBreaking();
@@ -140,9 +143,19 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     private void assertSimple(DriverContext context, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(size));
+        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
-        List<Page> results = drive(simple(bigArrays).get(context), input.iterator());
-        assertSimpleOutput(input, results);
+        Operator operator;
+        try {
+            operator = simple(bigArrays).get(context);
+        } catch (CircuitBreakingException cbe) {
+            releasePageBlocksWhileHandlingException(input);
+            throw cbe;
+        }
+        List<Page> results = drive(operator, input.iterator());
+        assertSimpleOutput(origInput, results);
         results.forEach(Page::releaseBlocks);
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }

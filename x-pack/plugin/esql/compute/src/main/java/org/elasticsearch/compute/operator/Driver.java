@@ -181,9 +181,15 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 Page page = op.getOutput();
-                if (page != null && page.getPositionCount() != 0) {
-                    nextOp.addInput(page);
-                    movedPage = true;
+                try {
+                    if (page != null && page.getPositionCount() != 0) {
+                        nextOp.addInput(page);
+                        page = null;
+                        movedPage = true;
+                    }
+                } catch (Throwable t) {
+                    releasePageBlocksWhileHandlingException(page);
+                    throw t;
                 }
             }
 
@@ -297,6 +303,18 @@ public class Driver implements Releasable, Describable {
                 listener.onFailure(e);
             }
         });
+    }
+
+    /**
+     * Releases all blocks in the given Page - ignoring and swallowing exceptions. This is a safety
+     * net used in failure scenarios - pages may or may not already be closed, but we need to be sure.
+     */
+    static void releasePageBlocksWhileHandlingException(Page page) {
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            try {
+                Releasables.closeWhileHandlingException(page.getBlock(i));
+            } catch (IllegalStateException ignoreAlreadyClosed) {}
+        }
     }
 
     private static SubscribableListener<Void> oneOf(List<SubscribableListener<Void>> futures) {

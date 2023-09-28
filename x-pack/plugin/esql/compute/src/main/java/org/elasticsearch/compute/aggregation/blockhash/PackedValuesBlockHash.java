@@ -255,7 +255,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()));
+        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()), blockFactory);
     }
 
     @Override

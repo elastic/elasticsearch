@@ -13,8 +13,6 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntArrayBlock;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -85,19 +83,19 @@ final class IntBlockHash extends BlockHash {
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
-            return new IntBlock[] { new IntArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
+            return new IntBlock[] { blockFactory.newIntArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
         }
         final int size = Math.toIntExact(longHash.size());
         final int[] keys = new int[size];
         for (int i = 0; i < size; i++) {
             keys[i] = (int) longHash.get(i);
         }
-        return new IntBlock[] { new IntArrayVector(keys, keys.length).asBlock() };
+        return new IntBlock[] { blockFactory.newIntArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1));
+        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(longHash.size() + 1), blockFactory);
     }
 
     @Override

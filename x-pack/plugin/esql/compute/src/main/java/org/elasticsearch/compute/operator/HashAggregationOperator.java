@@ -91,34 +91,38 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        checkState(needsInput(), "Operator is already finishing");
-        requireNonNull(page, "page is null");
+        try {
+            checkState(needsInput(), "Operator is already finishing");
+            requireNonNull(page, "page is null");
 
-        GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
-        for (int i = 0; i < prepared.length; i++) {
-            prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
-        }
+            GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
+            for (int i = 0; i < prepared.length; i++) {
+                prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
+            }
 
-        blockHash.add(wrapPage(page), new GroupingAggregatorFunction.AddInput() {
-            @Override
-            public void add(int positionOffset, IntBlock groupIds) {
-                IntVector groupIdsVector = groupIds.asVector();
-                if (groupIdsVector != null) {
-                    add(positionOffset, groupIdsVector);
-                } else {
+            blockHash.add(wrapPage(page), new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntBlock groupIds) {
+                    IntVector groupIdsVector = groupIds.asVector();
+                    if (groupIdsVector != null) {
+                        add(positionOffset, groupIdsVector);
+                    } else {
+                        for (GroupingAggregatorFunction.AddInput p : prepared) {
+                            p.add(positionOffset, groupIds);
+                        }
+                    }
+                }
+
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
                         p.add(positionOffset, groupIds);
                     }
                 }
-            }
-
-            @Override
-            public void add(int positionOffset, IntVector groupIds) {
-                for (GroupingAggregatorFunction.AddInput p : prepared) {
-                    p.add(positionOffset, groupIds);
-                }
-            }
-        });
+            });
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     @Override
@@ -134,19 +138,31 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         finished = true;
-        Block[] keys = blockHash.getKeys();
-        IntVector selected = blockHash.nonEmpty();
-
-        int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-        Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-        System.arraycopy(keys, 0, blocks, 0, keys.length);
-        int offset = keys.length;
-        for (int i = 0; i < aggregators.size(); i++) {
-            var aggregator = aggregators.get(i);
-            aggregator.evaluate(blocks, offset, selected);
-            offset += aggBlockCounts[i];
+        Block[] blocks = null;
+        IntVector selected = null;
+        boolean success = false;
+        try {
+            selected = blockHash.nonEmpty();
+            Block[] keys = blockHash.getKeys();
+            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+            blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
+            System.arraycopy(keys, 0, blocks, 0, keys.length);
+            int offset = keys.length;
+            for (int i = 0; i < aggregators.size(); i++) {
+                var aggregator = aggregators.get(i);
+                aggregator.evaluate(blocks, offset, selected);
+                offset += aggBlockCounts[i];
+            }
+            output = new Page(blocks);
+            success = true;
+        } finally {
+            // selected should always be closed
+            // TODO: is selected exposed through intermediate aggs?
+            Releasables.closeExpectNoException(selected); // TODO; null check?
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks); // TODO; null check?
+            }
         }
-        output = new Page(blocks);
     }
 
     @Override

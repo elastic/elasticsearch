@@ -21,6 +21,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -262,7 +263,7 @@ public class OrdinalsGroupingOperator implements Operator {
             int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
             Block[] blocks = new Block[1 + Arrays.stream(aggBlockCounts).sum()];
             blocks[0] = blockBuilder.build();
-            IntVector selected = IntVector.range(0, blocks[0].getPositionCount());
+            IntVector selected = IntVector.range(0, blocks[0].getPositionCount(), BlockFactory.getNonBreakingInstance()); // for now
             int offset = 1;
             for (int i = 0; i < aggregators.size(); i++) {
                 aggregators.get(i).evaluate(blocks, offset, selected);

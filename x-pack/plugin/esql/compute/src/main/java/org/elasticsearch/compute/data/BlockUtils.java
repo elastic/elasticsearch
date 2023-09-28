@@ -123,6 +123,11 @@ public final class BlockUtils {
     }
 
     public static Block deepCopyOf(Block block) {
+        return deepCopyOf(block, BlockFactory.getNonBreakingInstance());
+    }
+
+    public static Block deepCopyOf(Block block, BlockFactory blockFactory) {
+        // TODO: plumb in blockFactory
         Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount());
         builder.copyFrom(block, 0, block.getPositionCount());
         return builder.build();

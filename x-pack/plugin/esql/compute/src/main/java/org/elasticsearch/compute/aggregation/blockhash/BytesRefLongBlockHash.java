@@ -187,7 +187,7 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()));
+        return IntVector.range(0, Math.toIntExact(finalHash.size()), blockFactory);
     }
 
     @Override

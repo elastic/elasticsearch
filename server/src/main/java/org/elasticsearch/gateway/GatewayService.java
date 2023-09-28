@@ -80,9 +80,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     private final TimeValue recoverAfterTime;
     private final int recoverAfterDataNodes;
     private final int expectedDataNodes;
-
-    @Nullable
-    private SubscribableListener<Void> recoveryPlanned;
+    private PendingStateRecovery pendingStateRecovery = new PendingStateRecovery(0);
 
     @Inject
     public GatewayService(
@@ -156,70 +154,90 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             return;
         }
 
-        // At this point, we know this node is qualified for state recovery
+        // At this point, we know the state is not recovered and this node is qualified for state recovery
         // But we still need to check whether a previous one is running already
-        final SubscribableListener<Void> thisRecoveryPlanned;
-        synchronized (this) {
-            if (recoveryPlanned == null) {
-                recoveryPlanned = thisRecoveryPlanned = new SubscribableListener<>();
-            } else {
-                thisRecoveryPlanned = null;
-            }
+        final long currentTerm = state.term();
+        if (pendingStateRecovery.term < currentTerm) {
+            // Always start a new state recovery if the master term changes
+            // If there is a previous one still waiting, both will run but at most one of them will
+            // actually make changes to cluster state
+            pendingStateRecovery = new PendingStateRecovery(currentTerm);
+        }
+        assert pendingStateRecovery.term == currentTerm;
+        pendingStateRecovery.maybeStart(nodes.getDataNodes().size());
+    }
+
+    class PendingStateRecovery {
+        private final long term;
+        @Nullable
+        private SubscribableListener<Void> recoveryPlanned;
+
+        PendingStateRecovery(long term) {
+            this.term = term;
         }
 
-        if (thisRecoveryPlanned == null) {
-            logger.debug("state recovery is in progress");
-            return;
-        }
-
-        // This node is ready to schedule state recovery
-        thisRecoveryPlanned.addListener(new ActionListener<>() {
-            @Override
-            public void onResponse(Void ignore) {
-                runRecovery();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof ElasticsearchTimeoutException) {
-                    logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
-                    runRecovery();
+        void maybeStart(int dataNodeSize) {
+            final SubscribableListener<Void> thisRecoveryPlanned;
+            synchronized (this) {
+                if (recoveryPlanned == null) {
+                    recoveryPlanned = thisRecoveryPlanned = new SubscribableListener<>();
                 } else {
-                    onUnexpectedFailure(e);
+                    thisRecoveryPlanned = null;
                 }
             }
 
-            private void onUnexpectedFailure(Exception e) {
-                logger.warn("state recovery failed", e);
-                resetState();
+            if (thisRecoveryPlanned == null) {
+                logger.debug("state recovery is in progress for term [{}]", term);
+                return;
             }
-
-            private void runRecovery() {
-                try {
-                    submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(this::resetState));
-                } catch (Exception e) {
-                    onUnexpectedFailure(e);
+            recoveryPlanned.addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(Void ignore) {
+                    runRecovery();
                 }
-            }
 
-            private void resetState() {
-                synchronized (GatewayService.this) {
-                    assert recoveryPlanned == thisRecoveryPlanned;
-                    recoveryPlanned = null;
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ElasticsearchTimeoutException) {
+                        logger.info("recover_after_time [{}] elapsed. performing state recovery of term [{}]", recoverAfterTime, term);
+                        runRecovery();
+                    } else {
+                        onUnexpectedFailure(e);
+                    }
                 }
-            }
-        });
 
-        if (recoverAfterTime == null) {
-            logger.debug("performing state recovery, no delay time is configured");
-            thisRecoveryPlanned.onResponse(null);
-        } else if (expectedDataNodes != -1 && expectedDataNodes <= nodes.getDataNodes().size()) {
-            logger.debug("performing state recovery, expected data nodes [{}] is reached", expectedDataNodes);
-            thisRecoveryPlanned.onResponse(null);
-        } else {
-            final String reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
-            logger.info("delaying initial state recovery for [{}]. {}", recoverAfterTime, reason);
-            thisRecoveryPlanned.addTimeout(recoverAfterTime, threadPool, threadPool.generic());
+                private void onUnexpectedFailure(Exception e) {
+                    logger.warn("state recovery of term [" + term + "] failed", e);
+                    resetState();
+                }
+
+                private void runRecovery() {
+                    try {
+                        submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(this::resetState));
+                    } catch (Exception e) {
+                        onUnexpectedFailure(e);
+                    }
+                }
+
+                private void resetState() {
+                    synchronized (GatewayService.this) {
+                        assert recoveryPlanned == thisRecoveryPlanned;
+                        recoveryPlanned = null;
+                    }
+                }
+            });
+
+            if (recoverAfterTime == null) {
+                logger.debug("performing state recovery of term [{}], no delay time is configured", term);
+                thisRecoveryPlanned.onResponse(null);
+            } else if (expectedDataNodes != -1 && expectedDataNodes <= dataNodeSize) {
+                logger.debug("performing state recovery of term [{}], expected data nodes [{}] is reached", term, expectedDataNodes);
+                thisRecoveryPlanned.onResponse(null);
+            } else {
+                final String reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + dataNodeSize + "]";
+                logger.info("delaying initial state recovery for [{}] of term [{}]. {}", recoverAfterTime, term, reason);
+                thisRecoveryPlanned.addTimeout(recoverAfterTime, threadPool, threadPool.generic());
+            }
         }
     }
 

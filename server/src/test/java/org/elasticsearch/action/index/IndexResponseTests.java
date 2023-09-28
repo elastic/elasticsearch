@@ -30,6 +30,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexResponseTests extends ESTestCase {
 
@@ -80,6 +81,13 @@ public class IndexResponseTests extends ESTestCase {
      */
     public void testFromXContentWithRandomFields() throws IOException {
         doFromXContentTestWithRandomFields(true);
+    }
+
+    public void testSerialization() throws IOException {
+        // Note: IndexRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a Writable
+        Tuple<IndexResponse, IndexResponse> responseTuple = randomIndexResponse();
+        IndexResponse copy = copyWriteable(responseTuple.v1(), null, IndexResponse::new);
+        assertDocWriteResponse(responseTuple.v1(), copy);
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {

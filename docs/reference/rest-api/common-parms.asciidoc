@@ -693,7 +693,7 @@ tag::bulk-list-executed-pipelines[]
 `list_executed_pipelines`::
 (Optional, Boolean) If `true`, the response will include the ingest pipelines that
 were executed. Defaults to `false`.
-end::bulk-require-alias[]
+end::bulk-list-executed-pipelines[]
 
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::

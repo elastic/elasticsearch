@@ -94,6 +94,14 @@ public class IndexResponse extends DocWriteResponse {
         }
     }
 
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
+        }
+    }
+
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         XContentBuilder updatedBuilder = super.innerToXContent(builder, params);
         if (executedPipelines != null) {

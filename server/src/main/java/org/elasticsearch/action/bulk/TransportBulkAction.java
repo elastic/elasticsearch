@@ -932,20 +932,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
             failedSlots.set(slot);
             final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
-            itemResponses.add(
-                BulkItemResponse.success(
-                    slot,
-                    indexRequest.opType(),
-                    new IndexResponse(
-                        new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
-                        id,
-                        SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                        indexRequest.version(),
-                        DocWriteResponse.Result.NOOP
-                    )
-                )
+            IndexResponse ir = new IndexResponse(
+                new ShardId(indexRequest.index(), IndexMetadata.INDEX_UUID_NA_VALUE, 0),
+                id,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                indexRequest.version(),
+                DocWriteResponse.Result.NOOP
             );
+            ir.setShardInfo(new ReplicationResponse.ShardInfo(0, 0));
+            itemResponses.add(BulkItemResponse.success(slot, indexRequest.opType(), ir));
         }
 
         synchronized void markItemAsFailed(int slot, Exception e) {

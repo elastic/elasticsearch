@@ -559,13 +559,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 this.skipped = skippedTemp;
                 this.clusterInfo = Collections.emptyMap();
             }
-            int running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
-            int partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
-            int failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);
+            int running = getClusterStateCount(Cluster.Status.RUNNING);
+            int partial = getClusterStateCount(Cluster.Status.PARTIAL);
+            int failed = getClusterStateCount(Cluster.Status.FAILED);
             this.ccsMinimizeRoundtrips = false;
             assert total >= 0 : "total is negative: " + total;
-            assert total >= successful + skipped + running + partial + failed
-                : "successful + skipped + running + partial + failed is larger than total. total: "
+            assert total == successful + skipped + running + partial + failed
+                : "successful + skipped + running + partial + failed is not equal to total. total: "
                     + total
                     + " successful: "
                     + successful

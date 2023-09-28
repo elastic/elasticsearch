@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.not;
  */
 @TestLogging(
     value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE",
-    reason = "These tests are failing frequently; we need logs before muting them"
+    reason = "These tests were failing frequently, let's learn as much as we can"
 )
 public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     private static int PAGE_SIZE;
@@ -97,7 +97,8 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         MERGE_DESCRIPTION = """
             \\_ExchangeSourceOperator[]
             \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
-            \\_LimitOperator[limit = 10000]
+            \\_ProjectOperator[projection = [0]]
+            \\_LimitOperator[limit = 500]
             \\_OutputOperator[columns = sum(pause_me)]""";
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();

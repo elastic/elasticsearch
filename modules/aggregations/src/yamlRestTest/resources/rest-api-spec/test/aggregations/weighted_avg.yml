@@ -186,7 +186,7 @@ setup:
   - skip:
       features: close_to
   - do:
-      catch: request
+      catch: bad_request
       search:
         body:
           aggs:

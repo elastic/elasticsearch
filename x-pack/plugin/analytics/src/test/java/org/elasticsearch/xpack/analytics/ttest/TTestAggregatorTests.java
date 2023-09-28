@@ -177,8 +177,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMultiplePairedValues() {
-        AggregationExecutionException ex = expectThrows(
-            AggregationExecutionException.class,
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
             () -> testCase(new MatchAllDocsQuery(), TTestType.PAIRED, iw -> {
                 iw.addDocument(
                     asList(

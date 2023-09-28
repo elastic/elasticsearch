@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-package org.elasticsearch.xpack.core.ml.inference.results;
+
+package org.elasticsearch.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.util.Map;
+import java.util.Objects;
 
 public interface InferenceResults extends NamedWriteable, ToXContentFragment {
-    String PREDICTION_PROBABILITY = "prediction_probability";
     String MODEL_ID_RESULTS_FIELD = "model_id";
 
     static void writeResult(InferenceResults results, IngestDocument ingestDocument, String resultField, String modelId) {
-        ExceptionsHelper.requireNonNull(results, "results");
-        ExceptionsHelper.requireNonNull(ingestDocument, "ingestDocument");
-        ExceptionsHelper.requireNonNull(resultField, "resultField");
+        Objects.requireNonNull(results, "results");
+        Objects.requireNonNull(ingestDocument, "ingestDocument");
+        Objects.requireNonNull(resultField, "resultField");
         Map<String, Object> resultMap = results.asMap();
         resultMap.put(MODEL_ID_RESULTS_FIELD, modelId);
         if (ingestDocument.hasField(resultField)) {

@@ -29,6 +29,7 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -37,6 +38,10 @@ import static org.mockito.Mockito.when;
 // BlockFactory is used and effectively tested in many other places, but this class contains tests
 // more specific to the factory implementation itself (and not necessarily tested elsewhere).
 public class BlockFactoryTests extends ESTestCase {
+    public static BlockFactory blockFactory(ByteSizeValue size) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, size).withCircuitBreaking();
+        return new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+    }
 
     final CircuitBreaker breaker;
     final BigArrays bigArrays;
@@ -552,6 +557,12 @@ public class BlockFactoryTests extends ESTestCase {
     <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
+        if (data instanceof Block block) {
+            assertThat(block.isReleased(), is(true));
+            Page page = new Page(block);
+            var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+            assertThat(e.getMessage(), containsString("can't read released block"));
+        }
         assertThat(breaker.getUsed(), is(0L));
     }
 

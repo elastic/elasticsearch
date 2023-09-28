@@ -66,6 +66,7 @@ public class EmbeddedCli implements Closeable {
      */
     private boolean closed = false;
 
+    @SuppressWarnings("this-escape")
     public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, @Nullable SecurityConfig security)
         throws IOException {
         PipedOutputStream outgoing = new PipedOutputStream();

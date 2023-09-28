@@ -95,6 +95,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private volatile boolean timeExceeded = false;
 
     /** constructor for non-concurrent search */
+    @SuppressWarnings("this-escape")
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -106,6 +107,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /** constructor for concurrent search */
+    @SuppressWarnings("this-escape")
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -129,6 +131,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         );
     }
 
+    @SuppressWarnings("this-escape")
     ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,

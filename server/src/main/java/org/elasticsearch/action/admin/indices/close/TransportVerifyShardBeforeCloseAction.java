@@ -175,6 +175,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             phase1 = in.readBoolean();
         }
 
+        @SuppressWarnings("this-escape")
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final boolean phase1, final TaskId parentTaskId) {
             super(shardId);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);

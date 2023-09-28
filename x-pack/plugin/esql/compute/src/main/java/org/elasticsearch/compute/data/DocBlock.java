@@ -23,7 +23,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -72,6 +72,10 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
         Releasables.closeExpectNoException(vector);
     }
 

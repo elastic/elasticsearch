@@ -68,7 +68,7 @@ public class GatewayServiceTests extends ESTestCase {
 
     public void testRecoverStateUpdateTask() throws Exception {
         GatewayService service = createService(Settings.builder());
-        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask();
+        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(() -> {});
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
             settings(IndexVersion.current()).put(masterNode()).build(),

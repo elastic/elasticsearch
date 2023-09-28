@@ -8,10 +8,13 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Randomness;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
@@ -68,8 +71,13 @@ public final class BlockUtils {
             if (object instanceof List<?> listVal) {
                 BuilderWrapper wrapper = wrapperFor(fromJava(listVal.get(0).getClass()), blockSize);
                 wrapper.accept(listVal);
-                if (isAscending(listVal)) {
-                    wrapper.builder.mvOrdering(Block.MvOrdering.ASCENDING);
+                Random random = Randomness.get();
+                if (isDeduplicated(listVal) && random.nextBoolean()) {
+                    if (isAscending(listVal) && random.nextBoolean()) {
+                        wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+                    } else {
+                        wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_UNORDERD);
+                    }
                 }
                 blocks[i] = wrapper.builder.build();
             } else {
@@ -98,6 +106,14 @@ public final class BlockUtils {
             prev = val;
         }
         return true;
+    }
+
+    /**
+     * Detect blocks with deduplicated fields. This is *mostly* useful for
+     * exercising the specialized ascending implementations.
+     */
+    private static boolean isDeduplicated(List<?> values) {
+        return new HashSet<>(values).size() == values.size();
     }
 
     public static Block[] fromList(List<List<Object>> list) {

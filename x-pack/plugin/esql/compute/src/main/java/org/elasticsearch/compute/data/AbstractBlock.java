@@ -23,6 +23,8 @@ abstract class AbstractBlock implements Block {
 
     protected final BlockFactory blockFactory;
 
+    protected boolean released = false;
+
     /**
      * @param positionCount the number of values in this block
      */
@@ -93,5 +95,10 @@ abstract class AbstractBlock implements Block {
     @Override
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    @Override
+    public boolean isReleased() {
+        return released;
     }
 }

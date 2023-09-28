@@ -413,6 +413,36 @@ c:long | languages:integer | still_hired:boolean
      4 |              null | true
 ;
 
+byUnmentionedIntAndBooleanFollowedByProjection
+from employees | stats c = count(gender) by languages, still_hired | where languages > 3 | sort languages | keep languages;
+
+languages:integer 
+                4 
+                4
+                5
+                5 
+;
+
+byTwoGroupReturnedInDifferentOrder
+from employees | stats c = count(emp_no) by gender, languages | rename languages as l, gender as g | where l > 3 | keep g, l | sort g, l;
+
+g:keyword  | l:integer
+ F         | 4        
+ F         | 5
+ M         | 4        
+ M         | 5
+ null      | 4
+ null      | 5
+;
+
+repetitiveAggregation
+from employees | stats m1 = max(salary), m2 = min(salary), m3 = min(salary), m4 = max(salary);
+
+m1:i | m2:i | m3:i | m4:i
+74999| 25324| 25324| 74999
+;
+
+
 byDateAndKeywordAndInt
 from employees | eval d = date_trunc(1 year, hire_date) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc, gender desc | limit 10;
 
@@ -501,3 +531,5 @@ from employees | limit 10 | eval x = 1 | stats c = count(x);
 c:l
 10
 ;
+
+

@@ -54,10 +54,10 @@ public interface DataExtractor {
      */
     default void checkForSkippedClusters(SearchResponse searchResponse) {
         SearchResponse.Clusters clusterResponse = searchResponse.getClusters();
-        if (clusterResponse != null && clusterResponse.getSkipped() > 0) {
+        if (clusterResponse != null && clusterResponse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED) > 0) {
             throw new ResourceNotFoundException(
                 "[{}] remote clusters out of [{}] were skipped when performing datafeed search",
-                clusterResponse.getSkipped(),
+                clusterResponse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
                 clusterResponse.getTotal()
             );
         }

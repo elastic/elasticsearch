@@ -36,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -51,7 +52,6 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -59,6 +59,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.INSTANCE;
@@ -76,6 +77,8 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
+    private final Executor recoveryExecutor;
+    private final ThreadContext threadContext;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -91,16 +94,24 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
         this.indicesService = indicesService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
 
+        final var threadPool = transportService.getThreadPool();
+        this.recoveryExecutor = threadPool.generic();
+        this.threadContext = threadPool.getThreadContext();
+
         transportService.registerRequestHandler(
             START_RELOCATION_ACTION_NAME,
-            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            recoveryExecutor,
             StatelessPrimaryRelocationAction.Request::new,
-            (request, channel, task) -> handleStartRelocation(task, request, new ChannelActionListener<>(channel))
+            (request, channel, task) -> handleStartRelocation(
+                task,
+                request,
+                new ChannelActionListener<>(channel).map(ignored -> TransportResponse.Empty.INSTANCE)
+            )
         );
 
         transportService.registerRequestHandler(
             PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
-            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
+            recoveryExecutor,
             PrimaryContextHandoffRequest::new,
             (request, channel, task) -> handlePrimaryContextHandoff(
                 request,
@@ -124,29 +135,21 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
                 request,
                 task,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                    listener,
-                    in -> ActionResponse.Empty.INSTANCE,
-                    transportService.getThreadPool().generic()
-                )
+                new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
             );
         }
     }
 
-    private void handleStartRelocation(
-        Task task,
-        StatelessPrimaryRelocationAction.Request request,
-        ActionListener<ActionResponse.Empty> listener
-    ) {
+    private void handleStartRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<Void> listener) {
         PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
             clusterService,
-            transportService.getThreadPool().generic(),
-            transportService.getThreadPool().getThreadContext(),
+            recoveryExecutor,
+            threadContext,
             listener,
             new Consumer<>() {
                 @Override
-                public void accept(ActionListener<ActionResponse.Empty> l) {
+                public void accept(ActionListener<Void> l) {
                     handleStartRelocationWithFreshClusterState(task, request, l);
                 }
 
@@ -161,7 +164,7 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
     private void handleStartRelocationWithFreshClusterState(
         Task task,
         StatelessPrimaryRelocationAction.Request request,
-        ActionListener<ActionResponse.Empty> listener
+        ActionListener<Void> listener
     ) {
         // executed remotely by `TransportStatelessPrimaryRelocationAction#doExecute` (i.e. we are on the source node here)
         logger.debug(
@@ -237,11 +240,11 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
                             logger.trace("[{}] primary context handoff succeeded", request.shardId());
                             indexShard.recoveryStats().decCurrentAsSource();
                             return null;
-                        }), in -> TransportResponse.Empty.INSTANCE, transportService.getThreadPool().generic())
+                        }), in -> TransportResponse.Empty.INSTANCE, recoveryExecutor)
                     );
-                }), indexShard.getThreadPool().generic(), indexShard.getThreadPool().getThreadContext());
-            }, listener0.map(ignored -> ActionResponse.Empty.INSTANCE));
-        }), indexShard.getThreadPool().generic(), indexShard.getThreadPool().getThreadContext());
+                }), recoveryExecutor, threadContext);
+            }, listener0);
+        }), recoveryExecutor, threadContext);
     }
 
     private IndexEngine ensureIndexEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {

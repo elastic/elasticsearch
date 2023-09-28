@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.BytesRefArrayBlock;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -46,7 +45,7 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
       try {
-        return new ConstantBytesRefVector(evalValue(vector, 0, scratchPad), positionCount, driverContext.blockFactory()).asBlock();
+        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
       } catch (Exception e) {
         registerException(e);
         return Block.constantNullBlock(positionCount, driverContext.blockFactory());
@@ -67,9 +66,9 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
       }
     }
     return nullsMask == null
-          ? new BytesRefArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
+          ? driverContext.blockFactory().newBytesRefArrayVector(values, positionCount).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new BytesRefArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
+          : driverContext.blockFactory().newBytesRefArrayBlock(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED);
   }
 
   private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {

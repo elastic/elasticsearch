@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanArrayBlock;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
@@ -43,7 +42,7 @@ public final class ToBooleanFromLongEvaluator extends AbstractConvertFunction.Ab
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return new ConstantBooleanVector(evalValue(vector, 0), positionCount, driverContext.blockFactory()).asBlock();
+        return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0), positionCount);
       } catch (Exception e) {
         registerException(e);
         return Block.constantNullBlock(positionCount, driverContext.blockFactory());
@@ -63,9 +62,9 @@ public final class ToBooleanFromLongEvaluator extends AbstractConvertFunction.Ab
       }
     }
     return nullsMask == null
-          ? new BooleanArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
+          ? driverContext.blockFactory().newBooleanArrayVector(values, positionCount).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new BooleanArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
+          : driverContext.blockFactory().newBooleanArrayBlock(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED);
   }
 
   private static boolean evalValue(LongVector container, int index) {

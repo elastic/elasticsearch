@@ -35,7 +35,6 @@ import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.arrayBlockType;
 import static org.elasticsearch.compute.gen.Types.arrayVectorType;
 import static org.elasticsearch.compute.gen.Types.blockType;
-import static org.elasticsearch.compute.gen.Types.constantVectorType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class ConvertEvaluatorImplementer {
@@ -126,9 +125,9 @@ public class ConvertEvaluatorImplementer {
         {
             builder.beginControlFlow("try");
             {
-                var constVectType = constantVectorType(resultType);
+                var constVectType = blockType(resultType);
                 builder.addStatement(
-                    "return new $T($N, positionCount, driverContext.blockFactory()).asBlock()",
+                    "return driverContext.blockFactory().newConstant$TWith($N, positionCount)",
                     constVectType,
                     evalValueCall("vector", "0", scratchPadName)
                 );
@@ -183,9 +182,9 @@ public class ConvertEvaluatorImplementer {
         builder.addStatement(
             """
                 return nullsMask == null
-                  ? new $T(values, positionCount, driverContext.blockFactory()).asBlock()
+                  ? driverContext.blockFactory().new$T(values, positionCount).asBlock()
                   // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-                  : new $T(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory())""",
+                  : driverContext.blockFactory().new$T(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED)""",
             arrayVectorType(resultType),
             arrayBlockType(resultType)
         );

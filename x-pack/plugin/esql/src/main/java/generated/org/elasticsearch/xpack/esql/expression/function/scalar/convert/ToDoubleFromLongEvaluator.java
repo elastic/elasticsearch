@@ -8,7 +8,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.BitSet;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantDoubleVector;
 import org.elasticsearch.compute.data.DoubleArrayBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -43,7 +42,7 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return new ConstantDoubleVector(evalValue(vector, 0), positionCount, driverContext.blockFactory()).asBlock();
+        return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
       } catch (Exception e) {
         registerException(e);
         return Block.constantNullBlock(positionCount, driverContext.blockFactory());
@@ -63,9 +62,9 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
       }
     }
     return nullsMask == null
-          ? new DoubleArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
+          ? driverContext.blockFactory().newDoubleArrayVector(values, positionCount).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new DoubleArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
+          : driverContext.blockFactory().newDoubleArrayBlock(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED);
   }
 
   private static double evalValue(LongVector container, int index) {

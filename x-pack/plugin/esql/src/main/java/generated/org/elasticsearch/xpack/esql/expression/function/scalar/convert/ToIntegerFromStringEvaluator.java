@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -45,7 +44,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
       try {
-        return new ConstantIntVector(evalValue(vector, 0, scratchPad), positionCount, driverContext.blockFactory()).asBlock();
+        return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0, scratchPad), positionCount);
       } catch (Exception e) {
         registerException(e);
         return Block.constantNullBlock(positionCount, driverContext.blockFactory());
@@ -65,9 +64,9 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
       }
     }
     return nullsMask == null
-          ? new IntArrayVector(values, positionCount, driverContext.blockFactory()).asBlock()
+          ? driverContext.blockFactory().newIntArrayVector(values, positionCount).asBlock()
           // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new IntArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED, driverContext.blockFactory());
+          : driverContext.blockFactory().newIntArrayBlock(values, positionCount, null,  nullsMask, Block.MvOrdering.UNORDERED);
   }
 
   private static int evalValue(BytesRefVector container, int index, BytesRef scratchPad) {

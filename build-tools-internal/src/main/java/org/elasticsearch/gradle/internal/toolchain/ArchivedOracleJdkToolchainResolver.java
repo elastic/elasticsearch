@@ -25,8 +25,7 @@ import java.util.Optional;
 
 public abstract class ArchivedOracleJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
-    private static final Map<Integer, String> ARCHIVED_BASE_VERSIONS =
-        Maps.of(20, "20.0.2", 19, "19.0.2", 18, "18.0.2.1", 17, "17.0.7");
+    private static final Map<Integer, String> ARCHIVED_BASE_VERSIONS = Maps.of(20, "20.0.2", 19, "19.0.2", 18, "18.0.2.1", 17, "17.0.7");
 
     @Override
     public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {
@@ -44,24 +43,19 @@ public abstract class ArchivedOracleJdkToolchainResolver extends AbstractCustomJ
         String arch = toArchString(request.getBuildPlatform().getArchitecture());
         String os = toOsString(operatingSystem);
         return Optional.of(
-            () -> {
-                var uri = URI.create(
-                    "https://download.oracle.com/java/"
-                        + majorVersion
-                        + "/archive/jdk-"
-                        + baseVersion
-                        + "_"
-                        + os
-                        + "-"
-                        + arch
-                        + "_bin."
-                        + extension
+            () -> URI.create(
+                "https://download.oracle.com/java/"
+                    + majorVersion
+                    + "/archive/jdk-"
+                    + baseVersion
+                    + "_"
+                    + os
+                    + "-"
+                    + arch
+                    + "_bin."
+                    + extension
 
-                );
-                System.out.println("uri = " + uri);
-                return uri;
-
-            }
+            )
         );
     }
 

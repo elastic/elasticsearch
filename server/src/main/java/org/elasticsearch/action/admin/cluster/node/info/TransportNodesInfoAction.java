@@ -16,10 +16,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -78,7 +76,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
     @Override
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest, Task task) {
-        Set<String> metrics = nodeRequest.requestedMetrics();
+        NodesInfoRequest request = nodeRequest.request;
+        Set<String> metrics = request.requestedMetrics();
         return nodeService.info(
             metrics.contains(NodesInfoMetrics.Metric.SETTINGS.metricName()),
             metrics.contains(NodesInfoMetrics.Metric.OS.metricName()),
@@ -97,53 +96,21 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
     public static class NodeInfoRequest extends TransportRequest {
 
-        private NodesInfoMetrics nodesInfoMetrics;
-        private String[] nodesIds;
-        private DiscoveryNode[] concreteNodes;
-        private TimeValue timeout;
-        private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+        NodesInfoRequest request;
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);
-            parentTaskId = TaskId.readFromStream(in);
-            nodesIds = in.readStringArray();
-            concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-            timeout = in.readOptionalTimeValue();
-            nodesInfoMetrics = new NodesInfoMetrics(in);
+            request = new NodesInfoRequest(in);
         }
 
         public NodeInfoRequest(NodesInfoRequest request) {
-            nodesInfoMetrics = request.getNodesInfoMetrics();
+            this.request = request;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            parentTaskId.writeTo(out);
-            out.writeStringArrayNullable(nodesIds);
-            out.writeOptionalArray(concreteNodes);
-            out.writeOptionalTimeValue(timeout);
-            nodesInfoMetrics.writeTo(out);
-        }
-
-        public Set<String> requestedMetrics() {
-            return nodesInfoMetrics.requestedMetrics();
-        }
-
-        public String[] getNodesIds() {
-            return nodesIds;
-        }
-
-        public DiscoveryNode[] getConcreteNodes() {
-            return concreteNodes;
-        }
-
-        public TimeValue getTimeout() {
-            return timeout;
-        }
-
-        public TaskId getParentTaskId() {
-            return parentTaskId;
+            request.writeTo(out);
         }
     }
 }

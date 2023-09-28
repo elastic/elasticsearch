@@ -17,6 +17,7 @@ import java.util.Properties;
  * Accessor for shared dependency versions used by elasticsearch, namely the elasticsearch and lucene versions.
  */
 public class VersionProperties {
+
     public static String getElasticsearch() {
         return elasticsearch;
     }

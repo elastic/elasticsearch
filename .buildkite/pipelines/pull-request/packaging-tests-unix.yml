@@ -5,7 +5,7 @@ steps:
     steps:
       - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix"
         key: "packaging-tests-unix"
-        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $$PACKAGING_TASK
+        command: ./.ci/scripts/packaging-test.sh $$PACKAGING_TASK
         timeout_in_minutes: 300
         matrix:
           setup:

@@ -7,7 +7,6 @@ steps:
         key: "bwc-snapshots-windows"
         command: .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
         env:
-          BWC_VERSION: "{{matrix.BWC_VERSION}}"
           GRADLE_TASK: "v{{matrix.BWC_VERSION}}#bwcTest"
         timeout_in_minutes: 300
         matrix:

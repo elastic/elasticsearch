@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocati
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
@@ -164,32 +166,19 @@ public class DeploymentManager {
             finalListener.onResponse(task);
         }, failedDeploymentListener::onFailure);
 
+
+        ActionListener<TrainedModelConfig> executeStartAndLoad = ActionListener.wrap((modelConfig) -> {
+            executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
+        }, failedDeploymentListener::onFailure);
+
+        ActionListener<TrainedModelConfig> verifyMlNodesAndModelArchitectures = ActionListener.wrap((modelConfig) -> {
+            verifyMlNodesAndModelArchitectures(modelConfig, client, threadPool, executeStartAndLoad);
+        }, failedDeploymentListener::onFailure);
+
+
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             assert getModelResponse.getResources().results().size() == 1;
             TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
-            String modelId = modelConfig.getModelId();
-            String platformArchitecture = modelConfig.getPlatformArchitecture();
-
-            ActionListener<Void> failureListener = new ActionListener<Void>() {
-
-                @Override
-                public void onResponse(Void o) {
-
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    failedDeploymentListener.onFailure(e);
-                }
-            };
-
-            MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
-                failureListener,
-                client,
-                threadPool,
-                platformArchitecture,
-                modelId
-            );
 
             processContext.modelInput.set(modelConfig.getInput());
 
@@ -218,7 +207,8 @@ public class DeploymentManager {
                     // here, we are being called back on the searching thread, which MAY be a network thread
                     // `startAndLoad` creates named pipes, blocking the calling thread, better to execute that in our utility
                     // executor.
-                    executorServiceForDeployment.execute(() -> processContext.startAndLoad(modelConfig.getLocation(), modelLoadedListener));
+
+                    verifyMlNodesAndModelArchitectures.onResponse(modelConfig);
                 }, failedDeploymentListener::onFailure));
             } else {
                 failedDeploymentListener.onFailure(
@@ -239,6 +229,42 @@ public class DeploymentManager {
             GetTrainedModelsAction.INSTANCE,
             new GetTrainedModelsAction.Request(task.getParams().getModelId()),
             getModelListener
+        );
+    }
+
+    void verifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        Client client,
+        ThreadPool threadPool,
+        ActionListener<TrainedModelConfig> configToReturnListener
+    ) {
+        ActionListener<Void> verifyConfigListener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void v) {
+                configToReturnListener.onResponse(configToReturn);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                configToReturnListener.onResponse(configToReturn);
+            }
+        };
+
+        callVerifyMlNodesAndModelArchitectures(configToReturn, verifyConfigListener, client, threadPool);
+    }
+
+    void callVerifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        ActionListener<Void> failureListener,
+        Client client,
+        ThreadPool threadPool
+    ) {
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
+            failureListener,
+            client,
+            threadPool,
+            configToReturn.getPlatformArchitecture(),
+            configToReturn.getModelId()
         );
     }
 

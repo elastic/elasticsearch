@@ -7,11 +7,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -44,7 +42,7 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     }
     BytesRefBlock v = (BytesRefBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     BytesRef firstScratch = new BytesRef();
     BytesRef nextScratch = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
@@ -76,7 +74,7 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     }
     BytesRefBlock v = (BytesRefBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory());
     BytesRef firstScratch = new BytesRef();
     BytesRef nextScratch = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
@@ -89,9 +87,9 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
         MvMin.process(value, next);
       }
       BytesRef result = value;
-      values.append(result);
+      builder.appendBytesRef(result);
     }
-    return new BytesRefArrayVector(values, positionCount);
+    return builder.build();
   }
 
   /**
@@ -100,7 +98,7 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
   private Block evalAscendingNullable(Block fieldVal) {
     BytesRefBlock v = (BytesRefBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     BytesRef firstScratch = new BytesRef();
     BytesRef nextScratch = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
@@ -123,7 +121,7 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
   private Vector evalAscendingNotNullable(Block fieldVal) {
     BytesRefBlock v = (BytesRefBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory());
     BytesRef firstScratch = new BytesRef();
     BytesRef nextScratch = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
@@ -131,8 +129,8 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
       int first = v.getFirstValueIndex(p);
       int idx = MvMin.ascendingIndex(valueCount);
       BytesRef result = v.getBytesRef(first + idx, firstScratch);
-      values.append(result);
+      builder.appendBytesRef(result);
     }
-    return new BytesRefArrayVector(values, positionCount);
+    return builder.build();
   }
 }

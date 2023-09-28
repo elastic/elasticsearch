@@ -98,7 +98,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
         service.start(
             model,
-            ActionListener.wrap(ok -> listener.onResponse(new PutInferenceModelAction.Response(model)), listener::onFailure)
+            ActionListener.wrap(
+                ok -> listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations())),
+                listener::onFailure
+            )
         );
     }
 

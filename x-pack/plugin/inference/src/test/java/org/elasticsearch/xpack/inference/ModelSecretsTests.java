@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ModelSecrets;
@@ -18,6 +19,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecrets> {
 
@@ -35,7 +37,9 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(InferenceNamedWriteablesProvider.getNamedWriteables());
+        return new NamedWriteableRegistry(
+            List.of(new NamedWriteableRegistry.Entry(SecretSettings.class, FakeSecretSettings.NAME, FakeSecretSettings::new))
+        );
     }
 
     @Override
@@ -53,9 +57,13 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
         return mutateTestInstance(instance);
     }
 
-    private record FakeSecretSettings(String apiKey) implements SecretSettings {
+    public record FakeSecretSettings(String apiKey) implements SecretSettings {
         public static final String API_KEY = "api_key";
         public static final String NAME = "fake_secret_settings";
+
+        FakeSecretSettings(StreamInput in) throws IOException {
+            this(in.readString());
+        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

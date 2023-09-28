@@ -8,23 +8,13 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
 import java.util.Objects;
 
-public class Model implements ToXContentObject, VersionedNamedWriteable {
+public class Model {
     public static String documentId(String modelId) {
         return "model_" + modelId;
     }
 
-    private static final String NAME = "inference_model";
     private final ModelConfigurations configurations;
     private final ModelSecrets secrets;
 
@@ -35,11 +25,6 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
 
     public Model(ModelConfigurations configurations) {
         this(configurations, new ModelSecrets());
-
-    }
-
-    public Model(StreamInput in) throws IOException {
-        this(new ModelConfigurations(in), new ModelSecrets());
     }
 
     /**
@@ -89,27 +74,6 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
      */
     public SecretSettings getSecretSettings() {
         return secrets.getSecretSettings();
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_MODEL_SECRETS_ADDED;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // TODO should we wrap this in an object? Probably not
-        configurations.writeTo(out);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return configurations.toXContent(builder, params);
     }
 
     @Override

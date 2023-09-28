@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -54,15 +54,15 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
 
     public void testMockService() {
         String modelId = "test-mock";
-        Model putModel = putMockService(modelId, TaskType.SPARSE_EMBEDDING);
-        Model readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations putModel = putMockService(modelId, TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
         assertModelsAreEqual(putModel, readModel);
 
         // The response is randomly generated, the input can be anything
         inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, randomAlphaOfLength(10));
     }
 
-    private Model putMockService(String modelId, TaskType taskType) {
+    private ModelConfigurations putMockService(String modelId, TaskType taskType) {
         String body = """
             {
               "service": "test_service",
@@ -83,7 +83,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         );
 
         var response = client().execute(PutInferenceModelAction.INSTANCE, request).actionGet();
-        assertEquals("test_service", response.getModel().getConfigurations().getService());
+        assertEquals("test_service", response.getModel().getService());
 
         assertThat(response.getModel().getServiceSettings(), instanceOf(TestInferenceServicePlugin.TestServiceSettings.class));
         var serviceSettings = (TestInferenceServicePlugin.TestServiceSettings) response.getModel().getServiceSettings();
@@ -93,12 +93,10 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         var taskSettings = (TestInferenceServicePlugin.TestTaskSettings) response.getModel().getTaskSettings();
         assertEquals(3, (int) taskSettings.temperature());
 
-        assertNull(response.getModel().getSecretSettings());
-
         return response.getModel();
     }
 
-    public Model getModel(String modelId, TaskType taskType) {
+    public ModelConfigurations getModel(String modelId, TaskType taskType) {
         var response = client().execute(GetInferenceModelAction.INSTANCE, new GetInferenceModelAction.Request(modelId, taskType.toString()))
             .actionGet();
         return response.getModel();
@@ -116,19 +114,17 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         }
     }
 
-    private void assertModelsAreEqual(Model model1, Model model2) {
+    private void assertModelsAreEqual(ModelConfigurations model1, ModelConfigurations model2) {
         // The test can't rely on Model::equals as the specific subclass
         // may be different. Model loses information about it's implemented
         // subtype when it is streamed across the wire.
-        assertEquals(model1.getConfigurations().getModelId(), model2.getConfigurations().getModelId());
-        assertEquals(model1.getConfigurations().getService(), model2.getConfigurations().getService());
-        assertEquals(model1.getConfigurations().getTaskType(), model2.getConfigurations().getTaskType());
+        assertEquals(model1.getModelId(), model2.getModelId());
+        assertEquals(model1.getService(), model2.getService());
+        assertEquals(model1.getTaskType(), model2.getTaskType());
 
         // TaskSettings and Service settings are named writables so
         // the actual implementing class type is not lost when streamed \
         assertEquals(model1.getServiceSettings(), model2.getServiceSettings());
         assertEquals(model1.getTaskSettings(), model2.getTaskSettings());
-        assertNull(model1.getSecretSettings());
-        assertNull(model2.getSecretSettings());
     }
 }

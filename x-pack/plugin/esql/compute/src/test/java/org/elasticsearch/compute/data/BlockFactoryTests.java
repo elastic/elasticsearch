@@ -49,11 +49,29 @@ public class BlockFactoryTests extends ESTestCase {
 
     @ParametersFactory
     public static List<Object[]> params() {
-        List<Supplier<BlockFactory>> l = List.of(() -> {
-            CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-            BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-            return BlockFactory.getInstance(breaker, bigArrays);
-        }, BlockFactory::getGlobalInstance);
+        List<Supplier<BlockFactory>> l = List.of(new Supplier<>() {
+            @Override
+            public BlockFactory get() {
+                CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+                BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+                return BlockFactory.getInstance(breaker, bigArrays);
+            }
+
+            @Override
+            public String toString() {
+                return "1gb";
+            }
+        }, new Supplier<>() {
+            @Override
+            public BlockFactory get() {
+                return BlockFactory.getGlobalInstance();
+            }
+
+            @Override
+            public String toString() {
+                return "global";
+            }
+        });
         return l.stream().map(s -> new Object[] { s }).toList();
     }
 

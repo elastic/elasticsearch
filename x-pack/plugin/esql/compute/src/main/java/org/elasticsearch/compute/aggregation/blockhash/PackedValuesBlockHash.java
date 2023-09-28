@@ -22,8 +22,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.util.Arrays;
 import java.util.List;
@@ -51,7 +49,6 @@ import java.util.List;
  * }</pre>
  */
 final class PackedValuesBlockHash extends BlockHash {
-    private static final Logger logger = LogManager.getLogger(PackedValuesBlockHash.class);
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final List<HashAggregationOperator.GroupSpec> groups;
@@ -108,7 +105,7 @@ final class PackedValuesBlockHash extends BlockHash {
                 boolean singleEntry = true;
                 for (int g = 0; g < encoders.length; g++) {
                     positionOffsets[g]++;
-                    if (positionOffsets[g] >= encoders[g].positionCount()) {
+                    while (positionOffsets[g] >= encoders[g].positionCount()) {
                         encoders[g].encodeNextBatch();
                         positionOffsets[g] = 0;
                         valueOffsets[g] = 0;
@@ -148,6 +145,7 @@ final class PackedValuesBlockHash extends BlockHash {
             int g = 0;
             outer: for (;;) {
                 for (; g < encoders.length; g++) {
+                    bytesStarts[g] = bytes.length();
                     BytesRef v = encoders[g].read(valueOffsets[g] + loopedIndices[g], scratch);
                     ++loopedIndices[g];
                     if (v.length == 0) {
@@ -156,7 +154,6 @@ final class PackedValuesBlockHash extends BlockHash {
                         bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
                     } else {
                         bytes.append(v);
-                        bytesStarts[g] = bytes.length();
                     }
                 }
                 // emit ords
@@ -165,13 +162,14 @@ final class PackedValuesBlockHash extends BlockHash {
                 addedValueInMultivaluePosition(position);
 
                 // rewind
-                --g;
+                bytes.setLength(bytesStarts[--g]);
                 while (loopedIndices[g] == valueCounts[g]) {
                     loopedIndices[g] = 0;
                     if (g == 0) {
                         break outer;
+                    } else{
+                        bytes.setLength(bytesStarts[--g]);
                     }
-                    bytes.setLength(bytesStarts[g--]);
                 }
             }
             ords.endPositionEntry();

@@ -67,6 +67,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -3392,7 +3393,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 UpdateIndexShardSnapshotStatusRequest::new,
                 indexNameExpressionResolver,
                 in -> ActionResponse.Empty.INSTANCE,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
 

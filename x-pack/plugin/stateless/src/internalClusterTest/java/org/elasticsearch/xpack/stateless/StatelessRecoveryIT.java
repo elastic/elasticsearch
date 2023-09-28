@@ -1702,7 +1702,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         logger.info("--> stopped breaking requests on nodes [{}]", Strings.collectionToCommaDelimitedString(Arrays.stream(nodes).toList()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/776")
     public void testOngoingIndexShardRelocationAndMasterFailOver() throws Exception {
         String indexName = "test";
         startMasterOnlyNode(); // second master eligible node

@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -246,6 +247,8 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
     private IndexEngine ensureIndexEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
         if (engine instanceof IndexEngine indexEngine) {
             return indexEngine;
+        } else if (engine == null) {
+            throw new AlreadyClosedException("source shard closed before recovery started: " + shardRouting);
         } else {
             final var message = Strings.format(
                 "not an IndexEngine: %s [indexShardState=%s, shardRouting=%s]",

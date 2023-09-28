@@ -573,13 +573,16 @@ public class BlockFactoryTests extends ESTestCase {
     }
 
     <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
+        Page page = data instanceof Block block ? new Page(block) : null;
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
         if (data instanceof Block block) {
             assertThat(block.isReleased(), is(true));
-            Page page = new Page(block);
-            var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+            Exception e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
             assertThat(e.getMessage(), containsString("can't read released block"));
+
+            e = expectThrows(IllegalArgumentException.class, () -> new Page(block));
+            assertThat(e.getMessage(), containsString("can't build page out of released blocks"));
         }
         assertThat(breaker.getUsed(), is(0L));
     }

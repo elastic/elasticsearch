@@ -136,14 +136,18 @@ public class DocVectorTests extends ESTestCase {
         var block = new DocVector(IntVector.range(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), null)
             .asBlock();
         assertThat(block.isReleased(), is(false));
+        Page page = new Page(block);
+
         Releasables.closeExpectNoException(block);
         assertThat(block.isReleased(), is(true));
 
-        var ex = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(ex.getMessage(), containsString("can't release already released block"));
+        Exception e = expectThrows(IllegalStateException.class, () -> block.close());
+        assertThat(e.getMessage(), containsString("can't release already released block"));
 
-        Page page = new Page(block);
-        var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+        e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
         assertThat(e.getMessage(), containsString("can't read released block"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> new Page(block));
+        assertThat(e.getMessage(), containsString("can't build page out of released blocks"));
     }
 }

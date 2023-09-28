@@ -39,6 +39,9 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     // Flag set for disallowing index auto creation for an individual write request.
     String REQUIRE_ALIAS = "require_alias";
 
+    // Flag indicating that the list of executed pipelines should be returned in the request
+    String LIST_EXECUTED_PIPELINES = "list_executed_pipelines";
+
     /**
      * Set the index for this request
      * @return the Request

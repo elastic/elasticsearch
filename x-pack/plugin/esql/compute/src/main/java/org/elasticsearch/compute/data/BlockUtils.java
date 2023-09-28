@@ -122,6 +122,12 @@ public final class BlockUtils {
         return Arrays.stream(wrappers).map(b -> b.builder.build()).toArray(Block[]::new);
     }
 
+    public static Block deepCopyOf(Block block) {
+        Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount());
+        builder.copyFrom(block, 0, block.getPositionCount());
+        return builder.build();
+    }
+
     private static Class<?> type(List<List<Object>> list, int i) {
         int p = 0;
         while (p < list.size()) {
@@ -204,7 +210,7 @@ public final class BlockUtils {
     private static Object valueAtOffset(Block block, int offset) {
         return switch (block.elementType()) {
             case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
-            case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(offset, new BytesRef());
+            case BYTES_REF -> BytesRef.deepCopyOf(((BytesRefBlock) block).getBytesRef(offset, new BytesRef()));
             case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
             case INT -> ((IntBlock) block).getInt(offset);
             case LONG -> ((LongBlock) block).getLong(offset);

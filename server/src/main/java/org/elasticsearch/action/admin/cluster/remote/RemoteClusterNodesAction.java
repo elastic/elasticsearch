@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -108,7 +109,7 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
                 threadContext.markAsSystemContext();
                 if (request.remoteClusterServer) {
                     final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().clear()
-                        .addMetrics(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName());
+                        .addMetrics(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName());
                     transportService.sendRequest(
                         transportService.getLocalNode(),
                         NodesInfoAction.NAME,

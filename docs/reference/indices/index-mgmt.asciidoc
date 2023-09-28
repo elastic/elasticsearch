@@ -49,11 +49,11 @@ Badges indicate if an index is a <<ccr-put-follow,follower index>>, a
 Clicking a badge narrows the list to only indices of that type.
 You can also filter indices using the search bar.
 
-You can drill down into each index to investigate the index
+By clicking the index name, you can open an index details page to investigate the index
 <<index-modules-settings,settings>>, <<mapping,mapping>>, and statistics.
-From this view, you can also edit the index settings. 
+On this page, you can also edit the index settings.
 
-To view and explore the documents within an index, click the compass icon image:compassicon.png[width=3%] next to the index name to open {kibana-ref}/discover.html[Discover].
+To view and explore the documents within an index, click the *Discover index* button to open {kibana-ref}/discover.html[Discover].
 
 [role="screenshot"]
 image::images/index-mgmt/management_index_details.png[Index Management UI]

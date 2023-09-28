@@ -79,6 +79,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      *                          offset source for it because it'd be super slow
      * @param weightMatchesEnabled whether the {@link HighlightFlag#WEIGHT_MATCHES} should be enabled
      */
+    @SuppressWarnings("this-escape")
     public CustomUnifiedHighlighter(
         Builder builder,
         OffsetSource offsetSource,

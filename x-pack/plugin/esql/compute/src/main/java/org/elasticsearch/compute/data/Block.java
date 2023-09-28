@@ -58,6 +58,12 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
      */
     ElementType elementType();
 
+    /** The block factory associated with this block. */
+    BlockFactory blockFactory();
+
+    /** Tells if this block has been released. A block is released by calling its {@link Block#close()} method. */
+    boolean isReleased();
+
     /**
      * Returns true if the value stored at the given position is null, false otherwise.
      *
@@ -116,13 +122,22 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     Block expand();
 
     /**
-     * {@return a constant null block with the given number of positions}.
+     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
      */
+    // Eventually, this should use the GLOBAL breaking instance
     static Block constantNullBlock(int positions) {
-        return new ConstantNullBlock(positions);
+        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
     }
 
-    interface Builder {
+    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantNullBlock(positions);
+    }
+
+    /**
+     * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
+     * This is {@link Releasable} and should be released after building the block or if building the block fails.
+     */
+    interface Builder extends Releasable {
 
         /**
          * Appends a null value to the block.

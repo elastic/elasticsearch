@@ -69,6 +69,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         }
     }
 
+    @SuppressWarnings("this-escape")
     protected AbstractFieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
         String typeName = in.readOptionalString();

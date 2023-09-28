@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -15,7 +17,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DocVectorTests extends ESTestCase {
     public void testNonDecreasingSetTrue() {
@@ -95,32 +99,55 @@ public class DocVectorTests extends ESTestCase {
     }
 
     private void assertShardSegmentDocMap(int[][] data, int[][] expected) {
-        DocBlock.Builder builder = DocBlock.newBlockBuilder(data.length);
-        for (int r = 0; r < data.length; r++) {
-            builder.appendShard(data[r][0]);
-            builder.appendSegment(data[r][1]);
-            builder.appendDoc(data[r][2]);
-        }
-        DocVector docVector = builder.build().asVector();
-        int[] forwards = docVector.shardSegmentDocMapForwards();
+        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(data.length, blockFactory)) {
+            for (int r = 0; r < data.length; r++) {
+                builder.appendShard(data[r][0]);
+                builder.appendSegment(data[r][1]);
+                builder.appendDoc(data[r][2]);
+            }
+            try (DocVector docVector = builder.build().asVector()) {
+                int[] forwards = docVector.shardSegmentDocMapForwards();
 
-        int[][] result = new int[docVector.getPositionCount()][];
-        for (int p = 0; p < result.length; p++) {
-            result[p] = new int[] {
-                docVector.shards().getInt(forwards[p]),
-                docVector.segments().getInt(forwards[p]),
-                docVector.docs().getInt(forwards[p]) };
-        }
-        assertThat(result, equalTo(expected));
+                int[][] result = new int[docVector.getPositionCount()][];
+                for (int p = 0; p < result.length; p++) {
+                    result[p] = new int[] {
+                        docVector.shards().getInt(forwards[p]),
+                        docVector.segments().getInt(forwards[p]),
+                        docVector.docs().getInt(forwards[p]) };
+                }
+                assertThat(result, equalTo(expected));
 
-        int[] backwards = docVector.shardSegmentDocMapBackwards();
-        for (int p = 0; p < result.length; p++) {
-            result[p] = new int[] {
-                docVector.shards().getInt(backwards[forwards[p]]),
-                docVector.segments().getInt(backwards[forwards[p]]),
-                docVector.docs().getInt(backwards[forwards[p]]) };
-        }
+                int[] backwards = docVector.shardSegmentDocMapBackwards();
+                for (int p = 0; p < result.length; p++) {
+                    result[p] = new int[] {
+                        docVector.shards().getInt(backwards[forwards[p]]),
+                        docVector.segments().getInt(backwards[forwards[p]]),
+                        docVector.docs().getInt(backwards[forwards[p]]) };
+                }
 
-        assertThat(result, equalTo(data));
+                assertThat(result, equalTo(data));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testCannotDoubleRelease() {
+        var block = new DocVector(IntVector.range(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), IntVector.range(0, 2), null)
+            .asBlock();
+        assertThat(block.isReleased(), is(false));
+        Page page = new Page(block);
+
+        Releasables.closeExpectNoException(block);
+        assertThat(block.isReleased(), is(true));
+
+        Exception e = expectThrows(IllegalStateException.class, () -> block.close());
+        assertThat(e.getMessage(), containsString("can't release already released block"));
+
+        e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+        assertThat(e.getMessage(), containsString("can't read released block"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> new Page(block));
+        assertThat(e.getMessage(), containsString("can't build page out of released blocks"));
     }
 }

@@ -56,7 +56,7 @@
 
 # Leverages accelerated vector hardware instructions; removing this may
 # result in less optimal vector performance
-20:--add-modules=jdk.incubator.vector
+20-:--add-modules=jdk.incubator.vector
 
 ## heap dumps
 

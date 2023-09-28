@@ -47,7 +47,7 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             shardStateAction,
             actionFilters,
             UnpromotableShardRefreshRequest::new,
-            ThreadPool.Names.REFRESH
+            transportService.getThreadPool().executor(ThreadPool.Names.REFRESH)
         );
         this.indicesService = indicesService;
     }

@@ -103,6 +103,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
             Version.CURRENT,
             TransportVersion.current(),
             IndexVersion.current(),
+            Map.of(),
             Build.current(),
             discoveryNode,
             Settings.EMPTY,

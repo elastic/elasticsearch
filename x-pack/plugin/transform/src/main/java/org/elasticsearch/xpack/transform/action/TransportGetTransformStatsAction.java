@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
@@ -138,7 +139,11 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 ),
                 // at this point the transport already spend some time budget in `doExecute`, it is hard to tell what is left:
                 // recording the time spend would be complex and crosses machine boundaries, that's why we use a heuristic here
-                TimeValue.timeValueMillis((long) (request.getTimeout().millis() * CHECKPOINT_INFO_TIMEOUT_SHARE))
+                TimeValue.timeValueMillis(
+                    (long) ((request.getTimeout() != null
+                        ? request.getTimeout().millis()
+                        : AcknowledgedRequest.DEFAULT_ACK_TIMEOUT.millis()) * CHECKPOINT_INFO_TIMEOUT_SHARE)
+                )
             );
         } else {
             listener.onResponse(new Response(Collections.emptyList()));

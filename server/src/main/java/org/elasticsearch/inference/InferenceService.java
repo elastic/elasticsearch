@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.inference.services;
+package org.elasticsearch.inference;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.TaskType;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
 
 import java.util.Map;
 
@@ -46,19 +44,19 @@ public interface InferenceService {
     Model parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> config);
 
     /**
+     * Perform inference on the model.
+     *
+     * @param model The model
+     * @param input Inference input
+     * @param taskSettings Settings in the request to override the model's defaults
+     * @param listener Inference result listener
+     */
+    void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener);
+
+    /**
      * Start or prepare the model for use.
      * @param model The model
      * @param listener The listener
      */
     void start(Model model, ActionListener<Boolean> listener);
-
-    /**
-     * Perform inference on the model.
-     *
-     * @param model Model configuration
-     * @param input Inference input
-     * @param requestTaskSettings Settings in the request to override the model's defaults
-     * @param listener Inference result listener
-     */
-    void infer(Model model, String input, Map<String, Object> requestTaskSettings, ActionListener<InferenceResult> listener);
 }

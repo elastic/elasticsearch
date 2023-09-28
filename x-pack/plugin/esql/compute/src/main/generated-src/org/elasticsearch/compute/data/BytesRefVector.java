@@ -106,10 +106,16 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Creates a builder that grows as needed.
+     */
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newBytesRefVectorBuilder(estimatedSize);
     }
 
+    /**
+     * A builder that grows as needed.
+     */
     sealed interface Builder extends Vector.Builder permits BytesRefVectorBuilder {
         /**
          * Appends a BytesRef to the current entry.
@@ -119,4 +125,5 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         @Override
         BytesRefVector build();
     }
+
 }

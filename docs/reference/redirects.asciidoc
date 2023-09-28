@@ -1932,3 +1932,68 @@ Refer to <<remote-clusters>>.
 === Configure roles and users for remote clusters
 
 Refer to <<remote-clusters>>.
+
+[role="exclude",id="ingest-pipeline-search"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="ingest-pipeline-search-inference"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="nlp-example"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-overview"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-start"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-api"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-event"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-event-reference"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-cors"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-overview"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-api"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-client"]
+=== Foo
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-security"]
+=== Foo
+
+coming::[8.11.0]

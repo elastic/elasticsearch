@@ -211,7 +211,11 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         // Retrieve the predicate based on the retention policy, passing in snapshots pertaining only to *this* policy and repository
         final var relevantSnapshots = allSnapshotDetails.getOrDefault(repository, Map.of()).getOrDefault(policyId, Map.of());
         assert relevantSnapshots.containsKey(snapshot.snapshotId());
-        boolean eligible = retention.isSnapshotEligibleForDeletion(snapshot, relevantSnapshots);
+        boolean eligible = retention.isSnapshotEligibleForDeletion(
+            snapshot.snapshotId(),
+            RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshot),
+            relevantSnapshots
+        );
         logger.debug(
             "[{}] testing snapshot [{}] deletion eligibility: {}",
             repository,

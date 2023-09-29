@@ -186,7 +186,8 @@ public final class EvalMapper {
                     return Block.Ref.floating(block(lit, context.blockFactory(), page.getPositionCount()));
                 }
 
-                @Override public String toString() {
+                @Override
+                public String toString() {
                     return "LiteralsEvaluator[lit=" + lit + ']';
                 }
 

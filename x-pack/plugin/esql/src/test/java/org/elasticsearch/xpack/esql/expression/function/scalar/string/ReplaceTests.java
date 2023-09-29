@@ -23,7 +23,6 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -52,6 +51,24 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(text.replaceAll(oldStr, newStr)))
             );
         }));
+        // a syntactically wrong regex should yield null. And a warning header
+        // but for now we are letting the exception pass through. See also https://github.com/elastic/elasticsearch/issues/100038
+        // suppliers.add(new TestCaseSupplier("invalid_regex", () -> {
+        // String text = randomAlphaOfLength(10);
+        // String invalidRegex = "[";
+        // String newStr = randomAlphaOfLength(5);
+        // return new TestCaseSupplier.TestCase(
+        // List.of(
+        // new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+        // new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataTypes.KEYWORD, "oldStr"),
+        // new TestCaseSupplier.TypedData(new BytesRef(newStr), DataTypes.KEYWORD, "newStr")
+        // ),
+        // "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
+        // DataTypes.KEYWORD,
+        // equalTo(null)
+        // ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+        // .withWarning("java.util.regex.PatternSyntaxException: Unclosed character class near index 0\r\n[\r\n^");
+        // }));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -89,10 +106,6 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
         assertThat(process("I love cats and cats are amazing.", "\\bcats\\b", "dogs"), equalTo("I love dogs and dogs are amazing."));
     }
 
-    public void testInvalidRegex() {
-        assertThat(process("a tiger", "\\", "pp"), equalTo("a tiger"));
-    }
-
     public void testUnicode() {
         final String s = "a\ud83c\udf09tiger";
         assertThat(process(s, "a\ud83c\udf09t", "pp"), equalTo("ppiger"));
@@ -108,7 +121,8 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                 field("oldStr", DataTypes.KEYWORD),
                 field("newStr", DataTypes.KEYWORD)
             )
-        ).get().eval(row(list));
-        return result == null ? null : (Objects.requireNonNull((BytesRef) toJavaObject(result, 0)).utf8ToString());
+        ).get(driverContext()).eval(row(list));
+        BytesRef resultValue = (BytesRef) toJavaObject(result, 0);
+        return resultValue == null ? null : resultValue.utf8ToString();
     }
 }

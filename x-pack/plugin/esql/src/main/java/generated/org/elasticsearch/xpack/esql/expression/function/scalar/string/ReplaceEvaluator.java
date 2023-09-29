@@ -6,29 +6,41 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import java.lang.Override;
 import java.lang.String;
+import java.util.regex.PatternSyntaxException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Replace}.
  * This class is generated. Do not edit it.
  */
 public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator regex;
 
   private final EvalOperator.ExpressionEvaluator newStr;
 
-  public ReplaceEvaluator(EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator regex, EvalOperator.ExpressionEvaluator newStr) {
+  private final DriverContext driverContext;
+
+  public ReplaceEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
+      EvalOperator.ExpressionEvaluator regex, EvalOperator.ExpressionEvaluator newStr,
+      DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.regex = regex;
     this.newStr = newStr;
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -60,7 +72,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
     if (newStrVector == null) {
       return eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock);
     }
-    return eval(page.getPositionCount(), strVector, regexVector, newStrVector).asBlock();
+    return eval(page.getPositionCount(), strVector, regexVector, newStrVector);
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock regexBlock,
@@ -82,19 +94,29 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
         result.appendNull();
         continue position;
       }
-      result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch), newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
+      try {
+        result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch), newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
+      } catch (PatternSyntaxException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector strVector,
-      BytesRefVector regexVector, BytesRefVector newStrVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
+  public BytesRefBlock eval(int positionCount, BytesRefVector strVector, BytesRefVector regexVector,
+      BytesRefVector newStrVector) {
+    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
     BytesRef strScratch = new BytesRef();
     BytesRef regexScratch = new BytesRef();
     BytesRef newStrScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regexVector.getBytesRef(p, regexScratch), newStrVector.getBytesRef(p, newStrScratch)));
+      try {
+        result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regexVector.getBytesRef(p, regexScratch), newStrVector.getBytesRef(p, newStrScratch)));
+      } catch (PatternSyntaxException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
@@ -102,5 +124,10 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public String toString() {
     return "ReplaceEvaluator[" + "str=" + str + ", regex=" + regex + ", newStr=" + newStr + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(str, regex, newStr);
   }
 }

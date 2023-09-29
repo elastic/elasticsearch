@@ -216,6 +216,7 @@ import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -462,6 +463,7 @@ public class Node implements Closeable {
 
             final TelemetryProvider telemetryProvider = getTelemetryProvider(pluginsService, settings);
             final Tracer tracer = telemetryProvider.getTracer();
+            final Meter meter = telemetryProvider.getMeter();
 
             final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
@@ -826,6 +828,7 @@ public class Node implements Closeable {
                 usageService,
                 systemIndices,
                 tracer,
+                meter,
                 clusterService,
                 reservedStateHandlers,
                 pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)

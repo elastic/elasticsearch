@@ -30,6 +30,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -94,6 +96,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final UsageService usageService;
     private final Tracer tracer;
+
+    private final Meter meter;
+    private final LongCounter requestsCounter;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
 
@@ -102,10 +107,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        Tracer tracer,
+        Meter meter
     ) {
         this.usageService = usageService;
         this.tracer = tracer;
+        this.meter = meter;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -114,6 +121,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.circuitBreakerService = circuitBreakerService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
         this.apiProtections = new ServerlessApiProtections(false);
+        this.requestsCounter = this.meter.registerLongCounter("es-requests", "number of requests", "req");
     }
 
     public ServerlessApiProtections getApiProtections() {
@@ -525,6 +533,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
             // Loop through all possible handlers, attempting to dispatch the request
+            requestsCounter.incrementBy(1, Map.of("path", request.path(), "method", requestMethod.name(), "tester", "stuart"));
             Iterator<MethodHandlers> allHandlers = getAllHandlers(request.params(), rawPath);
             while (allHandlers.hasNext()) {
                 final RestHandler handler;

@@ -39,6 +39,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -1152,6 +1153,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             new UsageService(),
             null,
             null,
+            Meter.NOOP,
             mock(ClusterService.class),
             List.of(),
             RestExtension.allowAll()

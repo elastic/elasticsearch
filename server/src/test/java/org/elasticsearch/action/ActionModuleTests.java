@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -123,6 +124,7 @@ public class ActionModuleTests extends ESTestCase {
             usageService,
             null,
             null,
+            Meter.NOOP,
             mock(ClusterService.class),
             List.of(),
             RestExtension.allowAll()
@@ -183,6 +185,7 @@ public class ActionModuleTests extends ESTestCase {
                 usageService,
                 null,
                 null,
+                Meter.NOOP,
                 mock(ClusterService.class),
                 List.of(),
                 RestExtension.allowAll()
@@ -236,6 +239,7 @@ public class ActionModuleTests extends ESTestCase {
                 usageService,
                 null,
                 null,
+                Meter.NOOP,
                 mock(ClusterService.class),
                 List.of(),
                 RestExtension.allowAll()
@@ -284,6 +288,7 @@ public class ActionModuleTests extends ESTestCase {
                     usageService,
                     null,
                     null,
+                    Meter.NOOP,
                     mock(ClusterService.class),
                     List.of(),
                     RestExtension.allowAll()
@@ -323,6 +328,7 @@ public class ActionModuleTests extends ESTestCase {
                     usageService,
                     null,
                     null,
+                    Meter.NOOP,
                     mock(ClusterService.class),
                     List.of(),
                     RestExtension.allowAll()
@@ -377,7 +383,7 @@ public class ActionModuleTests extends ESTestCase {
             Tracer tracer
         ) {
             if (installController) {
-                return new RestController(handlerWrapper, client, circuitBreakerService, usageService, tracer);
+                return new RestController(handlerWrapper, client, circuitBreakerService, usageService, tracer, Meter.NOOP);
             } else {
                 return null;
             }

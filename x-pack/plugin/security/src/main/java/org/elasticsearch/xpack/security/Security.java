@@ -91,6 +91,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -650,7 +651,8 @@ public class Security extends Plugin
                 xContentRegistry,
                 environment,
                 nodeEnvironment.nodeMetadata(),
-                expressionResolver
+                expressionResolver,
+                telemetryProvider.getMeter()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -667,7 +669,8 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeMetadata nodeMetadata,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        Meter meter
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -706,7 +709,7 @@ public class Security extends Plugin
 
         // audit trail service construction
         final AuditTrail auditTrail = XPackSettings.AUDIT_ENABLED.get(settings)
-            ? new LoggingAuditTrail(settings, clusterService, threadPool)
+            ? new LoggingAuditTrail(settings, clusterService, threadPool, meter)
             : null;
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState());
         components.add(auditTrailService);

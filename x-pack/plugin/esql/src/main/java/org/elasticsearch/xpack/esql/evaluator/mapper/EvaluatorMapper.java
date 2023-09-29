@@ -37,8 +37,8 @@ public interface EvaluatorMapper {
     default Object fold() {
         return toJavaObject(toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
             @Override
-            public Block eval(Page page) {
-                return fromArrayRow(e.fold())[0];
+            public Block.Ref eval(Page page) {
+                return Block.Ref.floating(fromArrayRow(e.fold())[0]);
             }
 
             @Override
@@ -49,6 +49,6 @@ public interface EvaluatorMapper {
                 // TODO maybe this should have a small fixed limit?
                 new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
             )
-        ).eval(new Page(1)), 0);
+        ).eval(new Page(1)).block(), 0);
     }
 }

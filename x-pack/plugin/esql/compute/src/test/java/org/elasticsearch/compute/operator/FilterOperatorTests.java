@@ -30,14 +30,14 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     record SameLastDigit(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block eval(Page page) {
+        public Block.Ref eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
             BooleanVector.Builder result = BooleanVector.newVectorBuilder(page.getPositionCount());
             for (int p = 0; p < page.getPositionCount(); p++) {
                 result.appendBoolean(lhsVector.getLong(p) % 10 == rhsVector.getLong(p) % 10);
             }
-            return result.build().asBlock();
+            return Block.Ref.floating(result.build().asBlock());
         }
 
         @Override

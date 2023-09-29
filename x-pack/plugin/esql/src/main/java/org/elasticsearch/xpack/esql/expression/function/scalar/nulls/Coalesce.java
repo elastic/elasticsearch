@@ -129,7 +129,7 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
         implements
             EvalOperator.ExpressionEvaluator {
         @Override
-        public Block eval(Page page) {
+        public Block.Ref eval(Page page) {
             /*
              * We have to evaluate lazily so any errors or warnings that would be
              * produced by the right hand side are avoided. And so if anything
@@ -148,15 +148,16 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
                     IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
                 );
                 for (EvalOperator.ExpressionEvaluator eval : evaluators) {
-                    Block e = eval.eval(limited);
-                    if (false == e.isNull(0)) {
-                        result.copyFrom(e, 0, 1);
-                        continue position;
+                    try (Block.Ref ref = eval.eval(limited)) {
+                        if (false == ref.block().isNull(0)) {
+                            result.copyFrom(ref.block(), 0, 1);
+                            continue position;
+                        }
                     }
                 }
                 result.appendNull();
             }
-            return result.build();
+            return Block.Ref.floating(result.build());
         }
 
         @Override

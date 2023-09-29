@@ -16,6 +16,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 
 public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
 
+    @SuppressWarnings("this-escape")
     public DefaultLocalClusterSpecBuilder() {
         super();
         this.apply(new FipsEnabledClusterConfigProvider());

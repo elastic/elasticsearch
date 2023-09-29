@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -88,7 +89,6 @@ import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -113,6 +113,7 @@ public class LocalExecutionPlanner {
     private final String sessionId;
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
+    private final BlockFactory blockFactory;
     private final EsqlConfiguration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
@@ -123,6 +124,7 @@ public class LocalExecutionPlanner {
         String sessionId,
         CancellableTask parentTask,
         BigArrays bigArrays,
+        BlockFactory blockFactory,
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
@@ -132,6 +134,7 @@ public class LocalExecutionPlanner {
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
+        this.blockFactory = blockFactory;
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
@@ -149,14 +152,21 @@ public class LocalExecutionPlanner {
             configuration.pragmas().taskConcurrency(),
             configuration.pragmas().dataPartitioning(),
             configuration.pragmas().pageSize(),
-            bigArrays
+            bigArrays,
+            blockFactory
+        );
+
+        // workaround for https://github.com/elastic/elasticsearch/issues/99782
+        node = node.transformUp(
+            AggregateExec.class,
+            a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
 
         PhysicalOperation physicalOperation = plan(node, context);
 
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(context.bigArrays, physicalOperation, configuration.pragmas().statusInterval()),
+                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, configuration.pragmas().statusInterval()),
                 context.driverParallelism().get()
             )
         );
@@ -522,9 +532,14 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
+        List<? extends NamedExpression> projections = project.projections();
+        List<Integer> projectionList = new ArrayList<>(projections.size());
 
+        Layout.Builder layout = new Layout.Builder();
         Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
-        for (NamedExpression ne : project.projections()) {
+        for (int index = 0, size = projections.size(); index < size; index++) {
+            NamedExpression ne = projections.get(index);
+
             NameId inputId;
             if (ne instanceof Alias a) {
                 inputId = ((NamedExpression) a.child()).id();
@@ -540,26 +555,12 @@ public class LocalExecutionPlanner {
                 throw new IllegalArgumentException("type mismatch for aliases");
             }
             channelSet.nameIds().add(ne.id());
+
+            layout.append(channelSet);
+            projectionList.add(input.channel());
         }
 
-        BitSet mask = new BitSet();
-        Layout.Builder layout = new Layout.Builder();
-
-        for (int inChannel = 0; inChannel < source.layout.numberOfChannels(); inChannel++) {
-            Layout.ChannelSet outputSet = inputChannelToOutputIds.get(inChannel);
-
-            if (outputSet != null) {
-                mask.set(inChannel);
-                layout.append(outputSet);
-            }
-        }
-
-        if (mask.cardinality() == source.layout.numberOfChannels()) {
-            // all columns are retained, project operator is not needed but the layout needs to be updated
-            return source.with(layout.build());
-        } else {
-            return source.with(new ProjectOperatorFactory(mask), layout.build());
-        }
+        return source.with(new ProjectOperatorFactory(projectionList), layout.build());
     }
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
@@ -680,7 +681,8 @@ public class LocalExecutionPlanner {
         int taskConcurrency,
         DataPartitioning dataPartitioning,
         int configuredPageSize,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        BlockFactory blockFactory
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -704,7 +706,7 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation, TimeValue statusInterval)
+    record DriverSupplier(BigArrays bigArrays, BlockFactory blockFactory, PhysicalOperation physicalOperation, TimeValue statusInterval)
         implements
             Function<String, Driver>,
             Describable {
@@ -714,7 +716,7 @@ public class LocalExecutionPlanner {
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            var driverContext = new DriverContext(bigArrays);
+            var driverContext = new DriverContext(bigArrays, blockFactory);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

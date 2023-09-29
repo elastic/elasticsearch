@@ -142,7 +142,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public LongBlock.Builder builder(int positionCount) {
-            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override
@@ -197,7 +197,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public LongBlock.Builder builder(int positionCount) {
-            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return LongBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override
@@ -259,7 +259,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public IntBlock.Builder builder(int positionCount) {
-            return IntBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return IntBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override
@@ -314,7 +314,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public IntBlock.Builder builder(int positionCount) {
-            return IntBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return IntBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override
@@ -378,7 +378,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public DoubleBlock.Builder builder(int positionCount) {
-            return DoubleBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return DoubleBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override
@@ -435,7 +435,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public DoubleBlock.Builder builder(int positionCount) {
-            return DoubleBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return DoubleBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override
@@ -497,7 +497,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public BytesRefBlock.Builder builder(int positionCount) {
-            return BytesRefBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return BytesRefBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override
@@ -558,7 +558,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public BooleanBlock.Builder builder(int positionCount) {
-            return BooleanBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return BooleanBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override
@@ -613,7 +613,7 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public BooleanBlock.Builder builder(int positionCount) {
-            return BooleanBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.ASCENDING);
+            return BooleanBlock.newBlockBuilder(positionCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
         }
 
         @Override

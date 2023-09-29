@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -45,26 +46,28 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valueUncastBlock = value.eval(page);
-    if (valueUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valueRef = value.eval(page)) {
+      if (valueRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      LongBlock valueBlock = (LongBlock) valueRef.block();
+      try (Block.Ref chronoFieldRef = chronoField.eval(page)) {
+        if (chronoFieldRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoFieldRef.block();
+        LongVector valueVector = valueBlock.asVector();
+        if (valueVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valueBlock, chronoFieldBlock));
+        }
+        BytesRefVector chronoFieldVector = chronoFieldBlock.asVector();
+        if (chronoFieldVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valueBlock, chronoFieldBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), valueVector, chronoFieldVector));
+      }
     }
-    LongBlock valueBlock = (LongBlock) valueUncastBlock;
-    Block chronoFieldUncastBlock = chronoField.eval(page);
-    if (chronoFieldUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoFieldUncastBlock;
-    LongVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
-    }
-    BytesRefVector chronoFieldVector = chronoFieldBlock.asVector();
-    if (chronoFieldVector == null) {
-      return eval(page.getPositionCount(), valueBlock, chronoFieldBlock);
-    }
-    return eval(page.getPositionCount(), valueVector, chronoFieldVector);
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock, BytesRefBlock chronoFieldBlock) {
@@ -107,5 +110,10 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public String toString() {
     return "DateExtractEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(value, chronoField);
   }
 }

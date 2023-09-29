@@ -77,6 +77,7 @@ public class BlockTestUtils {
         for (int i = 0; i < page.getBlockCount(); i++) {
             readInto(values.get(i), page.getBlock(i));
         }
+        page.releaseBlocks();
     }
 
     public static void readInto(List<Object> values, Block block) {

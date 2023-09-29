@@ -23,7 +23,7 @@ public class CannedSourceOperator extends SourceOperator {
             List<Page> pages = new ArrayList<>();
             while (source.isFinished() == false) {
                 Page in = source.getOutput();
-                if (in == null) {
+                if (in == null || in.getPositionCount() == 0) {
                     continue;
                 }
                 pages.add(in);
@@ -53,6 +53,25 @@ public class CannedSourceOperator extends SourceOperator {
         return new Page(blocks);
     }
 
+    /**
+     * Make a deep copy of some pages. Useful so that when the originals are
+     * released the copies are still live.
+     */
+    public static List<Page> deepCopyOf(List<Page> pages) {
+        List<Page> out = new ArrayList<>(pages.size());
+        for (Page p : pages) {
+            Block[] blocks = new Block[p.getBlockCount()];
+            for (int b = 0; b < blocks.length; b++) {
+                Block orig = p.getBlock(b);
+                Block.Builder builder = orig.elementType().newBlockBuilder(p.getPositionCount());
+                builder.copyFrom(orig, 0, p.getPositionCount());
+                blocks[b] = builder.build();
+            }
+            out.add(new Page(blocks));
+        }
+        return out;
+    }
+
     private final Iterator<Page> page;
 
     public CannedSourceOperator(Iterator<Page> page) {
@@ -77,5 +96,9 @@ public class CannedSourceOperator extends SourceOperator {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        while (page.hasNext()) {
+            page.next().releaseBlocks();
+        }
+    }
 }

@@ -302,7 +302,8 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
         return version1.id > version2.id ? version1 : version2;
     }
 
-    public static TransformConfigVersion fromVersion(Version version) {
+    // Visible only for testing
+    static TransformConfigVersion fromVersion(Version version) {
         if (version.equals(Version.V_8_10_0)) {
             return V_10;
         }
@@ -310,13 +311,6 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
             throw new IllegalArgumentException("Cannot convert " + version + ". Incompatible version");
         }
         return fromId(version.id);
-    }
-
-    public static Version toVersion(TransformConfigVersion TransformConfigVersion) {
-        if (TransformConfigVersion.before(FIRST_TRANSFORM_VERSION) || TransformConfigVersion.onOrAfter(V_8_10_0)) {
-            throw new IllegalArgumentException("Cannot convert " + TransformConfigVersion + ". Incompatible version");
-        }
-        return Version.fromId(TransformConfigVersion.id);
     }
 
     public static TransformConfigVersion getMinTransformConfigVersion(DiscoveryNodes nodes) {

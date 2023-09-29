@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -25,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
@@ -42,7 +43,19 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
-        return new StringExtractOperator.StringExtractOperatorFactory(new String[] { "test" }, dvrCtx -> page -> page.getBlock(0), expEval);
+        return new StringExtractOperator.StringExtractOperatorFactory(
+            new String[] { "test" },
+            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block.Ref eval(Page page) {
+                    return new Block.Ref(page.getBlock(0), page);
+                }
+
+                @Override
+                public void close() {}
+            },
+            expEval
+        );
     }
 
     @Override
@@ -77,11 +90,15 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
     public void testMultivalueDissectInput() {
 
-        StringExtractOperator operator = new StringExtractOperator(
-            new String[] { "test" },
-            (page) -> page.getBlock(0),
-            new FirstWord("test")
-        );
+        StringExtractOperator operator = new StringExtractOperator(new String[] { "test" }, new EvalOperator.ExpressionEvaluator() {
+            @Override
+            public Block.Ref eval(Page page) {
+                return new Block.Ref(page.getBlock(0), page);
+            }
+
+            @Override
+            public void close() {}
+        }, new FirstWord("test"));
 
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
         builder.beginPositionEntry();

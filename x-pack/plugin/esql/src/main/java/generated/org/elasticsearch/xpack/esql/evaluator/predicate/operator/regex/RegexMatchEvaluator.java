@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RegexMatch}.
@@ -36,17 +37,18 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block eval(Page page) {
-    Block inputUncastBlock = input.eval(page);
-    if (inputUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref inputRef = input.eval(page)) {
+      if (inputRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock inputBlock = (BytesRefBlock) inputRef.block();
+      BytesRefVector inputVector = inputBlock.asVector();
+      if (inputVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), inputBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), inputVector).asBlock());
     }
-    BytesRefBlock inputBlock = (BytesRefBlock) inputUncastBlock;
-    BytesRefVector inputVector = inputBlock.asVector();
-    if (inputVector == null) {
-      return eval(page.getPositionCount(), inputBlock);
-    }
-    return eval(page.getPositionCount(), inputVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock) {
@@ -74,5 +76,10 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "RegexMatchEvaluator[" + "input=" + input + ", pattern=" + pattern + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(input);
   }
 }

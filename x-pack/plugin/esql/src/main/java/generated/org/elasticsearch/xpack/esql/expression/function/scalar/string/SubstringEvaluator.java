@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Substring}.
@@ -39,35 +40,38 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      if (strRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      try (Block.Ref startRef = start.eval(page)) {
+        if (startRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        IntBlock startBlock = (IntBlock) startRef.block();
+        try (Block.Ref lengthRef = length.eval(page)) {
+          if (lengthRef.block().areAllValuesNull()) {
+            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          }
+          IntBlock lengthBlock = (IntBlock) lengthRef.block();
+          BytesRefVector strVector = strBlock.asVector();
+          if (strVector == null) {
+            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock, lengthBlock));
+          }
+          IntVector startVector = startBlock.asVector();
+          if (startVector == null) {
+            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock, lengthBlock));
+          }
+          IntVector lengthVector = lengthBlock.asVector();
+          if (lengthVector == null) {
+            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, startBlock, lengthBlock));
+          }
+          return Block.Ref.floating(eval(page.getPositionCount(), strVector, startVector, lengthVector).asBlock());
+        }
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block startUncastBlock = start.eval(page);
-    if (startUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    IntBlock startBlock = (IntBlock) startUncastBlock;
-    Block lengthUncastBlock = length.eval(page);
-    if (lengthUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    IntBlock lengthBlock = (IntBlock) lengthUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, startBlock, lengthBlock);
-    }
-    IntVector startVector = startBlock.asVector();
-    if (startVector == null) {
-      return eval(page.getPositionCount(), strBlock, startBlock, lengthBlock);
-    }
-    IntVector lengthVector = lengthBlock.asVector();
-    if (lengthVector == null) {
-      return eval(page.getPositionCount(), strBlock, startBlock, lengthBlock);
-    }
-    return eval(page.getPositionCount(), strVector, startVector, lengthVector).asBlock();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock startBlock,
@@ -105,5 +109,10 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public String toString() {
     return "SubstringEvaluator[" + "str=" + str + ", start=" + start + ", length=" + length + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(str, start, length);
   }
 }

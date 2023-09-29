@@ -180,11 +180,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".fleet-files-*")
-                    .privileges("all")
-                    .allowRestrictedIndices(true)
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-files-*").privileges("all").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-filedelivery-data-*")
                     .privileges("all")

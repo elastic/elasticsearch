@@ -51,10 +51,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         String wireLuceneVersion = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             wireLuceneVersion = in.readString();
-        } else
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
-                TransportVersion.readVersion(in);
-            }
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            TransportVersion.readVersion(in);
+        }
 
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
@@ -108,9 +107,8 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         // Now the lucene version is written explicitly.
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             out.writeString(luceneVersion);
-        } else
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
-                TransportVersion.writeVersion(TransportVersion.current(), out);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            TransportVersion.writeVersion(TransportVersion.current(), out);
         }
         clusterName.writeTo(out);
         out.writeString(clusterUuid);

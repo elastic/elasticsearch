@@ -106,10 +106,15 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
     }
 
     public Source readSource() throws IOException {
-        int line = readInt();
-        int column = readInt();
-        int length = readInt();
-        return new Source(new Location(line, column), sourceText(configuration.query(), line, column, length));
+        boolean hasSource = readBoolean();
+        if (hasSource) {
+            int line = readInt();
+            int column = readInt();
+            int length = readInt();
+            int charPositionInLine = column - 1;
+            return new Source(new Location(line, charPositionInLine), sourceText(configuration.query(), line, column, length));
+        }
+        return Source.EMPTY;
     }
 
     private static String sourceText(String query, int line, int column, int length) {

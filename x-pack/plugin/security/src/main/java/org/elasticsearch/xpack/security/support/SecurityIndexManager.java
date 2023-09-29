@@ -137,7 +137,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         } else if (state.indexExists()) {
             return new UnavailableShardsException(
                 null,
-                "at least one primary shard for the index [" + state.concreteIndexName + "] is unavailable"
+                "index [" + state.concreteIndexName + "] exists but at least one shard is unavailable"
             );
         } else {
             return new IndexNotFoundException(state.concreteIndexName);

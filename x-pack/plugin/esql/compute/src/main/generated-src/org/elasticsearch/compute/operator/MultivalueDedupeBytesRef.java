@@ -146,6 +146,9 @@ public class MultivalueDedupeBytesRef {
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
     public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
+        if (block.mvDeduplicated()) {
+            return hashDirect(hash);
+        }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -172,6 +175,31 @@ public class MultivalueDedupeBytesRef {
             }
         }
         return new MultivalueDedupe.HashResult(builder.build(), sawNull);
+    }
+
+    private MultivalueDedupe.HashResult hashDirect(BytesRefHash hash) {
+        final BytesRef scratch = work[0];
+        IntBlock.Builder ords = IntBlock.newBlockBuilder(block.getPositionCount());
+        boolean sawNull = false;
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            int count = block.getValueCount(p);
+            int first = block.getFirstValueIndex(p);
+            if (count == 0) {
+                sawNull = true;
+                ords.appendInt(0);
+            } else if (count == 1) {
+                BytesRef v = block.getBytesRef(first, scratch);
+                hash(ords, hash, v);
+            } else {
+                ords.beginPositionEntry();
+                for (int c = 0; c < count; c++) {
+                    BytesRef v = block.getBytesRef(first + c, scratch);
+                    hash(ords, hash, v);
+                }
+                ords.endPositionEntry();
+            }
+        }
+        return new MultivalueDedupe.HashResult(ords.build(), sawNull);
     }
 
     /**

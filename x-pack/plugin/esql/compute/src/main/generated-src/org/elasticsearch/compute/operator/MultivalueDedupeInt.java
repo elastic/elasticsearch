@@ -142,6 +142,9 @@ public class MultivalueDedupeInt {
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
     public MultivalueDedupe.HashResult hash(LongHash hash) {
+        if (block.mvDeduplicated()) {
+            return hashDirect(hash);
+        }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -168,6 +171,30 @@ public class MultivalueDedupeInt {
             }
         }
         return new MultivalueDedupe.HashResult(builder.build(), sawNull);
+    }
+
+    private MultivalueDedupe.HashResult hashDirect(LongHash hash) {
+        IntBlock.Builder ords = IntBlock.newBlockBuilder(block.getPositionCount());
+        boolean sawNull = false;
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            int count = block.getValueCount(p);
+            int first = block.getFirstValueIndex(p);
+            if (count == 0) {
+                sawNull = true;
+                ords.appendInt(0);
+            } else if (count == 1) {
+                int v = block.getInt(first);
+                hash(ords, hash, v);
+            } else {
+                ords.beginPositionEntry();
+                for (int c = 0; c < count; c++) {
+                    int v = block.getInt(first + c);
+                    hash(ords, hash, v);
+                }
+                ords.endPositionEntry();
+            }
+        }
+        return new MultivalueDedupe.HashResult(ords.build(), sawNull);
     }
 
     /**

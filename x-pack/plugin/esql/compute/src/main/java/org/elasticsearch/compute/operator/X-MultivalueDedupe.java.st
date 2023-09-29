@@ -188,6 +188,9 @@ $if(BytesRef)$
 $else$
     public MultivalueDedupe.HashResult hash(LongHash hash) {
 $endif$
+        if (block.mvDeduplicated()) {
+            return hashDirect(hash);
+        }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
         boolean sawNull = false;
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -218,6 +221,43 @@ $endif$
             }
         }
         return new MultivalueDedupe.HashResult(builder.build(), sawNull);
+    }
+
+$if(BytesRef)$
+    private MultivalueDedupe.HashResult hashDirect(BytesRefHash hash) {
+        final BytesRef scratch = work[0];
+$else$
+    private MultivalueDedupe.HashResult hashDirect(LongHash hash) {
+$endif$
+        IntBlock.Builder ords = IntBlock.newBlockBuilder(block.getPositionCount());
+        boolean sawNull = false;
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            int count = block.getValueCount(p);
+            int first = block.getFirstValueIndex(p);
+            if (count == 0) {
+                sawNull = true;
+                ords.appendInt(0);
+            } else if (count == 1) {
+            $if(BytesRef)$
+                BytesRef v = block.getBytesRef(first, scratch);
+            $else$
+                $type$ v = block.get$Type$(first);
+            $endif$
+                hash(ords, hash, v);
+            } else {
+                ords.beginPositionEntry();
+                for (int c = 0; c < count; c++) {
+                $if(BytesRef)$
+                    BytesRef v = block.getBytesRef(first + c, scratch);
+                $else$
+                    $type$ v = block.get$Type$(first + c);
+                $endif$
+                    hash(ords, hash, v);
+                }
+                ords.endPositionEntry();
+            }
+        }
+        return new MultivalueDedupe.HashResult(ords.build(), sawNull);
     }
 
     /**

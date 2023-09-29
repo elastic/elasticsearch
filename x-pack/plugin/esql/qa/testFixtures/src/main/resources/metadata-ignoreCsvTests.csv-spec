@@ -112,7 +112,8 @@ emp_no:integer |_index:integer |_version:keyword
 10003          |3              |version
 ;
 
-multipleIndices
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+multipleIndices-Ignore
 // tag::multipleIndices[]
 FROM ul_logs, apps [METADATA _index, _version]
 | WHERE id IN (13, 14) AND _version == 1

@@ -177,20 +177,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         );
     }
 
-    public DiscoveryNode(
-        @Nullable String nodeName,
-        String nodeId,
-        String ephemeralId,
-        String hostName,
-        String hostAddress,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles,
-        @Nullable VersionInformation versionInfo
-    ) {
-        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, inferFeaturesFrom(versionInfo), versionInfo);
-    }
-
     /**
      * Creates a new {@link DiscoveryNode}.
      * <p>
@@ -218,12 +204,42 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Set<String> features,
         @Nullable VersionInformation versionInfo
     ) {
-        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, features, versionInfo, null);
+        this(
+            nodeName,
+            nodeId,
+            ephemeralId,
+            hostName,
+            hostAddress,
+            address,
+            attributes,
+            roles,
+            inferFeaturesFrom(versionInfo),
+            versionInfo,
+            null
+        );
     }
 
+    /**
+     * Creates a new {@link DiscoveryNode}.
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
+     * @param hostAddress      the nodes host address
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param versionInfo      node version info
+     * @param externalId       the external id used to identify this node by external systems
+     */
     public DiscoveryNode(
         @Nullable String nodeName,
         String nodeId,
@@ -259,10 +275,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Creates a new {@link DiscoveryNode}.
      * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
-     * and updated.
+     * This methods <em>does not</em> add any historical features from the node's specified version.
+     * Such features must be added to the feature set before this method is called.
      * </p>
      *
      * @param nodeName         the nodes name
@@ -272,10 +286,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
+     * @param features         node feature ids
      * @param versionInfo      node version info
      * @param externalId       the external id used to identify this node by external systems
      */
-    public DiscoveryNode(
+    DiscoveryNode(
         @Nullable String nodeName,
         String nodeId,
         String ephemeralId,
@@ -318,13 +333,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /**
      * Creates a DiscoveryNode representing the local node.
-     *
-     * @param settings
-     * @param publishAddress
-     * @param nodeId
      */
     public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
-        return createLocal(settings, Set.of(), publishAddress, nodeId);
+        return createLocal(settings, inferFeaturesFrom(null), publishAddress, nodeId);
     }
 
     /** Creates a DiscoveryNode representing the local node. */

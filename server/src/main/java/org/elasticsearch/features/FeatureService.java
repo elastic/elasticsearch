@@ -103,7 +103,7 @@ public class FeatureService {
         return features != null ? features.getValue() : Set.of();
     }
 
-    private final Set<String> features = new HashSet<>();
+    private final Set<String> features = new TreeSet<>(readHistoricalFeatures(Version.CURRENT));
     private volatile boolean locked;
 
     public FeatureService() {

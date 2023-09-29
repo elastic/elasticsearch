@@ -11,11 +11,14 @@ package org.elasticsearch.cluster.node;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 
@@ -64,6 +67,7 @@ public class DiscoveryNodeUtils {
         private TransportAddress address;
         private Map<String, String> attributes = Map.of();
         private Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
+        private final Set<String> additionalFeatures = new HashSet<>();
         private Version version;
         private IndexVersion minIndexVersion;
         private IndexVersion maxIndexVersion;
@@ -101,6 +105,11 @@ public class DiscoveryNodeUtils {
 
         public Builder roles(Set<DiscoveryNodeRole> roles) {
             this.roles = Objects.requireNonNull(roles);
+            return this;
+        }
+
+        public Builder addFeature(String featureId) {
+            this.additionalFeatures.add(featureId);
             return this;
         }
 
@@ -146,7 +155,22 @@ public class DiscoveryNodeUtils {
                 versionInfo = new VersionInformation(version, minIndexVersion, maxIndexVersion);
             }
 
-            return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);
+            Set<String> nodeFeatures = new TreeSet<>(additionalFeatures);
+            nodeFeatures.addAll(FeatureService.readHistoricalFeatures(versionInfo.nodeVersion()));
+
+            return new DiscoveryNode(
+                name,
+                id,
+                ephemeralId,
+                hostName,
+                hostAddress,
+                address,
+                attributes,
+                roles,
+                nodeFeatures,
+                versionInfo,
+                externalId
+            );
         }
     }
 }

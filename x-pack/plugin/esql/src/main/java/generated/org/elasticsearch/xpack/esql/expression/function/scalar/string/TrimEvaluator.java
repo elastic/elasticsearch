@@ -30,17 +30,18 @@ public final class TrimEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
+      BytesRefVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), valVector).asBlock());
     }
-    BytesRefBlock valBlock = (BytesRefBlock) valUncastBlock;
-    BytesRefVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock);
-    }
-    return eval(page.getPositionCount(), valVector).asBlock();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {

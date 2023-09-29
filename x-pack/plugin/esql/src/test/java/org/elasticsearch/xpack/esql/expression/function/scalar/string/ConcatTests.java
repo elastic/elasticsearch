@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -117,8 +118,11 @@ public class ConcatTests extends AbstractFunctionTestCase {
             assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
             return;
         }
-        try (EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext())) {
-            assertThat(toJavaObject(eval.eval(row(fieldValues)), 0), testCase.getMatcher());
+        try (
+            EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext());
+            Block.Ref ref = eval.eval(row(fieldValues))
+        ) {
+            assertThat(toJavaObject(ref.block(), 0), testCase.getMatcher());
         }
     }
 }

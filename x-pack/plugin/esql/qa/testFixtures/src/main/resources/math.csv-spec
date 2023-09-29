@@ -200,7 +200,8 @@ height:double | s:double
 1.53          | 0.34
 ;
 
-powSalarySquared
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+powSalarySquared-Ignore
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
 salary:integer | s:long

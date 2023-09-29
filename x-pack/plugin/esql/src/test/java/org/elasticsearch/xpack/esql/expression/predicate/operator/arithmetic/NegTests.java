@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -179,7 +180,9 @@ public class NegTests extends AbstractScalarFunctionTestCase {
     private Object process(Object val) {
         if (testCase.allTypesAreRepresentable()) {
             Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
-            return toJavaObject(evaluator(neg).get(driverContext()).eval(row(List.of(val))), 0);
+            try (Block.Ref ref = evaluator(neg).get(driverContext()).eval(row(List.of(val)))) {
+                return toJavaObject(ref.block(), 0);
+            }
         } else { // just fold if type is not representable
             Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));
             return neg.fold();

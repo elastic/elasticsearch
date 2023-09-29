@@ -31,17 +31,18 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   }
 
   @Override
-  public Block eval(Page page) {
-    Block vUncastBlock = v.eval(page);
-    if (vUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref vRef = v.eval(page)) {
+      if (vRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      IntBlock vBlock = (IntBlock) vRef.block();
+      IntVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
     }
-    IntBlock vBlock = (IntBlock) vUncastBlock;
-    IntVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      return eval(page.getPositionCount(), vBlock);
-    }
-    return eval(page.getPositionCount(), vVector).asBlock();
   }
 
   public LongBlock eval(int positionCount, IntBlock vBlock) {

@@ -43,8 +43,8 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        Block block = evaluator.eval(page);
-        block = maybeCopyBlock(page, block);
+        Block.Ref ref = evaluator.eval(page);
+        Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block());
         return page.appendBlock(block);
     }
 
@@ -80,13 +80,13 @@ public class EvalOperator extends AbstractPageMappingOperator {
         /**
          * Evaluate the expression.
          */
-        Block eval(Page page);
+        Block.Ref eval(Page page);
     }
 
     public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
         @Override
-        public Block eval(Page page) {
-            return Block.constantNullBlock(page.getPositionCount());
+        public Block.Ref eval(Page page) {
+            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
         }
 
         @Override

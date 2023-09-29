@@ -178,41 +178,49 @@ public class ES87TSDBDocValuesEncoder {
         deltaEncode(0, 0, in, out);
     }
 
-    void encodeOrdinals(long[] in, DataOutput out) throws IOException {
+    void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
         assert in.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
-        long previous = in[0];
-        int repetitions = -1;
-        for (long l : in) {
-            assert l >= 0 : "Ordinals are expected to be positive";
-            if (previous == l) {
-                repetitions++;
-            } else {
-                out.writeZLong(previous);
-                if (repetitions > 0) {
-                    out.writeZLong(repetitions * -1);
-                }
-                repetitions = 0;
-                previous = l;
+        int numRuns = 1;
+        for (int i = 1; i < in.length; ++i) {
+            if (in[i - 1] != in[1]) {
+                numRuns++;
             }
         }
-        out.writeZLong(previous);
-        if (repetitions > 0) {
-            out.writeZLong(repetitions * -1);
+        if (numRuns == 1) {
+            long value = in[0];
+            out.writeVLong(value << 2);
+        } else if (numRuns == 2) {
+            out.writeVLong((in[0] << 2) | 0x01);
+            int firstRunLen = in.length;
+            for (int i = 1; i < in.length; ++i) {
+                if (in[i] != in[0]) {
+                    firstRunLen = i;
+                    break;
+                }
+            }
+            out.writeVInt(firstRunLen);
+            out.writeZLong(in[in.length - 1] - in[0]);
+        } else {
+            out.writeVLong(0x02);
+            forUtil.encode(in, bitsPerOrd, out);
         }
     }
 
-    void decodeOrdinals(DataInput in, long[] out) throws IOException {
+    void decodeOrdinals(DataInput in, long[] out, int bitsPerOrd) throws IOException {
         assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;
-        for (int i = 0; i < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;) {
-            long l = in.readZLong();
-            if (l >= 0) {
-                out[i] = l;
-                i++;
-            } else {
-                int repetitions = (int) (-1 * l);
-                Arrays.fill(out, i, i + repetitions, out[i - 1]);
-                i += repetitions;
-            }
+
+        long header = in.readVLong();
+        int token = (int) (header & 0x03L);
+        if (token == 0) {
+            Arrays.fill(out, header >>> 2);
+        } else if (token == 1) {
+            long v1 = header >>> 2;
+            int runLen = in.readVInt();
+            long v2 = v1 + in.readZLong();
+            Arrays.fill(out, 0, runLen, v1);
+            Arrays.fill(out, runLen, out.length, v2);
+        } else {
+            forUtil.decode(bitsPerOrd, in, out);
         }
     }
 

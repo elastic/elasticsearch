@@ -35,6 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
@@ -113,7 +114,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
         NumericEntry entry = numerics.get(field.name);
-        return getNumeric(entry, false);
+        return getNumeric(entry, -1);
     }
 
     @Override
@@ -128,7 +129,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private SortedDocValues getSorted(SortedEntry entry) throws IOException {
-        final NumericDocValues ords = getNumeric(entry.ordsEntry, true);
+        final NumericDocValues ords = getNumeric(entry.ordsEntry, entry.termsDictEntry.termsDictSize);
         return new BaseSortedDocValues(entry) {
 
             @Override
@@ -162,7 +163,6 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             }
         };
     }
-
 
     private abstract class BaseSortedDocValues extends SortedDocValues {
 
@@ -265,17 +265,15 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
         TermsDict(TermsDictEntry entry, IndexInput data) throws IOException {
             this.entry = entry;
-            RandomAccessInput addressesSlice =
-                data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
-            blockAddresses =
-                DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice);
+            RandomAccessInput addressesSlice = data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
+            blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice);
             bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
             blockMask = (1L << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
-            RandomAccessInput indexAddressesSlice =
-                data.randomAccessSlice(entry.termsIndexAddressesOffset, entry.termsIndexAddressesLength);
-            indexAddresses =
-                DirectMonotonicReader.getInstance(
-                    entry.termsIndexAddressesMeta, indexAddressesSlice);
+            RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
+                entry.termsIndexAddressesOffset,
+                entry.termsIndexAddressesLength
+            );
+            indexAddresses = DirectMonotonicReader.getInstance(entry.termsIndexAddressesMeta, indexAddressesSlice);
             indexBytes = data.slice("terms-index", entry.termsIndexOffset, entry.termsIndexLength);
             term = new BytesRef(entry.maxTermLength);
 
@@ -354,8 +352,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             }
 
             assert hi < 0 || getTermFromIndex(hi).compareTo(text) <= 0;
-            assert hi == ((entry.termsDictSize - 1) >> entry.termsDictIndexShift)
-                   || getTermFromIndex(hi + 1).compareTo(text) > 0;
+            assert hi == ((entry.termsDictSize - 1) >> entry.termsDictIndexShift) || getTermFromIndex(hi + 1).compareTo(text) > 0;
 
             return hi;
         }
@@ -394,7 +391,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
             assert blockHi < 0 || getFirstTermFromBlock(blockHi).compareTo(text) <= 0;
             assert blockHi == ((entry.termsDictSize - 1) >>> TERMS_DICT_BLOCK_LZ4_SHIFT)
-                   || getFirstTermFromBlock(blockHi + 1).compareTo(text) > 0;
+                || getFirstTermFromBlock(blockHi + 1).compareTo(text) > 0;
 
             return blockHi;
         }
@@ -452,8 +449,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 // Reset the buffer.
-                blockInput =
-                    new ByteArrayDataInput(blockBuffer.bytes, blockBuffer.offset, blockBuffer.length);
+                blockInput = new ByteArrayDataInput(blockBuffer.bytes, blockBuffer.offset, blockBuffer.length);
             }
         }
 
@@ -488,11 +484,10 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-
     @Override
     public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
         SortedNumericEntry entry = sortedNumerics.get(field.name);
-        return getSortedNumeric(entry, false);
+        return getSortedNumeric(entry, -1);
     }
 
     @Override
@@ -503,7 +498,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         SortedNumericEntry ordsEntry = entry.ordsEntry;
-        final SortedNumericDocValues ords = getSortedNumeric(ordsEntry, true);
+        final SortedNumericDocValues ords = getSortedNumeric(ordsEntry, entry.termsDictEntry.termsDictSize);
         return new BaseSortedSetDocValues(entry, data) {
 
             int i = 0;
@@ -687,7 +682,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         abstract long advance(long index) throws IOException;
     }
 
-    private NumericDocValues getNumeric(NumericEntry entry, boolean ords) throws IOException {
+    private NumericDocValues getNumeric(NumericEntry entry, long maxOrd) throws IOException {
         if (entry.docsWithFieldOffset == -2) {
             // empty
             return DocValues.emptyNumeric();
@@ -700,6 +695,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice);
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
 
+        final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new NumericDocValues() {
@@ -750,8 +746,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
-                        if (ords) {
-                            decoder.decodeOrdinals(valuesData, currentBlock);
+                        if (maxOrd >= 0) {
+                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                         } else {
                             decoder.decode(valuesData, currentBlock);
                         }
@@ -810,8 +806,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                             valuesData.seek(indexReader.get(blockIndex));
                         }
                         currentBlockIndex = blockIndex;
-                        if (ords) {
-                            decoder.decodeOrdinals(valuesData, currentBlock);
+                        if (maxOrd >= 0) {
+                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                         } else {
                             decoder.decode(valuesData, currentBlock);
                         }
@@ -822,12 +818,13 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private NumericValues getValues(NumericEntry entry, final boolean ords) throws IOException {
+    private NumericValues getValues(NumericEntry entry, final long maxOrd) throws IOException {
         assert entry.numValues > 0;
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
         final DirectMonotonicReader indexReader = DirectMonotonicReader.getInstance(entry.indexMeta, indexSlice);
 
         final IndexInput valuesData = data.slice("values", entry.valuesOffset, entry.valuesLength);
+        final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         return new NumericValues() {
 
             private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
@@ -844,8 +841,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                         valuesData.seek(indexReader.get(blockIndex));
                     }
                     currentBlockIndex = blockIndex;
-                    if (ords) {
-                        decoder.decodeOrdinals(valuesData, currentBlock);
+                    if (bitsPerOrd >= 0) {
+                        decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
                     } else {
                         decoder.decode(valuesData, currentBlock);
                     }
@@ -855,15 +852,15 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         };
     }
 
-    private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, boolean ords) throws IOException {
+    private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
-            return DocValues.singleton(getNumeric(entry, ords));
+            return DocValues.singleton(getNumeric(entry, maxOrd));
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
         final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesInput);
 
-        final NumericValues values = getValues(entry, ords);
+        final NumericValues values = getValues(entry, maxOrd);
 
         if (entry.docsWithFieldOffset == -1) {
             // dense

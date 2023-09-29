@@ -35,6 +35,7 @@ import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
@@ -90,10 +91,10 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
                 return DocValues.singleton(valuesProducer.getNumeric(field));
             }
-        }, false);
+        }, -1);
     }
 
-    private long[] writeNumericField(FieldInfo field, DocValuesProducer valuesProducer, boolean ords) throws IOException {
+    private long[] writeNumericField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
         int numDocsWithValue = 0;
         long numValues = 0;
 
@@ -141,14 +142,15 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             final ES87TSDBDocValuesEncoder encoder = new ES87TSDBDocValuesEncoder();
 
             values = valuesProducer.getSortedNumeric(field);
+            final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 final int count = values.docValueCount();
                 for (int i = 0; i < count; ++i) {
                     buffer[bufferSize++] = values.nextValue();
                     if (bufferSize == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
                         indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                        if (ords) {
-                            encoder.encodeOrdinals(buffer, data);
+                        if (maxOrd >= 0) {
+                            encoder.encodeOrdinals(buffer, data, bitsPerOrd);
                         } else {
                             encoder.encode(buffer, data);
                         }
@@ -160,8 +162,8 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 indexWriter.add(data.getFilePointer() - valuesDataOffset);
                 // Fill unused slots in the block with zeroes rather than junk
                 Arrays.fill(buffer, bufferSize, ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
-                if (ords) {
-                    encoder.encodeOrdinals(buffer, data);
+                if (maxOrd >= 0) {
+                    encoder.encodeOrdinals(buffer, data, bitsPerOrd);
                 } else {
                     encoder.encode(buffer, data);
                 }
@@ -193,49 +195,47 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         doAddSortedField(field, valuesProducer);
     }
 
-    private void doAddSortedField(FieldInfo field, DocValuesProducer valuesProducer)
-        throws IOException {
-        writeNumericField(
-            field,
-            new EmptyDocValuesProducer() {
-                @Override
-                public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-                    SortedDocValues sorted = valuesProducer.getSorted(field);
-                    NumericDocValues sortedOrds =
-                        new NumericDocValues() {
-                            @Override
-                            public long longValue() throws IOException {
-                                return sorted.ordValue();
-                            }
+    private void doAddSortedField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
+        SortedDocValues sorted = valuesProducer.getSorted(field);
+        int maxOrd = sorted.getValueCount();
+        writeNumericField(field, new EmptyDocValuesProducer() {
+            @Override
+            public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
+                SortedDocValues sorted = valuesProducer.getSorted(field);
+                NumericDocValues sortedOrds = new NumericDocValues() {
+                    @Override
+                    public long longValue() throws IOException {
+                        return sorted.ordValue();
+                    }
 
-                            @Override
-                            public boolean advanceExact(int target) throws IOException {
-                                return sorted.advanceExact(target);
-                            }
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        return sorted.advanceExact(target);
+                    }
 
-                            @Override
-                            public int docID() {
-                                return sorted.docID();
-                            }
+                    @Override
+                    public int docID() {
+                        return sorted.docID();
+                    }
 
-                            @Override
-                            public int nextDoc() throws IOException {
-                                return sorted.nextDoc();
-                            }
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return sorted.nextDoc();
+                    }
 
-                            @Override
-                            public int advance(int target) throws IOException {
-                                return sorted.advance(target);
-                            }
+                    @Override
+                    public int advance(int target) throws IOException {
+                        return sorted.advance(target);
+                    }
 
-                            @Override
-                            public long cost() {
-                                return sorted.cost();
-                            }
-                        };
-                    return DocValues.singleton(sortedOrds);
-                }
-            }, true);
+                    @Override
+                    public long cost() {
+                        return sorted.cost();
+                    }
+                };
+                return DocValues.singleton(sortedOrds);
+            }
+        }, maxOrd);
         addTermsDict(DocValues.singleton(valuesProducer.getSorted(field)));
     }
 
@@ -248,12 +248,9 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
         meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
         ByteBuffersDataOutput addressBuffer = new ByteBuffersDataOutput();
-        ByteBuffersIndexOutput addressOutput =
-            new ByteBuffersIndexOutput(addressBuffer, "temp", "temp");
+        ByteBuffersIndexOutput addressOutput = new ByteBuffersIndexOutput(addressBuffer, "temp", "temp");
         long numBlocks = (size + blockMask) >>> shift;
-        DirectMonotonicWriter writer =
-            DirectMonotonicWriter.getInstance(
-                meta, addressOutput, numBlocks, DIRECT_MONOTONIC_BLOCK_SHIFT);
+        DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(meta, addressOutput, numBlocks, DIRECT_MONOTONIC_BLOCK_SHIFT);
 
         BytesRefBuilder previous = new BytesRefBuilder();
         long ord = 0;
@@ -269,8 +266,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             if ((ord & blockMask) == 0) {
                 if (ord != 0) {
                     // flush the previous block
-                    final int uncompressedLength =
-                        compressAndGetTermsDictBlockLength(bufferedOutput, dictLength, ht);
+                    final int uncompressedLength = compressAndGetTermsDictBlockLength(bufferedOutput, dictLength, ht);
                     maxBlockLength = Math.max(maxBlockLength, uncompressedLength);
                     bufferedOutput.reset(termsDictBuffer);
                 }
@@ -289,8 +285,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 assert suffixLength > 0; // terms are unique
                 // Will write (suffixLength + 1 byte + 2 vint) bytes. Grow the buffer in need.
                 bufferedOutput = maybeGrowBuffer(bufferedOutput, suffixLength + 11);
-                bufferedOutput.writeByte(
-                    (byte) (Math.min(prefixLength, 15) | (Math.min(15, suffixLength - 1) << 4)));
+                bufferedOutput.writeByte((byte) (Math.min(prefixLength, 15) | (Math.min(15, suffixLength - 1) << 4)));
                 if (prefixLength >= 15) {
                     bufferedOutput.writeVInt(prefixLength - 15);
                 }
@@ -305,8 +300,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         }
         // Compress and write out the last block
         if (bufferedOutput.getPosition() > dictLength) {
-            final int uncompressedLength =
-                compressAndGetTermsDictBlockLength(bufferedOutput, dictLength, ht);
+            final int uncompressedLength = compressAndGetTermsDictBlockLength(bufferedOutput, dictLength, ht);
             maxBlockLength = Math.max(maxBlockLength, uncompressedLength);
         }
 
@@ -325,8 +319,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         writeTermsIndex(values);
     }
 
-    private int compressAndGetTermsDictBlockLength(
-        ByteArrayDataOutput bufferedOutput, int dictLength, LZ4.FastCompressionHashTable ht)
+    private int compressAndGetTermsDictBlockLength(ByteArrayDataOutput bufferedOutput, int dictLength, LZ4.FastCompressionHashTable ht)
         throws IOException {
         int uncompressedLength = bufferedOutput.getPosition() - dictLength;
         data.writeVInt(uncompressedLength);
@@ -348,17 +341,12 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         meta.writeInt(ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_SHIFT);
         long start = data.getFilePointer();
 
-        long numBlocks =
-            1L
-            + ((size + ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK)
-               >>> ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_SHIFT);
+        long numBlocks = 1L + ((size + ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK)
+            >>> ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_SHIFT);
         ByteBuffersDataOutput addressBuffer = new ByteBuffersDataOutput();
         DirectMonotonicWriter writer;
-        try (ByteBuffersIndexOutput addressOutput =
-                 new ByteBuffersIndexOutput(addressBuffer, "temp", "temp")) {
-            writer =
-                DirectMonotonicWriter.getInstance(
-                    meta, addressOutput, numBlocks, DIRECT_MONOTONIC_BLOCK_SHIFT);
+        try (ByteBuffersIndexOutput addressOutput = new ByteBuffersIndexOutput(addressBuffer, "temp", "temp")) {
+            writer = DirectMonotonicWriter.getInstance(meta, addressOutput, numBlocks, DIRECT_MONOTONIC_BLOCK_SHIFT);
             TermsEnum iterator = values.termsEnum();
             BytesRefBuilder previous = new BytesRefBuilder();
             long offset = 0;
@@ -375,10 +363,10 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                     }
                     offset += sortKeyLength;
                     data.writeBytes(term.bytes, term.offset, sortKeyLength);
-                } else if ((ord & ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK)
-                           == ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK) {
-                    previous.copyBytes(term);
-                }
+                } else if ((ord
+                    & ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK) == ES87TSDBDocValuesFormat.TERMS_DICT_REVERSE_INDEX_MASK) {
+                        previous.copyBytes(term);
+                    }
                 ++ord;
             }
             writer.add(offset);
@@ -396,11 +384,11 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES87TSDBDocValuesFormat.SORTED_NUMERIC);
-        writeSortedNumericField(field, valuesProducer, false);
+        writeSortedNumericField(field, valuesProducer, -1);
     }
 
-    private void writeSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer, boolean ords) throws IOException {
-        long[] stats = writeNumericField(field, valuesProducer, ords);
+    private void writeSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer, long maxOrd) throws IOException {
+        long[] stats = writeNumericField(field, valuesProducer, maxOrd);
         int numDocsWithField = Math.toIntExact(stats[0]);
         long numValues = stats[1];
         assert numValues >= numDocsWithField;
@@ -446,83 +434,79 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     }
 
     @Override
-    public void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer)
-        throws IOException {
+    public void addSortedSetField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(SORTED_SET);
 
         if (isSingleValued(valuesProducer.getSortedSet(field))) {
             meta.writeByte((byte) 0); // multiValued (0 = singleValued)
-            doAddSortedField(
-                field,
-                new EmptyDocValuesProducer() {
-                    @Override
-                    public SortedDocValues getSorted(FieldInfo field) throws IOException {
-                        return SortedSetSelector.wrap(
-                            valuesProducer.getSortedSet(field), SortedSetSelector.Type.MIN);
-                    }
-                });
+            doAddSortedField(field, new EmptyDocValuesProducer() {
+                @Override
+                public SortedDocValues getSorted(FieldInfo field) throws IOException {
+                    return SortedSetSelector.wrap(valuesProducer.getSortedSet(field), SortedSetSelector.Type.MIN);
+                }
+            });
             return;
         }
         meta.writeByte((byte) 1); // multiValued (1 = multiValued)
 
-        writeSortedNumericField(
-            field,
-            new EmptyDocValuesProducer() {
-                @Override
-                public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-                    SortedSetDocValues values = valuesProducer.getSortedSet(field);
-                    return new SortedNumericDocValues() {
+        SortedSetDocValues values = valuesProducer.getSortedSet(field);
+        long maxOrd = values.getValueCount();
+        writeSortedNumericField(field, new EmptyDocValuesProducer() {
+            @Override
+            public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
+                SortedSetDocValues values = valuesProducer.getSortedSet(field);
+                return new SortedNumericDocValues() {
 
-                        long[] ords = LongsRef.EMPTY_LONGS;
-                        int i, docValueCount;
+                    long[] ords = LongsRef.EMPTY_LONGS;
+                    int i, docValueCount;
 
-                        @Override
-                        public long nextValue() throws IOException {
-                            return ords[i++];
-                        }
+                    @Override
+                    public long nextValue() throws IOException {
+                        return ords[i++];
+                    }
 
-                        @Override
-                        public int docValueCount() {
-                            return docValueCount;
-                        }
+                    @Override
+                    public int docValueCount() {
+                        return docValueCount;
+                    }
 
-                        @Override
-                        public boolean advanceExact(int target) throws IOException {
-                            throw new UnsupportedOperationException();
-                        }
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        throw new UnsupportedOperationException();
+                    }
 
-                        @Override
-                        public int docID() {
-                            return values.docID();
-                        }
+                    @Override
+                    public int docID() {
+                        return values.docID();
+                    }
 
-                        @Override
-                        public int nextDoc() throws IOException {
-                            int doc = values.nextDoc();
-                            if (doc != NO_MORE_DOCS) {
-                                docValueCount = values.docValueCount();
-                                ords = ArrayUtil.grow(ords, docValueCount);
-                                for (int j = 0; j < docValueCount; j++) {
-                                    ords[j] = values.nextOrd();
-                                }
-                                i = 0;
+                    @Override
+                    public int nextDoc() throws IOException {
+                        int doc = values.nextDoc();
+                        if (doc != NO_MORE_DOCS) {
+                            docValueCount = values.docValueCount();
+                            ords = ArrayUtil.grow(ords, docValueCount);
+                            for (int j = 0; j < docValueCount; j++) {
+                                ords[j] = values.nextOrd();
                             }
-                            return doc;
+                            i = 0;
                         }
+                        return doc;
+                    }
 
-                        @Override
-                        public int advance(int target) throws IOException {
-                            throw new UnsupportedOperationException();
-                        }
+                    @Override
+                    public int advance(int target) throws IOException {
+                        throw new UnsupportedOperationException();
+                    }
 
-                        @Override
-                        public long cost() {
-                            return values.cost();
-                        }
-                    };
-                }
-            }, true);
+                    @Override
+                    public long cost() {
+                        return values.cost();
+                    }
+                };
+            }
+        }, maxOrd);
 
         addTermsDict(valuesProducer.getSortedSet(field));
     }

@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.packed.PackedInts;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -227,10 +228,15 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
     }
 
     private void doTestOrdinals(long[] arr, long expectedNumBytes) throws IOException {
+        long maxOrd = 0;
+        for (long ord : arr) {
+            maxOrd = Math.max(maxOrd, ord + 1);
+        }
+        final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
         final long[] expected = arr.clone();
         try (Directory dir = newDirectory()) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
-                encoder.encodeOrdinals(arr, out);
+                encoder.encodeOrdinals(arr, out, bitsPerOrd);
                 assertEquals(expectedNumBytes, out.getFilePointer());
             }
             try (IndexInput in = dir.openInput("tests.bin", IOContext.DEFAULT)) {
@@ -238,7 +244,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
                 for (int i = 0; i < decoded.length; ++i) {
                     decoded[i] = random().nextLong();
                 }
-                encoder.decodeOrdinals(in, decoded);
+                encoder.decodeOrdinals(in, decoded, bitsPerOrd);
                 assertEquals(in.length(), in.getFilePointer());
                 assertArrayEquals(expected, decoded);
             }

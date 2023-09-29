@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.BatchEncoder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 import java.util.List;
@@ -202,7 +203,7 @@ final class PackedValuesBlockHash extends BlockHash {
         for (int g = 0; g < builders.length; g++) {
             ElementType elementType = groups[g].spec.elementType();
             decoders[g] = BatchEncoder.decoder(elementType);
-            builders[g] = elementType.newBlockBuilder(size);
+            builders[g] = elementType.newBlockBuilder(size, blockFactory);
         }
 
         BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
@@ -236,6 +237,7 @@ final class PackedValuesBlockHash extends BlockHash {
         for (int g = 0; g < keyBlocks.length; g++) {
             keyBlocks[g] = builders[g].build();
         }
+        Releasables.closeExpectNoException(builders);
         return keyBlocks;
     }
 

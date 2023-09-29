@@ -53,22 +53,23 @@ final class IntBlockHash extends BlockHash {
             }
         } else {
             try (IntVector groupIds = add(vector)) {
-                addInput.add(0, add(groupIds));
+                addInput.add(0, groupIds);
             }
         }
     }
 
     private IntVector add(IntVector vector) {
-        long preAdjustBytes = blockFactory.preAdjustBreakerForInt(vector.getPositionCount());
-        int[] groups = new int[vector.getPositionCount()];
-        for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getInt(i))));
+        int positions = vector.getPositionCount();
+        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(vector.getInt(i)))));
+            }
+            return builder.build();
         }
-        return blockFactory.newIntArrayVector(groups, groups.length, preAdjustBytes);
     }
 
     private IntBlock add(IntBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeInt(block).hash(longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeInt(block).hash(longHash); // TODO: block builder
         seenNull |= result.sawNull();
         return result.ords();
     }
@@ -83,7 +84,8 @@ final class IntBlockHash extends BlockHash {
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
-            return new IntBlock[] { blockFactory.newIntArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
+            return new IntBlock[] {
+                blockFactory.newIntArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
         }
         final int size = Math.toIntExact(longHash.size());
         final int[] keys = new int[size];

@@ -160,6 +160,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = driverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullGroups(simpleInput(driverContext.blockFactory(), end)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(origInput, results);
     }
@@ -227,6 +228,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = driverContext();
         int end = between(1_000, 100_000);
         List<Page> input = CannedSourceOperator.collectPages(mergeValues(simpleInput(driverContext.blockFactory(), end)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(origInput, results);
     }
@@ -237,6 +239,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         List<Page> input = CannedSourceOperator.collectPages(
             new NullInsertingSourceOperator(mergeValues(simpleInput(driverContext.blockFactory(), end)))
         );
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(origInput, results);
     }
@@ -245,6 +248,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = driverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullGroups(mergeValues(simpleInput(driverContext.blockFactory(), end))));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(origInput, results);
     }
@@ -253,6 +257,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         DriverContext driverContext = driverContext();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullValues(mergeValues(simpleInput(driverContext.blockFactory(), end))));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), input.iterator());
         assertSimpleOutput(origInput, results);
     }

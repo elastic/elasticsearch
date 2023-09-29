@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -15,7 +14,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -295,30 +293,21 @@ public class FilteredBlockTests extends ESTestCase {
         return array;
     }
 
-    <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
-        releaseAndAssertBreaker(data, breaker);
-    }
-
-    static <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data, CircuitBreaker breaker) {
+    void releaseAndAssertBreaker(Block... blocks) {
         assertThat(breaker.getUsed(), greaterThan(0L));
-        Releasables.closeExpectNoException(data);
-        if (data instanceof Block block) {
-            assertThat(block.isReleased(), is(true));
-            assertCannotDoubleRelease(block);
-            assertCannotReadFromPage(block);
-        }
+        Page[] pages = Arrays.stream(blocks).map(Page::new).toArray(Page[]::new);
+        Releasables.closeExpectNoException(blocks);
+        Arrays.stream(blocks).forEach(block -> assertThat(block.isReleased(), is(true)));
+        Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotDoubleRelease);
+        Arrays.stream(pages).forEach(BasicBlockTests::assertCannotReadFromPage);
+        Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotAddToPage);
         assertThat(breaker.getUsed(), is(0L));
     }
 
-    static void assertCannotDoubleRelease(Block block) {
-        var ex = expectThrows(IllegalStateException.class, () -> block.close());
-        assertThat(ex.getMessage(), containsString("can't release already released block"));
-    }
-
-    static void assertCannotReadFromPage(Block block) {
-        Page page = new Page(block);
-        var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
-        assertThat(e.getMessage(), containsString("can't read released block"));
+    void releaseAndAssertBreaker(Vector vector) {
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        Releasables.closeExpectNoException(vector);
+        assertThat(breaker.getUsed(), is(0L));
     }
 
     // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)

@@ -13,11 +13,8 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -54,22 +51,28 @@ final class DoubleBlockHash extends BlockHash {
         DoubleBlock block = page.getBlock(channel);
         DoubleVector vector = block.asVector();
         if (vector == null) {
-            addInput.add(0, add(block));
+            try (IntBlock groupIds = add(block)) {
+                addInput.add(0, groupIds);
+            }
         } else {
-            addInput.add(0, add(vector));
+            try (IntVector groupIds = add(vector)) {
+                addInput.add(0, groupIds);
+            }
         }
     }
 
     private IntVector add(DoubleVector vector) {
-        int[] groups = new int[vector.getPositionCount()];
-        for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(Double.doubleToLongBits(vector.getDouble(i)))));
+        int positions = vector.getPositionCount();
+        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(longHash.add(Double.doubleToLongBits(vector.getDouble(i))))));
+            }
+            return builder.build();
         }
-        return new IntArrayVector(groups, groups.length);
     }
 
     private IntBlock add(DoubleBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hash(longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hash(longHash); // TODO: block builder
         seenNull |= result.sawNull();
         return result.ords();
     }
@@ -85,7 +88,7 @@ final class DoubleBlockHash extends BlockHash {
             BitSet nulls = new BitSet(1);
             nulls.set(0);
             return new DoubleBlock[] {
-                new DoubleArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
+                blockFactory.newDoubleArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
         }
 
         final int size = Math.toIntExact(longHash.size());
@@ -95,7 +98,7 @@ final class DoubleBlockHash extends BlockHash {
         }
 
         // TODO claim the array and wrap?
-        return new DoubleBlock[] { new DoubleArrayVector(keys, keys.length).asBlock() };
+        return new DoubleBlock[] { blockFactory.newDoubleArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override

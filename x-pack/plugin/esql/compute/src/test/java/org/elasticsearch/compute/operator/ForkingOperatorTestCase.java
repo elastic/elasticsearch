@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -20,6 +21,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -56,13 +58,10 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     }
 
     public final void testInitialFinal() {
-        //List<Page> input = ...
-        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
-        //List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
-
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
@@ -79,17 +78,15 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
+        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         assertDriverContext(driverContext);
     }
 
     public final void testManyInitialFinal() {
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
-        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
-
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
@@ -104,17 +101,15 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
+        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         assertDriverContext(driverContext);
     }
 
     public final void testInitialIntermediateFinal() {
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
-        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
-
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
 
         try (
@@ -133,6 +128,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
+        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         assertDriverContext(driverContext);
     }
 
@@ -141,6 +137,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
 
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         Collections.shuffle(partials, random());
@@ -161,7 +158,8 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
+        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         assertDriverContext(driverContext);
     }
 
@@ -170,9 +168,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     public final void testManyInitialManyPartialFinalRunner() {
         BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
-        List<Page> results = new ArrayList<>();
-
-        BigArrays bigArrays = nonBreakingBigArrays();
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, false /* no throwing ops */);
         var runner = new DriverRunner(threadPool.getThreadContext()) {
@@ -185,6 +181,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         runner.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
         assertSimpleOutput(origInput, results);
+        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         drivers.stream().map(Driver::driverContext).forEach(OperatorTestCase::assertDriverContext);
     }
 
@@ -208,6 +205,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         runner.runToCompletion(drivers, future);
         BadException e = expectThrows(BadException.class, () -> future.actionGet(TimeValue.timeValueMinutes(1)));
         assertThat(e.getMessage(), startsWith("bad exception from"));
+        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         drivers.stream().map(Driver::driverContext).forEach(OperatorTestCase::assertDriverContext);
     }
 

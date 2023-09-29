@@ -133,8 +133,7 @@ public class DocVectorTests extends ESTestCase {
     }
 
     public void testCannotDoubleRelease() {
-        var block = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null)
-            .asBlock();
+        var block = new DocVector(intRange(0, 2), IntBlock.newConstantBlockWith(0, 2).asVector(), intRange(0, 2), null).asBlock();
         assertThat(block.isReleased(), is(false));
         Page page = new Page(block);
 

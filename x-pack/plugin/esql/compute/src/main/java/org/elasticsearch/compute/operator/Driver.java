@@ -195,7 +195,7 @@ public class Driver implements Releasable, Describable {
                 } catch (Throwable t) {
                     releasePageBlocksWhileHandlingException(page);
                     throw t;
-                } 
+                }
             }
 
             if (op.isFinished()) {

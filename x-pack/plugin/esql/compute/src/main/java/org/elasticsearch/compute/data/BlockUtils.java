@@ -143,10 +143,10 @@ public final class BlockUtils {
     }
 
     public static Block deepCopyOf(Block block, BlockFactory blockFactory) {
-        // TODO: plumb in blockFactory
-        Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount());
-        builder.copyFrom(block, 0, block.getPositionCount());
-        return builder.build();
+        try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory)) {
+            builder.copyFrom(block, 0, block.getPositionCount());
+            return builder.build();
+        }
     }
 
     private static Class<?> type(List<List<Object>> list, int i) {

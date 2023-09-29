@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -41,22 +40,28 @@ final class BooleanBlockHash extends BlockHash {
         BooleanBlock block = page.getBlock(channel);
         BooleanVector vector = block.asVector();
         if (vector == null) {
-            addInput.add(0, add(block));
+            try (IntBlock groupIds = add(block)) {
+                addInput.add(0, groupIds);
+            }
         } else {
-            addInput.add(0, add(vector));
+            try (IntVector groupIds = add(vector)) {
+                addInput.add(0, groupIds);
+            }
         }
     }
 
     private IntVector add(BooleanVector vector) {
-        int[] groups = new int[vector.getPositionCount()];
-        for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = MultivalueDedupeBoolean.hashOrd(everSeen, vector.getBoolean(i));
+        int positions = vector.getPositionCount();
+        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendInt(MultivalueDedupeBoolean.hashOrd(everSeen, vector.getBoolean(i)));
+            }
+            return builder.build();
         }
-        return new IntArrayVector(groups, groups.length);
     }
 
     private IntBlock add(BooleanBlock block) {
-        return new MultivalueDedupeBoolean(block).hash(everSeen);
+        return new MultivalueDedupeBoolean(block).hash(everSeen); // TODO: block builder
     }
 
     @Override

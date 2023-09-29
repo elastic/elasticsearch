@@ -158,9 +158,9 @@ public class HashAggregationOperator implements Operator {
         } finally {
             // selected should always be closed
             // TODO: is selected exposed through intermediate aggs?
-            Releasables.closeExpectNoException(selected); // TODO; null check?
-            if (success == false) {
-                Releasables.closeExpectNoException(blocks); // TODO; null check?
+            Releasables.closeExpectNoException(selected);
+            if (success == false && blocks != null) {
+                Releasables.closeExpectNoException(blocks);
             }
         }
     }

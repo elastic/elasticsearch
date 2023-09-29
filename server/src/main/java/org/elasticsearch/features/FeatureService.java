@@ -10,15 +10,17 @@ package org.elasticsearch.features;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.plugins.PluginsService;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Service responsible for registering features this node should publish to other nodes
@@ -27,64 +29,76 @@ public class FeatureService {
 
     private static final int CURRENT_ERA = Version.CURRENT.major;
 
-    /**
-     * The set of features that are implied by historical node versions.
-     */
-    private static final Map<Version, Set<String>> HISTORICAL_FEATURES = new ConcurrentHashMap<>();
+    private static Set<FeatureSpecification> FEATURE_SPECS;
 
-    /**
-     * Adds a feature that should be inferred when a node is at or above the specified historical version.
-     */
-    public static void registerHistoricalFeature(NodeFeature feature, Version version) {
-        if (version.after(Version.V_8_11_0)) {
-            throw new IllegalArgumentException("This method should only be used for historical features");
-        }
-        if (feature.era() != version.major) {
-            throw new IllegalArgumentException(Strings.format("Incorrect feature era %s for version %s", feature.era(), version.major));
-        }
+    private static volatile NavigableMap<Version, Set<String>> HISTORICAL_FEATURES;
 
-        // make this method idempotent (so it can be called multiple times in the same JVM for tests)
-        if (HISTORICAL_FEATURES.getOrDefault(version, Set.of()).contains(feature.id())) {
-            return;
-        }
-
-        if (AGGREGATED_FEATURES != null) {  // best-effort check before we modify anything
-            throw new IllegalStateException("Aggregated historical features have already been calculated");
-        }
-        HISTORICAL_FEATURES.computeIfAbsent(version, k -> Collections.synchronizedSet(new HashSet<>())).add(feature.id());
+    static {
+        // load all the ones accessible on the immediate classpath here
+        // in unit tests, this will pick everything up. In a real ES node, this will miss instances from plugins
+        FEATURE_SPECS = ServiceLoader.load(FeatureSpecification.class)
+            .stream()
+            .map(ServiceLoader.Provider::get)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
-    private static volatile NavigableMap<Version, Set<String>> AGGREGATED_FEATURES;
+    /**
+     * Loads additional historical features from {@link FeatureSpecification} instances in plugins and modules
+     */
+    public static void loadAdditionalHistoricalFeatures(PluginsService plugins) {
+        // do a best-effort sanity check here
+        if (HISTORICAL_FEATURES != null) throw new IllegalStateException("Historical features have already been calculated");
 
-    private static NavigableMap<Version, Set<String>> calculateAggregatedFeatures(Map<Version, Set<String>> versionFeatures) {
-        NavigableMap<Version, Set<String>> consolidated = new TreeMap<>(versionFeatures);
+        var existingSpecs = new HashSet<>(FEATURE_SPECS);
+        existingSpecs.addAll(plugins.loadServiceProviders(FeatureSpecification.class));
+        FEATURE_SPECS = Collections.unmodifiableSet(existingSpecs);
+    }
+
+    private static NavigableMap<Version, Set<String>> calculateHistoricalFeaturesFromSpecs() {
+        NavigableMap<Version, Set<String>> declaredHistoricalFeatures = new TreeMap<>();
+        for (var spec : FEATURE_SPECS) {
+            for (var f : spec.getHistoricalFeatures().entrySet()) {
+                if (f.getValue().after(Version.V_8_11_0)) {
+                    throw new IllegalArgumentException(
+                        Strings.format("Feature declared for version %s is not a historical feature", f.getValue())
+                    );
+                }
+                if (f.getKey().era() != f.getValue().major) {
+                    throw new IllegalArgumentException(
+                        Strings.format("Incorrect feature era %s for version %s", f.getKey().era(), f.getValue().major)
+                    );
+                }
+
+                declaredHistoricalFeatures.computeIfAbsent(f.getValue(), k -> new HashSet<>()).add(f.getKey().id());
+            }
+        }
 
         // add in all features from previous versions
-        Set<String> aggregatedFeatures = new HashSet<>();
-        for (Map.Entry<Version, Set<String>> versions : consolidated.entrySet()) {
+        Set<String> featureAggregator = new HashSet<>();
+        for (Map.Entry<Version, Set<String>> versions : declaredHistoricalFeatures.entrySet()) {
             if (versions.getKey().major < CURRENT_ERA - 1) continue;    // don't include, it's before the valid eras
 
             // check the sizes to ensure we haven't got dups
-            int sizeBefore = aggregatedFeatures.size();
-            aggregatedFeatures.addAll(versions.getValue());
-            if (aggregatedFeatures.size() < sizeBefore + versions.getValue().size()) {
-                throw new IllegalStateException("Duplicated feature ids in historical versions list at version" + versions.getKey());
+            int sizeBefore = featureAggregator.size();
+            featureAggregator.addAll(versions.getValue());
+            if (featureAggregator.size() < sizeBefore + versions.getValue().size()) {
+                throw new IllegalStateException("Duplicated feature ids in historical features at version" + versions.getKey());
             }
 
             // make them sorted so they're easier to look through
-            versions.setValue(Collections.unmodifiableNavigableSet(new TreeSet<>(aggregatedFeatures)));
+            versions.setValue(Collections.unmodifiableNavigableSet(new TreeSet<>(featureAggregator)));
         }
 
-        return Collections.unmodifiableNavigableMap(consolidated);
+        return Collections.unmodifiableNavigableMap(declaredHistoricalFeatures);
     }
 
     /**
      * Returns the features that are implied by a node with a specified {@code version}.
      */
     public static Set<String> readHistoricalFeatures(Version version) {
-        var aggregates = AGGREGATED_FEATURES;
+        var aggregates = HISTORICAL_FEATURES;
         if (aggregates == null) {
-            aggregates = AGGREGATED_FEATURES = calculateAggregatedFeatures(HISTORICAL_FEATURES);
+            aggregates = HISTORICAL_FEATURES = calculateHistoricalFeaturesFromSpecs();
         }
         var features = aggregates.floorEntry(version);
         return features != null ? features.getValue() : Set.of();
@@ -92,6 +106,18 @@ public class FeatureService {
 
     private final Set<String> features = new HashSet<>();
     private volatile boolean locked;
+
+    public FeatureService() {
+        // load all the pre-declared features
+        for (var spec : FEATURE_SPECS) {
+            try {
+                spec.getFeatures().forEach(this::registerFeature);
+            } catch (IllegalArgumentException e) {
+                // try to capture where the feature is from to help debugging
+                throw new IllegalArgumentException("Error registering features from " + spec, e);
+            }
+        }
+    }
 
     private static boolean isPublishableEra(int era) {
         return era >= CURRENT_ERA - 1;

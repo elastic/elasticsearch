@@ -252,9 +252,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     private static Set<String> inferFeaturesFrom(VersionInformation versionInfo) {
-        return versionInfo != null && versionInfo.nodeVersion().before(Version.V_8_11_0)
-            ? FeatureService.readHistoricalFeatures(versionInfo.nodeVersion())
-            : Set.of();
+        Version nodeVersion = versionInfo != null ? versionInfo.nodeVersion() : Version.CURRENT;
+        return FeatureService.readHistoricalFeatures(nodeVersion);
     }
 
     /**

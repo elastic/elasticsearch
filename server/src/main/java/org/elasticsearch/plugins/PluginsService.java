@@ -14,9 +14,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -28,8 +26,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.node.ReportingService;
@@ -293,29 +289,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     protected List<LoadedPlugin> plugins() {
         return this.plugins;
-    }
-
-    public void registerPluginFeatures(FeatureService service) {
-        for (LoadedPlugin lp : plugins) {
-            int pluginEra = lp.descriptor().getElasticsearchVersion().major;
-            lp.instance().registerFeatures(new FeatureRegistration() {
-                @Override
-                public void registerFeature(NodeFeature feature) {
-                    if (feature.era() != pluginEra) throw new IllegalArgumentException(
-                        Strings.format("Incorrect era %s, should be %s", feature.era(), pluginEra)
-                    );
-                    service.registerFeature(feature);
-                }
-
-                @Override
-                public void registerHistoricalFeature(NodeFeature feature, Version version) {
-                    if (feature.era() != pluginEra) throw new IllegalArgumentException(
-                        Strings.format("Incorrect era %s, should be %s", feature.era(), pluginEra)
-                    );
-                    FeatureService.registerHistoricalFeature(feature, version);
-                }
-            });
-        }
     }
 
     private LinkedHashMap<String, LoadedPlugin> loadBundles(

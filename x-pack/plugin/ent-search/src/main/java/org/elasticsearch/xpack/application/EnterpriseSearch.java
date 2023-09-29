@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -29,7 +28,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.FeatureRegistration;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -238,11 +236,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         connectorTemplateRegistry.initialize();
 
         return Arrays.asList(analyticsTemplateRegistry, connectorTemplateRegistry);
-    }
-
-    @Override
-    public void registerFeatures(FeatureRegistration registerFeature) {
-        registerFeature.registerHistoricalFeature(ConnectorTemplateRegistry.CONNECTOR_TEMPLATES_FEATURE, Version.V_8_11_0);
     }
 
     @Override

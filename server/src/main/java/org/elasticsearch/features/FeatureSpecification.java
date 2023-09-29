@@ -6,13 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.features;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.features.NodeFeature;
 
-public interface FeatureRegistration {
-    void registerFeature(NodeFeature feature);
+import java.util.Map;
+import java.util.Set;
 
-    void registerHistoricalFeature(NodeFeature feature, Version version);
+public interface FeatureSpecification {
+    default Set<NodeFeature> getFeatures() {
+        return Set.of();
+    }
+
+    default Map<NodeFeature, Version> getHistoricalFeatures() {
+        return Map.of();
+    }
 }

@@ -749,7 +749,7 @@ public class Node implements Closeable {
                 threadPool
             );
 
-            pluginsService.registerPluginFeatures(featureService);
+            FeatureService.loadAdditionalHistoricalFeatures(pluginsService);
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(

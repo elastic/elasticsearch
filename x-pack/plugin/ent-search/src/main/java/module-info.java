@@ -33,4 +33,6 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.search.action;
     exports org.elasticsearch.xpack.application.rules;
     exports org.elasticsearch.xpack.application.rules.action;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.application.EnterpriseSearchFeatures;
 }

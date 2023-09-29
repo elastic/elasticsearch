@@ -399,6 +399,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
+    uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
     uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;

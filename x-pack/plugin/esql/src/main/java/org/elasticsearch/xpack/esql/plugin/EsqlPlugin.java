@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -35,7 +34,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.FeatureRegistration;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -123,11 +121,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE);
-    }
-
-    @Override
-    public void registerFeatures(FeatureRegistration registerFeature) {
-        registerFeature.registerHistoricalFeature(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_10_0);
     }
 
     @Override

@@ -44,35 +44,38 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      if (strRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      try (Block.Ref regexRef = regex.eval(page)) {
+        if (regexRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        BytesRefBlock regexBlock = (BytesRefBlock) regexRef.block();
+        try (Block.Ref newStrRef = newStr.eval(page)) {
+          if (newStrRef.block().areAllValuesNull()) {
+            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          }
+          BytesRefBlock newStrBlock = (BytesRefBlock) newStrRef.block();
+          BytesRefVector strVector = strBlock.asVector();
+          if (strVector == null) {
+            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock));
+          }
+          BytesRefVector regexVector = regexBlock.asVector();
+          if (regexVector == null) {
+            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock));
+          }
+          BytesRefVector newStrVector = newStrBlock.asVector();
+          if (newStrVector == null) {
+            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock));
+          }
+          return Block.Ref.floating(eval(page.getPositionCount(), strVector, regexVector, newStrVector));
+        }
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block regexUncastBlock = regex.eval(page);
-    if (regexUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock regexBlock = (BytesRefBlock) regexUncastBlock;
-    Block newStrUncastBlock = newStr.eval(page);
-    if (newStrUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock newStrBlock = (BytesRefBlock) newStrUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock);
-    }
-    BytesRefVector regexVector = regexBlock.asVector();
-    if (regexVector == null) {
-      return eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock);
-    }
-    BytesRefVector newStrVector = newStrBlock.asVector();
-    if (newStrVector == null) {
-      return eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock);
-    }
-    return eval(page.getPositionCount(), strVector, regexVector, newStrVector);
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock regexBlock,

@@ -114,7 +114,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
 
     private String process(String str, String oldStr, String newStr) {
         List<Object> list = Arrays.asList(new BytesRef(str), new BytesRef(oldStr), new BytesRef(newStr));
-        Block result = evaluator(
+        Block.Ref result = evaluator(
             new Replace(
                 Source.EMPTY,
                 field("str", DataTypes.KEYWORD),
@@ -122,7 +122,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                 field("newStr", DataTypes.KEYWORD)
             )
         ).get(driverContext()).eval(row(list));
-        BytesRef resultValue = (BytesRef) toJavaObject(result, 0);
+        BytesRef resultValue = (BytesRef) toJavaObject(result.block(), 0);
         return resultValue == null ? null : resultValue.utf8ToString();
     }
 }

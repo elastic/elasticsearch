@@ -44,26 +44,28 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      if (strRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      try (Block.Ref newStrRef = newStr.eval(page)) {
+        if (newStrRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        BytesRefBlock newStrBlock = (BytesRefBlock) newStrRef.block();
+        BytesRefVector strVector = strBlock.asVector();
+        if (strVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, newStrBlock));
+        }
+        BytesRefVector newStrVector = newStrBlock.asVector();
+        if (newStrVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, newStrBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), strVector, newStrVector));
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block newStrUncastBlock = newStr.eval(page);
-    if (newStrUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock newStrBlock = (BytesRefBlock) newStrUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, newStrBlock);
-    }
-    BytesRefVector newStrVector = newStrBlock.asVector();
-    if (newStrVector == null) {
-      return eval(page.getPositionCount(), strBlock, newStrBlock);
-    }
-    return eval(page.getPositionCount(), strVector, newStrVector);
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock newStrBlock) {

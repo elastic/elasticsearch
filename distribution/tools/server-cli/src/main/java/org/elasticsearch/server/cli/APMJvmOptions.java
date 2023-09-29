@@ -44,7 +44,7 @@ class APMJvmOptions {
     // tag::noformat
     private static final Map<String, String> STATIC_CONFIG = Map.of(
         // Identifies the version of Elasticsearch in the captured trace data.
-        "service_version", Version.CURRENT.toString(),
+        "service_version", Build.current().version(),
 
         // Configures a log file to write to. `_AGENT_HOME_` is a placeholder used
         // by the agent. Don't disable writing to a log file, as the agent will then

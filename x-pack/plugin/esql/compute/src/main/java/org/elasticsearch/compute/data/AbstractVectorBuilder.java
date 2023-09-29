@@ -7,8 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
-abstract class AbstractVectorBuilder {
+abstract class AbstractVectorBuilder implements Vector.Builder {
     protected int valueCount;
+
+    /**
+     * Has this builder been closed already?
+     */
+    private boolean closed = false;
 
     protected final BlockFactory blockFactory;
 
@@ -46,4 +51,38 @@ abstract class AbstractVectorBuilder {
         blockFactory.adjustBreaker(deltaBytes, false);
         estimatedBytes += deltaBytes;
     }
+
+    /**
+     * Called during implementations of {@link Block.Builder#build} as a first step
+     * to check if the block is still open and to finish the last position.
+     */
+    protected final void finish() {
+        if (closed) {
+            throw new IllegalStateException("already closed");
+        }
+    }
+
+    /**
+     * Called during implementations of {@link Block.Builder#build} as a last step
+     * to mark the Builder as closed and make sure that further closes don't double
+     * free memory.
+     */
+    protected final void built() {
+        closed = true;
+        estimatedBytes = 0;
+    }
+
+    @Override
+    public final void close() {
+        if (closed == false) {
+            closed = true;
+            adjustBreaker(-estimatedBytes);
+            extraClose();
+        }
+    }
+
+    /**
+     * Called when first {@link #close() closed}.
+     */
+    protected void extraClose() {}
 }

@@ -56,12 +56,13 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     }
 
     public final void testInitialFinal() {
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        //List<Page> input = ...
         // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        //List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
 
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
@@ -88,6 +89,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
@@ -112,6 +114,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         try (
@@ -137,7 +140,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     public final void testManyInitialManyPartialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
 
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         Collections.shuffle(partials, random());
@@ -165,9 +168,9 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // Similar to testManyInitialManyPartialFinal, but uses with the DriverRunner infrastructure
     // to move the data through the pipeline.
     public final void testManyInitialManyPartialFinalRunner() {
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
-        // keep a copy of the original input for comparison, since the driver will consume/release the page blocks
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        BigArrays bigArrays = nonBreakingBigArrays();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
+        List<Page> results = new ArrayList<>();
 
         BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> results = new ArrayList<>();
@@ -191,7 +194,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public final void testManyInitialManyPartialFinalRunnerThrowing() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, true /* one throwing op */);

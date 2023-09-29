@@ -187,7 +187,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // TODO should we convert unsigned_long into BigDecimal so it's easier to assert?
         Object result;
         try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
-            result = toJavaObject(evaluator.eval(row(testCase.getDataValues())), 0);
+            try (Block.Ref ref = evaluator.eval(row(testCase.getDataValues()))) {
+                result = toJavaObject(ref.block(), 0);
+            }
         }
         assertThat(result, not(equalTo(Double.NaN)));
         assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
@@ -216,7 +218,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         data.add(simpleData.get(b));
                     }
                 }
-                assertSimpleWithNulls(data, eval.eval(new Page(blocks)), i);
+                try (Block.Ref ref = eval.eval(new Page(blocks))) {
+                    assertSimpleWithNulls(data, ref.block(), i);
+                }
             }
         }
     }
@@ -242,7 +246,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 futures.add(exec.submit(() -> {
                     try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
-                            assertThat(toJavaObject(eval.eval(page), 0), testCase.getMatcher());
+                            try (Block.Ref ref = eval.eval(page)) {
+                                assertThat(toJavaObject(ref.block(), 0), testCase.getMatcher());
+                            }
                         }
                     }
                 }));

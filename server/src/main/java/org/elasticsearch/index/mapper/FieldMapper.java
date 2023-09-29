@@ -36,7 +36,6 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -1108,7 +1107,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new Parameter<>(
                 "meta",
                 true,
-                Collections::emptyMap,
+                Map::of,
                 (n, c, o) -> TypeParsers.parseMeta(n, o),
                 m -> m.fieldType().meta(),
                 XContentBuilder::stringStringMap,

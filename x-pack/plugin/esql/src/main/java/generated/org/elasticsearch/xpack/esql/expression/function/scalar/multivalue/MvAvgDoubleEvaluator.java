@@ -9,7 +9,6 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
@@ -35,49 +34,53 @@ public final class MvAvgDoubleEvaluator extends AbstractMultivalueFunction.Abstr
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block evalNullable(Block fieldVal) {
-    DoubleBlock v = (DoubleBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    CompensatedSum work = new CompensatedSum();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+  public Block.Ref evalNullable(Block.Ref ref) {
+    try (ref) {
+      DoubleBlock v = (DoubleBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+      CompensatedSum work = new CompensatedSum();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        for (int i = first; i < end; i++) {
+          double value = v.getDouble(i);
+          MvAvg.process(work, value);
+        }
+        double result = MvAvg.finish(work, valueCount);
+        builder.appendDouble(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      for (int i = first; i < end; i++) {
-        double value = v.getDouble(i);
-        MvAvg.process(work, value);
-      }
-      double result = MvAvg.finish(work, valueCount);
-      builder.appendDouble(result);
+      return Block.Ref.floating(builder.build());
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
-    DoubleBlock v = (DoubleBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-    CompensatedSum work = new CompensatedSum();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      for (int i = first; i < end; i++) {
-        double value = v.getDouble(i);
-        MvAvg.process(work, value);
+  public Block.Ref evalNotNullable(Block.Ref ref) {
+    try (ref) {
+      DoubleBlock v = (DoubleBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
+      CompensatedSum work = new CompensatedSum();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        for (int i = first; i < end; i++) {
+          double value = v.getDouble(i);
+          MvAvg.process(work, value);
+        }
+        double result = MvAvg.finish(work, valueCount);
+        builder.appendDouble(result);
       }
-      double result = MvAvg.finish(work, valueCount);
-      builder.appendDouble(result);
+      return Block.Ref.floating(builder.build().asBlock());
     }
-    return builder.build();
   }
 }

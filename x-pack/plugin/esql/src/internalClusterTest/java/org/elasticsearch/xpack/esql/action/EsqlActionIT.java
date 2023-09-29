@@ -677,9 +677,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             stopped.set(true);
             indexingThread.join();
         }
-        EsqlQueryResponse results = run("from test_refresh | stats s = sum(value)");
-        logger.info(results);
-        assertThat(getValuesList(results).get(0), equalTo(List.of(totalValues.get())));
+        try (EsqlQueryResponse results = run("from test_refresh | stats s = sum(value)")) {
+            logger.info(results);
+            assertThat(getValuesList(results).get(0), equalTo(List.of(totalValues.get())));
+        }
     }
 
     public void testESFilter() throws Exception {
@@ -898,15 +899,16 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testShowInfo() {
-        EsqlQueryResponse results = run("show info");
-        assertThat(
-            results.columns(),
-            equalTo(List.of(new ColumnInfo("version", "keyword"), new ColumnInfo("date", "keyword"), new ColumnInfo("hash", "keyword")))
-        );
-        assertThat(getValuesList(results).size(), equalTo(1));
-        assertThat(getValuesList(results).get(0).get(0), equalTo(Build.current().version()));
-        assertThat(getValuesList(results).get(0).get(1), equalTo(Build.current().date()));
-        assertThat(getValuesList(results).get(0).get(2), equalTo(Build.current().hash()));
+        try (EsqlQueryResponse results = run("show info")) {
+            assertThat(
+                results.columns(),
+                equalTo(List.of(new ColumnInfo("version", "keyword"), new ColumnInfo("date", "keyword"), new ColumnInfo("hash", "keyword")))
+            );
+            assertThat(getValuesList(results).size(), equalTo(1));
+            assertThat(getValuesList(results).get(0).get(0), equalTo(Build.current().version()));
+            assertThat(getValuesList(results).get(0).get(1), equalTo(Build.current().date()));
+            assertThat(getValuesList(results).get(0).get(2), equalTo(Build.current().hash()));
+        }
     }
 
     public void testShowFunctions() {

@@ -23,8 +23,8 @@ import java.util.function.Function;
 /**
  * Expression that makes a deep copy of the block it receives.
  */
-class DeepCopy extends UnaryExpression implements EvaluatorMapper {
-    DeepCopy(Source source, Expression child) {
+public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
+    public DeepCopy(Source source, Expression child) {
         super(source, child);
     }
 

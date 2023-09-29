@@ -235,6 +235,10 @@ class BulkPrimaryExecutionContext {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
                     List<String> executedPipelines;
                     if (docWriteRequest instanceof IndexRequest indexRequest) {
+                        /*
+                         * If the user had not requested the executed pipelines, we want to set the list to null. This way we know not to
+                         * send an empty list in the response to the user.
+                         */
                         executedPipelines = indexRequest.getListExecutedPipelines() ? indexRequest.getExecutedPipelines() : null;
                     } else {
                         executedPipelines = null;

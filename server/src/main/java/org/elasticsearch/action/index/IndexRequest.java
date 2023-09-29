@@ -106,7 +106,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private boolean isPipelineResolved;
 
     private boolean requireAlias;
+    /**
+     * This indicates whether the response to this request ought to list the ingest pipelines that were executed on the document
+     */
     private boolean listExecutedPipelines;
+    /**
+     * This holds the names of the ingest pipelines that have been executed on the document for this request. This is not meant to be set by
+     * the creator of the request -- pipelines are added here at runtime as they are executed.
+     */
     private List<String> executedPipelines = new ArrayList<>();
 
     /**

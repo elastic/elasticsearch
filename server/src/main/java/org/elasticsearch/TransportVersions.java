@@ -148,6 +148,7 @@ public class TransportVersions {
     public static final TransportVersion COMPACT_FIELD_CAPS_ADDED = def(8_505_00_0);
     public static final TransportVersion DATA_STREAM_RESPONSE_INDEX_PROPERTIES = def(8_506_00_0);
     public static final TransportVersion ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED = def(8_507_00_0);
+    public static final TransportVersion LONG_COUNT_IN_HISTOGRAM_ADDED = def(8_508_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

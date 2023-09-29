@@ -112,18 +112,6 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
         return PARSER.apply(parser, null);
     }
 
-    public TimeValue getExpireAfter() {
-        return this.expireAfter;
-    }
-
-    public Integer getMinimumSnapshotCount() {
-        return this.minimumSnapshotCount;
-    }
-
-    public Integer getMaximumSnapshotCount() {
-        return this.maximumSnapshotCount;
-    }
-
     /**
      * Return a predicate by which a SnapshotInfo can be tested to see
      * whether it should be deleted according to this retention policy.

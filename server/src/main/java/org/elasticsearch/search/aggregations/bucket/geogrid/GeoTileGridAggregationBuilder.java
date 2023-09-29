@@ -40,6 +40,7 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
         GeoTileGridAggregationBuilder::new
     );
 
+    @SuppressWarnings("this-escape")
     public GeoTileGridAggregationBuilder(String name) {
         super(name);
         precision(DEFAULT_PRECISION);

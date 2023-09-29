@@ -35,7 +35,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -95,11 +94,11 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         return List.of(
             LocalStateSecurity.class,
             DataStreamsPlugin.class,
-            SystemDataStreamTestPlugin.class,
             MapperExtrasPlugin.class,
             Wildcard.class,
             Downsample.class,
-            AggregateMetricMapperPlugin.class
+            AggregateMetricMapperPlugin.class,
+            SystemDataStreamWithDownsamplingConfigurationPlugin.class
         );
     }
 
@@ -135,70 +134,27 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         waitAndAssertDownsamplingCompleted(dataStreamName);
     }
 
-    public void testConfiguringLifecycleWithDownsamplingForSystemDataStreamFails() {
-        String dataStreamName = SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
-        indexDocuments(client(), dataStreamName, 100);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-            .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
-                    )
-                )
-            )
-            .build();
-        IllegalArgumentException illegalArgumentException = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(
-                PutDataStreamLifecycleAction.INSTANCE,
-                new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, lifecycle)
-            ).actionGet()
-        );
-        assertThat(
-            illegalArgumentException.getMessage(),
-            is(
-                "System data streams do not support downsampling as part of their lifecycle "
-                    + "configuration. Encountered ["
-                    + dataStreamName
-                    + "] in the request"
-            )
-        );
-    }
-
-    public void testExplicitSystemDataStreamConfigurationWithDownsamplingFails() {
-        SystemDataStreamWithDownsamplingConfigurationPlugin pluginWithIllegalSystemDataStream =
-            new SystemDataStreamWithDownsamplingConfigurationPlugin();
-        IllegalArgumentException illegalArgumentException = expectThrows(
-            IllegalArgumentException.class,
-            () -> pluginWithIllegalSystemDataStream.getSystemDataStreamDescriptors()
-        );
-        assertThat(
-            illegalArgumentException.getMessage(),
-            is("System data streams do not support downsampling as part of their lifecycle configuration")
-        );
+    @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
+    public void testSystemDataStreamConfigurationWithDownsampling() throws Exception {
+        String dataStreamName = SystemDataStreamWithDownsamplingConfigurationPlugin.SYSTEM_DATA_STREAM_NAME;
+        indexDocuments(client(), dataStreamName, 10_000);
+        waitAndAssertDownsamplingCompleted(dataStreamName);
     }
 
     private void waitAndAssertDownsamplingCompleted(String dataStreamName) throws Exception {
         List<Index> backingIndices = getDataStreamBackingIndices(dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0).getName();
-        String oneSecondDownsampleIndex = "downsample-5m-" + firstGenerationBackingIndex;
-        String tenSecondsDownsampleIndex = "downsample-10m-" + firstGenerationBackingIndex;
+        String firstRoundDownsamplingIndex = "downsample-5m-" + firstGenerationBackingIndex;
+        String secondRoundDownsamplingIndex = "downsample-10m-" + firstGenerationBackingIndex;
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
-                || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
-                witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
+            if (event.indicesCreated().contains(firstRoundDownsamplingIndex)
+                || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(firstRoundDownsamplingIndex))) {
+                witnessedDownsamplingIndices.add(firstRoundDownsamplingIndex);
             }
-            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
-                witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
+            if (event.indicesCreated().contains(secondRoundDownsamplingIndex)) {
+                witnessedDownsamplingIndices.add(secondRoundDownsamplingIndex);
             }
         });
 
@@ -207,15 +163,15 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         assertBusy(() -> {
             assertNoAuthzErrors();
             // first downsampling round
-            assertThat(witnessedDownsamplingIndices.contains(oneSecondDownsampleIndex), is(true));
+            assertThat(witnessedDownsamplingIndices.contains(firstRoundDownsamplingIndex), is(true));
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
             assertNoAuthzErrors();
             assertThat(witnessedDownsamplingIndices.size(), is(2));
-            assertThat(witnessedDownsamplingIndices.contains(oneSecondDownsampleIndex), is(true));
+            assertThat(witnessedDownsamplingIndices.contains(firstRoundDownsamplingIndex), is(true));
 
-            assertThat(witnessedDownsamplingIndices.contains(tenSecondsDownsampleIndex), is(true));
+            assertThat(witnessedDownsamplingIndices.contains(secondRoundDownsamplingIndex), is(true));
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
@@ -226,9 +182,9 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
             String writeIndex = dsBackingIndices.get(1).getName();
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
             // the last downsampling round must remain in the data stream
-            assertThat(dsBackingIndices.get(0).getName(), is(tenSecondsDownsampleIndex));
+            assertThat(dsBackingIndices.get(0).getName(), is(secondRoundDownsamplingIndex));
             assertThat(indexExists(firstGenerationBackingIndex), is(false));
-            assertThat(indexExists(oneSecondDownsampleIndex), is(false));
+            assertThat(indexExists(firstRoundDownsamplingIndex), is(false));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -378,55 +334,6 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         logger.info("-> Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
     }
 
-    public static class SystemDataStreamTestPlugin extends Plugin implements SystemIndexPlugin {
-
-        static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
-
-        @Override
-        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
-            Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
-
-            try {
-                return List.of(
-                    new SystemDataStreamDescriptor(
-                        SYSTEM_DATA_STREAM_NAME,
-                        "a system data stream for testing",
-                        SystemDataStreamDescriptor.Type.EXTERNAL,
-                        new ComposableIndexTemplate(
-                            List.of(SYSTEM_DATA_STREAM_NAME),
-                            new Template(settings.build(), getTSDBMappings(), null, null),
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        ),
-                        Map.of(),
-                        Collections.singletonList("test"),
-                        new ExecutorNames(
-                            ThreadPool.Names.SYSTEM_CRITICAL_READ,
-                            ThreadPool.Names.SYSTEM_READ,
-                            ThreadPool.Names.SYSTEM_WRITE
-                        )
-                    )
-                );
-            } catch (IOException e) {
-                throw new RuntimeException("Unable to create system data stream descriptor", e);
-            }
-        }
-
-        @Override
-        public String getFeatureName() {
-            return SystemDataStreamTestPlugin.class.getSimpleName();
-        }
-
-        @Override
-        public String getFeatureDescription() {
-            return "A plugin for testing the data stream lifecycle runtime actions on system data streams";
-        }
-    }
-
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
         static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
@@ -484,7 +391,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
         @Override
         public String getFeatureName() {
-            return SystemDataStreamTestPlugin.class.getSimpleName();
+            return SystemDataStreamWithDownsamplingConfigurationPlugin.class.getSimpleName();
         }
 
         @Override

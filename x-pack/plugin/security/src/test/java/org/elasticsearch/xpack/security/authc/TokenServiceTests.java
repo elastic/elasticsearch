@@ -60,6 +60,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
@@ -1271,7 +1272,7 @@ public class TokenServiceTests extends ESTestCase {
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);
-        newStateBuilder.putTransportVersion(anotherDataNode.getId(), transportVersion);
+        newStateBuilder.putCompatibilityVersions(anotherDataNode.getId(), transportVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS);
         setState(clusterService, newStateBuilder.build());
         return anotherDataNode;
     }

@@ -18,12 +18,16 @@ import org.elasticsearch.core.Releasables;
  */
 public final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class);
 
     private final BytesRefArray values;
 
     public BytesRefArrayVector(BytesRefArray values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -81,6 +85,7 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }
 }

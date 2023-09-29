@@ -236,8 +236,8 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | where emp_no == 10039 or emp_no == 10040
             | sort emp_no
-            | eval birth_date_string = date_format(birth_date, "yyyy-MM-dd")
-            | eval new_date = date_parse(birth_date_string, "yyyy-MM-dd")
+            | eval birth_date_string = date_format("yyyy-MM-dd", birth_date)
+            | eval new_date = date_parse("yyyy-MM-dd", birth_date_string)
             | eval bool = new_date == birth_date
             | keep emp_no, new_date, birth_date, bool""", Set.of("emp_no", "emp_no.*", "birth_date", "birth_date.*"));
     }
@@ -246,7 +246,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             from employees
             | where emp_no == 10049 or emp_no == 10050
-            | eval year = date_extract(birth_date, "year"), month = date_extract(birth_date, "month_of_year")
+            | eval year = date_extract("year", birth_date), month = date_extract("month_of_year", birth_date)
             | keep emp_no, year, month""", Set.of("emp_no", "emp_no.*", "birth_date", "birth_date.*"));
     }
 
@@ -793,7 +793,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     public void testByStringAndString() {
         assertFieldNames("""
             from employees
-            | eval hire_year_str = date_format(hire_date, "yyyy")
+            | eval hire_year_str = date_format("yyyy", hire_date)
             | stats c = count(gender) by gender, hire_year_str
             | sort c desc, gender, hire_year_str
             | where c >= 5""", Set.of("hire_date", "hire_date.*", "gender", "gender.*"));
@@ -822,7 +822,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames(
             """
                 from employees
-                | eval hire_year_str = date_format(hire_date, "yyyy")
+                | eval hire_year_str = date_format("yyyy", hire_date)
                 | stats g = count_distinct(gender), h = count_distinct(hire_year_str)""",
             Set.of("hire_date", "hire_date.*", "gender", "gender.*")
         );

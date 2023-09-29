@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link IsInfinite}.
@@ -66,5 +67,10 @@ public final class IsInfiniteEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "IsInfiniteEvaluator[" + "val=" + val + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,6 +47,11 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("minimum snapshot count 3 cannot be larger than maximum snapshot count 1"));
     }
 
+    private static Map<SnapshotId, RepositoryData.SnapshotDetails> detailsMap(SnapshotInfo... snapshotInfos) {
+        return Arrays.stream(snapshotInfos)
+            .collect(Collectors.toMap(SnapshotInfo::snapshotId, RepositoryData.SnapshotDetails::fromSnapshotInfo));
+    }
+
     public void testExpireAfter() {
         SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(
             () -> TimeValue.timeValueDays(1).millis() + 1,
@@ -53,16 +60,14 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
             null
         );
         SnapshotInfo oldInfo = makeInfo(0);
-        assertThat(conf.getSnapshotDeletionPredicate(Collections.singletonList(oldInfo)).test(oldInfo), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(oldInfo, detailsMap(oldInfo)), equalTo(true));
 
         SnapshotInfo newInfo = makeInfo(1);
-        assertThat(conf.getSnapshotDeletionPredicate(Collections.singletonList(newInfo)).test(newInfo), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(newInfo, detailsMap(newInfo)), equalTo(false));
 
-        List<SnapshotInfo> infos = new ArrayList<>();
-        infos.add(newInfo);
-        infos.add(oldInfo);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(newInfo), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(true));
+        final var infos = detailsMap(newInfo, oldInfo);
+        assertThat(conf.isSnapshotEligibleForDeletion(newInfo, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(oldInfo, infos), equalTo(true));
     }
 
     public void testExpiredWithMinimum() {
@@ -75,15 +80,13 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo oldInfo = makeInfo(0);
         SnapshotInfo newInfo = makeInfo(1);
 
-        List<SnapshotInfo> infos = new ArrayList<>();
-        infos.add(newInfo);
-        infos.add(oldInfo);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(newInfo), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(false));
+        final var infos = detailsMap(newInfo, oldInfo);
+        assertThat(conf.isSnapshotEligibleForDeletion(newInfo, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(oldInfo, infos), equalTo(false));
 
         conf = new SnapshotRetentionConfiguration(() -> TimeValue.timeValueDays(1).millis() + 1, TimeValue.timeValueDays(1), 1, null);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(newInfo), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(newInfo, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(oldInfo, infos), equalTo(true));
     }
 
     public void testMaximum() {
@@ -98,16 +101,16 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo s8 = makeInfo(8);
         SnapshotInfo s9 = makeInfo(9);
 
-        List<SnapshotInfo> infos = Arrays.asList(s1, s2, s3, s4, s5, s6, s7, s8, s9);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s3), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s5), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s6), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s7), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s8), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s9), equalTo(false));
+        final var infos = detailsMap(s1, s2, s3, s4, s5, s6, s7, s8, s9);
+        assertThat(conf.isSnapshotEligibleForDeletion(s1, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(s2, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(s3, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(s4, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(s5, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s6, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s7, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s8, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s9, infos), equalTo(false));
     }
 
     public void testMaximumWithExpireAfter() {
@@ -121,10 +124,10 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo old2 = makeInfo(1);
         SnapshotInfo new1 = makeInfo(2);
 
-        List<SnapshotInfo> infos = Arrays.asList(old1, old2, new1);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(old1), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(old2), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(new1), equalTo(false));
+        final var infos = detailsMap(old1, old2, new1);
+        assertThat(conf.isSnapshotEligibleForDeletion(old1, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(old2, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(new1, infos), equalTo(false));
     }
 
     public void testMaximumWithFailedOrPartial() {
@@ -134,11 +137,11 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo s3 = makeInfo(3);
         SnapshotInfo s4 = makeInfo(4);
 
-        List<SnapshotInfo> infos = Arrays.asList(s1, s2, s3, s4);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s3), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(false));
+        final var infos = detailsMap(s1, s2, s3, s4);
+        assertThat(conf.isSnapshotEligibleForDeletion(s1, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(s2, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(s3, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(s4, infos), equalTo(false));
     }
 
     public void testFailuresDeletedIfExpired() {
@@ -157,16 +160,14 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
             null
         );
         SnapshotInfo oldInfo = makeFailureOrPartial(0, failure);
-        assertThat(conf.getSnapshotDeletionPredicate(Collections.singletonList(oldInfo)).test(oldInfo), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(oldInfo, detailsMap(oldInfo)), equalTo(true));
 
         SnapshotInfo newInfo = makeFailureOrPartial(1, failure);
-        assertThat(conf.getSnapshotDeletionPredicate(Collections.singletonList(newInfo)).test(newInfo), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(newInfo, detailsMap(newInfo)), equalTo(false));
 
-        List<SnapshotInfo> infos = new ArrayList<>();
-        infos.add(newInfo);
-        infos.add(oldInfo);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(newInfo), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(true));
+        final var infos = detailsMap(oldInfo, newInfo);
+        assertThat(conf.isSnapshotEligibleForDeletion(newInfo, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(oldInfo, infos), equalTo(true));
     }
 
     public void testFailuresDeletedIfNoExpiryAndMoreRecentSuccessExists() {
@@ -184,11 +185,11 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo s3 = makeFailureOrPartial(3, failure);
         SnapshotInfo s4 = makeInfo(4);
 
-        List<SnapshotInfo> infos = Arrays.asList(s1, s2, s3, s4);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s3), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(false));
+        final var infos = detailsMap(s1, s2, s3, s4);
+        assertThat(conf.isSnapshotEligibleForDeletion(s1, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s2, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s3, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(s4, infos), equalTo(false));
     }
 
     public void testFailuresKeptIfNoExpiryAndNoMoreRecentSuccess() {
@@ -207,11 +208,11 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo s3 = makeInfo(3);
         SnapshotInfo s4 = makeFailureOrPartial(4, failure);
 
-        List<SnapshotInfo> infos = Arrays.asList(s1, s2, s3, s4);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s3), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(false));
+        final var infos = detailsMap(s1, s2, s3, s4);
+        assertThat(conf.isSnapshotEligibleForDeletion(s1, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s2, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s3, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s4, infos), equalTo(false));
     }
 
     public void testFailuresNotCountedTowardsMaximum() {
@@ -230,12 +231,12 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo s4 = makeFailureOrPartial(4, failure);
         SnapshotInfo s5 = makeInfo(5);
 
-        List<SnapshotInfo> infos = Arrays.asList(s1, s2, s3, s4, s5);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s3), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s5), equalTo(false));
+        final var infos = detailsMap(s1, s2, s3, s4, s5);
+        assertThat(conf.isSnapshotEligibleForDeletion(s1, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s2, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s3, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s4, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s5, infos), equalTo(false));
     }
 
     public void testFailuresNotCountedTowardsMinimum() {
@@ -257,18 +258,15 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo failureInfo = makeFailureOrPartial(1, failure);
         SnapshotInfo newInfo = makeInfo(2);
 
-        List<SnapshotInfo> infos = new ArrayList<>();
-        infos.add(newInfo);
-        infos.add(failureInfo);
-        infos.add(oldInfo);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(newInfo), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(failureInfo), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(false));
+        final var infos = detailsMap(newInfo, failureInfo, oldInfo);
+        assertThat(conf.isSnapshotEligibleForDeletion(newInfo, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(failureInfo, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(oldInfo, infos), equalTo(false));
 
         conf = new SnapshotRetentionConfiguration(() -> TimeValue.timeValueDays(1).millis() + 2, TimeValue.timeValueDays(1), 1, null);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(newInfo), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(failureInfo), equalTo(true));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(newInfo, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(failureInfo, infos), equalTo(true));
+        assertThat(conf.isSnapshotEligibleForDeletion(oldInfo, infos), equalTo(true));
     }
 
     public void testMostRecentSuccessfulTimestampIsUsed() {
@@ -279,11 +277,11 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo s3 = makeFailureOrPartial(3, failureBeforePartial);
         SnapshotInfo s4 = makeFailureOrPartial(4, failureBeforePartial == false);
 
-        List<SnapshotInfo> infos = Arrays.asList(s1, s2, s3, s4);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s3), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s4), equalTo(false));
+        final var infos = detailsMap(s1, s2, s3, s4);
+        assertThat(conf.isSnapshotEligibleForDeletion(s1, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s2, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s3, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s4, infos), equalTo(false));
     }
 
     public void testFewerSuccessesThanMinWithPartial() {
@@ -292,10 +290,10 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         SnapshotInfo sP = makePartialInfo(2);
         SnapshotInfo s2 = makeInfo(3);
 
-        List<SnapshotInfo> infos = Arrays.asList(s1, sP, s2);
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s1), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(sP), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(s2), equalTo(false));
+        final var infos = detailsMap(s1, sP, s2);
+        assertThat(conf.isSnapshotEligibleForDeletion(s1, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(sP, infos), equalTo(false));
+        assertThat(conf.isSnapshotEligibleForDeletion(s2, infos), equalTo(false));
     }
 
     private SnapshotInfo makeInfo(long startTime) {

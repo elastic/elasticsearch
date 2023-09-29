@@ -40,6 +40,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
             super(name);
         }
 
+        @SuppressWarnings("this-escape")
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RegexMatch}.
@@ -74,5 +75,10 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "RegexMatchEvaluator[" + "input=" + input + ", pattern=" + pattern + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(input);
   }
 }

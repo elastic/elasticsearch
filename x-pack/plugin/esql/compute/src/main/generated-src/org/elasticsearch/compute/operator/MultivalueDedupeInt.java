@@ -40,7 +40,7 @@ public class MultivalueDedupeInt {
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
     public IntBlock dedupeToBlockAdaptive() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
@@ -88,7 +88,7 @@ public class MultivalueDedupeInt {
      * which picks based on the number of elements at each position.
      */
     public IntBlock dedupeToBlockUsingCopyAndSort() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
@@ -116,7 +116,7 @@ public class MultivalueDedupeInt {
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
     public IntBlock dedupeToBlockUsingCopyMissing() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());

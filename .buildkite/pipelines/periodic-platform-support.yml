@@ -26,8 +26,9 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          diskSizeGb: 350
-          machineType: n1-standard-32
+          localSsds: 1
+          localSsdInterface: nvme
+          machineType: custom-32-98304
         env: {}
   - group: platform-support-windows
     steps:

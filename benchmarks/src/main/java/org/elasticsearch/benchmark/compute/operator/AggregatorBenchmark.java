@@ -117,9 +117,11 @@ public class AggregatorBenchmark {
     public String blockType;
 
     private static Operator operator(String grouping, String op, String dataType) {
+        DriverContext driverContext = driverContext();
         if (grouping.equals("none")) {
             return new AggregationOperator(
-                List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE).apply(driverContext()))
+                List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE).apply(driverContext)),
+                driverContext
             );
         }
         List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
@@ -143,7 +145,6 @@ public class AggregatorBenchmark {
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
-        DriverContext driverContext = driverContext();
         return new HashAggregationOperator(
             List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
             () -> BlockHash.build(groups, BIG_ARRAYS, 16 * 1024, false),

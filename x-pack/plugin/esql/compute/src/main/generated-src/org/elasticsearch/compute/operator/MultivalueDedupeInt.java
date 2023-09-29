@@ -27,21 +27,23 @@ public class MultivalueDedupeInt {
      * The choice of number has been experimentally derived.
      */
     private static final int ALWAYS_COPY_MISSING = 300;
+    private final Block.Ref ref;
     private final IntBlock block;
     private int[] work = new int[ArrayUtil.oversize(2, Integer.BYTES)];
     private int w;
 
-    public MultivalueDedupeInt(IntBlock block) {
-        this.block = block;
+    public MultivalueDedupeInt(Block.Ref ref) {
+        this.ref = ref;
+        this.block = (IntBlock) ref.block();
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public IntBlock dedupeToBlockAdaptive() {
+    public Block.Ref dedupeToBlockAdaptive() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -78,7 +80,7 @@ public class MultivalueDedupeInt {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -87,9 +89,9 @@ public class MultivalueDedupeInt {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public IntBlock dedupeToBlockUsingCopyAndSort() {
+    public Block.Ref dedupeToBlockUsingCopyAndSort() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -104,7 +106,7 @@ public class MultivalueDedupeInt {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -115,9 +117,9 @@ public class MultivalueDedupeInt {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public IntBlock dedupeToBlockUsingCopyMissing() {
+    public Block.Ref dedupeToBlockUsingCopyMissing() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -132,7 +134,7 @@ public class MultivalueDedupeInt {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntArrayVector;
@@ -54,7 +55,7 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     private IntBlock add(BooleanBlock block) {
-        return new MultivalueDedupeBoolean(block).hash(everSeen);
+        return new MultivalueDedupeBoolean(Block.Ref.floating(block)).hash(everSeen);
     }
 
     @Override

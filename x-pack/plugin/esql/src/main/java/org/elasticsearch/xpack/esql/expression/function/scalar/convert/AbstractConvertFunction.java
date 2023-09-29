@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -25,7 +27,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -48,7 +49,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         if (evaluator == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
         }
-        return dvrCtx -> evaluator.apply(fieldEval.get(dvrCtx), source());
+        return dvrCtx -> evaluator.apply(fieldEval.get(dvrCtx), source(), dvrCtx);
     }
 
     @Override
@@ -65,7 +66,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         );
     }
 
-    protected abstract Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators();
+    protected abstract Map<DataType, TriFunction<ExpressionEvaluator, Source, DriverContext, ExpressionEvaluator>> evaluators();
 
     @Override
     public final Object fold() {

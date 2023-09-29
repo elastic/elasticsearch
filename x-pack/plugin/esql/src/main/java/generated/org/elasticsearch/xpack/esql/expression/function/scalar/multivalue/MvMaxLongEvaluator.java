@@ -35,7 +35,7 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
    */
   @Override
   public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNullable(fieldVal);
     }
     LongBlock v = (LongBlock) fieldVal;
@@ -65,7 +65,7 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
    */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNotNullable(fieldVal);
     }
     LongBlock v = (LongBlock) fieldVal;

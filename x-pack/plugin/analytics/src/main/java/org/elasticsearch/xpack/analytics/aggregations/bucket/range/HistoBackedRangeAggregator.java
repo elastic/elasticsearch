@@ -134,7 +134,7 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
                         previousValue = value;
                         // Collecting the bucket automatically increments the count by the docCountProvider,
                         // account for that here
-                        final int count = sketch.count() - docCountProvider.getDocCount(doc);
+                        final long count = sketch.count() - docCountProvider.getDocCount(doc);
                         lo = HistoBackedRangeAggregator.this.collect(sub, doc, value, bucket, lo, count);
                     }
                 }
@@ -142,7 +142,7 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
         };
     }
 
-    abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, int count)
+    abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, long count)
         throws IOException;
 
     private static class NoOverlap extends HistoBackedRangeAggregator {
@@ -178,7 +178,7 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
         }
 
         @Override
-        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, int count)
+        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, long count)
             throws IOException {
             int lo = lowBound, hi = ranges.length - 1;
             while (lo <= hi) {
@@ -240,7 +240,7 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
         }
 
         @Override
-        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, int count)
+        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, long count)
             throws IOException {
             int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
             int mid = (lo + hi) >>> 1;

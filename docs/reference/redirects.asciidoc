@@ -1932,3 +1932,73 @@ Refer to <<remote-clusters>>.
 === Configure roles and users for remote clusters
 
 Refer to <<remote-clusters>>.
+
+[role="exclude",id="ingest-pipeline-search"]
+=== Ingest pipelines for Search indices
+
+coming::[8.11.0]
+
+[role="exclude",id="ingest-pipeline-search-inference"]
+=== Inference processing for Search indices
+
+coming::[8.11.0]
+
+[id="ingest-pipeline-search-inference-update-mapping"]
+==== Update mapping
+
+coming::[8.11.0]
+
+[role="exclude",id="nlp-example"]
+=== Tutorial: Natural language processing (NLP)
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-overview"]
+=== Elastic Behavioral Analytics
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-start"]
+=== Get started with Behavioral Analytics
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-api"]
+=== Behavioral Analytics APIs
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-event"]
+=== View Behavioral Analytics Events
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-event-reference"]
+=== Behavioral Analytics events reference
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-cors"]
+=== Set up CORS for Behavioral Analytics
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-overview"]
+=== Elastic Search Applications
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-api"]
+=== Search Applications search API and templates
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-client"]
+=== Search Applications client
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-security"]
+=== Search Applications security
+
+coming::[8.11.0]

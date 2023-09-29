@@ -149,7 +149,7 @@ public class TransportVersions {
     public static final TransportVersion DATA_STREAM_RESPONSE_INDEX_PROPERTIES = def(8_506_00_0);
     public static final TransportVersion ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED = def(8_507_00_0);
     public static final TransportVersion LONG_COUNT_IN_HISTOGRAM_ADDED = def(8_508_00_0);
-
+    public static final TransportVersion INFERENCE_MODEL_SECRETS_ADDED = def(8_509_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

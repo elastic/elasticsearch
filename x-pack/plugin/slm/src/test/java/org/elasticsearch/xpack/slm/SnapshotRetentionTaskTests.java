@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -238,20 +238,6 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                 0L,
                 Collections.emptyMap()
             );
-            final SnapshotInfo ineligibleSnapshot = new SnapshotInfo(
-                new Snapshot(repoId, new SnapshotId("name2", "uuid2")),
-                Collections.singletonList("index"),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                null,
-                System.currentTimeMillis() + 1,
-                1,
-                Collections.emptyList(),
-                true,
-                Collections.singletonMap("policy", policyId),
-                System.currentTimeMillis(),
-                Collections.emptyMap()
-            );
 
             Set<SnapshotId> deleted = ConcurrentHashMap.newKeySet();
             Set<String> deletedSnapshotsInHistory = ConcurrentHashMap.newKeySet();
@@ -273,11 +259,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     historyLatch.countDown();
                 }),
                 () -> {
-                    List<SnapshotInfo> snaps = new ArrayList<>(2);
-                    snaps.add(eligibleSnapshot);
-                    snaps.add(ineligibleSnapshot);
-                    logger.info("--> retrieving snapshots [{}]", snaps);
-                    return Collections.singletonMap(repoId, snaps);
+                    final var result = Collections.singletonMap(repoId, List.of(Tuple.tuple(eligibleSnapshot.snapshotId(), policyId)));
+                    logger.info("--> retrieving snapshots [{}]", result);
+                    return result;
                 },
                 (deletionPolicyId, repo, snapId, slmStats, listener) -> {
                     logger.info("--> deleting {} from repo {}", snapId, repo);
@@ -295,7 +279,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             long time = System.currentTimeMillis();
             retentionTask.triggered(new SchedulerEngine.Event(SnapshotRetentionService.SLM_RETENTION_JOB_ID, time, time));
 
-            deletionLatch.await(10, TimeUnit.SECONDS);
+            safeAwait(deletionLatch);
 
             assertThat("something should have been deleted", deleted, not(empty()));
             assertThat("one snapshot should have been deleted", deleted, hasSize(1));
@@ -364,18 +348,22 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             );
 
             AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
-            task.getAllRetainableSnapshots(Collections.singleton(repoId), Collections.singleton(policyId), new ActionListener<>() {
-                @Override
-                public void onResponse(Map<String, List<SnapshotInfo>> stringListMap) {
-                    logger.info("--> forcing failure");
-                    throw new ElasticsearchException("forced failure");
-                }
+            task.getSnapshotsEligibleForDeletion(
+                Collections.singleton(repoId),
+                Map.of(policyId, new SnapshotLifecyclePolicy(policyId, "test", "* * * * *", repoId, null, null)),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Map<String, List<Tuple<SnapshotId, String>>> snapshotsToBeDeleted) {
+                        logger.info("--> forcing failure");
+                        throw new ElasticsearchException("forced failure");
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    errHandlerCalled.set(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        errHandlerCalled.set(e);
+                    }
                 }
-            });
+            );
 
             assertNotNull(errHandlerCalled.get());
             assertThat(errHandlerCalled.get().getMessage(), equalTo("forced failure"));
@@ -597,14 +585,14 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
     }
 
     private static class MockSnapshotRetentionTask extends SnapshotRetentionTask {
-        private final Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever;
+        private final Supplier<Map<String, List<Tuple<SnapshotId, String>>>> snapshotRetriever;
         private final DeleteSnapshotMock deleteRunner;
 
         MockSnapshotRetentionTask(
             Client client,
             ClusterService clusterService,
             SnapshotHistoryStore historyStore,
-            Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
+            Supplier<Map<String, List<Tuple<SnapshotId, String>>>> snapshotRetriever,
             DeleteSnapshotMock deleteRunner,
             LongSupplier nanoSupplier
         ) {
@@ -614,10 +602,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         }
 
         @Override
-        void getAllRetainableSnapshots(
+        void getSnapshotsEligibleForDeletion(
             Collection<String> repositories,
-            Set<String> policies,
-            ActionListener<Map<String, List<SnapshotInfo>>> listener
+            Map<String, SnapshotLifecyclePolicy> policies,
+            ActionListener<Map<String, List<Tuple<SnapshotId, String>>>> listener
         ) {
             listener.onResponse(this.snapshotRetriever.get());
         }

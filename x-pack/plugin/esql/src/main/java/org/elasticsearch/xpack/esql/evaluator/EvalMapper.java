@@ -86,16 +86,15 @@ public final class EvalMapper {
                 implements
                     ExpressionEvaluator {
                 @Override
-                public Block eval(Page page) {
-                    Block lhs = leftEval.eval(page);
-                    Block rhs = rightEval.eval(page);
-
-                    Vector lhsVector = lhs.asVector();
-                    Vector rhsVector = rhs.asVector();
-                    if (lhsVector != null && rhsVector != null) {
-                        return eval((BooleanVector) lhsVector, (BooleanVector) rhsVector);
+                public Block.Ref eval(Page page) {
+                    try (Block.Ref lhs = leftEval.eval(page); Block.Ref rhs = rightEval.eval(page)) {
+                        Vector lhsVector = lhs.block().asVector();
+                        Vector rhsVector = rhs.block().asVector();
+                        if (lhsVector != null && rhsVector != null) {
+                            return Block.Ref.floating(eval((BooleanVector) lhsVector, (BooleanVector) rhsVector));
+                        }
+                        return Block.Ref.floating(eval(lhs.block(), rhs.block()));
                     }
-                    return eval(lhs, rhs);
                 }
 
                 /**
@@ -164,8 +163,8 @@ public final class EvalMapper {
         public ExpressionEvaluator.Factory map(Attribute attr, Layout layout) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
-                public Block eval(Page page) {
-                    return page.getBlock(channel);
+                public Block.Ref eval(Page page) {
+                    return new Block.Ref(page.getBlock(channel), page);
                 }
 
                 @Override
@@ -182,8 +181,8 @@ public final class EvalMapper {
         public ExpressionEvaluator.Factory map(Literal lit, Layout layout) {
             record LiteralsEvaluator(IntFunction<Block> block) implements ExpressionEvaluator {
                 @Override
-                public Block eval(Page page) {
-                    return block.apply(page.getPositionCount());
+                public Block.Ref eval(Page page) {
+                    return Block.Ref.floating(block.apply(page.getPositionCount()));
                 }
 
                 @Override
@@ -234,16 +233,17 @@ public final class EvalMapper {
 
         record IsNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
             @Override
-            public Block eval(Page page) {
-                Block fieldBlock = field.eval(page);
-                if (fieldBlock.asVector() != null) {
-                    return BooleanBlock.newConstantBlockWith(false, page.getPositionCount());
+            public Block.Ref eval(Page page) {
+                try (Block.Ref fieldBlock = field.eval(page)) {
+                    if (fieldBlock.block().asVector() != null) {
+                        return Block.Ref.floating(BooleanBlock.newConstantBlockWith(false, page.getPositionCount()));
+                    }
+                    boolean[] result = new boolean[page.getPositionCount()];
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        result[p] = fieldBlock.block().isNull(p);
+                    }
+                    return Block.Ref.floating(new BooleanArrayVector(result, result.length).asBlock());
                 }
-                boolean[] result = new boolean[page.getPositionCount()];
-                for (int p = 0; p < page.getPositionCount(); p++) {
-                    result[p] = fieldBlock.isNull(p);
-                }
-                return new BooleanArrayVector(result, result.length).asBlock();
             }
 
             @Override
@@ -263,16 +263,17 @@ public final class EvalMapper {
 
         record IsNotNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
             @Override
-            public Block eval(Page page) {
-                Block fieldBlock = field.eval(page);
-                if (fieldBlock.asVector() != null) {
-                    return BooleanBlock.newConstantBlockWith(true, page.getPositionCount());
+            public Block.Ref eval(Page page) {
+                try (Block.Ref fieldBlock = field.eval(page)) {
+                    if (fieldBlock.block().asVector() != null) {
+                        return Block.Ref.floating(BooleanBlock.newConstantBlockWith(true, page.getPositionCount()));
+                    }
+                    boolean[] result = new boolean[page.getPositionCount()];
+                    for (int p = 0; p < page.getPositionCount(); p++) {
+                        result[p] = fieldBlock.block().isNull(p) == false;
+                    }
+                    return Block.Ref.floating(new BooleanArrayVector(result, result.length).asBlock());
                 }
-                boolean[] result = new boolean[page.getPositionCount()];
-                for (int p = 0; p < page.getPositionCount(); p++) {
-                    result[p] = fieldBlock.isNull(p) == false;
-                }
-                return new BooleanArrayVector(result, result.length).asBlock();
             }
 
             @Override

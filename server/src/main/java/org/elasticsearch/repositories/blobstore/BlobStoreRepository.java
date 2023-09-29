@@ -1430,14 +1430,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Update the root blob
             .<RootBlobUpdateResult>andThen((l, metadataWriteResult) -> {
                 // unlikely, but in theory we could still be on the thread which called finalizeSnapshot - TODO must fork to SNAPSHOT here
-                final String slmPolicy = slmPolicy(snapshotInfo);
-                final SnapshotDetails snapshotDetails = new SnapshotDetails(
-                    snapshotInfo.state(),
-                    IndexVersion.current(),
-                    snapshotInfo.startTime(),
-                    snapshotInfo.endTime(),
-                    slmPolicy
-                );
+                final var snapshotDetails = SnapshotDetails.fromSnapshotInfo(snapshotInfo);
                 final var existingRepositoryData = metadataWriteResult.existingRepositoryData();
                 writeIndexGen(
                     existingRepositoryData.addSnapshot(
@@ -2364,17 +2357,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
                         getSnapshotInfo(
                             new GetSnapshotInfoContext(snapshotIdsWithMissingDetails, false, () -> false, (context, snapshotInfo) -> {
-                                final String slmPolicy = slmPolicy(snapshotInfo);
-                                extraDetailsMap.put(
-                                    snapshotInfo.snapshotId(),
-                                    new SnapshotDetails(
-                                        snapshotInfo.state(),
-                                        snapshotInfo.version(),
-                                        snapshotInfo.startTime(),
-                                        snapshotInfo.endTime(),
-                                        slmPolicy
-                                    )
-                                );
+                                extraDetailsMap.put(snapshotInfo.snapshotId(), SnapshotDetails.fromSnapshotInfo(snapshotInfo));
                             }, ActionListener.runAfter(new ActionListener<>() {
                                 @Override
                                 public void onResponse(Void aVoid) {
@@ -2477,24 +2460,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             });
         }));
-    }
-
-    /**
-     * Extract slm policy from snapshot info. If none can be found, empty string is returned.
-     */
-    private static String slmPolicy(SnapshotInfo snapshotInfo) {
-        final String slmPolicy;
-        if (snapshotInfo.userMetadata() == null) {
-            slmPolicy = "";
-        } else {
-            final Object policyFound = snapshotInfo.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-            if (policyFound instanceof String) {
-                slmPolicy = (String) policyFound;
-            } else {
-                slmPolicy = "";
-            }
-        }
-        return slmPolicy;
     }
 
     private RepositoryData updateRepositoryData(RepositoryData repositoryData, IndexVersion repositoryMetaversion, long newGen) {

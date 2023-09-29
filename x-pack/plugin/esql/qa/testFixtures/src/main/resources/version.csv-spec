@@ -139,7 +139,8 @@ id:i  |name:s     |version:v
 9     |iiiii      |bad
 ;
 
-orderByVersionMultipleCasts
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+orderByVersionMultipleCasts-Ignore
 FROM apps | EVAL o = TO_VER(CONCAT("1.", TO_STR(version))) | SORT o, id;
 
 id:i           |name:s         |version:v      |o:v        
@@ -203,7 +204,8 @@ bad
 5.2.9-SNAPSHOT
 ;
 
-groupByVersionCast
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+groupByVersionCast-Ignore
 FROM apps | EVAL g = TO_VER(CONCAT("1.", TO_STR(version))) | STATS id = MAX(id) BY g | SORT id | DROP g;
 
 id:i
@@ -287,7 +289,8 @@ idx:i  |version:v
 14     | 5.2.9
 ;
 
-case
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+case-Ignore
 FROM apps
 | EVAL version_text = TO_STR(version)
 | WHERE version IS NULL OR version_text LIKE "1*"

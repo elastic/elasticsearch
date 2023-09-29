@@ -285,7 +285,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     );
                 }
 
+                // Repository name -> Retention policy ID -> (SnapshotId, SnapshotDetails)
                 final Map<String, Map<String, Map<SnapshotId, RepositoryData.SnapshotDetails>>> allSnapshotDetails = new HashMap<>();
+                // TODO should we make this properly immutable or is its scope small enough that we don't need it?
                 for (Map.Entry<String, List<SnapshotInfo>> repositorySnapshots : snapshots.entrySet()) {
                     final var repositoryName = repositorySnapshots.getKey();
                     final var repositorySnapshotDetails = allSnapshotDetails.computeIfAbsent(repositoryName, ignored -> new HashMap<>());

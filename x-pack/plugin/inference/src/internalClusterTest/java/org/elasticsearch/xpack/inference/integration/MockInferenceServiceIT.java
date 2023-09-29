@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -20,19 +23,33 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class MockInferenceServiceIT extends ESIntegTestCase {
+
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+
+    private ModelRegistry modelRegistry;
+
+    @Before
+    public void createComponents() {
+        modelRegistry = new ModelRegistry(client());
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -60,6 +77,19 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
 
         // The response is randomly generated, the input can be anything
         inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, randomAlphaOfLength(10));
+    }
+
+    public void testGetUnparsedModelMap_ForTestServiceModel_ReturnsSecretsPopulated() {
+        String modelId = "test-unparsed";
+        putMockService(modelId, TaskType.SPARSE_EMBEDDING);
+
+        var listener = new PlainActionFuture<ModelRegistry.ModelConfigMap>();
+        modelRegistry.getUnparsedModelMap(modelId, listener);
+
+        var modelConfig = listener.actionGet(TIMEOUT);
+        var secretsMap = removeFromMapOrThrowIfNull(modelConfig.secrets(), ModelSecrets.SECRET_SETTINGS);
+        var secrets = TestInferenceServicePlugin.TestSecretSettings.fromMap(secretsMap);
+        assertThat(secrets.apiKey(), is("abc64"));
     }
 
     private ModelConfigurations putMockService(String modelId, TaskType taskType) {

@@ -878,10 +878,17 @@ public class InternalEngine extends Engine {
         }
         boolean getFromSearcherIfNotInTranslog = getFromSearcher;
         if (versionValue != null) {
-            // It is possible that once we've seen the ID in the version map and attempt handling the get,
-            // we won't see the doc in the translog since it might have been moved out. In these cases, we
-            // should always fall back to get the doc from the internal searcher.
-            // TODO: ideally we should keep around translog entries long enough to cover this case
+            /*
+             * Once we've seen the ID in the live version map, in two cases it is still possible not to
+             * be able to follow up with serving the get from the translog:
+             *  1. It is possible that once attempt handling the get, we won't see the doc in the translog
+             *     since it might have been moved out.
+             *     TODO: ideally we should keep around translog entries long enough to cover this case
+             *  2. We might not be tracking translog locations in the live version map (see @link{trackTranslogLocation})
+             *
+             * In these cases, we should always fall back to get the doc from the internal searcher.
+             */
+
             getFromSearcherIfNotInTranslog = true;
             if (versionValue.isDelete()) {
                 return GetResult.NOT_EXISTS;

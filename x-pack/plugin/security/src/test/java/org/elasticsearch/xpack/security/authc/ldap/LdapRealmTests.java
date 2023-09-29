@@ -490,8 +490,11 @@ public class LdapRealmTests extends LdapTestCase {
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
-        when(mockSecurityIndex.isAvailable()).thenReturn(true);
+        when(mockSecurityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(mockSecurityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
+        when(mockSecurityIndex.defensiveCopy()).thenReturn(mockSecurityIndex);
+        when(mockSecurityIndex.indexExists()).thenReturn(true);
 
         Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);

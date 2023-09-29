@@ -533,7 +533,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
             // Loop through all possible handlers, attempting to dispatch the request
-            requestsCounter.incrementBy(1, Map.of("path", request.path(), "method", requestMethod.name(), "tester", "stuart"));
+            requestsCounter.incrementBy(1, Map.of("path", request.path(), "method", requestMethod.name(), "slogan", "ya-know-for-search"));
             Iterator<MethodHandlers> allHandlers = getAllHandlers(request.params(), rawPath);
             while (allHandlers.hasNext()) {
                 final RestHandler handler;

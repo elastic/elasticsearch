@@ -28,14 +28,14 @@ public class EvalOperatorTests extends OperatorTestCase {
 
     record Addition(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block eval(Page page) {
+        public Block.Ref eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
             LongVector.Builder result = LongVector.newVectorBuilder(page.getPositionCount());
             for (int p = 0; p < page.getPositionCount(); p++) {
                 result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
             }
-            return result.build().asBlock();
+            return Block.Ref.floating(result.build().asBlock());
         }
 
         @Override

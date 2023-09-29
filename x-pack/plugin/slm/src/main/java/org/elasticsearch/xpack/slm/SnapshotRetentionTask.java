@@ -22,6 +22,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -218,7 +219,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         .map(pId -> pId.equals(policyId))
                         .orElse(false)
                 )
-                .toList()
+                .collect(Collectors.toMap(SnapshotInfo::snapshotId, RepositoryData.SnapshotDetails::fromSnapshotInfo))
         );
         logger.debug(
             "[{}] testing snapshot [{}] deletion eligibility: {}",

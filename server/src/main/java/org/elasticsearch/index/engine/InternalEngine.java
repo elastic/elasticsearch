@@ -881,6 +881,7 @@ public class InternalEngine extends Engine {
             // It is possible that once we've seen the ID in the version map and attempt handling the get,
             // we won't see the doc in the translog since it might have been moved out. In these cases, we
             // should always fall back to get the doc from the internal searcher.
+            // TODO: ideally we should keep around translog entries long enough to cover this case
             getFromSearcherIfNotInTranslog = true;
             if (versionValue.isDelete()) {
                 return GetResult.NOT_EXISTS;

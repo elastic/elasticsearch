@@ -54,7 +54,6 @@ final class PackedValuesBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
-    private final BytesRef scratch = new BytesRef();
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final Group[] groups;
 
@@ -95,7 +94,7 @@ final class PackedValuesBlockHash extends BlockHash {
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             super(emitBatchSize, addInput);
             for (Group group : groups) {
-                group.encoder = MultivalueDedupe.batchEncoder(new Block.Ref(page.getBlock(group.spec.channel()), page), batchSize);
+                group.encoder = MultivalueDedupe.batchEncoder(new Block.Ref(page.getBlock(group.spec.channel()), page), batchSize, true);
             }
             bytes.grow(nullTrackingBytes);
             this.positionCount = page.getPositionCount();
@@ -135,13 +134,10 @@ final class PackedValuesBlockHash extends BlockHash {
         private void addSingleEntry() {
             for (int g = 0; g < groups.length; g++) {
                 Group group = groups[g];
-                BytesRef v = group.encoder.read(group.valueOffset++, scratch);
-                if (v.length == 0) {
+                if (group.encoder.read(group.valueOffset++, bytes) == 0) {
                     int nullByte = g / 8;
                     int nullShift = g % 8;
                     bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
-                } else {
-                    bytes.append(v);
                 }
             }
             int ord = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
@@ -156,16 +152,13 @@ final class PackedValuesBlockHash extends BlockHash {
                 for (; g < groups.length; g++) {
                     Group group = groups[g];
                     group.bytesStart = bytes.length();
-                    BytesRef v = group.encoder.read(group.valueOffset + group.loopedIndex, scratch);
-                    ++group.loopedIndex;
-                    if (v.length == 0) {
+                    if (group.encoder.read(group.valueOffset + group.loopedIndex, bytes) == 0) {
                         assert group.valueCount == 1 : "null value in non-singleton list";
                         int nullByte = g / 8;
                         int nullShift = g % 8;
                         bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
-                    } else {
-                        bytes.append(v);
                     }
+                    ++group.loopedIndex;
                 }
                 // emit ords
                 int ord = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));

@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -26,7 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -127,15 +129,18 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
      * @return whether a SnapshotInfo should be deleted according to this retention policy.
      * @param allSnapshots a list of all snapshot pertaining to this SLM policy and repository
      */
-    public boolean isSnapshotEligibleForDeletion(SnapshotInfo si, List<SnapshotInfo> allSnapshots) {
+    public boolean isSnapshotEligibleForDeletion(SnapshotInfo si, Map<SnapshotId, RepositoryData.SnapshotDetails> allSnapshots) {
         final int totalSnapshotCount = allSnapshots.size();
-        final List<SnapshotInfo> sortedSnapshots = allSnapshots.stream().sorted(Comparator.comparingLong(SnapshotInfo::startTime)).toList();
+        final var sortedSnapshots = allSnapshots.entrySet()
+            .stream()
+            .sorted(Comparator.comparingLong(e -> e.getValue().getStartTimeMillis()))
+            .toList();
         int successCount = 0;
         long latestSuccessfulTimestamp = Long.MIN_VALUE;
-        for (SnapshotInfo snapshot : allSnapshots) {
-            if (snapshot.state() == SnapshotState.SUCCESS) {
+        for (final var snapshot : allSnapshots.values()) {
+            if (snapshot.getSnapshotState() == SnapshotState.SUCCESS) {
                 successCount++;
-                latestSuccessfulTimestamp = Math.max(latestSuccessfulTimestamp, snapshot.startTime());
+                latestSuccessfulTimestamp = Math.max(latestSuccessfulTimestamp, snapshot.getStartTimeMillis());
             }
         }
         final long newestSuccessfulTimestamp = latestSuccessfulTimestamp;
@@ -157,14 +162,14 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             final long successfulSnapsToDelete = successfulSnapshotCount - this.maximumSnapshotCount;
             boolean found = false;
             int successfulSeen = 0;
-            for (SnapshotInfo s : sortedSnapshots) {
-                if (s.state() == SnapshotState.SUCCESS) {
+            for (final var s : sortedSnapshots) {
+                if (s.getValue().getSnapshotState() == SnapshotState.SUCCESS) {
                     successfulSeen++;
                 }
                 if (successfulSeen > successfulSnapsToDelete) {
                     break;
                 }
-                if (s.equals(si)) {
+                if (s.getKey().equals(si.snapshotId())) {
                     found = true;
                     break;
                 }
@@ -225,11 +230,11 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                 final boolean maybeEligible;
                 if (si.state() == SnapshotState.SUCCESS) {
                     maybeEligible = sortedSnapshots.stream()
-                        .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
+                        .filter(snap -> SnapshotState.SUCCESS.equals(snap.getValue().getSnapshotState()))
                         .limit(Math.max(0, successfulSnapshotCount - minimumSnapshotCount))
-                        .anyMatch(si::equals);
+                        .anyMatch(s -> s.getKey().equals(si.snapshotId()));
                 } else if (UNSUCCESSFUL_STATES.contains(si.state())) {
-                    maybeEligible = sortedSnapshots.contains(si);
+                    maybeEligible = allSnapshots.containsKey(si.snapshotId());
                 } else {
                     logger.trace("[{}] INELIGIBLE because snapshot is in state [{}]", snapName, si.state());
                     return false;

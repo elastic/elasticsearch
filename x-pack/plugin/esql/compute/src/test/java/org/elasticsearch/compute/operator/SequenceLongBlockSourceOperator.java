@@ -21,23 +21,27 @@ public class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator
 
     static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
+    private final BlockFactory blockFactory;
+
     private final long[] values;
 
-    public SequenceLongBlockSourceOperator(LongStream values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceLongBlockSourceOperator(BlockFactory blockFactory, LongStream values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceLongBlockSourceOperator(LongStream values, int maxPagePositions) {
+    public SequenceLongBlockSourceOperator(BlockFactory blockFactory, LongStream values, int maxPagePositions) {
         super(maxPagePositions);
+        this.blockFactory = blockFactory;
         this.values = values.toArray();
     }
 
-    public SequenceLongBlockSourceOperator(List<Long> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceLongBlockSourceOperator(BlockFactory blockFactory, List<Long> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceLongBlockSourceOperator(List<Long> values, int maxPagePositions) {
+    public SequenceLongBlockSourceOperator(BlockFactory blockFactory, List<Long> values, int maxPagePositions) {
         super(maxPagePositions);
+        this.blockFactory = blockFactory;
         this.values = values.stream().mapToLong(Long::longValue).toArray();
     }
 
@@ -48,7 +52,7 @@ public class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator
             array[i] = values[positionOffset + i];
         }
         currentPosition += length;
-        return new Page(BlockFactory.getNonBreakingInstance().newLongArrayVector(array, array.length).asBlock()); // TODO: just for compile
+        return new Page(blockFactory.newLongArrayVector(array, array.length).asBlock()); // TODO: just for compile
     }
 
     protected int remaining() {

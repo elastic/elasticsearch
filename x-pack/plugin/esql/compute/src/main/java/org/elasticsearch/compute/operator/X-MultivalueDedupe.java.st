@@ -70,7 +70,7 @@ $endif$
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
     public $Type$Block dedupeToBlockAdaptive() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
@@ -122,7 +122,7 @@ $endif$
      * which picks based on the number of elements at each position.
      */
     public $Type$Block dedupeToBlockUsingCopyAndSort() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
@@ -154,7 +154,7 @@ $endif$
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
     public $Type$Block dedupeToBlockUsingCopyMissing() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());

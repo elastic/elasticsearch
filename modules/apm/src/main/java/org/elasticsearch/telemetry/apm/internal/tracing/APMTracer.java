@@ -150,7 +150,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
-
             return new APMServices(tracer, openTelemetry);
         });
     }
@@ -452,4 +451,5 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
         return Operations.union(automata);
     }
+
 }

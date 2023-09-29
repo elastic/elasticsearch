@@ -153,6 +153,23 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         }
     }
 
+    public void testsHandleUnknownResult() {
+        var processor = new PyTorchResultProcessor("deployment-foo", settings -> {});
+        var listener = new AssertingResultListener(
+            r -> assertThat(
+                r.errorResult().error(),
+                containsString("[deployment-foo] pending result listener cannot handle unknown result type")
+            )
+        );
+
+        processor.registerRequest("no-result-content", listener);
+
+        processor.process(
+            mockNativeProcess(List.of(new PyTorchResult("no-result-content", null, null, null, null, null, null)).iterator())
+        );
+        assertTrue(listener.hasResponse);
+    }
+
     private static class AssertingResultListener implements ActionListener<PyTorchResult> {
         boolean hasResponse;
         final Consumer<PyTorchResult> responseAsserter;

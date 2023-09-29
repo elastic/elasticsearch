@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -109,32 +108,33 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     private void testFromStatsGroupingAvgImpl(String command, String expectedGroupName, String expectedFieldName) {
-        EsqlQueryResponse results = run(command);
-        logger.info(results);
-        Assert.assertEquals(2, results.columns().size());
+        try (EsqlQueryResponse results = run(command)) {
+            logger.info(results);
+            Assert.assertEquals(2, results.columns().size());
 
-        // assert column metadata
-        ColumnInfo valuesColumn = results.columns().get(0);
-        assertEquals(expectedFieldName, valuesColumn.name());
-        assertEquals("double", valuesColumn.type());
-        ColumnInfo groupColumn = results.columns().get(1);
-        assertEquals(expectedGroupName, groupColumn.name());
-        assertEquals("long", groupColumn.type());
+            // assert column metadata
+            ColumnInfo valuesColumn = results.columns().get(0);
+            assertEquals(expectedFieldName, valuesColumn.name());
+            assertEquals("double", valuesColumn.type());
+            ColumnInfo groupColumn = results.columns().get(1);
+            assertEquals(expectedGroupName, groupColumn.name());
+            assertEquals("long", groupColumn.type());
 
-        // assert column values
-        List<List<Object>> valueValues = getValuesList(results);
-        assertEquals(2, valueValues.size());
-        // This is loathsome, find a declarative way to assert the expected output.
-        if ((long) valueValues.get(0).get(1) == 1L) {
-            assertEquals(42.0, (double) valueValues.get(0).get(0), 0.0);
-            assertEquals(2L, (long) valueValues.get(1).get(1));
-            assertEquals(44.0, (double) valueValues.get(1).get(0), 0.0);
-        } else if ((long) valueValues.get(0).get(1) == 2L) {
-            assertEquals(42.0, (double) valueValues.get(1).get(0), 0.0);
-            assertEquals(1L, (long) valueValues.get(1).get(1));
-            assertEquals(44.0, (double) valueValues.get(0).get(0), 0.0);
-        } else {
-            fail("Unexpected group value: " + valueValues.get(0).get(0));
+            // assert column values
+            List<List<Object>> valueValues = getValuesList(results);
+            assertEquals(2, valueValues.size());
+            // This is loathsome, find a declarative way to assert the expected output.
+            if ((long) valueValues.get(0).get(1) == 1L) {
+                assertEquals(42.0, (double) valueValues.get(0).get(0), 0.0);
+                assertEquals(2L, (long) valueValues.get(1).get(1));
+                assertEquals(44.0, (double) valueValues.get(1).get(0), 0.0);
+            } else if ((long) valueValues.get(0).get(1) == 2L) {
+                assertEquals(42.0, (double) valueValues.get(1).get(0), 0.0);
+                assertEquals(1L, (long) valueValues.get(1).get(1));
+                assertEquals(44.0, (double) valueValues.get(0).get(0), 0.0);
+            } else {
+                fail("Unexpected group value: " + valueValues.get(0).get(0));
+            }
         }
     }
 
@@ -211,19 +211,20 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             }
         }
         client().admin().indices().prepareRefresh("test").get();
-        EsqlQueryResponse results = run("from test | stats avg(count) by data | sort data");
-        logger.info(results);
+        try (EsqlQueryResponse results = run("from test | stats avg(count) by data | sort data")) {
+            logger.info(results);
 
-        assertThat(results.columns(), hasSize(2));
-        assertEquals("avg(count)", results.columns().get(0).name());
-        assertEquals("double", results.columns().get(0).type());
-        assertEquals("data", results.columns().get(1).name());
-        assertEquals("long", results.columns().get(1).type());
+            assertThat(results.columns(), hasSize(2));
+            assertEquals("avg(count)", results.columns().get(0).name());
+            assertEquals("double", results.columns().get(0).type());
+            assertEquals("data", results.columns().get(1).name());
+            assertEquals("long", results.columns().get(1).type());
 
-        record Group(Long data, Double avg) {}
-        List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null), new Group(null, 12.0));
-        List<Group> actualGroups = getValuesList(results).stream().map(l -> new Group((Long) l.get(1), (Double) l.get(0))).toList();
-        assertThat(actualGroups, equalTo(expectedGroups));
+            record Group(Long data, Double avg) {}
+            List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null), new Group(null, 12.0));
+            List<Group> actualGroups = getValuesList(results).stream().map(l -> new Group((Long) l.get(1), (Double) l.get(0))).toList();
+            assertThat(actualGroups, equalTo(expectedGroups));
+        }
     }
 
     public void testFromStatsGroupingByKeyword() {
@@ -332,18 +333,19 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromSortWithTieBreakerLimit() {
-        EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | keep data, count, time");
-        logger.info(results);
-        assertThat(
-            getValuesList(results),
-            contains(
-                List.of(1L, 44L, epoch + 2),
-                List.of(1L, 44L, epoch + 6),
-                List.of(1L, 44L, epoch + 10),
-                List.of(1L, 44L, epoch + 14),
-                List.of(1L, 44L, epoch + 18)
-            )
-        );
+        try (EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | keep data, count, time")) {
+            logger.info(results);
+            assertThat(
+                getValuesList(results),
+                contains(
+                    List.of(1L, 44L, epoch + 2),
+                    List.of(1L, 44L, epoch + 6),
+                    List.of(1L, 44L, epoch + 10),
+                    List.of(1L, 44L, epoch + 14),
+                    List.of(1L, 44L, epoch + 18)
+                )
+            );
+        }
     }
 
     public void testFromStatsProjectGroup() {
@@ -778,10 +780,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromLimit() {
-        EsqlQueryResponse results = run("from test | keep data | limit 2");
-        logger.info(results);
-        assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
-        assertThat(getValuesList(results), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
+        try (EsqlQueryResponse results = run("from test | keep data | limit 2")) {
+            logger.info(results);
+            assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
+            assertThat(getValuesList(results), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
+        }
     }
 
     public void testDropAllColumns() {
@@ -1000,27 +1003,25 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         );
 
         int limit = randomIntBetween(1, 5);
-        EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | keep time");
-        logger.info(results);
-        Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(limit, getValuesList(results).size());
+        try (EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | keep time")) {
+            logger.info(results);
+            Assert.assertEquals(1, results.columns().size());
+            Assert.assertEquals(limit, getValuesList(results).size());
 
-        // assert column metadata
-        assertEquals("time", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
+            // assert column metadata
+            assertEquals("time", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
 
-        boolean sortedDesc = "desc".equals(sortOrder);
-        var expected = LongStream.range(0, 40)
-            .map(i -> epoch + i)
-            .boxed()
-            .sorted(sortedDesc ? reverseOrder() : naturalOrder())
-            .limit(limit)
-            .toList();
-        var actual = getValuesList(results).stream().map(l -> (Long) l.get(0)).toList();
-        assertThat(actual, equalTo(expected));
-
-        // clean-up
-        client().admin().indices().delete(new DeleteIndexRequest("sorted_test_index")).actionGet();
+            boolean sortedDesc = "desc".equals(sortOrder);
+            var expected = LongStream.range(0, 40)
+                .map(i -> epoch + i)
+                .boxed()
+                .sorted(sortedDesc ? reverseOrder() : naturalOrder())
+                .limit(limit)
+                .toList();
+            var actual = getValuesList(results).stream().map(l -> (Long) l.get(0)).toList();
+            assertThat(actual, equalTo(expected));
+        }
     }
 
     /*

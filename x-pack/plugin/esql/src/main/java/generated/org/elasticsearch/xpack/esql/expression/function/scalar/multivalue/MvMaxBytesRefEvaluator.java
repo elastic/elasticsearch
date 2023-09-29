@@ -37,7 +37,7 @@ public final class MvMaxBytesRefEvaluator extends AbstractMultivalueFunction.Abs
    */
   @Override
   public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNullable(fieldVal);
     }
     BytesRefBlock v = (BytesRefBlock) fieldVal;
@@ -69,7 +69,7 @@ public final class MvMaxBytesRefEvaluator extends AbstractMultivalueFunction.Abs
    */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNotNullable(fieldVal);
     }
     BytesRefBlock v = (BytesRefBlock) fieldVal;

@@ -116,7 +116,9 @@ export const generatePipelines = (
     .filter((x) => x);
 
   if (!changedFiles?.length) {
-    const mergeBase = execSync(`git merge-base ${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`, { cwd: PROJECT_ROOT })
+    const mergeBase = execSync(`git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`, {
+      cwd: PROJECT_ROOT,
+    })
       .toString()
       .trim();
 

@@ -23,7 +23,7 @@ public class CannedSourceOperator extends SourceOperator {
             List<Page> pages = new ArrayList<>();
             while (source.isFinished() == false) {
                 Page in = source.getOutput();
-                if (in == null) {
+                if (in == null || in.getPositionCount() == 0) {
                     continue;
                 }
                 pages.add(in);

@@ -590,7 +590,6 @@ public class SearchResponseTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100005")
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
         SearchResponse deserialized = copyWriteable(

@@ -136,6 +136,11 @@ public final class ConstantNullBlock extends AbstractBlock {
     static class Builder implements Block.Builder {
         private int positionCount;
 
+        /**
+         * Has this builder been closed already?
+         */
+        private boolean closed = false;
+
         @Override
         public Builder appendNull() {
             positionCount++;
@@ -174,7 +179,16 @@ public final class ConstantNullBlock extends AbstractBlock {
 
         @Override
         public Block build() {
+            if (closed) {
+                throw new IllegalStateException("already closed");
+            }
+            close();
             return new ConstantNullBlock(positionCount);
+        }
+
+        @Override
+        public void close() {
+            closed = true;
         }
     }
 }

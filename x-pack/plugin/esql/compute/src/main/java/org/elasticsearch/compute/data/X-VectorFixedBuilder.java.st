@@ -58,4 +58,12 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
         }
         return new $Type$ArrayVector(values, values.length, blockFactory);
     }
+
+    @Override
+    public void close() {
+        if (nextIndex >= 0) {
+            // If nextIndex < 0 we've already built the vector
+            blockFactory.adjustBreaker(-ramBytesUsed(values.length), false);
+        }
+    }
 }

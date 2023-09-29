@@ -21,7 +21,7 @@ PUT _ingest/pipeline/my-text-embeddings-pipeline
   "processors": [
     {
       "inference": {
-        "model_id": ".elser_model_1",
+        "model_id": ".elser_model_2",
         "target_field": "my_embeddings",
         "field_map": { <1>
           "my_text_field": "text_field"

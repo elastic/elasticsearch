@@ -38,6 +38,9 @@ public class TypeParsers {
         }
         @SuppressWarnings("unchecked")
         Map<String, ?> meta = (Map<String, ?>) metaObject;
+        if (meta.isEmpty()) {
+            return Map.of();
+        }
         if (meta.size() > 5) {
             throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" + name + "]");
         }
@@ -68,6 +71,12 @@ public class TypeParsers {
                         + "]"
                 );
             }
+        }
+        var entrySet = meta.entrySet();
+        if (entrySet.size() == 1) {
+            // no need to sort for a single entry
+            var entry = entrySet.iterator().next();
+            return Map.of(entry.getKey(), (String) entry.getValue());
         }
         Map<String, String> sortedMeta = new TreeMap<>();
         for (Map.Entry<String, ?> entry : meta.entrySet()) {

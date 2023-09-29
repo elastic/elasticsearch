@@ -63,7 +63,7 @@ public record IndexFieldCapabilities(
             isAggregatable,
             isDimension,
             metricType,
-            in.readMap(StreamInput::readString)
+            in.readImmutableMap(StreamInput::readString)
         );
     }
 

@@ -9,7 +9,6 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;

@@ -85,25 +85,6 @@ public class TransportVersions {
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_500_020 = def(8_500_020);
-    public static final TransportVersion V_8_500_021 = def(8_500_021);
-    public static final TransportVersion V_8_500_022 = def(8_500_022);
-    public static final TransportVersion V_8_500_023 = def(8_500_023);
-    public static final TransportVersion V_8_500_024 = def(8_500_024);
-    public static final TransportVersion V_8_500_025 = def(8_500_025);
-    public static final TransportVersion V_8_500_026 = def(8_500_026);
-    public static final TransportVersion V_8_500_027 = def(8_500_027);
-    public static final TransportVersion V_8_500_028 = def(8_500_028);
-    public static final TransportVersion V_8_500_029 = def(8_500_029);
-    public static final TransportVersion V_8_500_030 = def(8_500_030);
-    public static final TransportVersion V_8_500_031 = def(8_500_031);
-    public static final TransportVersion V_8_500_032 = def(8_500_032);
-    public static final TransportVersion V_8_500_033 = def(8_500_033);
-    public static final TransportVersion V_8_500_034 = def(8_500_034);
-    public static final TransportVersion V_8_500_035 = def(8_500_035);
-    public static final TransportVersion V_8_500_036 = def(8_500_036);
-    public static final TransportVersion V_8_500_037 = def(8_500_037);
-    public static final TransportVersion V_8_500_038 = def(8_500_038);
-    public static final TransportVersion V_8_500_039 = def(8_500_039);
     public static final TransportVersion V_8_500_040 = def(8_500_040);
     public static final TransportVersion V_8_500_041 = def(8_500_041);
     public static final TransportVersion V_8_500_042 = def(8_500_042);

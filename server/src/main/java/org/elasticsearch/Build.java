@@ -190,7 +190,7 @@ public record Build(
     public static Build readBuild(StreamInput in) throws IOException {
         final String flavor;
         if (in.getTransportVersion().before(TransportVersions.V_8_3_0)
-            || in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_039)) {
+            || in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             flavor = in.readString();
         } else {
             flavor = "default";
@@ -221,7 +221,7 @@ public record Build(
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(TransportVersions.V_8_3_0)
-            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_039)) {
+            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             out.writeString(build.flavor());
         }
         out.writeString(build.type().displayName());

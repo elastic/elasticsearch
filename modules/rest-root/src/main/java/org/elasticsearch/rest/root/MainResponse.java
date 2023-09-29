@@ -49,16 +49,13 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         // the lucene version was previously read by inferring from either Version or IndexVersion.
         // Now the lucene version is read explicitly.
         String wireLuceneVersion = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_037)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             wireLuceneVersion = in.readString();
-        } else {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_031)) {
-                wireLuceneVersion = IndexVersion.readVersion(in).luceneVersion().toString();
-            }
+        } else
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
                 TransportVersion.readVersion(in);
             }
-        }
+
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
@@ -109,15 +106,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         // for those versions until the new format has propagated through serverless. Additionally,
         // the lucene version was previously inferred from either Version or IndexVersion.
         // Now the lucene version is written explicitly.
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_037)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             out.writeString(luceneVersion);
-        } else {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_031)) {
-                IndexVersion.writeVersion(IndexVersion.current(), out);
-            }
+        } else
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
                 TransportVersion.writeVersion(TransportVersion.current(), out);
-            }
         }
         clusterName.writeTo(out);
         out.writeString(clusterUuid);

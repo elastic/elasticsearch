@@ -784,7 +784,7 @@ Bojan             |B              |1B23           |true
 replaceRegex
 from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") | sort l1 | keep l1, host_group;
  
-   l1:keyword   |host_group:keyword    
+   l1:keyword   |host_group:text    
 Gatewayinstances|Gateway instances
 Gatewayinstances|Gateway instances
 null            |null             

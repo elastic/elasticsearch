@@ -90,7 +90,7 @@ final class PackedValuesBlockHash extends BlockHash {
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             super(emitBatchSize, addInput);
             for (int g = 0; g < groups.size(); g++) {
-                encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), batchSize);
+                encoders[g] = MultivalueDedupe.batchEncoder(new Block.Ref(page.getBlock(groups.get(g).channel()), page), batchSize);
                 scratches[g] = new BytesRef();
             }
             bytes.grow(nullTrackingBytes);

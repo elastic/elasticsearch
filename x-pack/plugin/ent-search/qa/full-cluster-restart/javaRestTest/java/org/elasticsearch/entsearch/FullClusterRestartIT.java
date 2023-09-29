@@ -71,8 +71,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // Validate that NO ILM lifecycle is in place and we are using DLM instead.
             assertBusy(() -> testDlmDataRetentionPolicy(newAnalyticsCollectionName));
 
-            // TODO Validate that the existing analytics collection created with an older version is still using ILM
-            // assertBusy(() -> testLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
+            // Validate that the existing analytics collection created with an older version is still using ILM
+            assertBusy(() -> testLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
         }
     }
 

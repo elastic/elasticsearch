@@ -84,6 +84,11 @@ public class BasicPageTests extends SerializationTestCase {
         );
     }
 
+    public void testZeAssertion() {
+        var block = IntBlock.newConstantBlockWith(1, 1);
+        expectThrows(AssertionError.class, () -> new Page(1, new Block[] { block, block }));
+    }
+
     public void testEqualityAndHashCode() throws IOException {
         final EqualsHashCodeTestUtils.CopyFunction<Page> copyPageFunction = page -> {
             Block[] blocks = new Block[page.getBlockCount()];

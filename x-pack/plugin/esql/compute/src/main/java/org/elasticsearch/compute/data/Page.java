@@ -74,6 +74,7 @@ public final class Page implements Writeable {
                 throw new IllegalArgumentException("can't build page out of released blocks but [" + b + "] was released");
             }
         }
+        assert hasNoEqualBlocks() : "contains two equal blocks";
     }
 
     public Page(StreamInput in) throws IOException {
@@ -85,6 +86,19 @@ public final class Page implements Writeable {
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
+        assert hasNoEqualBlocks() : "contains two equal blocks";
+    }
+
+    private boolean hasNoEqualBlocks() {
+        for (int i = 0; i < blocks.length - 1; i++) {
+            for (int j = i + 1; j < blocks.length; j++) {
+                if (blocks[i] == blocks[j]) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private static int determinePositionCount(Block... blocks) {

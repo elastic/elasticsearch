@@ -75,7 +75,31 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
   export SNYK_TOKEN
 fi
 
+if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
+  DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+  export DOCKER_REGISTRY_USERNAME
+
+  DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+  export DOCKER_REGISTRY_PASSWORD
+fi
+
 if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
   # Run in the background, while the job continues
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+fi
+
+# Initialize the build scan and gobld annotations with empty/open <details> tags
+# This ensures that they are collapsible when they get appended to
+if [[ "${BUILDKITE_LABEL:-}" == *"Pipeline upload"* ]]; then
+  cat << EOF | buildkite-agent annotate --context "gradle-build-scans" --style "info"
+<details>
+
+<summary>Gradle build scan links</summary>
+EOF
+
+  cat << EOF | buildkite-agent annotate --context "ctx-gobld-metrics" --style "info"
+<details>
+
+<summary>Agent information from gobld</summary>
+EOF
 fi

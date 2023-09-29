@@ -10,7 +10,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
@@ -19,22 +21,27 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator fieldVal;
 
-  public AbsDoubleEvaluator(EvalOperator.ExpressionEvaluator fieldVal) {
+  private final DriverContext driverContext;
+
+  public AbsDoubleEvaluator(EvalOperator.ExpressionEvaluator fieldVal,
+      DriverContext driverContext) {
     this.fieldVal = fieldVal;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block fieldValUncastBlock = fieldVal.eval(page);
-    if (fieldValUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref fieldValRef = fieldVal.eval(page)) {
+      if (fieldValRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      DoubleBlock fieldValBlock = (DoubleBlock) fieldValRef.block();
+      DoubleVector fieldValVector = fieldValBlock.asVector();
+      if (fieldValVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), fieldValBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), fieldValVector).asBlock());
     }
-    DoubleBlock fieldValBlock = (DoubleBlock) fieldValUncastBlock;
-    DoubleVector fieldValVector = fieldValBlock.asVector();
-    if (fieldValVector == null) {
-      return eval(page.getPositionCount(), fieldValBlock);
-    }
-    return eval(page.getPositionCount(), fieldValVector).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock fieldValBlock) {
@@ -60,5 +67,10 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public String toString() {
     return "AbsDoubleEvaluator[" + "fieldVal=" + fieldVal + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(fieldVal);
   }
 }

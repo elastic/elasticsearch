@@ -341,4 +341,4 @@ When the {transform} is updated, you receive the updated configuration:
 ----
 // TESTRESPONSE[s/"version" : "8.4.0"/"version" : $body.version/]
 // TESTRESPONSE[s/"create_time" : 1656113450613/"create_time" : $body.create_time/]
-// TESTRESPONSE[s/"authorization" : \{[^}]*\},//]
+// TESTRESPONSE[s/"superuser"/"_es_test_root"/]

@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 double:
@@ -20,8 +18,6 @@ setup:
       indices.create:
         index: date_range_test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date:
@@ -32,16 +28,10 @@ setup:
       indices.create:
         index: long_value_test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               long:
                 type: long
-
-  - do:
-      cluster.health:
-        wait_for_status: yellow
 
   - do:
       bulk:

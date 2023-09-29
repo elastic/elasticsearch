@@ -127,6 +127,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected volatile boolean indexerThreadShuttingDown = false;
     protected volatile boolean saveStateRequestedDuringIndexerThreadShutdown = false;
 
+    @SuppressWarnings("this-escape")
     public TransformIndexer(
         ThreadPool threadPool,
         TransformServices transformServices,
@@ -563,7 +564,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void afterFinishOrFailure() {
-        finishIndexerThreadShutdown();
+        finishIndexerThreadShutdown(() -> {
+            auditor.info(transformConfig.getId(), "Transform has stopped.");
+            logger.info("[{}] transform has stopped.", transformConfig.getId());
+        });
     }
 
     @Override
@@ -643,12 +647,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         } catch (Exception e) {
             logger.error(() -> "[" + getJobId() + "] transform encountered an unexpected internal exception: ", e);
         }
-    }
-
-    @Override
-    protected void onStop() {
-        auditor.info(transformConfig.getId(), "Transform has stopped.");
-        logger.info("[{}] transform has stopped.", transformConfig.getId());
     }
 
     @Override
@@ -1202,7 +1200,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
     }
 
-    private void finishIndexerThreadShutdown() {
+    private void finishIndexerThreadShutdown(Runnable next) {
         synchronized (context) {
             indexerThreadShuttingDown = false;
             if (saveStateRequestedDuringIndexerThreadShutdown) {
@@ -1211,7 +1209,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 if (context.shouldStopAtCheckpoint() && nextCheckpoint == null) {
                     stop();
                 }
-                doSaveState(getState(), getPosition(), () -> {});
+                doSaveState(getState(), getPosition(), next);
+            } else {
+                next.run();
             }
         }
     }

@@ -8,9 +8,12 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
-import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
@@ -18,16 +21,17 @@ import java.util.function.Supplier;
  */
 public class EvalOperator extends AbstractPageMappingOperator {
 
-    public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator) implements OperatorFactory {
+    public record EvalOperatorFactory(ExpressionEvaluator.Factory evaluator) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get());
+            return new EvalOperator(evaluator.get(driverContext));
         }
 
         @Override
         public String describe() {
-            return "EvalOperator[evaluator=" + evaluator.get() + "]";
+            // TODO ThrowingDriverContext blows up when combined with Concat
+            return "EvalOperator[evaluator=" + evaluator.get(new ThrowingDriverContext()) + "]";
         }
     }
 
@@ -39,7 +43,9 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        return page.appendBlock(evaluator.eval(page));
+        Block.Ref ref = evaluator.eval(page);
+        Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block());
+        return page.appendBlock(block);
     }
 
     @Override
@@ -47,19 +53,48 @@ public class EvalOperator extends AbstractPageMappingOperator {
         return getClass().getSimpleName() + "[evaluator=" + evaluator + "]";
     }
 
-    public interface ExpressionEvaluator {
-        Block eval(Page page);
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(evaluator);
+    }
+
+    /** Returns a copy of the give block, if the block appears in the page. */
+    // TODO: this is a catch all, can be removed when we validate that evaluators always return copies
+    // for now it just looks like Attributes returns a reference?
+    static Block maybeCopyBlock(Page page, Block block) {
+        if (IntStream.range(0, page.getBlockCount()).mapToObj(page::getBlock).anyMatch(b -> b == block)) {
+            return BlockUtils.deepCopyOf(block);
+        }
+        return block;
+    }
+
+    /**
+     * Evaluates an expression {@code a + b} or {@code log(c)} one {@link Page} at a time.
+     */
+    public interface ExpressionEvaluator extends Releasable {
+        /** A Factory for creating ExpressionEvaluators. */
+        interface Factory {
+            ExpressionEvaluator get(DriverContext driverContext);
+        }
+
+        /**
+         * Evaluate the expression.
+         */
+        Block.Ref eval(Page page);
     }
 
     public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
         @Override
-        public Block eval(Page page) {
-            return Block.constantNullBlock(page.getPositionCount());
+        public Block.Ref eval(Page page) {
+            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
         }
 
         @Override
         public String toString() {
             return "ConstantNull";
         }
+
+        @Override
+        public void close() {}
     };
 }

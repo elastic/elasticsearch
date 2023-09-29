@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateExtract}.
@@ -25,25 +27,29 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
 
   private final ZoneId zone;
 
+  private final DriverContext driverContext;
+
   public DateExtractConstantEvaluator(EvalOperator.ExpressionEvaluator value,
-      ChronoField chronoField, ZoneId zone) {
+      ChronoField chronoField, ZoneId zone, DriverContext driverContext) {
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valueUncastBlock = value.eval(page);
-    if (valueUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valueRef = value.eval(page)) {
+      if (valueRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      LongBlock valueBlock = (LongBlock) valueRef.block();
+      LongVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), valueBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), valueVector).asBlock());
     }
-    LongBlock valueBlock = (LongBlock) valueUncastBlock;
-    LongVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      return eval(page.getPositionCount(), valueBlock);
-    }
-    return eval(page.getPositionCount(), valueVector).asBlock();
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
@@ -69,5 +75,10 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public String toString() {
     return "DateExtractConstantEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(value);
   }
 }

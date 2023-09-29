@@ -300,7 +300,6 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
-        final TransportService mockTransportService = mock(TransportService.class);
         final ClusterService mockClusterService = mock(ClusterService.class);
         final DiscoveryNode mockNode = mock(DiscoveryNode.class);
         when(mockNode.getId()).thenReturn("mocknode");
@@ -354,8 +353,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             EmptySystemIndices.INSTANCE,
             WriteLoadForecaster.DEFAULT
         );
+
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
-            mockTransportService,
+            mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,

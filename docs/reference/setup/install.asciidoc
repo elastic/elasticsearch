@@ -90,6 +90,14 @@ the bundled JVM are treated as if they were within {es} itself.
 The bundled JVM is located within the `jdk` subdirectory of the {es} home
 directory. You may remove this directory if using your own JVM.
 
+[discrete]
+[[jvm-agents]]
+=== JVM and Java agents
+
+Don't use third-party Java agents that attach to the JVM. These agents
+can reduce {es} performance, including freezing or crashing nodes.
+
+
 include::install/targz.asciidoc[]
 
 include::install/zip-windows.asciidoc[]

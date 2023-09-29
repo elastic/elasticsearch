@@ -4,39 +4,51 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Log10}.
  * This class is generated. Do not edit it.
  */
 public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator val;
 
-  public Log10IntEvaluator(EvalOperator.ExpressionEvaluator val) {
+  private final DriverContext driverContext;
+
+  public Log10IntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
+      DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.val = val;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      IntBlock valBlock = (IntBlock) valRef.block();
+      IntVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), valVector));
     }
-    IntBlock valBlock = (IntBlock) valUncastBlock;
-    IntVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock);
-    }
-    return eval(page.getPositionCount(), valVector).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, IntBlock valBlock) {
@@ -46,15 +58,25 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
         result.appendNull();
         continue position;
       }
-      result.appendDouble(Log10.process(valBlock.getInt(valBlock.getFirstValueIndex(p))));
+      try {
+        result.appendDouble(Log10.process(valBlock.getInt(valBlock.getFirstValueIndex(p))));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
 
-  public DoubleVector eval(int positionCount, IntVector valVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
+  public DoubleBlock eval(int positionCount, IntVector valVector) {
+    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Log10.process(valVector.getInt(p)));
+      try {
+        result.appendDouble(Log10.process(valVector.getInt(p)));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        result.appendNull();
+      }
     }
     return result.build();
   }
@@ -62,5 +84,10 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public String toString() {
     return "Log10IntEvaluator[" + "val=" + val + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

@@ -26,6 +26,7 @@ public class ShardNotFoundException extends ResourceNotFoundException {
         this(shardId, msg, null, args);
     }
 
+    @SuppressWarnings("this-escape")
     public ShardNotFoundException(ShardId shardId, String msg, Throwable ex, Object... args) {
         super(msg, ex, args);
         setShard(shardId);

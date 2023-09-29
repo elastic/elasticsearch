@@ -32,6 +32,7 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
     final DocValueFormat formatter;
     DoubleArray maxes;
 
+    @SuppressWarnings("this-escape")
     public HistoBackedMaxAggregator(
         String name,
         ValuesSourceConfig config,

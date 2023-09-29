@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -34,7 +34,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
     private final PendingInstances outstandingSinks = new PendingInstances();
     private final PendingInstances outstandingSources = new PendingInstances();
     private final AtomicReference<Exception> failure = new AtomicReference<>();
-    private final ListenableActionFuture<Void> completionFuture = new ListenableActionFuture<>();
+    private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
 
     public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
@@ -68,7 +68,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
         }
 
         @Override
-        public ListenableActionFuture<Void> waitForReading() {
+        public SubscribableListener<Void> waitForReading() {
             return buffer.waitForReading();
         }
 
@@ -157,14 +157,14 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
                 // finish other sinks if one of them failed or sources no longer need pages.
                 boolean toFinishSinks = buffer.noMoreInputs() || failure.get() != null;
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
-                    Page page = resp.page();
+                    Page page = resp.takePage();
                     if (page != null) {
                         buffer.addPage(page);
                     }
                     if (resp.finished()) {
                         onSinkComplete();
                     } else {
-                        ListenableActionFuture<Void> future = buffer.waitForWriting();
+                        SubscribableListener<Void> future = buffer.waitForWriting();
                         if (future.isDone()) {
                             if (loopControl.tryResume() == false) {
                                 fetchPage();

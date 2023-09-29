@@ -9,6 +9,7 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
@@ -18,13 +19,16 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   private final long now;
 
-  public NowEvaluator(long now) {
+  private final DriverContext driverContext;
+
+  public NowEvaluator(long now, DriverContext driverContext) {
     this.now = now;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    return eval(page.getPositionCount()).asBlock();
+  public Block.Ref eval(Page page) {
+    return Block.Ref.floating(eval(page.getPositionCount()).asBlock());
   }
 
   public LongVector eval(int positionCount) {
@@ -38,5 +42,9 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public String toString() {
     return "NowEvaluator[" + "now=" + now + "]";
+  }
+
+  @Override
+  public void close() {
   }
 }

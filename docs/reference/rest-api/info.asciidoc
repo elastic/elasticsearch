@@ -127,7 +127,7 @@ Example response:
       },
       "security" : {
          "available" : true,
-         "enabled" : false
+         "enabled" : true
       },
       "slm" : {
          "available" : true,

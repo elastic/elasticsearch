@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -24,8 +25,8 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
-        return new SequenceLongBlockSourceOperator(LongStream.range(0, size));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size));
     }
 
     @Override
@@ -52,7 +53,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     public void testStatus() {
-        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(new DriverContext());
+        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
 
         LimitOperator.Status status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -69,7 +70,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     public void testNeedInput() {
-        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(new DriverContext());
+        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
         assertTrue(op.needsInput());
         Page p = new Page(Block.constantNullBlock(10));
         op.addInput(p);

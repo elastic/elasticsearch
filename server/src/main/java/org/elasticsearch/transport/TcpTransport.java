@@ -136,6 +136,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final AtomicLong outboundConnectionCount = new AtomicLong(); // also used as a correlation ID for open/close logs
 
+    @SuppressWarnings("this-escape")
     public TcpTransport(
         Settings settings,
         TransportVersion version,

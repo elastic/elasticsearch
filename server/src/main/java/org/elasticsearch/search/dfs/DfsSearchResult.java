@@ -37,6 +37,7 @@ public class DfsSearchResult extends SearchPhaseResult {
     private int maxDoc;
     private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
+    @SuppressWarnings("this-escape")
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
@@ -69,6 +70,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
+    @SuppressWarnings("this-escape")
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.setSearchShardTarget(shardTarget);
         this.contextId = contextId;

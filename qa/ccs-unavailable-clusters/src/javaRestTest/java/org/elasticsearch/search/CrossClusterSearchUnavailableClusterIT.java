@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -103,37 +104,42 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         try {
             newService.registerRequestHandler(
                 SearchShardsAction.NAME,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
                     channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
-            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
-                InternalSearchResponse response = new InternalSearchResponse(
-                    new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                    InternalAggregations.EMPTY,
-                    null,
-                    null,
-                    false,
-                    null,
-                    1
-                );
-                SearchResponse searchResponse = new SearchResponse(
-                    response,
-                    null,
-                    1,
-                    1,
-                    0,
-                    100,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
-                );
-                channel.sendResponse(searchResponse);
-            });
+            newService.registerRequestHandler(
+                SearchAction.NAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                SearchRequest::new,
+                (request, channel, task) -> {
+                    InternalSearchResponse response = new InternalSearchResponse(
+                        new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                        InternalAggregations.EMPTY,
+                        null,
+                        null,
+                        false,
+                        null,
+                        1
+                    );
+                    SearchResponse searchResponse = new SearchResponse(
+                        response,
+                        null,
+                        1,
+                        1,
+                        0,
+                        100,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
+                    );
+                    channel.sendResponse(searchResponse);
+                }
+            );
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 ClusterStateRequest::new,
                 (request, channel, task) -> {
                     DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
@@ -184,16 +190,22 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             {
                 SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT);
                 assertEquals(2, response.getClusters().getTotal());
-                assertEquals(2, response.getClusters().getSuccessful());
-                assertEquals(0, response.getClusters().getSkipped());
+                assertEquals(2, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
                 SearchResponse response = restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT);
                 assertEquals(1, response.getClusters().getTotal());
-                assertEquals(1, response.getClusters().getSuccessful());
-                assertEquals(0, response.getClusters().getSkipped());
+                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 assertEquals(0, response.getHits().getTotalHits().value);
             }
 
@@ -203,8 +215,11 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                     RequestOptions.DEFAULT
                 );
                 assertEquals(2, response.getClusters().getTotal());
-                assertEquals(2, response.getClusters().getSuccessful());
-                assertEquals(0, response.getClusters().getSkipped());
+                assertEquals(2, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();
@@ -221,16 +236,22 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             {
                 SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT);
                 assertEquals(2, response.getClusters().getTotal());
-                assertEquals(1, response.getClusters().getSuccessful());
-                assertEquals(1, response.getClusters().getSkipped());
+                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
             }
             {
                 SearchResponse response = restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT);
                 assertEquals(1, response.getClusters().getTotal());
-                assertEquals(0, response.getClusters().getSuccessful());
-                assertEquals(1, response.getClusters().getSkipped());
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 assertEquals(0, response.getHits().getTotalHits().value);
             }
 
@@ -240,8 +261,11 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                     RequestOptions.DEFAULT
                 );
                 assertEquals(2, response.getClusters().getTotal());
-                assertEquals(1, response.getClusters().getSuccessful());
-                assertEquals(1, response.getClusters().getSkipped());
+                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 assertEquals(10, response.getHits().getTotalHits().value);
                 assertEquals(10, response.getHits().getHits().length);
                 String scrollId = response.getScrollId();

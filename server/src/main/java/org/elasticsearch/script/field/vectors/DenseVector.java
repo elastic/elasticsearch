@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script.field.vectors;
 
+import org.apache.lucene.util.VectorUtil;
+
 import java.util.List;
 
 /**
@@ -17,7 +19,7 @@ import java.util.List;
  * 1) float[], this is for the ScoreScriptUtils class bindings which have converted a List based query vector into an array
  * 2) List, A painless script will typically use Lists since they are easy to pass as params and have an easy
  *      literal syntax.  Working with Lists directly, instead of converting to a float[], trades off runtime operations against
- *      memory pressure.  Dense Vectors may have high dimensionality, up to 2048.  Allocating a float[] per doc per script API
+ *      memory pressure.  Dense Vectors may have high dimensionality, up to 4096.  Allocating a float[] per doc per script API
  *      call is prohibitively expensive.
  * 3) Object, the whitelisted method for the painless API.  Calls into the float[] or List version based on the
         class of the argument and checks dimensionality.
@@ -151,11 +153,7 @@ public interface DenseVector {
     int size();
 
     static float getMagnitude(byte[] vector) {
-        int mag = 0;
-        for (int elem : vector) {
-            mag += elem * elem;
-        }
-        return (float) Math.sqrt(mag);
+        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(byte[] vector, int dims) {
@@ -170,11 +168,7 @@ public interface DenseVector {
     }
 
     static float getMagnitude(float[] vector) {
-        double mag = 0.0f;
-        for (float elem : vector) {
-            mag += elem * elem;
-        }
-        return (float) Math.sqrt(mag);
+        return (float) Math.sqrt(VectorUtil.dotProduct(vector, vector));
     }
 
     static float getMagnitude(List<Number> vector) {

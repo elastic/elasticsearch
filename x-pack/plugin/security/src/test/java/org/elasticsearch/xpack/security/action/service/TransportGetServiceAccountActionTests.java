@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
@@ -31,8 +32,9 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
 
     @Before
     public void init() {
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportGetServiceAccountAction = new TransportGetServiceAccountAction(
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet())
         );
     }

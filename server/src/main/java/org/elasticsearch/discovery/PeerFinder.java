@@ -94,6 +94,7 @@ public abstract class PeerFinder {
     private Optional<DiscoveryNode> leader = Optional.empty();
     private volatile List<TransportAddress> lastResolvedAddresses = emptyList();
 
+    @SuppressWarnings("this-escape")
     public PeerFinder(
         Settings settings,
         TransportService transportService,
@@ -110,7 +111,7 @@ public abstract class PeerFinder {
 
         transportService.registerRequestHandler(
             REQUEST_PEERS_ACTION_NAME,
-            Names.CLUSTER_COORDINATION,
+            this.clusterCoordinationExecutor,
             false,
             false,
             PeersRequest::new,

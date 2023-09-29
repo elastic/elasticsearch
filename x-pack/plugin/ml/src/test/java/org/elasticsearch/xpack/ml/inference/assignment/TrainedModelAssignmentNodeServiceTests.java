@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -569,7 +569,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             "testClusterChanged",
             ClusterState.builder(new ClusterName("testClusterChanged"))
                 .nodes(nodes)
-                .putTransportVersion(NODE_ID, TransportVersion.current())
+                .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -627,7 +627,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             "testClusterChanged",
             ClusterState.builder(new ClusterName("testClusterChanged"))
                 .nodes(nodes)
-                .putTransportVersion(NODE_ID, TransportVersion.current())
+                .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -680,7 +680,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             "testClusterChanged",
             ClusterState.builder(new ClusterName("testClusterChanged"))
                 .nodes(nodes)
-                .putTransportVersion(NODE_ID, TransportVersion.current())
+                .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                 .metadata(
                     Metadata.builder()
                         .putCustom(
@@ -721,7 +721,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             "shouldUpdateAllocations",
             ClusterState.builder(new ClusterName("shouldUpdateAllocations"))
                 .nodes(nodes)
-                .putTransportVersion(NODE_ID, TransportVersion.current())
+                .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                 .metadata(
                     Metadata.builder()
                         .putCustom(

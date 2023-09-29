@@ -137,6 +137,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             : Math.max(maxAssignedAllocations, totalCurrentAllocations());
     }
 
+    @SuppressWarnings("this-escape")
     public TrainedModelAssignment(StreamInput in) throws IOException {
         this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
         this.nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingInfo::new);

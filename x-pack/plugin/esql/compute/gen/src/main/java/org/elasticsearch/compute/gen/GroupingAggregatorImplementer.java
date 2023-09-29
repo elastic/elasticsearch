@@ -36,7 +36,6 @@ import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorTyp
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
@@ -94,9 +93,6 @@ public class GroupingAggregatorImplementer {
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.valuesIsBytesRef = BYTES_REF.equals(TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType()));
         this.createParameters = init.getParameters().stream().map(Parameter::from).collect(Collectors.toList());
-        if (false == createParameters.stream().anyMatch(p -> p.type().equals(BIG_ARRAYS))) {
-            createParameters.add(0, new Parameter(BIG_ARRAYS, "bigArrays"));
-        }
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -198,7 +194,7 @@ public class GroupingAggregatorImplementer {
         if (init.getReturnType().toString().equals(stateType.toString())) {
             builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParameters());
         } else {
-            builder.add("new $T(bigArrays, $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
+            builder.add("new $T(driverContext.bigArrays(), $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
         }
         return builder.build();
     }

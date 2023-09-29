@@ -32,7 +32,7 @@ public final class MaxLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public MaxLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return MaxLongGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+    return MaxLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

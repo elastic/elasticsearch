@@ -32,7 +32,7 @@ public final class MinDoubleAggregatorFunctionSupplier implements AggregatorFunc
 
   @Override
   public MinDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return MinDoubleGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+    return MinDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

@@ -32,7 +32,7 @@ public final class MinLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public MinLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return MinLongGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+    return MinLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

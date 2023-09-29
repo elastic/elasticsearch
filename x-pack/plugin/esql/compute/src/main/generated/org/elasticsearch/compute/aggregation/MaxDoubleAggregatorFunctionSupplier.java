@@ -32,7 +32,7 @@ public final class MaxDoubleAggregatorFunctionSupplier implements AggregatorFunc
 
   @Override
   public MaxDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return MaxDoubleGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+    return MaxDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

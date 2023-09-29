@@ -32,7 +32,7 @@ public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctio
 
   @Override
   public MaxIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return MaxIntGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+    return MaxIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

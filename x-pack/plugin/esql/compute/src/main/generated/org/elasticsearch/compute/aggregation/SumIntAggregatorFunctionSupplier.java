@@ -32,7 +32,7 @@ public final class SumIntAggregatorFunctionSupplier implements AggregatorFunctio
 
   @Override
   public SumIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return SumIntGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
+    return SumIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

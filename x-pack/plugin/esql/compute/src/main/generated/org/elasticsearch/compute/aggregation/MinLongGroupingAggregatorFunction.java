@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -44,8 +43,8 @@ public final class MinLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   public static MinLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays) {
-    return new MinLongGroupingAggregatorFunction(channels, new LongArrayState(bigArrays, MinLongAggregator.init()), driverContext);
+      DriverContext driverContext) {
+    return new MinLongGroupingAggregatorFunction(channels, new LongArrayState(driverContext.bigArrays(), MinLongAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

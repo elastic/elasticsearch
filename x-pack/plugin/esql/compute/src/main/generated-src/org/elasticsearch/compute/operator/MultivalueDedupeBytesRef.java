@@ -44,7 +44,7 @@ public class MultivalueDedupeBytesRef {
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
     public BytesRefBlock dedupeToBlockAdaptive() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());
@@ -92,7 +92,7 @@ public class MultivalueDedupeBytesRef {
      * which picks based on the number of elements at each position.
      */
     public BytesRefBlock dedupeToBlockUsingCopyAndSort() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());
@@ -120,7 +120,7 @@ public class MultivalueDedupeBytesRef {
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
     public BytesRefBlock dedupeToBlockUsingCopyMissing() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());

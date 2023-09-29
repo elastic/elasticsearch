@@ -126,11 +126,20 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public void close() {
+        if (isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 
     static class Builder implements Block.Builder {
         private int positionCount;
+
+        /**
+         * Has this builder been closed already?
+         */
+        private boolean closed = false;
 
         @Override
         public Builder appendNull() {
@@ -170,7 +179,16 @@ public final class ConstantNullBlock extends AbstractBlock {
 
         @Override
         public Block build() {
+            if (closed) {
+                throw new IllegalStateException("already closed");
+            }
+            close();
             return new ConstantNullBlock(positionCount);
+        }
+
+        @Override
+        public void close() {
+            closed = true;
         }
     }
 }

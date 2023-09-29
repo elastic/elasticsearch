@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -36,12 +36,12 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
    */
   @Override
   public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNullable(fieldVal);
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
+    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     MvMedian.Longs work = new MvMedian.Longs();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -66,12 +66,12 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
    */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNotNullable(fieldVal);
     }
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    long[] values = new long[positionCount];
+    LongVector.FixedBuilder builder = LongVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     MvMedian.Longs work = new MvMedian.Longs();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -82,9 +82,9 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
         MvMedian.processUnsignedLong(work, value);
       }
       long result = MvMedian.finishUnsignedLong(work);
-      values[p] = result;
+      builder.appendLong(result);
     }
-    return new LongArrayVector(values, positionCount);
+    return builder.build();
   }
 
   /**
@@ -93,7 +93,7 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
   private Block evalAscendingNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
+    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     MvMedian.Longs work = new MvMedian.Longs();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
@@ -114,14 +114,14 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
   private Vector evalAscendingNotNullable(Block fieldVal) {
     LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    long[] values = new long[positionCount];
+    LongVector.FixedBuilder builder = LongVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     MvMedian.Longs work = new MvMedian.Longs();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
       long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
-      values[p] = result;
+      builder.appendLong(result);
     }
-    return new LongArrayVector(values, positionCount);
+    return builder.build();
   }
 }

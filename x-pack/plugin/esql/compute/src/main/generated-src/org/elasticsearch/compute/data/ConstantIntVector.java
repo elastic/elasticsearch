@@ -15,7 +15,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class ConstantIntVector extends AbstractVector implements IntVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
 
     private final int value;
 
@@ -55,7 +55,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(int.class);
+        return RAM_BYTES_USED;
     }
 
     @Override

@@ -15,6 +15,7 @@ steps:
               - windows-2022
             PACKAGING_TASK:
               - default-windows-archive
+              - default-windows-archive-no-jdk
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

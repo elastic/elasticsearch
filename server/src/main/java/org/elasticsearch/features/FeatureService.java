@@ -46,8 +46,7 @@ public class FeatureService {
      * Loads additional historical features from {@link FeatureSpecification} instances in plugins and modules
      */
     public static void loadAdditionalHistoricalFeatures(PluginsService plugins) {
-        // do a best-effort sanity check here
-        if (HISTORICAL_FEATURES != null) throw new IllegalStateException("Historical features have already been calculated");
+        HISTORICAL_FEATURES = null;
 
         var existingSpecs = new HashSet<>(FEATURE_SPECS);
         existingSpecs.addAll(plugins.loadServiceProviders(FeatureSpecification.class));

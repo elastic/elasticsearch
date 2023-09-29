@@ -1,5 +1,0 @@
-pr: 100067
-summary: Removed special override for platform specific trained models
-area: Machine Learning
-type: enhancement
-issues: []

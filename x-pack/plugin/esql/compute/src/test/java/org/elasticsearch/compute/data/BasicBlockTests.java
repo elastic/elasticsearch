@@ -906,10 +906,12 @@ public class BasicBlockTests extends ESTestCase {
 
     void releaseAndAssertBreaker(Block... blocks) {
         assertThat(breaker.getUsed(), greaterThan(0L));
+        Page[] pages = Arrays.stream(blocks).map(Page::new).toArray(Page[]::new);
         Releasables.closeExpectNoException(blocks);
         Arrays.stream(blocks).forEach(block -> assertThat(block.isReleased(), is(true)));
         Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotDoubleRelease);
-        Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotReadFromPage);
+        Arrays.stream(pages).forEach(BasicBlockTests::assertCannotReadFromPage);
+        Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotAddToPage);
         assertThat(breaker.getUsed(), is(0L));
     }
 
@@ -924,10 +926,14 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("can't release already released block"));
     }
 
-    static void assertCannotReadFromPage(Block block) {
-        Page page = new Page(block);
+    static void assertCannotReadFromPage(Page page) {
         var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
         assertThat(e.getMessage(), containsString("can't read released block"));
+    }
+
+    static void assertCannotAddToPage(Block block) {
+        var e = expectThrows(IllegalArgumentException.class, () -> new Page(block));
+        assertThat(e.getMessage(), containsString("can't build page out of released blocks but"));
     }
 
     static int randomPosition(int positionCount) {

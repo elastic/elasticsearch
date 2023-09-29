@@ -122,17 +122,19 @@ public class BuildTests extends ESTestCase {
     }
 
     public void testIsNodeVersionWireCompatible() {
-        String legacyVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
-        assertTrue(Build.isNodeVersionWireCompatible(legacyVersion));
-        legacyVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
-        assertFalse(Build.isNodeVersionWireCompatible(legacyVersion));
+        String nodeVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
+        assertTrue(Build.isNodeVersionWireCompatible(nodeVersion));
+        nodeVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
+        assertFalse(Build.isNodeVersionWireCompatible(nodeVersion));
 
         String transportVersion = TransportVersionUtils.randomCompatibleVersion(random()).toString();
-        assertTrue(Build.isNodeVersionWireCompatible(transportVersion));
-        transportVersion = TransportVersion.fromId(TransportVersions.MINIMUM_COMPATIBLE.id() - 1).toString();
-        assertFalse(Build.isNodeVersionWireCompatible(transportVersion));
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Build.isNodeVersionWireCompatible(transportVersion)
+        );
+        assertThat(e1.getMessage(), equalTo("Cannot parse [" + transportVersion + "] as a transport version identifier"));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Build.isNodeVersionWireCompatible("x.y.z"));
-        assertThat(e.getMessage(), equalTo("Cannot parse [x.y.z] as a transport version identifier"));
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> Build.isNodeVersionWireCompatible("x.y.z"));
+        assertThat(e2.getMessage(), equalTo("Cannot parse [x.y.z] as a transport version identifier"));
     }
 }

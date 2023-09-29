@@ -20,7 +20,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -108,9 +110,22 @@ public class PerFieldMapperCodec extends Lucene95Codec {
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
-        return /*mapperService.getIndexSettings().isES87TSDBCodecEnabled()
+        if (mapperService != null) {
+            final MappingLookup mappingLookup = mapperService.mappingLookup();
+            if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {
+                return true;
+            }
+            if (mappingLookup.getMapper(field) instanceof DateFieldMapper) {
+                return true;
+            }
+            if (mappingLookup.getMapper(field) instanceof KeywordFieldMapper) {
+                return true;
+            }
+        }
+        return false;
+        /*return /.getIndexSettings().isES87TSDBCodecEnabled()
                && isTimeSeriesModeIndex()
-               &&*/ isNotSpecialField(field);
+               && isNotSpecialField(field);*/
     }
 
     private boolean isTimeSeriesModeIndex() {

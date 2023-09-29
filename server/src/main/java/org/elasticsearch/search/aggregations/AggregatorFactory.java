@@ -33,6 +33,7 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
+    @SuppressWarnings("this-escape")
     public AggregatorFactory(
         String name,
         AggregationContext context,

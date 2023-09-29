@@ -75,6 +75,7 @@ public class EvaluatorProcessor implements Processor {
                         "evaluator",
                         new EvaluatorImplementer(
                             env.getElementUtils(),
+                            env.getTypeUtils(),
                             (ExecutableElement) evaluatorMethod,
                             evaluatorAnn.extraName(),
                             warnExceptions(evaluatorMethod)

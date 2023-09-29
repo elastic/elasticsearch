@@ -46,6 +46,7 @@ public class KoelnerPhonetik implements StringEncoder {
     /**
      * Constructor for  Kölner Phonetik
      */
+    @SuppressWarnings("this-escape")
     public KoelnerPhonetik() {
         init();
     }

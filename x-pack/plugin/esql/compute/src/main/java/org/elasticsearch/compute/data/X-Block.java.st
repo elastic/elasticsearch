@@ -23,6 +23,10 @@ import java.io.IOException;
  */
 public sealed interface $Type$Block extends Block permits Filter$Type$Block, $Type$ArrayBlock, $Type$VectorBlock {
 
+$if(BytesRef)$
+    BytesRef NULL_VALUE = new BytesRef();
+
+$endif$
     /**
      * Retrieves the $type$ value stored at the given value index.
      *
@@ -190,12 +194,24 @@ $endif$
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new $Type$BlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.new$Type$BlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return new Constant$Type$Vector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static $Type$Block newConstantBlockWith($type$ value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstant$Type$BlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {

@@ -125,6 +125,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      */
     public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
     public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
+    public static final IndexVersion V_8_500_002 = registerIndexVersion(8_500_002, Version.LUCENE_9_7_0, "50b39bf8-6c6a-443e-a5e5-069438d843c1");
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -160,7 +161,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
             if (versionExtension == null) {
                 return LATEST_DEFINED;
             }
-            var version = versionExtension.getCurrentIndexVersion();
+            var version = versionExtension.getCurrentIndexVersion(LATEST_DEFINED);
 
             assert version.onOrAfter(LATEST_DEFINED);
             assert version.luceneVersion.equals(Version.LATEST)

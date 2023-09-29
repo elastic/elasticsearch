@@ -9,8 +9,6 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 
-import java.util.function.IntFunction;
-
 /**
  * The type of elements in {@link Block} and {@link Vector}
  */
@@ -22,7 +20,7 @@ public enum ElementType {
     /**
      * Blocks containing only null values.
      */
-    NULL(estimatedSize -> new ConstantNullBlock.Builder()),
+    NULL((estimatedSize, blockFactory) -> new ConstantNullBlock.Builder()),
 
     BYTES_REF(BytesRefBlock::newBlockBuilder),
 
@@ -34,19 +32,32 @@ public enum ElementType {
     /**
      * Intermediate blocks which don't support retrieving elements.
      */
-    UNKNOWN(estimatedSize -> { throw new UnsupportedOperationException("can't build null blocks"); });
+    UNKNOWN((estimatedSize, blockFactory) -> { throw new UnsupportedOperationException("can't build null blocks"); });
 
-    private final IntFunction<Block.Builder> builder;
+    interface BuilderSupplier {
+        Block.Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory);
+    }
 
-    ElementType(IntFunction<Block.Builder> builder) {
+    private final BuilderSupplier builder;
+
+    ElementType(BuilderSupplier builder) {
         this.builder = builder;
     }
 
     /**
      * Create a new {@link Block.Builder} for blocks of this type.
+     * @deprecated use {@link #newBlockBuilder(int, BlockFactory)}
      */
+    @Deprecated
     public Block.Builder newBlockBuilder(int estimatedSize) {
-        return builder.apply(estimatedSize);
+        return builder.newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    }
+
+    /**
+     * Create a new {@link Block.Builder} for blocks of this type.
+     */
+    public Block.Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return builder.newBlockBuilder(estimatedSize, blockFactory);
     }
 
     public static ElementType fromJava(Class<?> type) {

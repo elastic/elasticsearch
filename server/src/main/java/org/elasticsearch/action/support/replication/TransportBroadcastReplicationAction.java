@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
@@ -51,7 +52,7 @@ public abstract class TransportBroadcastReplicationAction<
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
-    private final String executor;
+    private final Executor executor;
 
     public TransportBroadcastReplicationAction(
         String name,
@@ -62,7 +63,7 @@ public abstract class TransportBroadcastReplicationAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ActionType<ShardResponse> replicatedBroadcastShardAction,
-        String executor
+        Executor executor
     ) {
         super(name, transportService, actionFilters, requestReader);
         this.client = client;
@@ -74,7 +75,7 @@ public abstract class TransportBroadcastReplicationAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        clusterService.threadPool().executor(executor).execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
+        executor.execute(ActionRunnable.wrap(listener, createAsyncAction(task, request)));
     }
 
     private CheckedConsumer<ActionListener<Response>, Exception> createAsyncAction(Task task, Request request) {

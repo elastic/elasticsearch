@@ -56,7 +56,7 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
             DesiredBalanceRequest::new,
             indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
 
         this.resetDesiredBalanceTaskQueue = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator

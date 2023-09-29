@@ -9,6 +9,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
@@ -139,10 +141,11 @@ public class AggregatorBenchmark {
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
+        DriverContext driverContext = driverContext();
         return new HashAggregationOperator(
             List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
             () -> BlockHash.build(groups, BIG_ARRAYS, 16 * 1024, false),
-            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE)
+            driverContext
         );
     }
 
@@ -575,5 +578,12 @@ public class AggregatorBenchmark {
         }
         operator.finish();
         checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
+    }
+
+    static DriverContext driverContext() {
+        return new DriverContext(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE)
+        );
     }
 }

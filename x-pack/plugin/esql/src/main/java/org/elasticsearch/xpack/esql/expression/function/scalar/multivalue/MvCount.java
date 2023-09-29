@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantIntVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -69,36 +69,44 @@ public class MvCount extends AbstractMultivalueFunction {
         }
 
         @Override
-        protected Block evalNullable(Block fieldVal) {
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(fieldVal.getPositionCount());
-            for (int p = 0; p < fieldVal.getPositionCount(); p++) {
-                int valueCount = fieldVal.getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                    continue;
+        protected Block.Ref evalNullable(Block.Ref ref) {
+            try (ref; IntBlock.Builder builder = IntBlock.newBlockBuilder(ref.block().getPositionCount())) {
+                for (int p = 0; p < ref.block().getPositionCount(); p++) {
+                    int valueCount = ref.block().getValueCount(p);
+                    if (valueCount == 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    builder.appendInt(valueCount);
                 }
-                builder.appendInt(valueCount);
+                return Block.Ref.floating(builder.build());
             }
-            return builder.build();
         }
 
         @Override
-        protected Vector evalNotNullable(Block fieldVal) {
-            int[] values = new int[fieldVal.getPositionCount()];
-            for (int p = 0; p < fieldVal.getPositionCount(); p++) {
-                values[p] = fieldVal.getValueCount(p);
+        protected Block.Ref evalNotNullable(Block.Ref ref) {
+            try (
+                ref;
+                IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(
+                    ref.block().getPositionCount(),
+                    BlockFactory.getNonBreakingInstance()
+                )
+            ) {
+                for (int p = 0; p < ref.block().getPositionCount(); p++) {
+                    builder.appendInt(ref.block().getValueCount(p));
+                }
+                return Block.Ref.floating(builder.build().asBlock());
             }
-            return new IntArrayVector(values, values.length);
         }
 
         @Override
-        protected Block evalSingleValuedNullable(Block fieldVal) {
+        protected Block.Ref evalSingleValuedNullable(Block.Ref fieldVal) {
             return evalNullable(fieldVal);
         }
 
         @Override
-        protected Vector evalSingleValuedNotNullable(Block fieldVal) {
-            return new ConstantIntVector(1, fieldVal.getPositionCount());
+        protected Block.Ref evalSingleValuedNotNullable(Block.Ref fieldVal) {
+            return Block.Ref.floating(new ConstantIntVector(1, fieldVal.block().getPositionCount()).asBlock());
         }
     }
 }

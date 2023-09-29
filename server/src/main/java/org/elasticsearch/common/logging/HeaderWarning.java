@@ -90,7 +90,7 @@ public class HeaderWarning {
     }
 
     /**
-     * quoted-string is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
+     * quoted-string is defined in <a href="https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6">Section 3.2.6 of RFC7230</a>
      * quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
      * qdtext         = HTAB / SP /%x21 / %x23-5B / %x5D-7E / obs-text
      * obs-text       = %x80-FF
@@ -100,7 +100,7 @@ public class HeaderWarning {
      * the individual chars from qdText can be validated using the set of chars
      * the \\\\|\\\\\" (escaped '\' 0x20 and '"' 0x5c) which is used for quoted-pair has to be validated as strings
      */
-    private static BitSet qdTextChars = Stream.of(
+    private static final BitSet qdTextChars = Stream.of(
         IntStream.of(0x09),// HTAB
         IntStream.of(0x20), // SPACE
         IntStream.of(0x21), // !
@@ -117,8 +117,9 @@ public class HeaderWarning {
      * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
      * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
      * arbitrary token; here we use the Elasticsearch version and build hash, if the version is semantic, or just the hash, if it is not
-     * semantic (e.g. in serverless). The warn text must be quoted. The warn-date is an optional quoted field that can be in a variety of
-     * specified date formats; here we use RFC 1123 format.
+     * semantic (e.g. overridden with an arbitrary string by a org.elasticsearch.internal.BuildExtension implementation).
+     * The warn text must be quoted. The warn-date is an optional quoted field that can be in a variety of specified date formats; here we
+     * use RFC 1123 format.
      */
     private static final String WARNING_PREFIX = buildWarningPrefix();
 
@@ -128,7 +129,7 @@ public class HeaderWarning {
             : String.format(Locale.ROOT, "299 Elasticsearch-%s", Build.current().hash());
     }
 
-    private static BitSet doesNotNeedEncoding;
+    private static final BitSet doesNotNeedEncoding;
 
     static {
         doesNotNeedEncoding = new BitSet(1 + 0xFF);
@@ -205,6 +206,7 @@ public class HeaderWarning {
      * {@code 299 Elasticsearch-6.0.0 "warning value"}, the return value of this method would be {@code warning value}.
      *
      * @param s the value of a warning header formatted according to RFC 7234.
+     * @param stripXContentPosition whether to remove XContent location information or not
      * @return the extracted warning value
      */
     public static String extractWarningValueFromWarningHeader(final String s, boolean stripXContentPosition) {
@@ -263,7 +265,7 @@ public class HeaderWarning {
     private static boolean matchesQuotedString(String qdtext) {
         qdtext = qdtext.replaceAll("\\\\\"", "");
         qdtext = qdtext.replaceAll("\\\\", "");
-        return qdtext.chars().allMatch(c -> qdTextChars.get(c));
+        return qdtext.chars().allMatch(qdTextChars::get);
     }
 
     /**

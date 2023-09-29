@@ -79,18 +79,18 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         NodesInfoRequest request = nodeRequest.request;
         Set<String> metrics = request.requestedMetrics();
         return nodeService.info(
-            metrics.contains(NodesInfoRequest.Metric.SETTINGS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.OS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.PROCESS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.JVM.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.THREAD_POOL.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.TRANSPORT.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.HTTP.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.PLUGINS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.INGEST.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.AGGREGATIONS.metricName()),
-            metrics.contains(NodesInfoRequest.Metric.INDICES.metricName())
+            metrics.contains(NodesInfoMetrics.Metric.SETTINGS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.OS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.PROCESS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.JVM.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.THREAD_POOL.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.TRANSPORT.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.HTTP.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.PLUGINS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.INGEST.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.AGGREGATIONS.metricName()),
+            metrics.contains(NodesInfoMetrics.Metric.INDICES.metricName())
         );
     }
 

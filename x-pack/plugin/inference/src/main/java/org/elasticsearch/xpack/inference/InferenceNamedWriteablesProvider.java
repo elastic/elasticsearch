@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResult;
+import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 
@@ -29,11 +29,6 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, ElserMlNodeTaskSettings.NAME, ElserMlNodeTaskSettings::new)
-        );
-
-        // Inference results
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceResult.class, SparseEmbeddingResult.NAME, SparseEmbeddingResult::new)
         );
 
         return namedWriteables;

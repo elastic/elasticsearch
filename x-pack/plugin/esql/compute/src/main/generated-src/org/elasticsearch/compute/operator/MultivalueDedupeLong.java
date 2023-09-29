@@ -42,7 +42,7 @@ public class MultivalueDedupeLong {
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
     public LongBlock dedupeToBlockAdaptive() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
@@ -90,7 +90,7 @@ public class MultivalueDedupeLong {
      * which picks based on the number of elements at each position.
      */
     public LongBlock dedupeToBlockUsingCopyAndSort() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
@@ -118,7 +118,7 @@ public class MultivalueDedupeLong {
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
     public LongBlock dedupeToBlockUsingCopyMissing() {
-        if (false == block.mayHaveMultivaluedFields()) {
+        if (block.mvDeduplicated()) {
             return block;
         }
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());

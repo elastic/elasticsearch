@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.SequenceBooleanBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctBooleanAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new SequenceBooleanBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> randomBoolean()).toList());
     }
 

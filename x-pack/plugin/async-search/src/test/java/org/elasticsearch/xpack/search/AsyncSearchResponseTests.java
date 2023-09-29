@@ -357,6 +357,9 @@ public class AsyncSearchResponseTests extends ESTestCase {
                       "total" : 3,
                       "successful" : 0,
                       "skipped" : 0,
+                      "running" : 3,
+                      "partial" : 0,
+                      "failed" : 0,
                       "details" : {
                         "cluster_1" : {
                           "status" : "running",
@@ -413,6 +416,9 @@ public class AsyncSearchResponseTests extends ESTestCase {
                               "total" : 3,
                               "successful" : 0,
                               "skipped" : 0,
+                              "running" : 3,
+                              "partial" : 0,
+                              "failed" : 0,
                               "details" : {
                                 "cluster_1" : {
                                   "status" : "running",
@@ -575,8 +581,11 @@ public class AsyncSearchResponseTests extends ESTestCase {
                     },
                     "_clusters" : {
                       "total" : 4,
-                      "successful" : 3,
+                      "successful" : 2,
                       "skipped" : 1,
+                      "running" : 0,
+                      "partial" : 1,
+                      "failed" : 0,
                       "details" : {
                         "(local)" : {
                           "status" : "successful",

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -21,8 +22,8 @@ import java.util.stream.LongStream;
 
 public class EvalOperatorTests extends OperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
+        return new TupleBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
     record Addition(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {

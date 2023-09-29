@@ -49,6 +49,7 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
 
     @Override
     public IntVector build() {
+        finish();
         IntVector vector;
         if (valueCount == 1) {
             vector = new ConstantIntVector(values[0], 1, blockFactory);
@@ -58,8 +59,16 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
             }
             vector = new IntArrayVector(values, valueCount, blockFactory);
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        /*
+         * Update the breaker with the actual bytes used.
+         * We pass false below even though we've used the bytes. That's weird,
+         * but if we break here we will throw away the used memory, letting
+         * it be deallocated. The exception will bubble up and the builder will
+         * still technically be open, meaning the calling code should close it
+         * which will return all used memory to the breaker.
+         */
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, false);
+        built();
         return vector;
     }
 }

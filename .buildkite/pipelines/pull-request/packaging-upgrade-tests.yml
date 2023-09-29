@@ -1,6 +1,13 @@
+config:
+  allow-labels: ":Delivery/Packaging"
+steps:
+  - group: packaging-tests-upgrade
+    steps:
       - label: "{{matrix.image}} / $BWC_VERSION / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$BWC_VERSION
+        key: "packaging-tests-upgrade:$BWC_VERSION_SNAKE"
+        command: ./.ci/scripts/packaging-test.sh destructiveDistroUpgradeTest.v$BWC_VERSION
         timeout_in_minutes: 300
+        bwc_template: true
         matrix:
           setup:
             image:

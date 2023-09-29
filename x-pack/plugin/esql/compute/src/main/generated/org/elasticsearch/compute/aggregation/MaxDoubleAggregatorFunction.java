@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MaxDoubleAggregator}.
@@ -30,13 +31,18 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxDoubleAggregatorFunction(List<Integer> channels, DoubleState state) {
+  private final DriverContext driverContext;
+
+  public MaxDoubleAggregatorFunction(List<Integer> channels, DoubleState state,
+      DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
   }
 
-  public static MaxDoubleAggregatorFunction create(List<Integer> channels) {
-    return new MaxDoubleAggregatorFunction(channels, new DoubleState(MaxDoubleAggregator.init()));
+  public static MaxDoubleAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new MaxDoubleAggregatorFunction(channels, new DoubleState(MaxDoubleAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -104,12 +110,12 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1);
+      blocks[offset] = Block.constantNullBlock(1, driverContext.blockFactory());
       return;
     }
-    blocks[offset] = DoubleBlock.newConstantBlockWith(state.doubleValue(), 1);
+    blocks[offset] = DoubleBlock.newConstantBlockWith(state.doubleValue(), 1, driverContext.blockFactory());
   }
 
   @Override

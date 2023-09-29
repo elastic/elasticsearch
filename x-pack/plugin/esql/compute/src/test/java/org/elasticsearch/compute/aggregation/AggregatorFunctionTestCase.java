@@ -43,7 +43,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator()) {
+        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator(driverContext())) {
             return agg.intermediateBlockCount();
         }
     }

@@ -57,15 +57,15 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         trackGroupId(groupId);
     }
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
+    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, org.elasticsearch.compute.operator.DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            DoubleVector.Builder builder = DoubleVector.newVectorBuilder(selected.getPositionCount());
+            DoubleVector.Builder builder = DoubleVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 builder.appendDouble(values.get(selected.getInt(i)));
             }
             return builder.build().asBlock();
         }
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (hasValue(group)) {
@@ -87,10 +87,15 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
 
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
-    public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public void toIntermediate(
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        org.elasticsearch.compute.operator.DriverContext driverContext
+    ) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (group < values.size()) {

@@ -34,11 +34,13 @@ public class AggregationOperator implements Operator {
     private boolean finished;
     private Page output;
     private final List<Aggregator> aggregators;
+    private final DriverContext driverContext;
 
     public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
+
         @Override
         public Operator get(DriverContext driverContext) {
-            return new AggregationOperator(aggregators.stream().map(Factory::get).toList());
+            return new AggregationOperator(aggregators.stream().map(x -> x.apply(driverContext)).toList(), driverContext);
         }
 
         @Override
@@ -56,10 +58,11 @@ public class AggregationOperator implements Operator {
         }
     }
 
-    public AggregationOperator(List<Aggregator> aggregators) {
+    public AggregationOperator(List<Aggregator> aggregators, DriverContext driverContext) {
         Objects.requireNonNull(aggregators);
         checkNonEmpty(aggregators);
         this.aggregators = aggregators;
+        this.driverContext = driverContext;
     }
 
     @Override
@@ -95,7 +98,7 @@ public class AggregationOperator implements Operator {
         int offset = 0;
         for (int i = 0; i < aggregators.size(); i++) {
             var aggregator = aggregators.get(i);
-            aggregator.evaluate(blocks, offset);
+            aggregator.evaluate(blocks, offset, driverContext);
             offset += aggBlockCounts[i];
         }
         output = new Page(blocks);

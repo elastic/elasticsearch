@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctIntAggregator}.
@@ -31,21 +32,24 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final BigArrays bigArrays;
 
   private final int precision;
 
   public CountDistinctIntAggregatorFunction(List<Integer> channels, HllStates.SingleState state,
-      BigArrays bigArrays, int precision) {
+      DriverContext driverContext, BigArrays bigArrays, int precision) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
     this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
   public static CountDistinctIntAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, int precision) {
-    return new CountDistinctIntAggregatorFunction(channels, CountDistinctIntAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+      DriverContext driverContext, BigArrays bigArrays, int precision) {
+    return new CountDistinctIntAggregatorFunction(channels, CountDistinctIntAggregator.initSingle(bigArrays, precision), driverContext, bigArrays, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -107,8 +111,8 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = CountDistinctIntAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = CountDistinctIntAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

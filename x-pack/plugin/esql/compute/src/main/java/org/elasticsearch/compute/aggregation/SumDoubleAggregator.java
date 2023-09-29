@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.ConstantDoubleVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -60,9 +61,9 @@ class SumDoubleAggregator {
         blocks[offset + 2] = new ConstantBooleanVector(state.seen, 1).asBlock();
     }
 
-    public static Block evaluateFinal(SumState state) {
+    public static Block evaluateFinal(SumState state, DriverContext driverContext) {
         double result = state.value();
-        return DoubleBlock.newConstantBlockWith(result, 1);
+        return DoubleBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
     }
 
     public static GroupingSumState initGrouping(BigArrays bigArrays) {
@@ -85,11 +86,17 @@ class SumDoubleAggregator {
         }
     }
 
-    public static void evaluateIntermediate(GroupingSumState state, Block[] blocks, int offset, IntVector selected) {
+    public static void evaluateIntermediate(
+        GroupingSumState state,
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        DriverContext driverContext
+    ) {
         assert blocks.length >= offset + 3;
-        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-        var deltaBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
-        var seenBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+        var deltaBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+        var seenBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (group < state.values.size()) {
@@ -106,8 +113,8 @@ class SumDoubleAggregator {
         blocks[offset + 2] = seenBuilder.build();
     }
 
-    public static Block evaluateFinal(GroupingSumState state, IntVector selected) {
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+    public static Block evaluateFinal(GroupingSumState state, IntVector selected, DriverContext driverContext) {
+        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int si = selected.getInt(i);
             if (state.hasValue(si) && si < state.values.size()) {
@@ -201,8 +208,8 @@ class SumDoubleAggregator {
         }
 
         @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
-            SumDoubleAggregator.evaluateIntermediate(this, blocks, offset, selected);
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+            SumDoubleAggregator.evaluateIntermediate(this, blocks, offset, selected, driverContext);
         }
 
         @Override

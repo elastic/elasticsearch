@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link PercentileIntAggregator}.
@@ -30,17 +31,21 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final double percentile;
 
   public PercentileIntAggregatorFunction(List<Integer> channels, QuantileStates.SingleState state,
-      double percentile) {
+      DriverContext driverContext, double percentile) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
     this.percentile = percentile;
   }
 
-  public static PercentileIntAggregatorFunction create(List<Integer> channels, double percentile) {
-    return new PercentileIntAggregatorFunction(channels, PercentileIntAggregator.initSingle(percentile), percentile);
+  public static PercentileIntAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext, double percentile) {
+    return new PercentileIntAggregatorFunction(channels, PercentileIntAggregator.initSingle(percentile), driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -102,8 +107,8 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = PercentileIntAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

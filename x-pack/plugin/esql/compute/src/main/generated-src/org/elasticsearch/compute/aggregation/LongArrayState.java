@@ -63,15 +63,15 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         trackGroupId(groupId);
     }
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected) {
+    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, org.elasticsearch.compute.operator.DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount());
+            LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 builder.appendLong(values.get(selected.getInt(i)));
             }
             return builder.build().asBlock();
         }
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
+        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (hasValue(group)) {
@@ -93,10 +93,15 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
 
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
-    public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public void toIntermediate(
+        Block[] blocks,
+        int offset,
+        IntVector selected,
+        org.elasticsearch.compute.operator.DriverContext driverContext
+    ) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = LongBlock.newBlockBuilder(selected.getPositionCount());
-        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount());
+        var valuesBuilder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
             if (group < values.size()) {

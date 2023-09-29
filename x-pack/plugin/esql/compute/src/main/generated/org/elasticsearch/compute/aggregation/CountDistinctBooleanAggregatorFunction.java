@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctBooleanAggregator}.
@@ -28,14 +29,18 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   public CountDistinctBooleanAggregatorFunction(List<Integer> channels,
-      CountDistinctBooleanAggregator.SingleState state) {
+      CountDistinctBooleanAggregator.SingleState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
   }
 
-  public static CountDistinctBooleanAggregatorFunction create(List<Integer> channels) {
-    return new CountDistinctBooleanAggregatorFunction(channels, CountDistinctBooleanAggregator.initSingle());
+  public static CountDistinctBooleanAggregatorFunction create(List<Integer> channels,
+      DriverContext driverContext) {
+    return new CountDistinctBooleanAggregatorFunction(channels, CountDistinctBooleanAggregator.initSingle(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -98,8 +103,8 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = CountDistinctBooleanAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = CountDistinctBooleanAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

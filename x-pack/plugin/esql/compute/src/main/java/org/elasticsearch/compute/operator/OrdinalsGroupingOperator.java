@@ -242,7 +242,7 @@ public class OrdinalsGroupingOperator implements Operator {
             }
             int position = -1;
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
-            var blockBuilder = BytesRefBlock.newBlockBuilder(1);
+            var blockBuilder = BytesRefBlock.newBlockBuilder(1, driverContext.blockFactory());
             while (pq.size() > 0) {
                 final AggregatedResultIterator top = pq.top();
                 if (position == -1 || lastTerm.get().equals(top.currentTerm) == false) {
@@ -265,7 +265,7 @@ public class OrdinalsGroupingOperator implements Operator {
             IntVector selected = IntVector.range(0, blocks[0].getPositionCount());
             int offset = 1;
             for (int i = 0; i < aggregators.size(); i++) {
-                aggregators.get(i).evaluate(blocks, offset, selected);
+                aggregators.get(i).evaluate(blocks, offset, selected, driverContext);
                 offset += aggBlockCounts[i];
             }
             return new Page(blocks);

@@ -156,7 +156,7 @@ public class DiscoveryNodeUtils {
             }
 
             Set<String> nodeFeatures = new TreeSet<>(additionalFeatures);
-            nodeFeatures.addAll(FeatureService.readHistoricalFeatures(versionInfo.nodeVersion()));
+            nodeFeatures.addAll(FeatureService.readHistoricalFeatures(versionInfo != null ? versionInfo.nodeVersion() : Version.CURRENT));
 
             return new DiscoveryNode(
                 name,

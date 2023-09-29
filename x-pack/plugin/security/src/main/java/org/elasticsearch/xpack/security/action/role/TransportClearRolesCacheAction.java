@@ -48,7 +48,7 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<
             actionFilters,
             ClearRolesCacheRequest::new,
             ClearRolesCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.rolesStore = rolesStore;
     }

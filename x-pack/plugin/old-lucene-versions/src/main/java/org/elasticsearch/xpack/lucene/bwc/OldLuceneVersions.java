@@ -11,7 +11,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -57,8 +57,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -102,7 +102,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -112,7 +112,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             // then marking the feature as used. We do this on each master node so that if one master fails, the
             // continue reporting usage state.
             var usageTracker = new ArchiveUsageTracker(getLicenseState(), clusterService::state);
-            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), ThreadPool.Names.GENERIC);
+            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), threadPool.generic());
         }
         return List.of();
     }
@@ -197,9 +197,9 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             throw new UncheckedIOException(
                 Strings.format(
                     """
-                        Elasticsearch version [{}] has limited support for indices created in version [{}] but this index could not be \
+                        Elasticsearch version [{}] has limited support for indices created with version [{}] but this index could not be \
                         read. It may be using an unsupported feature, or it may be damaged or corrupt. See {} for further information.""",
-                    Version.CURRENT,
+                    Build.current().version(),
                     IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexShard.indexSettings().getSettings()),
                     ReferenceDocs.ARCHIVE_INDICES
                 ),

@@ -514,7 +514,7 @@ public class DataStreamIT extends ESIntegTestCase {
             {
                   "properties": {
                     "@timestamp": {
-                      "type": "keyword"
+                      "type": "long"
                     }
                   }
                 }""";
@@ -538,7 +538,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getCause().getCause().getMessage(),
-            equalTo("data stream timestamp field [@timestamp] is of type [keyword], but [date,date_nanos] is expected")
+            equalTo("data stream timestamp field [@timestamp] is of type [long], but [date,date_nanos] is expected")
         );
     }
 
@@ -1320,11 +1320,17 @@ public class DataStreamIT extends ESIntegTestCase {
         ).actionGet();
         assertThat(response.getDataStreams().size(), is(1));
         DataStreamInfo metricsFooDataStream = response.getDataStreams().get(0);
-        assertThat(metricsFooDataStream.getDataStream().getName(), is("metrics-foo"));
+        DataStream dataStream = metricsFooDataStream.getDataStream();
+        assertThat(dataStream.getName(), is("metrics-foo"));
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
-        assertThat(metricsFooDataStream.getDataStream().getLifecycle(), is(lifecycle));
+        assertThat(dataStream.getLifecycle(), is(lifecycle));
+        assertThat(metricsFooDataStream.templatePreferIlmValue(), is(true));
+        GetDataStreamAction.Response.IndexProperties indexProperties = metricsFooDataStream.getIndexSettingsValues()
+            .get(dataStream.getWriteIndex());
+        assertThat(indexProperties.ilmPolicyName(), is(nullValue()));
+        assertThat(indexProperties.preferIlm(), is(true));
     }
 
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
@@ -1988,18 +1994,13 @@ public class DataStreamIT extends ESIntegTestCase {
         ).actionGet();
 
         /**
-         * routing enable with allow custom routing false
+         * routing settings with allow custom routing false
          */
         template = new ComposableIndexTemplate(
             List.of("logs"),
             new Template(
                 Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
-                new CompressedXContent("""
-                    {
-                          "_routing": {
-                            "required": true
-                          }
-                        }"""),
+                null,
                 null
             ),
             null,
@@ -2022,6 +2023,36 @@ public class DataStreamIT extends ESIntegTestCase {
                 .getMessage()
                 .contains("mapping type [_doc] must have routing required for partitioned index")
         );
+    }
+
+    public void testRoutingEnabledInMappingDisabledInDataStreamTemplate() throws IOException {
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of("logs"),
+            new Template(
+                Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
+                new CompressedXContent("""
+                    {
+                          "_routing": {
+                            "required": true
+                          }
+                        }"""),
+                null
+            ),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, false)
+        );
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(
+                PutComposableIndexTemplateAction.INSTANCE,
+                new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)
+            ).actionGet()
+        );
+        Exception actualException = (Exception) e.getCause();
+        assertTrue(Throwables.getRootCause(actualException).getMessage().contains("contradicting `_routing.required` settings"));
     }
 
     public void testSearchWithRouting() throws IOException, ExecutionException, InterruptedException {

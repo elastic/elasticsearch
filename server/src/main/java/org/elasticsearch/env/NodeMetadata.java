@@ -8,6 +8,7 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
@@ -117,17 +118,17 @@ public final class NodeMetadata {
                 "cannot upgrade a node from version ["
                     + nodeVersion
                     + "] directly to version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "], "
                     + "upgrade to version ["
-                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + Build.current().minWireCompatVersion()
                     + "] first."
             );
         }
 
         if (nodeVersion.after(Version.CURRENT)) {
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]"
+                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Build.current().version() + "]"
             );
         }
     }

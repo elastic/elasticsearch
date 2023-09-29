@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -115,7 +116,9 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         THREAD_POOL = null;
     }
 
-    private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<TestBroadcastUnpromotableRequest> {
+    private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<
+        TestBroadcastUnpromotableRequest,
+        ActionResponse.Empty> {
 
         TestTransportBroadcastUnpromotableAction(ShardStateAction shardStateAction) {
             super(
@@ -125,7 +128,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Set.of()),
                 TestBroadcastUnpromotableRequest::new,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
 
@@ -138,6 +141,20 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             assert false : "not reachable in these tests";
         }
 
+        @Override
+        protected ActionResponse.Empty combineUnpromotableShardResponses(List<ActionResponse.Empty> empties) {
+            return ActionResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        protected ActionResponse.Empty readResponse(StreamInput in) {
+            return ActionResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        protected ActionResponse.Empty emptyResponse() {
+            return ActionResponse.Empty.INSTANCE;
+        }
     }
 
     private static class TestBroadcastUnpromotableRequest extends BroadcastUnpromotableRequest {

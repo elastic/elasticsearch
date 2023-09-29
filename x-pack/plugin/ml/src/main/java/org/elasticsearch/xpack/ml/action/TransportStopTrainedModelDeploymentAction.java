@@ -24,13 +24,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -88,7 +89,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             StopTrainedModelDeploymentAction.Request::new,
             StopTrainedModelDeploymentAction.Response::new,
             StopTrainedModelDeploymentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.ingestService = ingestService;
@@ -187,7 +188,11 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 masterNode,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, StopTrainedModelDeploymentAction.Response::new)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    StopTrainedModelDeploymentAction.Response::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         }
     }
@@ -257,6 +262,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
     ) {
         task.stop(
             "undeploy_trained_model (api)",
+            request.shouldFinishPendingWork(),
             ActionListener.wrap(r -> listener.onResponse(new StopTrainedModelDeploymentAction.Response(true)), listener::onFailure)
         );
     }

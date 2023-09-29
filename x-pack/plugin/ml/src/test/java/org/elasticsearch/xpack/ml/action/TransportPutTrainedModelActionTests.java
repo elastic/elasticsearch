@@ -11,9 +11,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -21,6 +24,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -50,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,6 +70,11 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 public class TransportPutTrainedModelActionTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -205,6 +215,42 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         assertThat(returnedModel.getResponse().getModelId(), is(trainedModel.getModelId()));
     }
 
+    public void testVerifyMlNodesAndModelArchitectures_GivenIllegalArgumentException_ThenSetHeaderWarning() {
+
+        TransportPutTrainedModelAction actionSpy = spy(createTransportPutTrainedModelAction());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<TrainedModelConfig>> failureListener = ArgumentCaptor.forClass(ActionListener.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<TrainedModelConfig> mockConfigToReturnListener = mock(ActionListener.class);
+        TrainedModelConfig mockConfigToReturn = mock(TrainedModelConfig.class);
+        doNothing().when(mockConfigToReturnListener).onResponse(any());
+
+        doNothing().when(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), any(), any(), any());
+        actionSpy.verifyMlNodesAndModelArchitectures(mockConfigToReturn, null, threadPool, mockConfigToReturnListener);
+        verify(actionSpy).verifyMlNodesAndModelArchitectures(any(), any(), any(), any());
+        verify(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), failureListener.capture(), any(), any());
+
+        String warningMessage = "TEST HEADER WARNING";
+        failureListener.getValue().onFailure(new IllegalArgumentException(warningMessage));
+        assertWarnings(warningMessage);
+    }
+
+    public void testVerifyMlNodesAndModelArchitectures_GivenArchitecturesMatch_ThenTriggerOnResponse() {
+
+        TransportPutTrainedModelAction actionSpy = spy(createTransportPutTrainedModelAction());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<ActionListener<TrainedModelConfig>> successListener = ArgumentCaptor.forClass(ActionListener.class);
+        @SuppressWarnings("unchecked")
+        ActionListener<TrainedModelConfig> mockConfigToReturnListener = mock(ActionListener.class);
+        TrainedModelConfig mockConfigToReturn = mock(TrainedModelConfig.class);
+
+        doNothing().when(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), any(), any(), any());
+        actionSpy.verifyMlNodesAndModelArchitectures(mockConfigToReturn, null, threadPool, mockConfigToReturnListener);
+        verify(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), successListener.capture(), any(), any());
+
+        ensureNoWarnings();
+    }
+
     private static void prepareGetTrainedModelResponse(Client client, List<TrainedModelConfig> trainedModels) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -218,6 +264,30 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
             return Void.TYPE;
         }).when(client).execute(same(GetTrainedModelsAction.INSTANCE), any(), any());
+    }
+
+    private TransportPutTrainedModelAction createTransportPutTrainedModelAction() {
+        TransportService mockTransportService = mock(TransportService.class);
+        doReturn(threadPool).when(mockTransportService).getThreadPool();
+        ClusterService mockClusterService = mock(ClusterService.class);
+        ActionFilters mockFilters = mock(ActionFilters.class);
+        doReturn(null).when(mockFilters).filters();
+        Client mockClient = mock(Client.class);
+        doReturn(null).when(mockClient).settings();
+        doReturn(threadPool).when(mockClient).threadPool();
+
+        return new TransportPutTrainedModelAction(
+            Settings.EMPTY,
+            mockTransportService,
+            mockClusterService,
+            threadPool,
+            null,
+            mockFilters,
+            null,
+            mockClient,
+            null,
+            null
+        );
     }
 
     @Override

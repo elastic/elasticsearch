@@ -111,6 +111,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private final Verifier verifier;
 
+    @SuppressWarnings("this-escape")
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         context.analyzeWithoutVerify().set(this::execute);

@@ -429,7 +429,7 @@ public class BulkProcessor2 implements Closeable {
                         }
                         cancellableFlushTask = null;
                     }
-                }, flushInterval, ThreadPool.Names.GENERIC);
+                }, flushInterval, threadPool.generic());
             }
         }
     }

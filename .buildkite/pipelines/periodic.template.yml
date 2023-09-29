@@ -1,0 +1,115 @@
+steps:
+  - group: bwc
+    steps: $BWC_STEPS
+  - label: concurrent-search-tests
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
+    timeout_in_minutes: 420
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: encryption-at-rest
+    command: .buildkite/scripts/encryption-at-rest.sh
+    timeout_in_minutes: 420
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: eql-correctness
+    command: .buildkite/scripts/eql-correctness.sh
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - label: example-plugins
+    command: |-
+      cd $$WORKSPACE/plugins/examples
+
+      $$WORKSPACE/.ci/scripts/run-gradle.sh build
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - group: java-fips-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.fips.enabled=true $$GRADLE_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk17
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+  - group: java-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - graalvm-ce17
+              - openjdk17
+              - openjdk18
+              - openjdk19
+              - openjdk20
+              - openjdk21
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - bwcTestSnapshots
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+  - label: release-tests
+    command: .buildkite/scripts/release-tests.sh
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: single-processor-node-tests
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
+    timeout_in_minutes: 420
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304
+  - label: Upload Snyk Dependency Graph
+    command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
+    env:
+      USE_SNYK_CREDENTIALS: "true"
+    timeout_in_minutes: 20
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: n2-standard-8
+      buildDirectory: /dev/shm/bk

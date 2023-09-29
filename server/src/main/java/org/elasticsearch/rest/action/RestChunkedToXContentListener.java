@@ -21,7 +21,7 @@ import java.io.IOException;
  * A REST based action listener that requires the response to implement {@link org.elasticsearch.common.xcontent.ChunkedToXContent}
  * and automatically builds an XContent based response.
  */
-public final class RestChunkedToXContentListener<Response extends ChunkedToXContent> extends RestActionListener<Response> {
+public class RestChunkedToXContentListener<Response extends ChunkedToXContent> extends RestActionListener<Response> {
 
     private final ToXContent.Params params;
 
@@ -36,6 +36,12 @@ public final class RestChunkedToXContentListener<Response extends ChunkedToXCont
 
     @Override
     protected void processResponse(Response response) throws IOException {
-        channel.sendResponse(new RestResponse(RestStatus.OK, ChunkedRestResponseBody.fromXContent(response, params, channel)));
+        channel.sendResponse(
+            RestResponse.chunked(getRestStatus(response), ChunkedRestResponseBody.fromXContent(response, params, channel, null))
+        );
+    }
+
+    protected RestStatus getRestStatus(Response response) {
+        return RestStatus.OK;
     }
 }

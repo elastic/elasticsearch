@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -35,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
@@ -393,7 +393,7 @@ public class JobManagerTests extends ESTestCase {
         List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
         CategorizationAnalyzerConfig c = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(categorizationFilters);
         Job.Builder jobBuilder = createCategorizationJob(c, null);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT);
 
         Job job = jobBuilder.build(new Date());
         assertThat(
@@ -408,7 +408,7 @@ public class JobManagerTests extends ESTestCase {
         Job.Builder jobBuilder = createCategorizationJob(c, null);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT)
+            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT)
         );
 
         assertThat(e.getMessage(), equalTo("Failed to find global analyzer [does_not_exist]"));
@@ -418,7 +418,7 @@ public class JobManagerTests extends ESTestCase {
 
         List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
         Job.Builder jobBuilder = createCategorizationJob(null, categorizationFilters);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT);
 
         Job job = jobBuilder.build(new Date());
         assertThat(

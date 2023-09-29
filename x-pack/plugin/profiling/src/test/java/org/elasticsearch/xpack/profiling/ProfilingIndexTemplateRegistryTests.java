@@ -156,7 +156,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent newEvent = createClusterChangedEvent(Map.of(), Map.of(), Map.of(), nodes);
         registry.clusterChanged(newEvent);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getPolicyConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLifecyclePolicies().size())));
     }
 
     public void testPolicyAlreadyExists() {
@@ -164,7 +164,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -200,7 +200,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             "{\"_meta\":{\"version\":%d},\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}",
             ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION
         );
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -253,7 +253,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         // set version to 0 to force an upgrade (proper versions start at 1)
         String priorPolicyStr = "{\"_meta\":{\"version\":0},\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -307,6 +307,81 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             // we've changed one policy that should be upgraded
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
+    }
+
+    public void testAllResourcesPresentButOutdated() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            // outdated (or missing) version
+            componentTemplates.put(templateName, frequently() ? ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1 : null);
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            // outdated (or missing) version
+            composableTemplates.put(templateName, frequently() ? ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1 : null);
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            // make a copy as we're modifying the version mapping
+            Map<String, Object> metadata = new HashMap<>(policy.getMetadata());
+            if (frequently()) {
+                metadata.put("version", ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1);
+            } else {
+                metadata.remove("version");
+            }
+            policies.put(policy.getName(), new LifecyclePolicy(policy.getName(), policy.getPhases(), metadata));
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+    }
+
+    public void testAllResourcesPresentAndCurrent() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            componentTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            composableTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            policies.put(policy.getName(), policy);
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertTrue(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+    }
+
+    public void testSomeResourcesMissing() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            if (rarely()) {
+                componentTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+            }
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            if (rarely()) {
+                composableTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+            }
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            if (rarely()) {
+                policies.put(policy.getName(), policy);
+            }
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
     private ActionResponse verifyComposableTemplateInstalled(

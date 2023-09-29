@@ -68,7 +68,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
             actionFilters,
             indexNameExpressionResolver,
             ReloadAnalyzersRequest::new,
-            ThreadPool.Names.MANAGEMENT,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT),
             false
         );
         this.indicesService = indicesService;
@@ -144,7 +144,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         private ReloadResult(StreamInput in) throws IOException {
             this.index = in.readString();
             this.nodeId = in.readString();
-            this.reloadedSearchAnalyzers = in.readStringList();
+            this.reloadedSearchAnalyzers = in.readStringCollectionAsList();
         }
 
         @Override

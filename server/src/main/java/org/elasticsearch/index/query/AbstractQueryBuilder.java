@@ -61,6 +61,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     }
 
+    @SuppressWarnings("this-escape")
     protected AbstractQueryBuilder(StreamInput in) throws IOException {
         boost = in.readFloat();
         checkNegativeBoost(boost);
@@ -211,9 +212,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      */
     static Object maybeConvertToBytesRef(Object obj) {
         if (obj instanceof String) {
-            return BytesRefs.toBytesRef(obj);
+            return BytesRefs.checkIndexableLength(BytesRefs.toBytesRef(obj));
         } else if (obj instanceof CharBuffer) {
-            return new BytesRef((CharBuffer) obj);
+            return BytesRefs.checkIndexableLength(new BytesRef((CharBuffer) obj));
         } else if (obj instanceof BigInteger) {
             return BytesRefs.toBytesRef(obj);
         }
@@ -267,7 +268,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
-        return in.readNamedWriteableList(QueryBuilder.class);
+        return in.readNamedWriteableCollectionAsList(QueryBuilder.class);
     }
 
     @Override

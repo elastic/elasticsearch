@@ -1,5 +1,0 @@
-pr: 97099
-summary: Skip `SortingDigest` when merging a large digest in `HybridDigest`
-area: Aggregations
-type: enhancement
-issues: []

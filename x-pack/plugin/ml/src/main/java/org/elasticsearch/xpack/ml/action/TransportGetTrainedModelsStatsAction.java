@@ -124,11 +124,14 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                     .stream()
                     .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()))
             );
+
+            int numberOfAllocations = deploymentStats.getStats().results().stream().mapToInt(AssignmentStats::getNumberOfAllocations).sum();
             modelSizeStats(
                 responseBuilder.getExpandedModelIdsWithAliases(),
                 request.isAllowNoResources(),
                 parentTaskId,
-                modelSizeStatsListener
+                modelSizeStatsListener,
+                numberOfAllocations
             );
         }));
 
@@ -273,7 +276,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         Map<String, Set<String>> expandedIdsWithAliases,
         boolean allowNoResources,
         TaskId parentTaskId,
-        ActionListener<Map<String, TrainedModelSizeStats>> listener
+        ActionListener<Map<String, TrainedModelSizeStats>> listener,
+        int numberOfAllocations
     ) {
         ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
             final List<String> pytorchModelIds = models.stream()
@@ -285,12 +289,27 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
                         long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
+                        long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
+                            ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                                model.getModelId(),
+                                totalDefinitionLength,
+                                model.getPerDeploymentMemoryBytes(),
+                                model.getPerAllocationMemoryBytes(),
+                                numberOfAllocations
+                            )
+                            : 0L;
                         modelSizeStatsByModelId.put(
                             model.getModelId(),
                             new TrainedModelSizeStats(
                                 totalDefinitionLength,
                                 totalDefinitionLength > 0L
-                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(model.getModelId(), totalDefinitionLength)
+                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                                        model.getModelId(),
+                                        totalDefinitionLength,
+                                        model.getPerDeploymentMemoryBytes(),
+                                        model.getPerAllocationMemoryBytes(),
+                                        numberOfAllocations
+                                    )
                                     : 0L
                             )
                         );

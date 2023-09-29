@@ -98,6 +98,7 @@ public class BackgroundIndexer implements AutoCloseable {
      * @param autoStart   set to true to start indexing as soon as all threads have been created.
      * @param random      random instance to use
      */
+    @SuppressWarnings("this-escape")
     public BackgroundIndexer(
         final String index,
         final Client client,

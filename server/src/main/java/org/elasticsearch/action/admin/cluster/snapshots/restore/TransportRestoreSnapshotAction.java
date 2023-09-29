@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +47,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
             RestoreSnapshotRequest::new,
             indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.restoreService = restoreService;
     }
@@ -71,7 +72,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
         final ActionListener<RestoreSnapshotResponse> listener
     ) {
         restoreService.restoreSnapshot(request, listener.delegateFailure((delegatedListener, restoreCompletionResponse) -> {
-            if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
+            if (restoreCompletionResponse.restoreInfo() == null && request.waitForCompletion()) {
                 RestoreClusterStateListener.createAndRegisterListener(
                     clusterService,
                     restoreCompletionResponse,
@@ -79,7 +80,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
                     threadPool.getThreadContext()
                 );
             } else {
-                delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
+                delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.restoreInfo()));
             }
         }));
     }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
@@ -14,16 +15,18 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_DATASTREAM_CHECK_KEY;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_TIME_SERIES_CHECK_KEY;
-import static org.elasticsearch.xpack.core.ilm.DownsampleAction.GENERATE_DOWNSAMPLE_STEP_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DownsampleActionTests extends AbstractActionTestCase<DownsampleAction> {
 
+    public static final TimeValue WAIT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+
     static DownsampleAction randomInstance() {
-        return new DownsampleAction(ConfigTestHelpers.randomInterval());
+        return new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT);
     }
 
     @Override
@@ -53,7 +56,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
     @Override
     public void testToSteps() {
-        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval());
+        DownsampleAction action = new DownsampleAction(ConfigTestHelpers.randomInterval(), WAIT_TIMEOUT);
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
@@ -80,14 +83,14 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
         assertTrue(steps.get(3) instanceof ReadOnlyStep);
         assertThat(steps.get(3).getKey().name(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(3).getNextStepKey().name(), equalTo(CleanupTargetIndexStep.NAME));
+        assertThat(steps.get(3).getNextStepKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
 
-        assertTrue(steps.get(4) instanceof CleanupTargetIndexStep);
+        assertTrue(steps.get(4) instanceof NoopStep);
         assertThat(steps.get(4).getKey().name(), equalTo(CleanupTargetIndexStep.NAME));
-        assertThat(steps.get(4).getNextStepKey().name(), equalTo(GENERATE_DOWNSAMPLE_STEP_NAME));
+        assertThat(steps.get(4).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
 
-        assertTrue(steps.get(5) instanceof GenerateUniqueIndexNameStep);
-        assertThat(steps.get(5).getKey().name(), equalTo(GENERATE_DOWNSAMPLE_STEP_NAME));
+        assertTrue(steps.get(5) instanceof DownsamplePrepareLifeCycleStateStep);
+        assertThat(steps.get(5).getKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
         assertThat(steps.get(5).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
 
         assertTrue(steps.get(6) instanceof DownsampleStep);
@@ -130,11 +133,11 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
     }
 
     DownsampleAction copy(DownsampleAction downsampleAction) {
-        return new DownsampleAction(downsampleAction.fixedInterval());
+        return new DownsampleAction(downsampleAction.fixedInterval(), downsampleAction.waitTimeout());
     }
 
     DownsampleAction notCopy(DownsampleAction downsampleAction) {
         DateHistogramInterval fixedInterval = randomValueOtherThan(downsampleAction.fixedInterval(), ConfigTestHelpers::randomInterval);
-        return new DownsampleAction(fixedInterval);
+        return new DownsampleAction(fixedInterval, WAIT_TIMEOUT);
     }
 }

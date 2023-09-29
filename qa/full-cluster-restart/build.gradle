@@ -10,16 +10,17 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
-}
 
 BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
   }
+}
+
+tasks.withType(Test).configureEach {
+  // CI doesn't like it when there's multiple clusters running at once
+  maxParallelForks = 1
 }

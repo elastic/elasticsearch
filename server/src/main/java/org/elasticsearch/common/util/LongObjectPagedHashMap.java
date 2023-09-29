@@ -26,6 +26,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
         this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
+    @SuppressWarnings("this-escape")
     public LongObjectPagedHashMap(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
         boolean success = false;

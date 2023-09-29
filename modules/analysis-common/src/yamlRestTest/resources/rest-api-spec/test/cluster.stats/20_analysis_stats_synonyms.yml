@@ -98,9 +98,9 @@
       cluster.stats: {}
 
   - length: { indices.analysis.synonyms: 3 }
-  - match: { indices.analysis.synonyms.synonyms.count: 4 }
-  - match: { indices.analysis.synonyms.synonyms.index_count: 3 }
-  - match: { indices.analysis.synonyms.synonyms_path.count: 3 }
-  - match: { indices.analysis.synonyms.synonyms_path.index_count: 1 }
-  - match: { indices.analysis.synonyms.synonyms_set.count: 3 }
-  - match: { indices.analysis.synonyms.synonyms_set.index_count: 3 }
+  - match: { indices.analysis.synonyms.inline.count: 4 }
+  - match: { indices.analysis.synonyms.inline.index_count: 3 }
+  - match: { indices.analysis.synonyms.paths.count: 3 }
+  - match: { indices.analysis.synonyms.paths.index_count: 1 }
+  - match: { indices.analysis.synonyms.sets.count: 3 }
+  - match: { indices.analysis.synonyms.sets.index_count: 3 }

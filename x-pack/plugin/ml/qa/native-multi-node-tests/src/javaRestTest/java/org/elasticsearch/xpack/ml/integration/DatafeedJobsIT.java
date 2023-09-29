@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -27,6 +26,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -95,7 +95,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob("lookback-job");
         PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.CURRENT));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
@@ -139,7 +139,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob("lookback-data-stream-job");
         PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.CURRENT));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
@@ -519,7 +519,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob(jobId);
         PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.CURRENT));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
@@ -703,7 +703,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob("lookback-job-stopped-then-killed");
         PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(MlConfigVersion.CURRENT));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 

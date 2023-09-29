@@ -1,0 +1,5 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+string | length | result
+keyword | integer | keyword
+|===

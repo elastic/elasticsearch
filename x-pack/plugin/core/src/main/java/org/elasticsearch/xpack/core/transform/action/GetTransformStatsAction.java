@@ -22,6 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -57,6 +58,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         // used internally to expand the queried id expression
         private List<String> expandedIds;
 
+        @SuppressWarnings("this-escape")
         public Request(String id, @Nullable TimeValue timeout) {
             setTimeout(timeout);
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
@@ -70,7 +72,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            expandedIds = in.readImmutableList(StreamInput::readString);
+            expandedIds = in.readCollectionAsImmutableList(StreamInput::readString);
             pageParams = new PageParams(in);
             allowNoMatch = in.readBoolean();
         }
@@ -157,8 +159,8 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
     public static class Response extends BaseTasksResponse implements ToXContentObject {
         private final QueryPage<TransformStats> transformsStats;
 
-        public Response(List<TransformStats> transformStateAndStats, long count) {
-            this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS));
+        public Response(List<TransformStats> transformStateAndStats) {
+            this(new QueryPage<>(transformStateAndStats, transformStateAndStats.size(), TransformField.TRANSFORMS));
         }
 
         public Response(
@@ -170,7 +172,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS), taskFailures, nodeFailures);
         }
 
-        private Response(QueryPage<TransformStats> transformsStats) {
+        public Response(QueryPage<TransformStats> transformsStats) {
             this(transformsStats, Collections.emptyList(), Collections.emptyList());
         }
 
@@ -194,6 +196,10 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         public long getCount() {
             return transformsStats.count();
+        }
+
+        public ParseField getResultsField() {
+            return transformsStats.getResultsField();
         }
 
         @Override

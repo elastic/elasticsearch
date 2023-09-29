@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -52,6 +53,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -142,16 +144,17 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
 
             // resultWindow greater than maxResultWindow and scrollContext is null
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> contextWithoutScroll.preProcess());
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, contextWithoutScroll::preProcess);
             assertThat(
                 exception.getMessage(),
                 equalTo(
@@ -181,13 +184,14 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
             context1.from(300);
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
+            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
             assertThat(
                 exception.getMessage(),
                 equalTo(
@@ -210,12 +214,12 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(rescoreContext.getWindowSize()).thenReturn(500);
             context1.addRescore(rescoreContext);
 
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
+            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
             assertThat(exception.getMessage(), equalTo("Cannot use [sort] option in conjunction with [rescore]."));
 
             // rescore is null but sort is not null and rescoreContext.getWindowSize() exceeds maxResultWindow
             context1.sort(null);
-            exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess());
+            exception = expectThrows(IllegalArgumentException.class, context1::preProcess);
 
             assertThat(
                 exception.getMessage(),
@@ -255,10 +259,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
@@ -266,7 +271,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(sliceBuilder.getMax()).thenReturn(numSlices);
             context2.sliceBuilder(sliceBuilder);
 
-            exception = expectThrows(IllegalArgumentException.class, () -> context2.preProcess());
+            exception = expectThrows(IllegalArgumentException.class, context2::preProcess);
             assertThat(
                 exception.getMessage(),
                 equalTo(
@@ -291,10 +296,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
@@ -317,10 +323,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
             Query query1 = context4.query();
@@ -384,10 +391,11 @@ public class DefaultSearchContextTests extends ESTestCase {
                 target,
                 null,
                 timeout,
-                randomIntBetween(1, Integer.MAX_VALUE),
                 null,
                 false,
-                false
+                null,
+                randomInt(),
+                randomInt()
             );
 
             assertThat(context.searcher().hasCancellations(), is(false));
@@ -400,6 +408,109 @@ public class DefaultSearchContextTests extends ESTestCase {
             readerContext.close();
         } finally {
             threadPool.shutdown();
+        }
+    }
+
+    public void testNewIdLoader() throws Exception {
+        try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
+            assertThat(context.newIdLoader(), instanceOf(IdLoader.StoredIdLoader.class));
+            context.indexShard().getThreadPool().shutdown();
+        }
+    }
+
+    public void testNewIdLoaderWithTsdb() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2001-01-01T00:00:00.000Z")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+            .build();
+        try (DefaultSearchContext context = createDefaultSearchContext(settings)) {
+            assertThat(context.newIdLoader(), instanceOf(IdLoader.TsIdLoader.class));
+            context.indexShard().getThreadPool().shutdown();
+        }
+    }
+
+    private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings) throws IOException {
+        TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
+        ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
+        ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
+        when(shardSearchRequest.shardId()).thenReturn(shardId);
+        when(shardSearchRequest.shardRequestIndex()).thenReturn(shardId.id());
+        when(shardSearchRequest.numberOfShards()).thenReturn(2);
+
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.getThreadPool()).thenReturn(threadPool);
+
+        Settings settings = indexSettings(IndexVersion.current(), 2, 1).put(providedIndexSettings).build();
+
+        IndexService indexService = mock(IndexService.class);
+        IndexCache indexCache = mock(IndexCache.class);
+        QueryCache queryCache = mock(QueryCache.class);
+        when(indexCache.query()).thenReturn(queryCache);
+        when(indexService.cache()).thenReturn(indexCache);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
+            .thenReturn(searchExecutionContext);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.hasNested()).thenReturn(randomBoolean());
+        when(indexService.mapperService()).thenReturn(mapperService);
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        when(indexService.getIndexSettings()).thenReturn(indexSettings);
+        when(indexService.getMetadata()).thenReturn(indexMetadata);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(indexSettings.getIndexVersionCreated());
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            final Supplier<Engine.SearcherSupplier> searcherSupplier = () -> new Engine.SearcherSupplier(Function.identity()) {
+                @Override
+                protected void doClose() {}
+
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    try {
+                        IndexReader reader = w.getReader();
+                        return new Engine.Searcher(
+                            "test",
+                            reader,
+                            IndexSearcher.getDefaultSimilarity(),
+                            IndexSearcher.getDefaultQueryCache(),
+                            IndexSearcher.getDefaultQueryCachingPolicy(),
+                            reader
+                        );
+                    } catch (IOException exc) {
+                        throw new AssertionError(exc);
+                    }
+                }
+            };
+
+            SearchShardTarget target = new SearchShardTarget("node", shardId, null);
+
+            ReaderContext readerContext = new ReaderContext(
+                newContextId(),
+                indexService,
+                indexShard,
+                searcherSupplier.get(),
+                randomNonNegativeLong(),
+                false
+            );
+            return new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                null,
+                timeout,
+                null,
+                false,
+                null,
+                randomInt(),
+                randomInt()
+            );
         }
     }
 

@@ -524,7 +524,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param blobNames names of the blobs to delete
      */
-    void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }

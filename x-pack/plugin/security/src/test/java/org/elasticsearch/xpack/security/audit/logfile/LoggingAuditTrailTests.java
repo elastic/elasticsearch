@@ -2024,7 +2024,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomFrom(AuditLevel.ACCESS_GRANTED, AuditLevel.SYSTEM_ACCESS_GRANTED),
             authentication,
             "_action",
-            randomFrom(randomAlphaOfLengthBetween(1, 4), null),
+            new String[] { randomAlphaOfLengthBetween(1, 4) },
             BulkItemRequest.class.getName(),
             request.remoteAddress(),
             authorizationInfo
@@ -2056,13 +2056,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields, checkedArrayFields);
         clearLog();
 
-        String index = randomFrom(randomAlphaOfLengthBetween(1, 4), null);
+        String[] indices = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         auditTrail.explicitIndexAccessEvent(
             requestId,
             randomFrom(AuditLevel.ACCESS_GRANTED, AuditLevel.SYSTEM_ACCESS_GRANTED),
             authentication,
             "_action",
-            index,
+            indices,
             BulkItemRequest.class.getName(),
             request.remoteAddress(),
             authorizationInfo
@@ -2081,9 +2081,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        if (index != null) {
-            checkedArrayFields.put(LoggingAuditTrail.INDICES_FIELD_NAME, new String[] { index });
-        }
+        checkedArrayFields.put(LoggingAuditTrail.INDICES_FIELD_NAME, indices);
         assertMsg(logger, checkedFields, checkedArrayFields);
     }
 

@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -138,7 +139,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     bulkRequest.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
                 }
                 final BulkResponse bulkResponse = bulkRequest.get();
-                assertThat(bulkResponse.status(), is(RestStatus.OK));
                 assertThat(bulkResponse.hasFailures(), is(false));
             }
             docsPerIndex.put(indexName, nbDocs);
@@ -459,6 +459,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                                 @Override
                                 public BlobContainer blobContainer(BlobPath path) {
                                     return new TrackingFilesBlobContainer(delegate.blobContainer(path));
+                                }
+
+                                @Override
+                                public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+                                    delegate.deleteBlobsIgnoringIfNotExists(blobNames);
                                 }
 
                                 @Override

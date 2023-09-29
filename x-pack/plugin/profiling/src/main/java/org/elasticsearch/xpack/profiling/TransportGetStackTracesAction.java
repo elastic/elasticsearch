@@ -44,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -155,7 +154,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     ) {
         long start = System.nanoTime();
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
-        int exp = eventsIndex.getExponent();
         responseBuilder.setSampleRate(eventsIndex.getSampleRate());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
@@ -372,53 +370,6 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         }
     }
 
-    private static class Resampler {
-        private final boolean requiresResampling;
-
-        private final Random r;
-
-        private final double sampleRate;
-
-        private final double p;
-
-        Resampler(GetStackTracesRequest request, double sampleRate, long totalCount) {
-            // Manually reduce sample count if totalCount exceeds sampleSize by 10%.
-            if (totalCount > request.getSampleSize() * 1.1) {
-                this.requiresResampling = true;
-                // Make the RNG predictable to get reproducible results.
-                this.r = new Random(request.hashCode());
-                this.sampleRate = sampleRate;
-                this.p = (double) request.getSampleSize() / totalCount;
-            } else {
-                this.requiresResampling = false;
-                this.r = null;
-                this.sampleRate = sampleRate;
-                this.p = 1.0d;
-            }
-        }
-
-        public int adjustSampleCount(int originalCount) {
-            if (requiresResampling) {
-                int newCount = 0;
-                for (int i = 0; i < originalCount; i++) {
-                    if (r.nextDouble() < p) {
-                        newCount++;
-                    }
-                }
-                if (newCount > 0) {
-                    // Adjust the sample counts from down-sampled to fully sampled.
-                    // Be aware that downsampling drops entries from stackTraceEvents, so that
-                    // the sum of the upscaled count values is less that totalCount.
-                    return (int) Math.floor(newCount / (sampleRate * p));
-                } else {
-                    return 0;
-                }
-            } else {
-                return originalCount;
-            }
-        }
-    }
-
     /**
      * Collects stack trace details which are retrieved concurrently and sends a response only when all details are known.
      */
@@ -456,7 +407,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 if (frame.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackFrames.containsKey(frame.getId()) == false) {
-                        stackFrames.putIfAbsent(frame.getId(), StackFrame.fromSource(frame.getResponse().getSource()));
+                        StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
+                        if (stackFrame.isEmpty() == false) {
+                            stackFrames.putIfAbsent(frame.getId(), stackFrame);
+                        } else {
+                            log.trace("Stack frame with id [{}] has no properties.", frame.getId());
+                        }
                     }
                 }
             }
@@ -472,7 +428,16 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 if (executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
-                        executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));
+                        String fileName = ObjectPath.eval("Executable.file.name", executable.getResponse().getSource());
+                        if (fileName != null) {
+                            executables.putIfAbsent(executable.getId(), fileName);
+                        } else {
+                            String priorKey = executables.putIfAbsent(executable.getId(), "<missing>");
+                            // avoid spurious logging by checking whether we have actually inserted the 'missing' key
+                            if (priorKey == null) {
+                                log.trace("Executable with id [{}] has no file name.", executable.getId());
+                            }
+                        }
                     }
                 }
             }

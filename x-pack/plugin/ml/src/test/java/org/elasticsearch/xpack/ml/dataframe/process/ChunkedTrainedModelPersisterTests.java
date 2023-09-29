@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -134,7 +134,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         TrainedModelConfig storedModel = storedModelCaptor.getValue();
         assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
         assertThat(storedModel.getModelId(), containsString(JOB_ID));
-        assertThat(storedModel.getVersion(), equalTo(Version.CURRENT));
+        assertThat(storedModel.getVersion(), equalTo(MlConfigVersion.CURRENT));
         assertThat(storedModel.getCreatedBy(), equalTo(InternalUsers.XPACK_USER.principal()));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));

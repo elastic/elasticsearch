@@ -131,15 +131,16 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
     }
 
     /**
-     * Can be invoked only after a call to preceding(offset+1).
+     * Can be invoked only after a call to preceding().
+     *
      * See {@link FieldHighlighter} for usage.
      */
     @Override
     public int following(int offset) {
-        if (offset != lastPrecedingOffset || innerEnd == -1) {
-            throw new IllegalArgumentException("offset != lastPrecedingOffset: " + "usage doesn't look like UnifiedHighlighter");
+        if (innerEnd == -1) {
+            throw new IllegalArgumentException("preceding should be called first, usage doesn't look like UnifiedHighlighter");
         }
-        return innerEnd;
+        return Math.max(offset, innerEnd);
     }
 
     /**

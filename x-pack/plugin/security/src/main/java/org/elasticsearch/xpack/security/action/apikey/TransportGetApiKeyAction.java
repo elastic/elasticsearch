@@ -57,7 +57,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
             realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
 
-        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, request.withLimitedBy(), listener);
+        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, request.withLimitedBy(), request.activeOnly(), listener);
     }
 
 }

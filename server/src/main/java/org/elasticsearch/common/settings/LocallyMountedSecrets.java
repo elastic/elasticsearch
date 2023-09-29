@@ -116,6 +116,7 @@ public class LocallyMountedSecrets implements SecureSettings {
     /**
      * Direct constructor to be used by the CLI
      */
+    @SuppressWarnings("this-escape")
     public LocallyMountedSecrets(Environment environment) {
         var secretsDirPath = resolveSecretsDir(environment);
         var secretsFilePath = resolveSecretsFile(environment);
@@ -264,7 +265,7 @@ public class LocallyMountedSecrets implements SecureSettings {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert out.getTransportVersion() == TransportVersion.current();
-            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
+            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }
     }

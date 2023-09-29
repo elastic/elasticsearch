@@ -30,6 +30,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.readiness.MockReadinessService;
+import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -38,11 +40,11 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -182,6 +184,14 @@ public class MockNode extends Node {
             return super.newScriptService(settings, engines, contexts, timeProvider);
         }
         return new MockScriptService(settings, engines, contexts);
+    }
+
+    @Override
+    protected ReadinessService newReadinessService(ClusterService clusterService, Environment environment) {
+        if (getPluginsService().filterPlugins(MockReadinessService.TestPlugin.class).isEmpty()) {
+            return super.newReadinessService(clusterService, environment);
+        }
+        return new MockReadinessService(clusterService, environment);
     }
 
     @Override

@@ -67,7 +67,7 @@ public class BinaryFieldMapper extends FieldMapper {
                 name,
                 new BinaryFieldType(context.buildFullName(name), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 this
             );
         }
@@ -195,6 +195,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         private final List<byte[]> bytesList;
 
+        @SuppressWarnings("this-escape")
         public CustomBinaryDocValuesField(String name, byte[] bytes) {
             super(name);
             bytesList = new ArrayList<>();

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -36,6 +35,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfigTests;
@@ -120,14 +120,14 @@ public class PivotTests extends ESTestCase {
 
     public void testValidateExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("non_existing_source_index");
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -138,7 +138,7 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize),
             new SettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
         assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
@@ -146,7 +146,7 @@ public class PivotTests extends ESTestCase {
         pivot = new Pivot(
             new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null),
             new SettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
         assertThat(pivot.getInitialPageSize(), equalTo(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE));
@@ -159,7 +159,7 @@ public class PivotTests extends ESTestCase {
         // search has failures although they might just be temporary
         SourceConfig source = new SourceConfig("existing_source_index_with_failing_shards");
 
-        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
     }
@@ -173,7 +173,7 @@ public class PivotTests extends ESTestCase {
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),
                 new SettingsConfig(),
-                Version.CURRENT,
+                TransformConfigVersion.CURRENT,
                 Collections.emptySet()
             );
             assertValidTransform(client, source, pivot);
@@ -187,7 +187,7 @@ public class PivotTests extends ESTestCase {
             Function pivot = new Pivot(
                 getValidPivotConfig(aggregationConfig),
                 new SettingsConfig(),
-                Version.CURRENT,
+                TransformConfigVersion.CURRENT,
                 Collections.emptySet()
             );
 
@@ -228,7 +228,7 @@ public class PivotTests extends ESTestCase {
         assertThat(groupConfig.validate(null), is(nullValue()));
 
         PivotConfig pivotConfig = new PivotConfig(groupConfig, AggregationConfigTests.randomAggregationConfig(), null);
-        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Function pivot = new Pivot(pivotConfig, new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
         assertThat(pivot.getPerformanceCriticalFields(), contains("field-A", "field-B", "field-C"));
     }
 
@@ -236,7 +236,7 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
             SettingsConfigTests.randomSettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
 
@@ -271,7 +271,7 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
             SettingsConfigTests.randomSettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
 
@@ -298,7 +298,7 @@ public class PivotTests extends ESTestCase {
         Function pivot = new Pivot(
             PivotConfigTests.randomPivotConfig(),
             SettingsConfigTests.randomSettingsConfig(),
-            Version.CURRENT,
+            TransformConfigVersion.CURRENT,
             Collections.emptySet()
         );
 

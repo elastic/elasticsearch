@@ -24,6 +24,7 @@ public class RecoverFilesRecoveryException extends ElasticsearchException implem
 
     private final ByteSizeValue totalFilesSize;
 
+    @SuppressWarnings("this-escape")
     public RecoverFilesRecoveryException(ShardId shardId, int numberOfFiles, ByteSizeValue totalFilesSize, Throwable cause) {
         super("Failed to transfer [{}] files with total size of [{}]", cause, numberOfFiles, totalFilesSize);
         Objects.requireNonNull(totalFilesSize, "totalFilesSize must not be null");

@@ -1,8 +1,8 @@
 ---
 "Test data stream lifecycle usage stats":
   - skip:
-      version: "- 8.8.99"
-      reason: "the data stream lifecycle stats were only added to the usage api in 8.9"
+      version: "- 8.10.99"
+      reason: "the data stream lifecycle stats were updated to the usage api in 8.11"
       features: allowed_warnings
 
   - do:
@@ -59,8 +59,31 @@
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "index template [my-template-3] has index patterns [baz-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-3] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template-3
+        body:
+          index_patterns: [ baz-* ]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+            lifecycle:
+              enabled: false
+              data_retention: 1d
+          data_stream: { }
+
+  - do:
+      indices.create_data_stream:
+        name: baz-foobar
+  - is_true: acknowledged
+
+  - do:
       xpack.usage: {}
 
+  - match: { data_streams.data_streams: 3 }
   - match: { data_lifecycle.available: true }
   - match: { data_lifecycle.enabled: true }
   - match: { data_lifecycle.count: 2 }
@@ -77,6 +100,7 @@
   - do:
       xpack.usage: {}
 
+  - match: { data_streams.data_streams: 2 }
   - match: { data_lifecycle.available: true }
   - match: { data_lifecycle.enabled: true }
   - match: { data_lifecycle.count: 1 }

@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
@@ -62,6 +65,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final TransformAuditor auditor;
+    private final Settings destIndexSettings;
 
     @Inject
     public TransportStartTransformAction(
@@ -72,7 +76,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         this(
             StartTransformAction.NAME,
@@ -83,7 +88,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             indexNameExpressionResolver,
             transformServices,
             persistentTasksService,
-            client
+            client,
+            transformExtensionHolder
         );
     }
 
@@ -96,7 +102,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        TransformExtensionHolder transformExtensionHolder
     ) {
         super(
             name,
@@ -107,12 +114,13 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             StartTransformAction.Request::new,
             indexNameExpressionResolver,
             StartTransformAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = transformServices.getAuditor();
+        this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 
     @Override
@@ -191,6 +199,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 indexNameExpressionResolver,
                 state,
                 transformConfigHolder.get(),
+                destIndexSettings,
                 validationResponse.getDestIndexMappings(),
                 createOrGetIndexListener
             );

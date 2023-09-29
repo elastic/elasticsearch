@@ -1055,7 +1055,6 @@ public class CCSDuelIT extends ESRestTestCase {
             SearchResponse minimizeRoundtripsSearchResponse = minimizeRoundtripsResponse.get();
 
             responseChecker.accept(minimizeRoundtripsSearchResponse);
-            SearchResponse.Clusters clusters = minimizeRoundtripsSearchResponse.getClusters();
 
             // if only the remote cluster was searched, then only one reduce phase is expected
             int expectedReducePhasesMinRoundTrip = 1;
@@ -1067,10 +1066,39 @@ public class CCSDuelIT extends ESRestTestCase {
             SearchResponse fanOutSearchResponse = fanOutResponse.get();
             responseChecker.accept(fanOutSearchResponse);
             assertEquals(1, fanOutSearchResponse.getNumReducePhases());
+
+            // compare Clusters objects
+            SearchResponse.Clusters clustersMRT = minimizeRoundtripsSearchResponse.getClusters();
+            SearchResponse.Clusters clustersMRTFalse = fanOutSearchResponse.getClusters();
+
+            assertEquals(clustersMRT.getTotal(), clustersMRTFalse.getTotal());
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+            );
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED)
+            );
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING)
+            );
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL)
+            );
+            assertEquals(
+                clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
+                clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.FAILED)
+            );
+
             Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
-            Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-            compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing sync_search minimizeRoundTrip vs. fanOut");
-            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+            if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
+                Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
+                compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing sync_search minimizeRoundTrip vs. fanOut");
+                assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+            }
             return minimizeRoundtripsResponseMap;
         }
     }
@@ -1128,10 +1156,39 @@ public class CCSDuelIT extends ESRestTestCase {
 
         responseChecker.accept(fanOutSearchResponse);
         assertEquals(1, fanOutSearchResponse.getNumReducePhases());
+
+        // compare Clusters objects
+        SearchResponse.Clusters clustersMRT = minimizeRoundtripsSearchResponse.getClusters();
+        SearchResponse.Clusters clustersMRTFalse = fanOutSearchResponse.getClusters();
+
+        assertEquals(clustersMRT.getTotal(), clustersMRTFalse.getTotal());
+        assertEquals(
+            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL),
+            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL)
+        );
+        assertEquals(
+            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
+            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED)
+        );
+        assertEquals(
+            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING),
+            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING)
+        );
+        assertEquals(
+            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL),
+            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL)
+        );
+        assertEquals(
+            clustersMRT.getClusterStateCount(SearchResponse.Cluster.Status.FAILED),
+            clustersMRTFalse.getClusterStateCount(SearchResponse.Cluster.Status.FAILED)
+        );
+
         Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
-        Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-        compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing async_search minimizeRoundTrip vs. fanOut");
-        assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+        if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
+            Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
+            compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing async_search minimizeRoundTrip vs. fanOut");
+            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+        }
         return minimizeRoundtripsResponseMap;
     }
 
@@ -1208,14 +1265,20 @@ public class CCSDuelIT extends ESRestTestCase {
 
     private static void assertMultiClusterSearchResponse(SearchResponse searchResponse) {
         assertEquals(2, searchResponse.getClusters().getTotal());
-        assertEquals(2, searchResponse.getClusters().getSuccessful());
+        // for bwc checks we expect SUCCESSFUL + PARTIAL to be equal to 2
+        int bwcSuccessful = searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL);
+        bwcSuccessful += searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL);
+        assertEquals(2, bwcSuccessful);
+        assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+        assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+        assertEquals(0, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
         assertThat(searchResponse.getTotalShards(), greaterThan(1));
         assertThat(searchResponse.getSuccessfulShards(), greaterThan(1));
     }
 
     private static void assertSingleRemoteClusterSearchResponse(SearchResponse searchResponse) {
         assertEquals(1, searchResponse.getClusters().getTotal());
-        assertEquals(1, searchResponse.getClusters().getSuccessful());
+        assertEquals(1, searchResponse.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
         assertThat(searchResponse.getTotalShards(), greaterThanOrEqualTo(1));
         assertThat(searchResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
     }
@@ -1276,7 +1339,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 replaceProfileTime(shard);
                 /*
                  * The way we try to reduce round trips is by fetching all
-                 * of the results we could possibly need from the remote
+                 * the results we could possibly need from the remote
                  * cluster and then merging *those* together locally. This
                  * will end up fetching more documents total. So we can't
                  * really compare the fetch profiles here.
@@ -1288,6 +1351,8 @@ public class CCSDuelIT extends ESRestTestCase {
         if (shards != null) {
             shards.remove("skipped");
         }
+        Map<String, Object> clusters = (Map<String, Object>) responseMap.get("_clusters");
+        homogenizeClustersEntries(clusters);
         return responseMap;
     }
 
@@ -1317,4 +1382,52 @@ public class CCSDuelIT extends ESRestTestCase {
             }
         }
     }
+
+    private static void homogenizeClustersEntries(Map<String, Object> map) {
+        replaceTookTime(map);
+        replaceSkippedEntries(map);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void replaceSkippedEntries(Map<String, Object> map) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getKey().contains("skipped")) {
+                assertThat(entry.getValue(), instanceOf(Number.class));
+                assertNotNull(entry.setValue(0));
+            }
+            if (entry.getValue() instanceof Map) {
+                replaceSkippedEntries((Map<String, Object>) entry.getValue());
+            }
+            if (entry.getValue() instanceof List) {
+                List<Object> list = (List<Object>) entry.getValue();
+                for (Object obj : list) {
+                    if (obj instanceof Map) {
+                        replaceSkippedEntries((Map<String, Object>) obj);
+                    }
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void replaceTookTime(Map<String, Object> map) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getKey().contains("took")) {
+                assertThat(entry.getValue(), instanceOf(Number.class));
+                assertNotNull(entry.setValue(-1));
+            }
+            if (entry.getValue() instanceof Map) {
+                replaceTookTime((Map<String, Object>) entry.getValue());
+            }
+            if (entry.getValue() instanceof List) {
+                List<Object> list = (List<Object>) entry.getValue();
+                for (Object obj : list) {
+                    if (obj instanceof Map) {
+                        replaceTookTime((Map<String, Object>) obj);
+                    }
+                }
+            }
+        }
+    }
+
 }

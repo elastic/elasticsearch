@@ -25,7 +25,7 @@ public class ListSearchApplicationActionResponseBWCSerializingTests extends Abst
     private static ListSearchApplicationAction.Response randomSearchApplicationListItem() {
         return new ListSearchApplicationAction.Response(randomList(10, () -> {
             SearchApplication app = SearchApplicationTestUtils.randomSearchApplication();
-            return new SearchApplicationListItem(app.name(), app.indices(), app.analyticsCollectionName(), app.updatedAtMillis());
+            return new SearchApplicationListItem(app.name(), app.analyticsCollectionName(), app.updatedAtMillis());
         }), randomLongBetween(0, 1000));
     }
 

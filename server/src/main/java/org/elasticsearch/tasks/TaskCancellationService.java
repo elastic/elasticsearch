@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -22,30 +23,33 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
     public static final String CANCEL_CHILD_ACTION_NAME = "internal:admin/tasks/cancel_child";
-    public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersion.V_8_8_0;
+    public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersions.V_8_8_0;
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
@@ -57,13 +61,13 @@ public class TaskCancellationService {
         this.deduplicator = new ResultDeduplicator<>(transportService.getThreadPool().getThreadContext());
         transportService.registerRequestHandler(
             BAN_PARENT_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             BanParentTaskRequest::new,
             new BanParentRequestHandler()
         );
         transportService.registerRequestHandler(
             CANCEL_CHILD_ACTION_NAME,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             CancelChildRequest::new,
             new CancelChildRequestHandler()
         );
@@ -180,15 +184,20 @@ public class TaskCancellationService {
                 BAN_PARENT_ACTION_NAME,
                 banRequest,
                 TransportRequestOptions.EMPTY,
-                new EmptyTransportResponseHandler(new ActionListener<>() {
+                new TransportResponseHandler.Empty() {
                     @Override
-                    public void onResponse(Void unused) {
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse() {
                         logger.trace("sent ban for tasks with the parent [{}] for connection [{}]", taskId, connection);
                         countDownListener.onResponse(null);
                     }
 
                     @Override
-                    public void onFailure(Exception exp) {
+                    public void handleException(TransportException exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);
                         assert cause instanceof ElasticsearchSecurityException == false;
                         if (isUnimportantBanFailure(cause)) {
@@ -213,8 +222,6 @@ public class TaskCancellationService {
                         countDownListener.onFailure(exp);
                     }
                 }
-
-                )
             );
         }
     }
@@ -229,12 +236,17 @@ public class TaskCancellationService {
                 BAN_PARENT_ACTION_NAME,
                 request,
                 TransportRequestOptions.EMPTY,
-                new EmptyTransportResponseHandler(new ActionListener<>() {
+                new TransportResponseHandler.Empty() {
                     @Override
-                    public void onResponse(Void unused) {}
+                    public Executor executor(ThreadPool threadPool) {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
 
                     @Override
-                    public void onFailure(Exception exp) {
+                    public void handleResponse() {}
+
+                    @Override
+                    public void handleException(TransportException exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);
                         assert cause instanceof ElasticsearchSecurityException == false;
                         if (isUnimportantBanFailure(cause)) {
@@ -264,7 +276,7 @@ public class TaskCancellationService {
                             );
                         }
                     }
-                })
+                }
             );
         }
     }
@@ -307,7 +319,7 @@ public class TaskCancellationService {
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             reason = ban ? in.readString() : null;
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
                 waitForCompletion = in.readBoolean();
             } else {
                 waitForCompletion = false;
@@ -322,7 +334,7 @@ public class TaskCancellationService {
             if (ban) {
                 out.writeString(reason);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_8_0)) {
                 out.writeBoolean(waitForCompletion);
             }
         }
@@ -395,7 +407,10 @@ public class TaskCancellationService {
         }
     }
 
-    private static final EmptyTransportResponseHandler NOOP_HANDLER = new EmptyTransportResponseHandler(ActionListener.noop());
+    private static final TransportResponseHandler.Empty NOOP_HANDLER = TransportResponseHandler.empty(
+        TransportResponseHandler.TRANSPORT_WORKER,
+        ActionListener.noop()
+    );
 
     /**
      * Sends an action to cancel a child task, associated with the given request ID and parent task.

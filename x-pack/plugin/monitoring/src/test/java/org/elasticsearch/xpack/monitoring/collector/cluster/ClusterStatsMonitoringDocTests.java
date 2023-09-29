@@ -583,6 +583,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "total" : 0,
                     "queries" : {},
                     "sections" : {}
+                  },
+                  "dense_vector": {
+                    "value_count": 0
                   }
                 },
                 "nodes": {
@@ -765,7 +768,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "max_index_version":%s
                   }
                 },
-                "transport_versions": []
+                "nodes_versions": []
               },
               "cluster_settings": {
                 "cluster": {

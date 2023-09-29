@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -105,7 +106,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             actionFilters,
             ResumeFollowAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.threadPool = threadPool;
@@ -471,6 +472,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.MAX_REGEX_LENGTH_SETTING,
         IndexSettings.MAX_TERMS_COUNT_SETTING,
         IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.WEIGHT_MATCHES_MODE_ENABLED_SETTING,
         IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
         IndexSettings.MAX_TOKEN_COUNT_SETTING,
         IndexSettings.MAX_SLICES_PER_SCROLL,

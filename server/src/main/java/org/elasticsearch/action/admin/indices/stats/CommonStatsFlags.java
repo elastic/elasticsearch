@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +40,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
      */
+    @SuppressWarnings("this-escape")
     public CommonStatsFlags(Flag... flags) {
         if (flags.length > 0) {
             clear();
@@ -55,7 +56,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
                 flags.add(flag);
             }
         }
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readStringArray();
         }
         groups = in.readStringArray();
@@ -73,7 +74,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         }
         out.writeLong(longFlags);
 
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeStringArrayNullable(Strings.EMPTY_ARRAY);
         }
         out.writeStringArrayNullable(groups);
@@ -222,7 +223,8 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         Recovery("recovery", 16),
         Bulk("bulk", 17),
         Shards("shard_stats", 18),
-        Mappings("mappings", 19);
+        Mappings("mappings", 19),
+        DenseVector("dense_vector", 20);
 
         private final String restName;
         private final int index;

@@ -290,6 +290,7 @@ public class AggregatorFactories {
         /**
          * Read from a stream.
          */
+        @SuppressWarnings("this-escape")
         public Builder(StreamInput in) throws IOException {
             int factoriesSize = in.readVInt();
             for (int i = 0; i < factoriesSize; i++) {
@@ -303,8 +304,8 @@ public class AggregatorFactories {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.aggregationBuilders, StreamOutput::writeNamedWriteable);
-            out.writeCollection(this.pipelineAggregatorBuilders, StreamOutput::writeNamedWriteable);
+            out.writeNamedWriteableCollection(this.aggregationBuilders);
+            out.writeNamedWriteableCollection(this.pipelineAggregatorBuilders);
         }
 
         public boolean mustVisitAllDocs() {
@@ -334,15 +335,17 @@ public class AggregatorFactories {
         }
 
         /**
-         * Return false if this aggregation or any of the child aggregations does not support concurrent search
+         * Return false if this aggregation or any of the child aggregations does not support parallel collection.
+         * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query
+         * phase.
          */
-        public boolean supportsConcurrentExecution() {
+        public boolean supportsParallelCollection() {
             for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder.supportsConcurrentExecution() == false) {
+                if (builder.supportsParallelCollection() == false) {
                     return false;
                 }
             }
-            return isInSortOrderExecutionRequired() == false;
+            return true;
         }
 
         public Builder addAggregator(AggregationBuilder factory) {

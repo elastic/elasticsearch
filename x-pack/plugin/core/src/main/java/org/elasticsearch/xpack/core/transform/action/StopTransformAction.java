@@ -54,6 +54,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         private final boolean waitForCheckpoint;
         private Set<String> expandedIds;
 
+        @SuppressWarnings("this-escape")
         public Request(
             String id,
             boolean waitForCompletion,
@@ -121,7 +122,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
             boolean hasExpandedIds = expandedIds != null;
             out.writeBoolean(hasExpandedIds);
             if (hasExpandedIds) {
-                out.writeStringArray(expandedIds.toArray(new String[0]));
+                out.writeStringCollection(expandedIds);
             }
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(waitForCheckpoint);

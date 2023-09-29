@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -35,6 +36,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -174,16 +177,44 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     static class TestTasksRequest extends BaseTasksRequest<TestTasksRequest> {
+        private final RefCounted refCounted;
 
         TestTasksRequest(StreamInput in) throws IOException {
             super(in);
+            refCounted = AbstractRefCounted.of(() -> {});
         }
 
-        TestTasksRequest() {}
+        TestTasksRequest() {
+            this(() -> {});
+        }
+
+        TestTasksRequest(Runnable onClose) {
+            refCounted = AbstractRefCounted.of(onClose);
+        }
 
         @Override
         public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "testTasksRequest", parentTaskId, headers);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
         }
     }
 
@@ -234,7 +265,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 TestTasksRequest::new,
                 TestTasksResponse::new,
                 TestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
         }
 
@@ -938,5 +969,66 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         builder.flush();
         logger.info(Strings.toString(builder));
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+    }
+
+    public void testRefCounting() throws Exception {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+
+        CountDownLatch checkLatch = new CountDownLatch(1);
+        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+
+        final var firstNodeListeners = new SubscribableListener<TestTaskResponse>();
+        final var otherNodeListeners = new SubscribableListener<TestTaskResponse>();
+        TestTasksAction[] tasksActions = new TestTasksAction[nodesCount];
+        for (int nodeId = 0; nodeId < nodesCount; nodeId++) {
+            final var listeners = nodeId == 0 ? firstNodeListeners : otherNodeListeners;
+            tasksActions[nodeId] = new TestTasksAction(
+                "internal:testTasksAction",
+                testNodes[nodeId].clusterService,
+                testNodes[nodeId].transportService
+            ) {
+                @Override
+                protected void taskOperation(
+                    CancellableTask actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    request.incRef();
+                    listeners.addListener(ActionListener.runBefore(listener, request::decRef));
+                }
+            };
+        }
+
+        final var requestReleaseFuture = new PlainActionFuture<Void>();
+        TestTasksRequest testTasksRequest = new TestTasksRequest(() -> requestReleaseFuture.onResponse(null));
+        testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
+        testTasksRequest.setNodes(testNodes[0].getNodeId(), testNodes[1].getNodeId()); // only first two nodes
+        final var taskFuture = new PlainActionFuture<TestTasksResponse>();
+        testNodes[0].transportService.getTaskManager()
+            .registerAndExecute(
+                "direct",
+                tasksActions[0],
+                testTasksRequest,
+                testNodes[0].transportService.getLocalNodeConnection(),
+                taskFuture
+            );
+        testTasksRequest.decRef();
+
+        assertTrue(testTasksRequest.hasReferences());
+        firstNodeListeners.onResponse(new TestTaskResponse("done"));
+        assertNull(requestReleaseFuture.get(10, TimeUnit.SECONDS));
+
+        assertFalse(testTasksRequest.hasReferences());
+        assertFalse(taskFuture.isDone());
+
+        otherNodeListeners.onResponse(new TestTaskResponse("done"));
+        taskFuture.get(10, TimeUnit.SECONDS);
+
+        // Release all node tasks and wait for response
+        checkLatch.countDown();
+        NodesResponse responses = future.get();
+        assertEquals(0, responses.failureCount());
     }
 }

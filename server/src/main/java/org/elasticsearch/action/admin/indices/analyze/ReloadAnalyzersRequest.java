@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersion.V_8_500_034;
+import static org.elasticsearch.TransportVersions.V_8_500_034;
 
 /**
  * Request for reloading index search analyzers

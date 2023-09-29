@@ -1169,7 +1169,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             public String toString() {
                 return "delayed retrieval of coordination diagnostics info from " + masterEligibleNode;
             }
-        }, remoteRequestInitialDelay, ThreadPool.Names.CLUSTER_COORDINATION);
+        }, remoteRequestInitialDelay, clusterCoordinationExecutor);
     }
 
     void cancelPollingRemoteMasterStabilityDiagnostic() {
@@ -1285,7 +1285,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             boolean hasRecentMasters = in.readBoolean();
             List<DiscoveryNode> recentMasters;
             if (hasRecentMasters) {
-                recentMasters = in.readImmutableList(DiscoveryNode::new);
+                recentMasters = in.readCollectionAsImmutableList(DiscoveryNode::new);
             } else {
                 recentMasters = null;
             }
@@ -1323,7 +1323,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeList(recentMasters);
+                out.writeCollection(recentMasters);
             }
             out.writeOptionalString(remoteExceptionMessage);
             out.writeOptionalString(remoteExceptionStackTrace);
@@ -1331,7 +1331,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeMap(nodeToClusterFormationDescriptionMap, StreamOutput::writeString, StreamOutput::writeString);
+                out.writeMap(nodeToClusterFormationDescriptionMap, StreamOutput::writeString);
             }
         }
 

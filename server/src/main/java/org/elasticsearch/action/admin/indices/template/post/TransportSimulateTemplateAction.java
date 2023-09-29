@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
@@ -78,7 +79,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             SimulateTemplateAction.Request::new,
             indexNameExpressionResolver,
             SimulateIndexTemplateResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
@@ -166,7 +167,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             systemIndices,
             indexSettingProviders
         );
-        if (request.includeDefaults() && DataStreamLifecycle.isFeatureEnabled()) {
+        if (request.includeDefaults()) {
             listener.onResponse(
                 new SimulateIndexTemplateResponse(
                     template,

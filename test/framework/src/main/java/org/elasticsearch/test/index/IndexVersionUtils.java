@@ -93,9 +93,7 @@ public class IndexVersionUtils {
     }
 
     public static IndexVersion getPreviousMajorVersion(IndexVersion version) {
-        int id = ((version.id() / 1_000_000) - 1) * 1_000_000;
-        if (id <= 8_000_000) id += 99;  // v8.0.0 and before had an extra 99 added to all numbers
-        return IndexVersion.fromId(id);
+        return IndexVersion.getMinimumCompatibleIndexVersion(version.id());
     }
 
     public static IndexVersion getNextVersion(IndexVersion version) {

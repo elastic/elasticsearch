@@ -2,10 +2,6 @@
 [[breaking_80_logging_changes]]
 ==== Logging changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 .{es} JSON logs now comply with ECS.
 [%collapsible]
 ====
@@ -55,4 +51,3 @@ to use the new names and to possibly account for `gzip` archives instead of
 plain text. The Docker build of {es} is not affected because it logs on `stdout`,
 where rollover is not performed.
 ====
-//end::notable-breaking-changes[]

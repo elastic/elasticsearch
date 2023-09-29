@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -118,8 +117,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
         assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
-        final Future<Integer> populateCacheFuture = populateAndRead(b, position, length, cacheFile, rangeToWrite);
-        final int bytesRead = populateCacheFuture.get();
+        final int bytesRead = populateAndRead(b, position, cacheFile, rangeToWrite).get();
         assert bytesRead == length : bytesRead + " vs " + length;
     }
 
@@ -191,7 +189,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     if (isCancelled.get()) {
                         return -1L;
                     }
-                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes, cacheFileReference);
+                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes);
                     // The range to prewarm in cache
                     final long readStart = range.start() + totalBytesRead;
                     final ByteRange rangeToWrite = ByteRange.of(readStart, readStart + bytesRead);
@@ -253,11 +251,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public CachedBlobContainerIndexInput clone() {
-        return (CachedBlobContainerIndexInput) super.clone();
-    }
-
-    @Override
     protected MetadataCachingIndexInput doSlice(
         String sliceName,
         long sliceOffset,
@@ -272,7 +265,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             fileInfo,
             context,
             stats,
-            this.offset + sliceOffset,
+            sliceOffset,
             sliceCompoundFileOffset,
             sliceLength,
             cacheFileReference,

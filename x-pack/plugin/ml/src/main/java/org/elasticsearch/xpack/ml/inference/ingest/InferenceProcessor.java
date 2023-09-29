@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,13 +17,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
@@ -65,10 +65,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.inference.InferenceResults.MODEL_ID_RESULTS_FIELD;
 import static org.elasticsearch.ingest.IngestDocument.INGEST_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.MODEL_ID_RESULTS_FIELD;
 
 public class InferenceProcessor extends AbstractProcessor {
 
@@ -198,7 +198,7 @@ public class InferenceProcessor extends AbstractProcessor {
         private final InferenceAuditor auditor;
         private volatile int currentInferenceProcessors;
         private volatile int maxIngestProcessors;
-        private volatile Version minNodeVersion = Version.CURRENT;
+        private volatile MlConfigVersion minNodeVersion = MlConfigVersion.CURRENT;
 
         public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
             this.client = client;
@@ -209,7 +209,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
         @Override
         public void accept(ClusterState state) {
-            minNodeVersion = state.nodes().getMinNodeVersion();
+            minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
             try {
                 currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
             } catch (Exception ex) {
@@ -363,12 +363,12 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         void checkSupportedVersion(InferenceConfig config) {
-            if (config.getMinimalSupportedNodeVersion().after(minNodeVersion)) {
+            if (config.getMinimalSupportedMlConfigVersion().after(minNodeVersion)) {
                 throw ExceptionsHelper.badRequestException(
                     Messages.getMessage(
                         Messages.INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION,
                         config.getName(),
-                        config.getMinimalSupportedNodeVersion(),
+                        config.getMinimalSupportedMlConfigVersion(),
                         minNodeVersion
                     )
                 );

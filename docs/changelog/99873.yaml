@@ -1,0 +1,5 @@
+pr: 99873
+summary: "[Profiling] Tighten resource creation check"
+area: Application
+type: bug
+issues: []

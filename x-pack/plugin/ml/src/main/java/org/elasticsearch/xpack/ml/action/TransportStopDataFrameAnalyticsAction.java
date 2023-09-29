@@ -24,12 +24,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -89,7 +91,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
             StopDataFrameAnalyticsAction.Request::new,
             StopDataFrameAnalyticsAction.Response::new,
             StopDataFrameAnalyticsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
@@ -343,7 +345,11 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
                 masterNode,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, StopDataFrameAnalyticsAction.Response::new)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    StopDataFrameAnalyticsAction.Response::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
             );
         }
     }

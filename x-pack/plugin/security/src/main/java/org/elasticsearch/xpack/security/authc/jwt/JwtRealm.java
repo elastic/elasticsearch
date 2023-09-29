@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -49,6 +50,7 @@ import java.util.function.Function;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
 
 /**
  * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch.
@@ -71,7 +73,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private final ClaimParser claimParserMail;
     private final ClaimParser claimParserName;
     private final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
-    private final SecureString clientAuthenticationSharedSecret;
+    private final RotatableSecret clientAuthenticationSharedSecret;
     private final JwtAuthenticator jwtAuthenticator;
     private final TimeValue allowedClockSkew;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
@@ -86,9 +88,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
-        final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
-        this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
-
+        this.clientAuthenticationSharedSecret = new RotatableSecret(
+            realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET)
+        );
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(
             RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
@@ -260,7 +262,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // Authenticate client: If client authc off, fall through. Otherwise, only fall through if secret matched.
             final SecureString clientSecret = jwtAuthenticationToken.getClientAuthenticationSharedSecret();
             try {
-                JwtUtil.validateClientAuthentication(clientAuthenticationType, clientAuthenticationSharedSecret, clientSecret);
+                JwtUtil.validateClientAuthentication(
+                    clientAuthenticationType,
+                    clientAuthenticationSharedSecret,
+                    clientSecret,
+                    tokenPrincipal
+                );
                 logger.trace("Realm [{}] client authentication succeeded for token=[{}].", name(), tokenPrincipal);
             } catch (Exception e) {
                 final String msg = "Realm [" + name() + "] client authentication failed for token=[" + tokenPrincipal + "].";
@@ -283,15 +290,36 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             }
 
             // Validate JWT: Extract JWT and claims set, and validate JWT.
-            jwtAuthenticator.authenticate(
-                jwtAuthenticationToken,
-                ActionListener.wrap(claimsSet -> processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener), ex -> {
-                    final String msg = "Realm [" + name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";
-                    logger.debug(msg, ex);
-                    // TODO: No point to continue to another realm if failure is ParseException
-                    listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
-                })
-            );
+            jwtAuthenticator.authenticate(jwtAuthenticationToken, ActionListener.wrap(claimsSet -> {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "Realm [{}] JWT validation success for token=[{}] with header [{}] and claimSet [{}]",
+                        name(),
+                        tokenPrincipal,
+                        jwtAuthenticationToken.getSignedJWT().getHeader(),
+                        jwtAuthenticationToken.getJWTClaimsSet()
+                    );
+                }
+                processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
+            }, ex -> {
+                final String msg = "Realm ["
+                    + name()
+                    + "] JWT validation failed for token=["
+                    + tokenPrincipal
+                    + "] with header ["
+                    + jwtAuthenticationToken.getSignedJWT().getHeader()
+                    + "] and claimSet ["
+                    + jwtAuthenticationToken.getJWTClaimsSet()
+                    + "]";
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace(msg, ex);
+                } else {
+                    logger.debug(msg + " Cause: " + ex.getMessage()); // only log the stack trace at trace level
+                }
+                // TODO: No point to continue to another realm if failure is ParseException
+                listener.onResponse(AuthenticationResult.unsuccessful(msg, ex));
+            }));
 
         } else {
             assert false : "should not happen";
@@ -346,7 +374,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return null;
     }
 
-    private void processValidatedJwt(
+    // package private for testing
+    void processValidatedJwt(
         String tokenPrincipal,
         BytesArray jwtCacheKey,
         JWTClaimsSet claimsSet,
@@ -373,7 +402,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final ActionListener<AuthenticationResult<User>> logAndCacheListener = ActionListener.wrap(result -> {
             if (result.isAuthenticated()) {
                 final User user = result.getValue();
-                logger.debug(() -> format("Realm [%s] roles [%s] for principal=[%s].", name(), join(",", user.roles()), principal));
+                logger.trace(
+                    () -> format("Realm [%s] roles resolved [%s] for principal=[%s].", name(), join(",", user.roles()), principal)
+                );
                 if (isCacheEnabled()) {
                     try (ReleasableLock ignored = jwtCacheHelper.acquireUpdateLock()) {
                         final long expWallClockMillis = claimsSet.getExpirationTime().getTime() + allowedClockSkew.getMillis();
@@ -414,6 +445,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }, listener::onFailure));
     }
 
+    public void rotateClientSecret(SecureString clientSecret) {
+        this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD));
+    }
+
+    // package private for testing
+    RotatableSecret getClientAuthenticationSharedSecret() {
+        return clientAuthenticationSharedSecret;
+    }
+
     /**
      * Clean up JWT cache (if enabled).
      */
@@ -421,7 +461,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         if (isCacheEnabled()) {
             try {
                 logger.trace("Invalidating JWT cache for realm [{}]", name());
-                try (ReleasableLock ignored = jwtCacheHelper.acquireUpdateLock()) {
+                try (ReleasableLock ignored = jwtCacheHelper.acquireForIterator()) {
                     jwtCache.invalidateAll();
                 }
                 logger.debug("Invalidated JWT cache for realm [{}]", name());
@@ -454,25 +494,49 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return Map.copyOf(metadata);
     }
 
+    // We construct the token principal as a function of the JWT realm configuration. We also short circuit the extraction of the
+    // token principal while we iterate through the realms. For realms like the file realm this is not an issue since there is only
+    // one file realm. For realms like LDAP this is also not an issue since the token principal is identical across all realms regardless
+    // of how the realm is configured. However, for realms like JWT (and PKI realm) where the token principal is a function of the
+    // realm configuration AND multiple realms of that type can exist this can be an issue. This is an issue because realm1 might
+    // result in the token principal "abc", but realm2 (same JWT) might result in the token principal as "xyz". Since we short circuit the
+    // extraction of the token principal (i.e. use the first one that does not error) then the same JWT token can result in a
+    // token principal of either "abc" or "xyz" depending on which came first. This means that we can not rely on the value calculated here
+    // to be logically correct within the context of a given realm. The value is technically correct as the value is a function of
+    // the JWT itself, but which function (from realm1 or realm2) can not be known. The value emitted here should be used judiciously.
     private String buildTokenPrincipal(JWTClaimsSet jwtClaimsSet) {
         final Map<String, String> fallbackClaimNames = jwtAuthenticator.getFallbackClaimNames();
         final FallbackableClaim subClaim = new FallbackableClaim("sub", fallbackClaimNames, jwtClaimsSet);
         final String subject = subClaim.getStringClaimValue();
         if (false == Strings.hasText(subject)) {
-            logger.debug("claim [{}] is missing for building token principal for realm [{}]", subClaim, name());
+            logger.debug(
+                "Can not build token principal for realm [{}] since claim [{}] is missing from claimSet [{}]",
+                name(),
+                subClaim,
+                jwtClaimsSet
+            );
             return null;
         }
 
         final FallbackableClaim audClaim = new FallbackableClaim("aud", fallbackClaimNames, jwtClaimsSet);
         final List<String> audiences = audClaim.getStringListClaimValue();
         if (audiences == null || audiences.isEmpty()) {
-            logger.debug("claim [{}] is missing for building token principal for realm [{}]", audClaim, name());
+            logger.debug(
+                "Can not build token principal for realm [{}] since claim [{}] is missing from claimSet [{}]",
+                name(),
+                subClaim,
+                jwtClaimsSet
+            );
             return null;
         }
 
         final String userPrincipal = claimParserPrincipal.getClaimValue(jwtClaimsSet);
         if (false == Strings.hasText(userPrincipal)) {
-            logger.debug("No user principal can be extracted with [{}] for realm [{}]", claimParserPrincipal, name());
+            logger.debug(
+                "Can not build token principal for realm [{}] since no user principal can be extracted with [{}]",
+                name(),
+                claimParserPrincipal
+            );
             return null;
         }
         return String.join(",", new TreeSet<>(audiences)) + "/" + subject + "/" + userPrincipal;

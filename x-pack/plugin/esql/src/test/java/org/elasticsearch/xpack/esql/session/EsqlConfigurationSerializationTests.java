@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.session.EsqlConfiguration.QUERY_COMPRESS_THRASHOLD_CHARS;
+
 public class EsqlConfigurationSerializationTests extends AbstractWireSerializingTestCase<EsqlConfiguration> {
 
     @Override
@@ -29,7 +31,8 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
     }
 
     public static EsqlConfiguration randomConfiguration() {
-        return randomConfiguration(randomAlphaOfLength(100));
+        int len = randomIntBetween(1, 300) + (frequently() ? 0 : QUERY_COMPRESS_THRASHOLD_CHARS);
+        return randomConfiguration(randomRealisticUnicodeOfLength(len));
     }
 
     public static EsqlConfiguration randomConfiguration(String query) {

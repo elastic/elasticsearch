@@ -13,13 +13,23 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ql.session.Configuration;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 
 public class EsqlConfiguration extends Configuration implements Writeable {
+
+    static final int QUERY_COMPRESS_THRASHOLD_CHARS = KB.toIntBytes(5);
+
     private final QueryPragmas pragmas;
 
     private final int resultTruncationMaxSize;
@@ -53,7 +63,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.pragmas = new QueryPragmas(in);
         this.resultTruncationMaxSize = in.readVInt();
         this.resultTruncationDefaultSize = in.readVInt();
-        this.query = in.readString();
+        this.query = readQuery(in);
     }
 
     @Override
@@ -68,7 +78,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         pragmas.writeTo(out);
         out.writeVInt(resultTruncationMaxSize);
         out.writeVInt(resultTruncationDefaultSize);
-        out.writeString(query);
+        writeQuery(out, query);
     }
 
     public QueryPragmas pragmas() {
@@ -89,6 +99,33 @@ public class EsqlConfiguration extends Configuration implements Writeable {
 
     public String query() {
         return query;
+    }
+
+    private static void writeQuery(StreamOutput out, String query) throws IOException {
+        if (query.length() > QUERY_COMPRESS_THRASHOLD_CHARS) { // compare on chars to avoid UTF-8 encoding unless actually required
+            out.writeBoolean(true);
+            var baos = new ByteArrayOutputStream();
+            try (var gzip = new GZIPOutputStream(baos)) {
+                gzip.write(query.getBytes(StandardCharsets.UTF_8));
+            }
+            out.writeByteArray(baos.toByteArray());
+        } else {
+            out.writeBoolean(false);
+            out.writeString(query);
+        }
+    }
+
+    private static String readQuery(StreamInput in) throws IOException {
+        boolean compressed = in.readBoolean();
+        if (compressed) {
+            byte[] bytes = in.readByteArray();
+            var bais = new ByteArrayInputStream(bytes);
+            try (var gzip = new GZIPInputStream(bais)) {
+                return new String(gzip.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        } else {
+            return in.readString();
+        }
     }
 
     @Override

@@ -1,5 +1,0 @@
-pr: 100056
-summary: Fallback to internal searcher if not in translog
-area: Engine
-type: bug
-issues: []

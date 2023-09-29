@@ -6,16 +6,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.ConstantLongVector;
-import org.elasticsearch.compute.data.LongArrayBlock;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -24,8 +21,12 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDatetimeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
+  private final DriverContext driverContext;
+
+  public ToDatetimeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
     super(field, source);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -40,29 +41,22 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
       try {
-        return new ConstantLongVector(evalValue(vector, 0, scratchPad), positionCount).asBlock();
+        return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0, scratchPad), positionCount);
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount);
+        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
-    BitSet nullsMask = null;
-    long[] values = new long[positionCount];
+    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        values[p] = evalValue(vector, p, scratchPad);
+        builder.appendLong(evalValue(vector, p, scratchPad));
       } catch (Exception e) {
         registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
-        }
-        nullsMask.set(p);
+        builder.appendNull();
       }
     }
-    return nullsMask == null
-          ? new LongArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new LongArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
+    return builder.build();
   }
 
   private static long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
@@ -74,7 +68,7 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
+    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     BytesRef scratchPad = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = block.getValueCount(p);

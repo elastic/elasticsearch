@@ -131,78 +131,17 @@ public record Build(
     }
 
     /**
-     * Check whether a version is compatible with the current minimum transport version.
+     * Check whether a node version is compatible with the current minimum transport version.
      * @param version A version identifier as a string
      * @throws IllegalArgumentException if version is not a valid transport version identifier
      * @return true if the version is compatible, false otherwise
      */
-    public static boolean isWireCompatibleWithCurrent(String version) {
-        try {
-            TransportVersion transportVersion = TransportVersion.fromString(version);
-            return transportVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE);
-        } catch (NumberFormatException | IllegalStateException e) {
-            throw new IllegalArgumentException("Cannot parse [" + version + "] as a transport version identifier");
-        }
-    }
-
-    /**
-     * Check whether a version is compatible with the current minimum transport version.
-     * <p>
-     * Like {@link #isWireCompatibleWithCurrent(String)}, but for cases where we might read in a legacy node version.
-     * @param version A version identifier as a string
-     * @throws IllegalArgumentException if version is not a valid transport version identifier
-     * @return true if the version is compatible, false otherwise
-     */
-    public static boolean isWireCompatibleWithCurrentAllowingLegacy(String version) {
-        try {
-            return isWireCompatibleWithCurrent(version);
-        } catch (IllegalArgumentException e) {
-            // not a transport version, continue
-        }
-
+    public static boolean isNodeVersionWireCompatible(String version) {
         try {
             Version esVersion = Version.fromString(version);
             return esVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Cannot parse [" + version + "] as a transport version identifier", e);
-        }
-    }
-
-    /**
-     * Check whether a version is compatible with the current minimum index version.
-     * @param version An index version identifier as a string
-     * @throws IllegalArgumentException if version is not a valid index version identifier
-     * @return true if the version is compatible, false otherwise
-     */
-    public static boolean isIndexCompatibleWithCurrent(String version) {
-        try {
-            IndexVersion indexVersion = IndexVersion.fromId(Integer.parseInt(version));
-            return indexVersion.onOrAfter(IndexVersion.MINIMUM_COMPATIBLE);
-        } catch (NumberFormatException | IllegalStateException e) {
-            throw new IllegalArgumentException("Cannot parse [" + version + "] as an index version identifier", e);
-        }
-    }
-
-    /**
-     * Check whether a version is compatible with the current minimum index version.
-     * <p>
-     * Like {@link #isIndexCompatibleWithCurrent(String)}, but for cases where we might read in a legacy node version.
-     * @param version An index version identifier as a string
-     * @throws IllegalArgumentException if version is not a valid index version identifier
-     * @return true if the version is compatible, false otherwise
-     */
-    public static boolean isIndexCompatibleWithCurrentAllowingLegacy(String version) {
-        try {
-            return isIndexCompatibleWithCurrent(version);
-        } catch (IllegalArgumentException e) {
-            // not an index version, continue
-        }
-
-        try {
-            Version esVersion = Version.fromString(version);
-            return esVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Cannot parse [" + version + "] as an index version identifier", e);
         }
     }
 

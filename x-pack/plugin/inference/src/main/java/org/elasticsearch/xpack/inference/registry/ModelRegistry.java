@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ToXContent;
@@ -106,7 +105,7 @@ public class ModelRegistry {
             || mappedHits.size() > 2) {
             logger.error(format("Failed to load model [%s], found model parts from index prefixes: [%s]", modelId, mappedHits.keySet()));
             throw new IllegalStateException(
-                format("Failed to load model, model is in an invalid state [%s]. Try deleting and reinitializing the service", modelId)
+                format("Failed to load model, model [%s] is in an invalid state. Try deleting and reinitializing the service", modelId)
             );
         }
 
@@ -117,35 +116,7 @@ public class ModelRegistry {
     }
 
     public void storeModel(Model model, ActionListener<Boolean> listener) {
-        ActionListener<BulkResponse> bulkResponseActionListener = ActionListener.wrap(bulkItemResponses -> {
-            BulkItemResponse.Failure failure = getFirstBulkFailure(bulkItemResponses);
-
-            if (failure == null) {
-                listener.onResponse(true);
-                return;
-            }
-
-            logBulkFailures(model.getConfigurations().getModelId(), bulkItemResponses);
-
-            if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
-                listener.onFailure(
-                    new ResourceAlreadyExistsException("Inference model [{}] already exists", model.getConfigurations().getModelId())
-                );
-                return;
-            }
-
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    format("Failed to store inference model [%s]", model.getConfigurations().getModelId()),
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    failure.getCause()
-                )
-            );
-        }, e -> {
-            String errorMessage = format("Failed to store inference model [%s]", model.getConfigurations().getModelId());
-            logger.error(errorMessage, e);
-            listener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
-        });
+        ActionListener<BulkResponse> bulkResponseActionListener = getStoreModelListener(model, listener);
 
         IndexRequest configRequest = createIndexRequest(
             Model.documentId(model.getConfigurations().getModelId()),
@@ -168,6 +139,53 @@ public class ModelRegistry {
             .execute(bulkResponseActionListener);
     }
 
+    private static ActionListener<BulkResponse> getStoreModelListener(Model model, ActionListener<Boolean> listener) {
+        return ActionListener.wrap(bulkItemResponses -> {
+            var modelId = model.getConfigurations().getModelId();
+
+            if (bulkItemResponses.getItems().length == 0) {
+                logger.error(format("Storing model [%s] failed, no items were received from the bulk response", modelId));
+
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        format(
+                            "Failed to store inference model [%s], invalid bulk response received. Try reinitializing the service",
+                            modelId
+                        ),
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    )
+                );
+                return;
+            }
+
+            BulkItemResponse.Failure failure = getFirstBulkFailure(bulkItemResponses);
+
+            if (failure == null) {
+                listener.onResponse(true);
+                return;
+            }
+
+            logBulkFailures(model.getConfigurations().getModelId(), bulkItemResponses);
+
+            if (ExceptionsHelper.unwrapCause(failure.getCause()) instanceof VersionConflictEngineException) {
+                listener.onFailure(new ResourceAlreadyExistsException("Inference model [{}] already exists", modelId));
+                return;
+            }
+
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    format("Failed to store inference model [%s]", modelId),
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    failure.getCause()
+                )
+            );
+        }, e -> {
+            String errorMessage = format("Failed to store inference model [%s]", model.getConfigurations().getModelId());
+            logger.error(errorMessage, e);
+            listener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
+        });
+    }
+
     private static void logBulkFailures(String modelId, BulkResponse bulkResponse) {
         for (BulkItemResponse item : bulkResponse.getItems()) {
             if (item.isFailed()) {
@@ -183,7 +201,7 @@ public class ModelRegistry {
         }
     }
 
-    private BulkItemResponse.Failure getFirstBulkFailure(BulkResponse bulkResponse) {
+    private static BulkItemResponse.Failure getFirstBulkFailure(BulkResponse bulkResponse) {
         for (BulkItemResponse item : bulkResponse.getItems()) {
             if (item.isFailed()) {
                 return item.getFailure();
@@ -219,6 +237,6 @@ public class ModelRegistry {
     }
 
     private QueryBuilder documentIdQuery(String modelId) {
-        return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(ModelConfigurations.documentId(modelId)));
+        return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(modelId)));
     }
 }

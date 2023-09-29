@@ -25,13 +25,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
     public static final String SERVICE = "service";
     public static final String SERVICE_SETTINGS = "service_settings";
     public static final String TASK_SETTINGS = "task_settings";
-
-    // TODO can I change this without a breaking change?
-    private static final String NAME = "inference_model_configurations";
-
-    public static String documentId(String modelId) {
-        return "model_" + modelId;
-    }
+    private static final String NAME = "inference_model";
 
     private final String modelId;
     private final TaskType taskType;

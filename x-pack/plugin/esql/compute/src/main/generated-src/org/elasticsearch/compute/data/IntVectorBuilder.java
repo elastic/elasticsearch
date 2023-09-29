@@ -10,14 +10,17 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of IntBlocks.
+ * Builder for {@link IntVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.Builder {
 
     private int[] values;
 
-    IntVectorBuilder(int estimatedSize) {
+    IntVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new int[Math.max(estimatedSize, 2)];
     }
 
@@ -27,6 +30,11 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
         values[valueCount] = value;
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Integer.BYTES;
     }
 
     @Override
@@ -41,12 +49,26 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
 
     @Override
     public IntVector build() {
+        finish();
+        IntVector vector;
         if (valueCount == 1) {
-            return new ConstantIntVector(values[0], 1);
+            vector = new ConstantIntVector(values[0], 1, blockFactory);
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = new IntArrayVector(values, valueCount, blockFactory);
         }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
-        return new IntArrayVector(values, valueCount);
+        /*
+         * Update the breaker with the actual bytes used.
+         * We pass false below even though we've used the bytes. That's weird,
+         * but if we break here we will throw away the used memory, letting
+         * it be deallocated. The exception will bubble up and the builder will
+         * still technically be open, meaning the calling code should close it
+         * which will return all used memory to the breaker.
+         */
+        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, false);
+        built();
+        return vector;
     }
 }

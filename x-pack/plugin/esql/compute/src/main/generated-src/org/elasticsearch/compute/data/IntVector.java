@@ -100,8 +100,26 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newVectorBuilder(int estimatedSize) {
-        return new IntVectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    }
+
+    /**
+     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
+     * if you know the size up front because it's faster.
+     */
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newIntVectorBuilder(estimatedSize);
+    }
+
+    /**
+     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
+     * if you know the size up front because it's faster.
+     */
+    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
+        return blockFactory.newIntVectorFixedBuilder(size);
     }
 
     /** Create a vector for a range of ints. */
@@ -113,11 +131,27 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
         return new IntArrayVector(values, values.length);
     }
 
+    /**
+     * A builder that grows as needed.
+     */
     sealed interface Builder extends Vector.Builder permits IntVectorBuilder {
         /**
          * Appends a int to the current entry.
          */
         Builder appendInt(int value);
+
+        @Override
+        IntVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Vector.Builder permits IntVectorFixedBuilder {
+        /**
+         * Appends a int to the current entry.
+         */
+        FixedBuilder appendInt(int value);
 
         @Override
         IntVector build();

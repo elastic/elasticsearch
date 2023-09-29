@@ -42,6 +42,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<
     private final Class<? extends AsyncTask> asyncTaskClass;
     private final AsyncTaskIndexService<StoredAsyncResponse<Response>> store;
 
+    @SuppressWarnings("this-escape")
     public AbstractTransportQlAsyncGetStatusAction(
         String actionName,
         TransportService transportService,

@@ -61,7 +61,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             actionFilters,
             NodesReloadSecureSettingsRequest::new,
             NodesReloadSecureSettingsRequest.NodeRequest::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.environment = environment;
         this.pluginsService = pluginService;

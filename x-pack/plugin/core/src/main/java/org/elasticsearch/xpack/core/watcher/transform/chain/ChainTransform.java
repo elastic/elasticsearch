@@ -147,6 +147,7 @@ public class ChainTransform implements Transform {
 
         private final List<Transform> transforms = new ArrayList<>();
 
+        @SuppressWarnings("this-escape")
         public Builder(Transform... transforms) {
             add(transforms);
         }

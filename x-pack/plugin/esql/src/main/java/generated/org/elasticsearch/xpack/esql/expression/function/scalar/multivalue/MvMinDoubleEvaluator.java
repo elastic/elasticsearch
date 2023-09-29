@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -35,12 +35,12 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
    */
   @Override
   public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNullable(fieldVal);
     }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -65,12 +65,12 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
    */
   @Override
   public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
+    if (fieldVal.mvSortedAscending()) {
       return evalAscendingNotNullable(fieldVal);
     }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
+    DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
@@ -81,9 +81,9 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
         value = MvMin.process(value, next);
       }
       double result = value;
-      values[p] = result;
+      builder.appendDouble(result);
     }
-    return new DoubleArrayVector(values, positionCount);
+    return builder.build();
   }
 
   /**
@@ -92,7 +92,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
   private Block evalAscendingNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -113,14 +113,14 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
   private Vector evalAscendingNotNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
+    DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
       int idx = MvMin.ascendingIndex(valueCount);
       double result = v.getDouble(first + idx);
-      values[p] = result;
+      builder.appendDouble(result);
     }
-    return new DoubleArrayVector(values, positionCount);
+    return builder.build();
   }
 }

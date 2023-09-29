@@ -158,12 +158,24 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new LongBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newLongBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static LongBlock newConstantBlockWith(long value, int positions) {
-        return new ConstantLongVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static LongBlock newConstantBlockWith(long value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantLongBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits LongBlockBuilder {

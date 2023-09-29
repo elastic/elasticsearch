@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -77,7 +78,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             GetFeatureUpgradeStatusRequest::new,
             indexNameExpressionResolver,
             GetFeatureUpgradeStatusResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         assert Version.CURRENT.major == 8 : "Once we begin working on 9.x, we need to update our migration classes";

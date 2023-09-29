@@ -55,6 +55,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
@@ -1429,14 +1430,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Update the root blob
             .<RootBlobUpdateResult>andThen((l, metadataWriteResult) -> {
                 // unlikely, but in theory we could still be on the thread which called finalizeSnapshot - TODO must fork to SNAPSHOT here
-                final String slmPolicy = slmPolicy(snapshotInfo);
-                final SnapshotDetails snapshotDetails = new SnapshotDetails(
-                    snapshotInfo.state(),
-                    IndexVersion.current(),
-                    snapshotInfo.startTime(),
-                    snapshotInfo.endTime(),
-                    slmPolicy
-                );
+                final var snapshotDetails = SnapshotDetails.fromSnapshotInfo(snapshotInfo);
                 final var existingRepositoryData = metadataWriteResult.existingRepositoryData();
                 writeIndexGen(
                     existingRepositoryData.addSnapshot(
@@ -2363,17 +2357,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
                         getSnapshotInfo(
                             new GetSnapshotInfoContext(snapshotIdsWithMissingDetails, false, () -> false, (context, snapshotInfo) -> {
-                                final String slmPolicy = slmPolicy(snapshotInfo);
-                                extraDetailsMap.put(
-                                    snapshotInfo.snapshotId(),
-                                    new SnapshotDetails(
-                                        snapshotInfo.state(),
-                                        snapshotInfo.version(),
-                                        snapshotInfo.startTime(),
-                                        snapshotInfo.endTime(),
-                                        slmPolicy
-                                    )
-                                );
+                                extraDetailsMap.put(snapshotInfo.snapshotId(), SnapshotDetails.fromSnapshotInfo(snapshotInfo));
                             }, ActionListener.runAfter(new ActionListener<>() {
                                 @Override
                                 public void onResponse(Void aVoid) {
@@ -2476,24 +2460,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             });
         }));
-    }
-
-    /**
-     * Extract slm policy from snapshot info. If none can be found, empty string is returned.
-     */
-    private static String slmPolicy(SnapshotInfo snapshotInfo) {
-        final String slmPolicy;
-        if (snapshotInfo.userMetadata() == null) {
-            slmPolicy = "";
-        } else {
-            final Object policyFound = snapshotInfo.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-            if (policyFound instanceof String) {
-                slmPolicy = (String) policyFound;
-            } else {
-                slmPolicy = "";
-            }
-        }
-        return slmPolicy;
     }
 
     private RepositoryData updateRepositoryData(RepositoryData repositoryData, IndexVersion repositoryMetaversion, long newGen) {
@@ -2943,8 +2909,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
             }
 
-            final ListenableFuture<Collection<Void>> allFilesUploadedListener = new ListenableFuture<>();
-            allFilesUploadedListener.addListener(context.delegateFailureAndWrap((delegate, v) -> {
+            // filesToSnapshot will be emptied while snapshotting the file. We make a copy here for cleanup purpose in case of failure.
+            final AtomicReference<List<FileInfo>> fileToCleanUp = new AtomicReference<>(List.copyOf(filesToSnapshot));
+            final ActionListener<Collection<Void>> allFilesUploadedListener = ActionListener.assertOnce(ActionListener.wrap(ignore -> {
                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize();
 
                 // now create and write the commit point
@@ -2957,6 +2924,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     lastSnapshotStatus.getIncrementalFileCount(),
                     lastSnapshotStatus.getIncrementalSize()
                 );
+                // Once we start writing the shard level snapshot file, no cleanup will be performed because it is possible that
+                // written files are referenced by another concurrent process.
+                fileToCleanUp.set(List.of());
                 try {
                     final String snapshotUUID = snapshotId.getUUID();
                     final Map<String, String> serializationParams = Collections.singletonMap(
@@ -2980,8 +2950,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     getSegmentInfoFileCount(blobStoreIndexShardSnapshot.indexFiles())
                 );
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
-                delegate.onResponse(shardSnapshotResult);
+                context.onResponse(shardSnapshotResult);
+            }, e -> {
+                try {
+                    shardContainer.deleteBlobsIgnoringIfNotExists(
+                        Iterators.flatMap(fileToCleanUp.get().iterator(), f -> Iterators.forRange(0, f.numberOfParts(), f::partName))
+                    );
+                } catch (Exception innerException) {
+                    e.addSuppressed(innerException);
+                }
+                context.onFailure(e);
             }));
+
             if (indexIncrementalFileCount == 0 || filesToSnapshot.isEmpty()) {
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;

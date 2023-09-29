@@ -48,7 +48,7 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
     DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendDouble(evalValue(vector, p));;
+        builder.appendDouble(evalValue(vector, p));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

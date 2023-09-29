@@ -48,7 +48,7 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
     LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendLong(evalValue(vector, p));;
+        builder.appendLong(evalValue(vector, p));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

@@ -49,7 +49,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
     BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendBytesRef(evalValue(vector, p));;
+        builder.appendBytesRef(evalValue(vector, p));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

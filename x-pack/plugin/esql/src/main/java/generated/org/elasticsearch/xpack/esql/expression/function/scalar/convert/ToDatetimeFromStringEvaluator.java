@@ -50,7 +50,7 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendLong(evalValue(vector, p, scratchPad));;
+        builder.appendLong(evalValue(vector, p, scratchPad));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

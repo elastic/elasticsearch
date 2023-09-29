@@ -49,7 +49,7 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
     BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendBytesRef(evalValue(vector, p, scratchPad));;
+        builder.appendBytesRef(evalValue(vector, p, scratchPad));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

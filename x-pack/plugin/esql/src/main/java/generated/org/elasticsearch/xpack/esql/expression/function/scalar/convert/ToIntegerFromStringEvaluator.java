@@ -50,7 +50,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
     IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendInt(evalValue(vector, p, scratchPad));;
+        builder.appendInt(evalValue(vector, p, scratchPad));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

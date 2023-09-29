@@ -50,7 +50,7 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
     BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendBoolean(evalValue(vector, p, scratchPad));;
+        builder.appendBoolean(evalValue(vector, p, scratchPad));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

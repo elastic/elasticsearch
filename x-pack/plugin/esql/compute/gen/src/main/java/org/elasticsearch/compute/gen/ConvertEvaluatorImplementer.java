@@ -144,7 +144,7 @@ public class ConvertEvaluatorImplementer {
         {
             builder.beginControlFlow("try");
             {
-                builder.addStatement("builder.$L($N);", appendMethod(resultType), evalValueCall("vector", "p", scratchPadName));
+                builder.addStatement("builder.$L($N)", appendMethod(resultType), evalValueCall("vector", "p", scratchPadName));
             }
             builder.nextControlFlow("catch (Exception e)");
             {

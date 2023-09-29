@@ -50,7 +50,7 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
     DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendDouble(evalValue(vector, p, scratchPad));;
+        builder.appendDouble(evalValue(vector, p, scratchPad));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

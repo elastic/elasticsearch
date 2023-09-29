@@ -48,7 +48,7 @@ public final class ToIntegerFromLongEvaluator extends AbstractConvertFunction.Ab
     IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        builder.appendInt(evalValue(vector, p));;
+        builder.appendInt(evalValue(vector, p));
       } catch (Exception e) {
         registerException(e);
         builder.appendNull();

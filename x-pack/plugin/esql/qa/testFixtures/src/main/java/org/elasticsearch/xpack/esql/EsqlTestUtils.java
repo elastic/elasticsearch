@@ -90,7 +90,7 @@ public final class EsqlTestUtils {
 
     private EsqlTestUtils() {}
 
-    public static EsqlConfiguration configuration(QueryPragmas pragmas) {
+    public static EsqlConfiguration configuration(QueryPragmas pragmas, String query) {
         return new EsqlConfiguration(
             DateUtils.UTC,
             Locale.US,
@@ -99,21 +99,16 @@ public final class EsqlTestUtils {
             pragmas,
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            StringUtils.EMPTY
+            query
         );
     }
 
+    public static EsqlConfiguration configuration(QueryPragmas pragmas) {
+        return configuration(pragmas, StringUtils.EMPTY);
+    }
+
     public static EsqlConfiguration configuration(String query) {
-        return new EsqlConfiguration(
-            DateUtils.UTC,
-            Locale.US,
-            null,
-            null,
-            new QueryPragmas(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            query
-        );
+        return configuration(new QueryPragmas(Settings.EMPTY), query);
     }
 
     public static Literal L(Object value) {

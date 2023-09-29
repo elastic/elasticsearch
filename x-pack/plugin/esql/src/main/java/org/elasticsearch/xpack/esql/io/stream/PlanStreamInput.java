@@ -11,13 +11,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -118,7 +118,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         }
         int offset = textOffset(query, line, column);
         if (offset + length > query.length()) {
-            throw new QlIllegalArgumentException(
+            throw new EsqlIllegalArgumentException(
                 "location [@" + line + ":" + column + "] and length [" + length + "] overrun query size [" + query.length() + "]"
             );
         }
@@ -130,7 +130,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         if (line > 1) {
             String[] lines = query.split("\n");
             if (line > lines.length) {
-                throw new QlIllegalArgumentException(
+                throw new EsqlIllegalArgumentException(
                     "line location [" + line + "] higher than max [" + lines.length + "] in query [" + query + "]"
                 );
             }
@@ -138,7 +138,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
                 offset += lines[i].length() + 1; // +1 accounts for the removed \n
             }
         }
-        offset += column;
+        offset += column - 1; // -1 since column is 1-based indexed
         return offset;
     }
 

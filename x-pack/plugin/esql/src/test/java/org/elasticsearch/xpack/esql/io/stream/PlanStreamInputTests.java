@@ -98,25 +98,25 @@ public class PlanStreamInputTests extends ESTestCase {
     }
 
     public void testSourceSerialization() {
-        Function<String, String> queryFn = d -> d
+        Function<String, String> queryFn = delimiter -> delimiter
             + "FROM "
-            + d
+            + delimiter
             + " test "
-            + d
+            + delimiter
             + "| EVAL "
-            + d
+            + delimiter
             + " x = CONCAT(first_name, \"baz\")"
-            + d
+            + delimiter
             + "| EVAL last_name IN (\"foo\", "
-            + d
+            + delimiter
             + " \"bar\")"
-            + d
+            + delimiter
             + "| "
-            + d
+            + delimiter
             + "WHERE emp_no == abs("
-            + d
+            + delimiter
             + "emp_no)"
-            + d;
+            + delimiter;
 
         Function<LogicalPlan, List<Source>> sources = plan -> {
             List<Expression> exp = new ArrayList<>();
@@ -145,5 +145,4 @@ public class PlanStreamInputTests extends ESTestCase {
             assertThat(sources.apply(planIn), equalTo(sources.apply(planOut)));
         }
     }
-
 }

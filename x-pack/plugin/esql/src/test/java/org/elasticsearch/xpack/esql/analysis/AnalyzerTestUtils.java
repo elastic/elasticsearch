@@ -47,7 +47,7 @@ public final class AnalyzerTestUtils {
         );
     }
 
-    public static Analyzer analyzer(EsqlConfiguration config, IndexResolution indexResolution, Verifier verifier) {
+    public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, EsqlConfiguration config) {
         return new Analyzer(new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultEnrichResolution()), verifier);
     }
 
@@ -63,7 +63,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, String mapping) {
-        return analyze(query, analyzer(configuration(query), loadMapping(mapping, "test"), TEST_VERIFIER));
+        return analyze(query, analyzer(loadMapping(mapping, "test"), TEST_VERIFIER, configuration(query)));
     }
 
     public static LogicalPlan analyze(String query, Analyzer analyzer) {

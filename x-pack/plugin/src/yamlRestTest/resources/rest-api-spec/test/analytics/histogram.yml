@@ -251,3 +251,58 @@ histogram with synthetic source and zero counts:
         latency:
           values: [0.2, 0.4]
           counts: [7, 6]
+
+
+---
+histogram with large count values:
+  - skip:
+      version: " - 8.10.99"
+      reason: Support for `long` values was introduced in 8.11.0
+
+  - do:
+      indices.create:
+        index: histo_large_count
+        body:
+          mappings:
+            properties:
+              latency:
+                type: histogram
+  - do:
+      bulk:
+        index: histo_large_count
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [0, 1000000000000, 10, 1000, 1000000]}}'
+
+  - do:
+      search:
+        index: histo_large_count
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: latency
+                interval: 0.3
+
+  - length: { aggregations.histo.buckets: 2 }
+  - match: { aggregations.histo.buckets.0.key: 0.0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 1000000000000 }
+  - match: { aggregations.histo.buckets.1.key: 0.3 }
+  - match: { aggregations.histo.buckets.1.doc_count: 1001010 }
+
+  - do:
+      search:
+        index: histo_large_count
+        body:
+          size: 0
+          aggs:
+            percent:
+              percentiles:
+                field: latency
+
+  - length: { aggregations.percent.values: 7 }
+  - match: { aggregations.percent.values.1\.0: 0.2 }
+  - match: { aggregations.percent.values.5\.0: 0.2 }
+  - match: { aggregations.percent.values.25\.0: 0.2 }

@@ -187,8 +187,7 @@ public class EnrichCacheTests extends ESTestCase {
 
     public void testEnrichIndexNotExist() {
         // Emulate cluster metadata:
-        var metadata = Metadata.builder()
-            .build();
+        var metadata = Metadata.builder().build();
 
         // Emulated search request on a non-exist enrich index that an enrich processor could generate
         var searchRequest = new SearchRequest(EnrichPolicy.getBaseName("policy-enrich-index-not-generated")).source(
@@ -200,10 +199,7 @@ public class EnrichCacheTests extends ESTestCase {
         EnrichCache enrichCache = new EnrichCache(1);
         enrichCache.setMetadata(metadata);
 
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> enrichCache.put(searchRequest, searchResponse)
-        );
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> enrichCache.put(searchRequest, searchResponse));
         assertThat(e.getMessage(), containsString("no generated enrich index [.enrich-policy-enrich-index-not-generated]"));
     }
 

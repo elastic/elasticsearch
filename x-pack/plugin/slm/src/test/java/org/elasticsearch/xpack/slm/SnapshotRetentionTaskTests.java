@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -133,10 +134,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null)
         );
         Map<String, SnapshotLifecyclePolicy> policyMap = Collections.singletonMap("policy", policy);
-        Function<SnapshotInfo, Map<String, List<SnapshotInfo>>> mkInfos = i -> Collections.singletonMap(
-            repoName,
-            Collections.singletonList(i)
-        );
+        Function<SnapshotInfo, Map<String, Map<String, Map<SnapshotId, RepositoryData.SnapshotDetails>>>> mkInfos = snapshotInfo -> {
+            final var snapshotDetails = RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshotInfo);
+            return Map.of(repoName, Map.of(snapshotDetails.getSlmPolicy(), Map.of(snapshotInfo.snapshotId(), snapshotDetails)));
+        };
 
         // Test with an ancient snapshot that should be expunged
         SnapshotInfo info = new SnapshotInfo(

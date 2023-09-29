@@ -13,11 +13,13 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -67,6 +69,8 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         }
     }
 
+    private record CompressedGroup(String[] indices, String mappingHash, int[] fields) {}
+
     static List<FieldCapabilitiesIndexResponse> readList(StreamInput input) throws IOException {
         if (input.getTransportVersion().before(MAPPING_HASH_VERSION)) {
             return input.readCollectionAsList(FieldCapabilitiesIndexResponse::new);
@@ -77,6 +81,37 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
             responses.add(new FieldCapabilitiesIndexResponse(input));
         }
         final int groups = input.readVInt();
+        if (input.getTransportVersion().onOrAfter(TransportVersions.COMPACT_FIELD_CAPS_ADDED)) {
+            collectCompressedResponses(input, groups, responses);
+        } else {
+            collectResponsesLegacyFormat(input, groups, responses);
+        }
+        return responses;
+    }
+
+    private static void collectCompressedResponses(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
+        throws IOException {
+        final CompressedGroup[] compressedGroups = new CompressedGroup[groups];
+        for (int i = 0; i < groups; i++) {
+            final String[] indices = input.readStringArray();
+            final String mappingHash = input.readString();
+            compressedGroups[i] = new CompressedGroup(indices, mappingHash, input.readIntArray());
+        }
+        final IndexFieldCapabilities[] ifcLookup = input.readArray(IndexFieldCapabilities::readFrom, IndexFieldCapabilities[]::new);
+        for (CompressedGroup compressedGroup : compressedGroups) {
+            final Map<String, IndexFieldCapabilities> ifc = Maps.newMapWithExpectedSize(compressedGroup.fields.length);
+            for (int i : compressedGroup.fields) {
+                var val = ifcLookup[i];
+                ifc.put(val.name(), val);
+            }
+            for (String index : compressedGroup.indices) {
+                responses.add(new FieldCapabilitiesIndexResponse(index, compressedGroup.mappingHash, ifc, true));
+            }
+        }
+    }
+
+    private static void collectResponsesLegacyFormat(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
+        throws IOException {
         for (int i = 0; i < groups; i++) {
             final List<String> indices = input.readStringCollectionAsList();
             final String mappingHash = input.readString();
@@ -85,7 +120,6 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
                 responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, ifc, true));
             }
         }
-        return responses;
     }
 
     static void writeList(StreamOutput output, List<FieldCapabilitiesIndexResponse> responses) throws IOException {
@@ -103,13 +137,44 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
                 ungroupedResponses.add(r);
             }
         }
+
         output.writeCollection(ungroupedResponses);
+        if (output.getTransportVersion().onOrAfter(TransportVersions.COMPACT_FIELD_CAPS_ADDED)) {
+            writeCompressedResponses(output, groupedResponsesMap);
+        } else {
+            writeResponsesLegacyFormat(output, groupedResponsesMap);
+        }
+    }
+
+    private static void writeResponsesLegacyFormat(
+        StreamOutput output,
+        Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponsesMap
+    ) throws IOException {
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             var first = fieldCapabilitiesIndexResponses.get(0);
             o.writeString(first.indexMappingHash);
             o.writeMap(first.responseMap, StreamOutput::writeWriteable);
         });
+    }
+
+    private static void writeCompressedResponses(StreamOutput output, Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponsesMap)
+        throws IOException {
+        final Map<IndexFieldCapabilities, Integer> fieldDedupMap = new LinkedHashMap<>();
+        output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
+            o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
+            var first = fieldCapabilitiesIndexResponses.get(0);
+            o.writeString(first.indexMappingHash);
+            o.writeVInt(first.responseMap.size());
+            for (IndexFieldCapabilities ifc : first.responseMap.values()) {
+                Integer offset = fieldDedupMap.size();
+                final Integer found = fieldDedupMap.putIfAbsent(ifc, offset);
+                o.writeInt(found == null ? offset : found);
+            }
+        });
+        // this is a linked hash map so the key-set is written in insertion order, so we can just write it out in order and then read it
+        // back as an array of FieldCapabilitiesIndexResponse in #collectCompressedResponses to use as a lookup
+        output.writeCollection(fieldDedupMap.keySet());
     }
 
     /**
@@ -136,14 +201,6 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
      */
     public Map<String, IndexFieldCapabilities> get() {
         return responseMap;
-    }
-
-    /**
-     *
-     * Get the field capabilities for the provided {@code field}
-     */
-    public IndexFieldCapabilities getField(String field) {
-        return responseMap.get(field);
     }
 
     TransportVersion getOriginVersion() {

@@ -721,6 +721,76 @@ Gateway     | instances
 null        | null
 ;
 
+replaceSimple
+from employees | sort emp_no | limit 1 | eval name = replace(first_name, "Geo", "foo") | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001 | foorgi
+;
+
+replaceText
+from hosts | where host == "epsilon" | limit 1 | eval name = replace(host, "ep", "") | keep name;
+
+name:keyword
+silon
+;
+
+replaceComplex
+from employees | where emp_no <= 10010 | eval f_l = replace(replace(substring(last_name, 1, 20), "al", "AB"), "a", "Z")  | keep emp_no, last_name, f_l | sort emp_no;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | FZcello
+10002 | Simmel    | Simmel
+10003 | Bamford   | BZmford
+10004 | Koblick   | Koblick
+10005 | Maliniak  | MABiniZk
+10006 | Preusig   | Preusig
+10007 | Zielinski | Zielinski
+10008 | Kalloufi  | KABloufi
+10009 | Peac      | PeZc
+10010 | Piveteau  | PiveteZu
+;
+
+replaceComplex2
+from employees | where emp_no <= 10010 | eval f_l = substring(replace(last_name, "a", "Z"), 1, 1)  | keep emp_no, last_name, f_l | sort emp_no;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | F
+10002 | Simmel    | S
+10003 | Bamford   | B
+10004 | Koblick   | K
+10005 | Maliniak  | M
+10006 | Preusig   | P
+10007 | Zielinski | Z
+10008 | Kalloufi  | K
+10009 | Peac      | P
+10010 | Piveteau  | P
+;
+
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+replaceComplex3-Ignore
+FROM employees | eval x = replace(to_string(emp_no), "(0+)", left(first_name, 1)), y = left(first_name, 1), is_match = y == substring(x, 2, 1) | keep first_name, y, x, is_match | sort is_match, x | limit 8;
+
+first_name:keyword|  y:keyword    |  x:keyword    |is_match:boolean    
+Alejandro         |A              |1A59           |true           
+Anneke            |A              |1A6            |true           
+Anoosh            |A              |1A62           |true           
+Amabile           |A              |1A91           |true           
+Arumugam          |A              |1A94           |true           
+Berni             |B              |1B14           |true           
+Bezalel           |B              |1B2            |true           
+Bojan             |B              |1B23           |true
+;
+
+replaceRegex
+from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") | sort l1 | keep l1, host_group;
+ 
+   l1:keyword   |host_group:text    
+Gatewayinstances|Gateway instances
+Gatewayinstances|Gateway instances
+null            |null             
+;
+
 left
 // tag::left[]
 FROM employees

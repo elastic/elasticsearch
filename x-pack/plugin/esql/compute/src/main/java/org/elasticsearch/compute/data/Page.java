@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -69,9 +68,10 @@ public final class Page implements Writeable {
         // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
-        if (Assertions.ENABLED) {
-            for (Block b : blocks) {
-                assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
+        for (Block b : blocks) {
+            assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
+            if (b.isReleased()) {
+                throw new IllegalArgumentException("can't build page out of released blocks but [" + b + "] was released");
             }
         }
     }

@@ -26,6 +26,8 @@ import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.stream.DoubleStream;
@@ -385,7 +387,17 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         switch (ordering) {
             case UNORDERED -> {
             }
-            case ASCENDING -> Collections.sort(mvData);
+            case DEDUPLICATED_UNORDERD -> {
+                var dedup = new LinkedHashSet<>(mvData);
+                mvData.clear();
+                mvData.addAll(dedup);
+            }
+            case DEDUPLICATED_AND_SORTED_ASCENDING -> {
+                var dedup = new HashSet<>(mvData);
+                mvData.clear();
+                mvData.addAll(dedup);
+                Collections.sort(mvData);
+            }
             default -> throw new UnsupportedOperationException("unsupported ordering [" + ordering + "]");
         }
     }
@@ -443,17 +455,19 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             }
             builder.copyFrom(oneRowBlock, 0, 1);
         }
-        Block input = builder.build();
-        Block result = evaluator(buildFieldExpression(testCase)).get(driverContext()).eval(new Page(input));
-
-        assertThat(result.getPositionCount(), equalTo(result.getPositionCount()));
-        for (int p = 0; p < input.getPositionCount(); p++) {
-            if (input.isNull(p)) {
-                assertThat(result.isNull(p), equalTo(true));
-                continue;
+        try (
+            Block input = builder.build();
+            Block.Ref ref = evaluator(buildFieldExpression(testCase)).get(driverContext()).eval(new Page(input))
+        ) {
+            assertThat(ref.block().getPositionCount(), equalTo(ref.block().getPositionCount()));
+            for (int p = 0; p < input.getPositionCount(); p++) {
+                if (input.isNull(p)) {
+                    assertThat(ref.block().isNull(p), equalTo(true));
+                    continue;
+                }
+                assertThat(ref.block().isNull(p), equalTo(false));
+                assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
             }
-            assertThat(result.isNull(p), equalTo(false));
-            assertThat(toJavaObject(result, p), testCase.getMatcher());
         }
     }
 }

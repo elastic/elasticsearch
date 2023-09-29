@@ -27,8 +27,8 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block eval(Page page) {
-    return eval(page.getPositionCount()).asBlock();
+  public Block.Ref eval(Page page) {
+    return Block.Ref.floating(eval(page.getPositionCount()).asBlock());
   }
 
   public LongVector eval(int positionCount) {

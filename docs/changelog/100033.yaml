@@ -1,0 +1,6 @@
+pr: 100033
+summary: "[Behavioral Analytics] Analytics collections use DLM instead of ILM for\
+  \ data retention management"
+area: Application
+type: feature
+issues: []

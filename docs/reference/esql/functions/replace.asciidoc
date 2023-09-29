@@ -1,6 +1,6 @@
 [[esql-replace]]
 === `REPLACE`
-This function substitutes the replacement string (3rd argument) for every occurrence of the regular expression (2nd argument) in the string (1st argument).
+The function substitutes in the string (1st argument) any match of the regular expression (2nd argument) with the replacement string (3rd argument).
 
 If any of the arguments are `NULL`, the result is `NULL`.
 

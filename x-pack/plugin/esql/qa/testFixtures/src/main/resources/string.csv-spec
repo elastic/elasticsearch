@@ -782,12 +782,12 @@ Bojan             |B              |1B23           |true
 ;
 
 replaceRegex
-from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") | sort l1 | keep l1;
+from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") | sort l1 | keep l1, host_group;
  
-l1:keyword
-Gatewayinstances
-Gatewayinstances
-null
+   l1:keyword   |host_group:keyword    
+Gatewayinstances|Gateway instances
+Gatewayinstances|Gateway instances
+null            |null             
 ;
 
 left

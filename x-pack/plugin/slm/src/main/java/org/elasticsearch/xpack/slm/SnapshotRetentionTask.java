@@ -210,7 +210,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         final String repository = policy.getRepository();
         // Retrieve the predicate based on the retention policy, passing in snapshots pertaining only to *this* policy and repository
         boolean eligible = retention.isSnapshotEligibleForDeletion(
-            snapshot,
+            snapshot.snapshotId(),
+            RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshot),
             allSnapshots.get(repository)
                 .stream()
                 .filter(

@@ -8,8 +8,12 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
@@ -124,17 +128,28 @@ public final class MultivalueDedupe {
      * and then encodes the results into a {@link byte[]} which can be used for
      * things like hashing many fields together.
      */
-    public static BatchEncoder batchEncoder(Block.Ref ref, int batchSize) {
-        // TODO collect single-valued block handling here. And maybe vector. And maybe all null?
-        // TODO check for for unique multivalued fields and for ascending multivalue fields.
-        return switch (ref.block().elementType()) {
-            case BOOLEAN -> new MultivalueDedupeBoolean(ref).batchEncoder(batchSize);
-            case BYTES_REF -> new MultivalueDedupeBytesRef(ref).batchEncoder(batchSize);
-            case INT -> new MultivalueDedupeInt(ref).batchEncoder(batchSize);
-            case LONG -> new MultivalueDedupeLong(ref).batchEncoder(batchSize);
-            case DOUBLE -> new MultivalueDedupeDouble(ref).batchEncoder(batchSize);
-            default -> throw new IllegalArgumentException();
-        };
+    public static BatchEncoder batchEncoder(Block.Ref ref, int batchSize, boolean allowDirectEncoder) {
+        var elementType = ref.block().elementType();
+        if (allowDirectEncoder && ref.block().mvDeduplicated()) {
+            var block = ref.block();
+            return switch (elementType) {
+                case BOOLEAN -> new BatchEncoder.DirectBooleans((BooleanBlock) block);
+                case BYTES_REF -> new BatchEncoder.DirectBytesRefs((BytesRefBlock) block);
+                case INT -> new BatchEncoder.DirectInts((IntBlock) block);
+                case LONG -> new BatchEncoder.DirectLongs((LongBlock) block);
+                case DOUBLE -> new BatchEncoder.DirectDoubles((DoubleBlock) block);
+                default -> throw new IllegalArgumentException("Unknown [" + elementType + "]");
+            };
+        } else {
+            return switch (elementType) {
+                case BOOLEAN -> new MultivalueDedupeBoolean(ref).batchEncoder(batchSize);
+                case BYTES_REF -> new MultivalueDedupeBytesRef(ref).batchEncoder(batchSize);
+                case INT -> new MultivalueDedupeInt(ref).batchEncoder(batchSize);
+                case LONG -> new MultivalueDedupeLong(ref).batchEncoder(batchSize);
+                case DOUBLE -> new MultivalueDedupeDouble(ref).batchEncoder(batchSize);
+                default -> throw new IllegalArgumentException();
+            };
+        }
     }
 
     private abstract static class MvDedupeEvaluator implements EvalOperator.ExpressionEvaluator {

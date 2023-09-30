@@ -493,7 +493,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
             latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
             if (latestCommit != null) {
-                logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit);
+                logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit.toLongDescription());
                 break;
             }
         }
@@ -515,7 +515,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             if (latestCommit == null) {
                 latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
                 if (latestCommit != null) {
-                    logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit);
+                    logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit.toLongDescription());
                     StatelessCompoundCommit finalLatestCommit = latestCommit;
                     allBlobs.forEach((key, value) -> {
                         var blobFile = new BlobFile(blobContainerPrimaryTerm, key, value.length());

@@ -32,11 +32,13 @@ import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
-import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.BLOCK_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
+import static org.elasticsearch.compute.gen.Types.RELEASABLE;
+import static org.elasticsearch.compute.gen.Types.RELEASABLES;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -47,9 +49,15 @@ public class EvaluatorImplementer {
     private final ProcessFunction processFunction;
     private final ClassName implementation;
 
-    public EvaluatorImplementer(Elements elements, ExecutableElement processFunction, String extraName, List<TypeMirror> warnExceptions) {
+    public EvaluatorImplementer(
+        Elements elements,
+        javax.lang.model.util.Types types,
+        ExecutableElement processFunction,
+        String extraName,
+        List<TypeMirror> warnExceptions
+    ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
-        this.processFunction = new ProcessFunction(processFunction, warnExceptions);
+        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -87,6 +95,7 @@ public class EvaluatorImplementer {
         }
         builder.addMethod(realEval(false));
         builder.addMethod(toStringMethod());
+        builder.addMethod(close());
         return builder.build();
     }
 
@@ -104,17 +113,18 @@ public class EvaluatorImplementer {
 
     private MethodSpec eval() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("eval").addAnnotation(Override.class);
-        builder.addModifiers(Modifier.PUBLIC).returns(BLOCK).addParameter(PAGE, "page");
+        builder.addModifiers(Modifier.PUBLIC).returns(BLOCK_REF).addParameter(PAGE, "page");
 
         processFunction.args.stream().forEach(a -> a.evalToBlock(builder));
         String invokeBlockEval = invokeRealEval(true);
         processFunction.args.stream().forEach(a -> a.resolveVectors(builder, invokeBlockEval));
         builder.addStatement(invokeRealEval(false));
+        processFunction.args.stream().forEach(a -> a.closeEvalToBlock(builder));
         return builder.build();
     }
 
     private String invokeRealEval(boolean blockStyle) {
-        StringBuilder builder = new StringBuilder("return eval(page.getPositionCount()");
+        StringBuilder builder = new StringBuilder("return Block.Ref.floating(eval(page.getPositionCount()");
         String params = processFunction.args.stream()
             .map(a -> a.paramName(blockStyle))
             .filter(a -> a != null)
@@ -127,6 +137,7 @@ public class EvaluatorImplementer {
         if (processFunction.resultDataType(blockStyle).simpleName().endsWith("Vector")) {
             builder.append(".asBlock()");
         }
+        builder.append(")");
         return builder.toString();
     }
 
@@ -219,6 +230,20 @@ public class EvaluatorImplementer {
         return builder.build();
     }
 
+    private MethodSpec close() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("close").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+
+        List<String> invocations = processFunction.args.stream().map(ProcessFunctionArg::closeInvocation).filter(s -> s != null).toList();
+        if (invocations.isEmpty() == false) {
+            builder.addStatement(
+                "$T.closeExpectNoException(" + invocations.stream().collect(Collectors.joining(", ")) + ")",
+                Types.RELEASABLES
+            );
+        }
+        return builder.build();
+    }
+
     private interface ProcessFunctionArg {
         /**
          * Type containing the actual data for a page of values for this field. Usually a
@@ -243,10 +268,16 @@ public class EvaluatorImplementer {
         void implementCtor(MethodSpec.Builder builder);
 
         /**
-         * Emits code to evaluate this parameter to a Block or array of Blocks.
-         * Noop if the parameter is {@link Fixed}.
+         * Emits code to evaluate this parameter to a Block.Ref or array of Block.Refs
+         * and begins a {@code try} block for those refs. Noop if the parameter is {@link Fixed}.
          */
         void evalToBlock(MethodSpec.Builder builder);
+
+        /**
+         * Closes the {@code try} block emitted by {@link #evalToBlock} if it made one.
+         * Noop otherwise.
+         */
+        void closeEvalToBlock(MethodSpec.Builder builder);
 
         /**
          * Emits code to check if this parameter is a vector or a block, and to
@@ -276,7 +307,15 @@ public class EvaluatorImplementer {
          */
         void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle);
 
+        /**
+         * Accumulate invocation pattern and arguments to implement {@link Object#toString()}.
+         */
         void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix);
+
+        /**
+         * The string to close this argument or {@code null}.
+         */
+        String closeInvocation();
     }
 
     private record StandardProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
@@ -307,11 +346,16 @@ public class EvaluatorImplementer {
         @Override
         public void evalToBlock(MethodSpec.Builder builder) {
             TypeName blockType = blockType(type);
-            builder.addStatement("Block $LUncastBlock = $L.eval(page)", name, name);
-            builder.beginControlFlow("if ($LUncastBlock.areAllValuesNull())", name);
-            builder.addStatement("return Block.constantNullBlock(page.getPositionCount())");
+            builder.beginControlFlow("try (Block.Ref $LRef = $L.eval(page))", name, name);
+            builder.beginControlFlow("if ($LRef.block().areAllValuesNull())", name);
+            builder.addStatement("return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()))");
             builder.endControlFlow();
-            builder.addStatement("$T $LBlock = ($T) $LUncastBlock", blockType, name, blockType, name);
+            builder.addStatement("$T $LBlock = ($T) $LRef.block()", blockType, name, blockType, name);
+        }
+
+        @Override
+        public void closeEvalToBlock(MethodSpec.Builder builder) {
+            builder.endControlFlow();
         }
 
         @Override
@@ -368,6 +412,11 @@ public class EvaluatorImplementer {
             args.add(prefix + name + "=");
             args.add(name);
         }
+
+        @Override
+        public String closeInvocation() {
+            return name;
+        }
     }
 
     private record ArrayProcessFunctionArg(TypeName componentType, String name) implements ProcessFunctionArg {
@@ -398,15 +447,23 @@ public class EvaluatorImplementer {
         @Override
         public void evalToBlock(MethodSpec.Builder builder) {
             TypeName blockType = blockType(componentType);
+            builder.addStatement("Block.Ref[] $LRefs = new Block.Ref[$L.length]", name, name);
+            builder.beginControlFlow("try ($T $LRelease = $T.wrap($LRefs))", RELEASABLE, name, RELEASABLES, name);
             builder.addStatement("$T[] $LBlocks = new $T[$L.length]", blockType, name, blockType, name);
             builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
             {
-                builder.addStatement("Block block = $L[i].eval(page)", name);
+                builder.addStatement("$LRefs[i] = $L[i].eval(page)", name, name);
+                builder.addStatement("Block block = $LRefs[i].block()", name);
                 builder.beginControlFlow("if (block.areAllValuesNull())");
-                builder.addStatement("return Block.constantNullBlock(page.getPositionCount())");
+                builder.addStatement("return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()))");
                 builder.endControlFlow();
                 builder.addStatement("$LBlocks[i] = ($T) block", name, blockType);
             }
+            builder.endControlFlow();
+        }
+
+        @Override
+        public void closeEvalToBlock(MethodSpec.Builder builder) {
             builder.endControlFlow();
         }
 
@@ -470,9 +527,16 @@ public class EvaluatorImplementer {
             args.add(Arrays.class);
             args.add(name);
         }
+
+        @Override
+        public String closeInvocation() {
+            return "() -> Releasables.close(" + name + ")";
+        }
     }
 
-    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString) implements ProcessFunctionArg {
+    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, boolean releasable)
+        implements
+            ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
             return type;
@@ -497,6 +561,11 @@ public class EvaluatorImplementer {
 
         @Override
         public void evalToBlock(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void closeEvalToBlock(MethodSpec.Builder builder) {
             // nothing to do
         }
 
@@ -534,6 +603,11 @@ public class EvaluatorImplementer {
                 args.add(name);
             }
         }
+
+        @Override
+        public String closeInvocation() {
+            return releasable ? name : null;
+        }
     }
 
     private record BuilderProcessFunctionArg(ClassName type, String name) implements ProcessFunctionArg {
@@ -560,6 +634,11 @@ public class EvaluatorImplementer {
 
         @Override
         public void evalToBlock(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void closeEvalToBlock(MethodSpec.Builder builder) {
             // nothing to do
         }
 
@@ -593,6 +672,11 @@ public class EvaluatorImplementer {
         public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
             // Don't want to include
         }
+
+        @Override
+        public String closeInvocation() {
+            return null;
+        }
     }
 
     private static class ProcessFunction {
@@ -601,7 +685,12 @@ public class EvaluatorImplementer {
         private final BuilderProcessFunctionArg builderArg;
         private final List<TypeMirror> warnExceptions;
 
-        private ProcessFunction(ExecutableElement function, List<TypeMirror> warnExceptions) {
+        private ProcessFunction(
+            Elements elements,
+            javax.lang.model.util.Types types,
+            ExecutableElement function,
+            List<TypeMirror> warnExceptions
+        ) {
             this.function = function;
             args = new ArrayList<>();
             BuilderProcessFunctionArg builderArg = null;
@@ -610,7 +699,14 @@ public class EvaluatorImplementer {
                 String name = v.getSimpleName().toString();
                 Fixed fixed = v.getAnnotation(Fixed.class);
                 if (fixed != null) {
-                    args.add(new FixedProcessFunctionArg(type, name, fixed.includeInToString()));
+                    args.add(
+                        new FixedProcessFunctionArg(
+                            type,
+                            name,
+                            fixed.includeInToString(),
+                            Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
+                        )
+                    );
                     continue;
                 }
                 if (type instanceof ClassName c

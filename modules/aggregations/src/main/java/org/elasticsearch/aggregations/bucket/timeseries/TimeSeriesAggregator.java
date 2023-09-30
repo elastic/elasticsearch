@@ -32,6 +32,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     private final boolean keyed;
     private final int size;
 
+    @SuppressWarnings("this-escape")
     public TimeSeriesAggregator(
         String name,
         AggregatorFactories factories,

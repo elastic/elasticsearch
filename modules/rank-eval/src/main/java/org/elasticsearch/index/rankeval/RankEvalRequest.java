@@ -35,6 +35,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
 
     private SearchType searchType = SearchType.DEFAULT;
 
+    @SuppressWarnings("this-escape")
     public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
         this.rankingEvaluationSpec = Objects.requireNonNull(rankingEvaluationSpec, "ranking evaluation specification must not be null");
         indices(indices);

@@ -22,6 +22,7 @@ import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -91,15 +92,6 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         this.historyStore = historyStore;
     }
 
-    private static String formatSnapshots(Map<String, List<SnapshotInfo>> snapshotMap) {
-        return snapshotMap.entrySet()
-            .stream()
-            .map(
-                e -> e.getKey() + ": [" + e.getValue().stream().map(si -> si.snapshotId().getName()).collect(Collectors.joining(",")) + "]"
-            )
-            .collect(Collectors.joining(","));
-    }
-
     @Override
     public void triggered(SchedulerEngine.Event event) {
         assert event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_JOB_ID)
@@ -156,28 +148,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             // Finally, asynchronously retrieve all the snapshots, deleting them serially,
             // before updating the cluster state with the new metrics and setting 'running'
             // back to false
-            getAllRetainableSnapshots(repositioriesToFetch, policiesWithRetention.keySet(), new ActionListener<>() {
+            getSnapshotsEligibleForDeletion(repositioriesToFetch, policiesWithRetention, new ActionListener<>() {
                 @Override
-                public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("retrieved snapshots: [{}]", formatSnapshots(allSnapshots));
-                    }
-                    // Find all the snapshots that are past their retention date
-                    final Map<String, List<Tuple<SnapshotId, String>>> snapshotsToBeDeleted = allSnapshots.entrySet()
-                        .stream()
-                        .collect(
-                            Collectors.toMap(
-                                Map.Entry::getKey,
-                                e -> e.getValue()
-                                    .stream()
-                                    .filter(snapshot -> snapshotEligibleForDeletion(snapshot, allSnapshots, policiesWithRetention))
-                                    // SnapshotInfo instances can be quite large in case they contain e.g. a large collection of
-                                    // exceptions so we extract the only two things (id + policy id) here so they can be GCed
-                                    .map(snapshotInfo -> Tuple.tuple(snapshotInfo.snapshotId(), getPolicyId(snapshotInfo)))
-                                    .toList()
-                            )
-                        );
-
+                public void onResponse(Map<String, List<Tuple<SnapshotId, String>>> snapshotsToBeDeleted) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("snapshots eligible for deletion: [{}]", snapshotsToBeDeleted);
                     }
@@ -214,7 +187,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     static boolean snapshotEligibleForDeletion(
         SnapshotInfo snapshot,
-        Map<String, List<SnapshotInfo>> allSnapshots,
+        Map<String, Map<String, Map<SnapshotId, RepositoryData.SnapshotDetails>>> allSnapshotDetails,
         Map<String, SnapshotLifecyclePolicy> policies
     ) {
         assert snapshot.userMetadata() != null
@@ -236,17 +209,13 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
         final String repository = policy.getRepository();
         // Retrieve the predicate based on the retention policy, passing in snapshots pertaining only to *this* policy and repository
-        boolean eligible = retention.getSnapshotDeletionPredicate(
-            allSnapshots.get(repository)
-                .stream()
-                .filter(
-                    info -> Optional.ofNullable(info.userMetadata())
-                        .map(meta -> meta.get(POLICY_ID_METADATA_FIELD))
-                        .map(pId -> pId.equals(policyId))
-                        .orElse(false)
-                )
-                .toList()
-        ).test(snapshot);
+        final var relevantSnapshots = allSnapshotDetails.getOrDefault(repository, Map.of()).getOrDefault(policyId, Map.of());
+        assert relevantSnapshots.containsKey(snapshot.snapshotId());
+        boolean eligible = retention.isSnapshotEligibleForDeletion(
+            snapshot.snapshotId(),
+            RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshot),
+            relevantSnapshots
+        );
         logger.debug(
             "[{}] testing snapshot [{}] deletion eligibility: {}",
             repository,
@@ -256,10 +225,10 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         return eligible;
     }
 
-    void getAllRetainableSnapshots(
+    void getSnapshotsEligibleForDeletion(
         Collection<String> repositories,
-        Set<String> policies,
-        ActionListener<Map<String, List<SnapshotInfo>>> listener
+        Map<String, SnapshotLifecyclePolicy> policies,
+        ActionListener<Map<String, List<Tuple<SnapshotId, String>>>> listener
     ) {
         if (repositories.isEmpty()) {
             // Skip retrieving anything if there are no repositories to fetch
@@ -273,7 +242,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setIgnoreUnavailable(true)
-            .setPolicies(policies.toArray(Strings.EMPTY_ARRAY))
+            .setPolicies(policies.keySet().toArray(Strings.EMPTY_ARRAY))
             .setIncludeIndexNames(false)
             .execute(ActionListener.wrap(resp -> {
                 if (logger.isTraceEnabled()) {
@@ -300,7 +269,57 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         logger.debug(() -> "unable to retrieve snapshots for [" + repo + "] repositories: ", resp.getFailures().get(repo));
                     }
                 }
-                listener.onResponse(snapshots);
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "retrieved snapshots: [{}]",
+                        snapshots.entrySet()
+                            .stream()
+                            .map(
+                                e -> e.getKey()
+                                    + ": ["
+                                    + e.getValue().stream().map(si -> si.snapshotId().getName()).collect(Collectors.joining(","))
+                                    + "]"
+                            )
+                            .collect(Collectors.joining(","))
+                    );
+                }
+
+                // Repository name -> Retention policy ID -> (SnapshotId, SnapshotDetails)
+                final Map<String, Map<String, Map<SnapshotId, RepositoryData.SnapshotDetails>>> allSnapshotDetails = new HashMap<>();
+                // TODO should we make this properly immutable or is its scope small enough that we don't need it?
+                for (Map.Entry<String, List<SnapshotInfo>> repositorySnapshots : snapshots.entrySet()) {
+                    final var repositoryName = repositorySnapshots.getKey();
+                    final var repositorySnapshotDetails = allSnapshotDetails.computeIfAbsent(repositoryName, ignored -> new HashMap<>());
+                    for (SnapshotInfo snapshotInfo : repositorySnapshots.getValue()) {
+                        final var snapshotId = snapshotInfo.snapshotId();
+                        final var snapshotDetails = RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshotInfo);
+                        final var slmPolicy = snapshotDetails.getSlmPolicy();
+                        if (Strings.hasText(slmPolicy)) {
+                            final var previousDetails = repositorySnapshotDetails.computeIfAbsent(slmPolicy, ignored -> new HashMap<>())
+                                .put(snapshotId, snapshotDetails);
+                            assert previousDetails == null : previousDetails;
+                        }
+                    }
+                }
+
+                // Find all the snapshots that are past their retention date
+                final Map<String, List<Tuple<SnapshotId, String>>> snapshotsToBeDeleted = snapshots.entrySet()
+                    .stream()
+                    .collect(
+                        Collectors.toMap(
+                            Map.Entry::getKey,
+                            e -> e.getValue()
+                                .stream()
+                                .filter(snapshot -> snapshotEligibleForDeletion(snapshot, allSnapshotDetails, policies))
+                                // SnapshotInfo instances can be quite large in case they contain e.g. a large collection of
+                                // exceptions so we extract the only two things (id + policy id) here so they can be GCed
+                                .map(snapshotInfo -> Tuple.tuple(snapshotInfo.snapshotId(), getPolicyId(snapshotInfo)))
+                                .toList()
+                        )
+                    );
+
+                listener.onResponse(snapshotsToBeDeleted);
             }, e -> {
                 logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories: ", e);
                 listener.onFailure(e);

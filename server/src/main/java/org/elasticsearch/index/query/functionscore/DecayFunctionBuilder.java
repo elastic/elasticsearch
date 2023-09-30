@@ -72,6 +72,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     /**
      * Convenience constructor that converts its parameters into json to parse on the data nodes.
      */
+    @SuppressWarnings("this-escape")
     protected DecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
         if (fieldName == null) {
             throw new IllegalArgumentException("decay function: field name must not be null");

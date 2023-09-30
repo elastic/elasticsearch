@@ -26,10 +26,10 @@
             - ^docs/.*
             - ^x-pack/docs/.*
           white-list-labels:
-            - ':Delivery/Packaging'
+            - ":Delivery/Packaging"
           black-list-labels:
-            - '>test-mute'
-            - 'buildkite-opt-in'
+            - ">test-mute"
+            - "buildkite-opt-in"
     axes:
       - axis:
           type: label-expression
@@ -43,7 +43,7 @@
           name: "BWC_VERSION"
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA8_HOME=$HOME/.java/java8
@@ -51,4 +51,4 @@
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructiveDistroUpgradeTest.v$BWC_VERSION
+          ./.ci/scripts/packaging-test.sh destructiveDistroUpgradeTest.v$BWC_VERSION

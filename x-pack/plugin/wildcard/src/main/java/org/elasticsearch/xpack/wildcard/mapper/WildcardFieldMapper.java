@@ -120,6 +120,7 @@ public class WildcardFieldMapper extends FieldMapper {
     });
 
     public static class PunctuationFoldingFilter extends TokenFilter {
+        @SuppressWarnings("this-escape")
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
 
         /**

@@ -64,63 +64,65 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
             blockBuilders[i] = BytesRefBlock.newBlockBuilder(rowsCount);
         }
 
-        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page);
-        BytesRef spare = new BytesRef();
-        for (int row = 0; row < rowsCount; row++) {
-            if (input.isNull(row)) {
-                for (int i = 0; i < fieldNames.length; i++) {
-                    blockBuilders[i].appendNull();
-                }
-                continue;
-            }
-
-            int position = input.getFirstValueIndex(row);
-            int valueCount = input.getValueCount(row);
-            if (valueCount == 1) {
-                Map<String, String> items = parser.apply(input.getBytesRef(position, spare).utf8ToString());
-                if (items == null) {
+        try (Block.Ref ref = inputEvaluator.eval(page)) {
+            BytesRefBlock input = (BytesRefBlock) ref.block();
+            BytesRef spare = new BytesRef();
+            for (int row = 0; row < rowsCount; row++) {
+                if (input.isNull(row)) {
                     for (int i = 0; i < fieldNames.length; i++) {
                         blockBuilders[i].appendNull();
                     }
                     continue;
                 }
-                for (int i = 0; i < fieldNames.length; i++) {
-                    String val = items.get(fieldNames[i]);
-                    BlockUtils.appendValue(blockBuilders[i], val, ElementType.BYTES_REF);
-                }
-            } else {
-                // multi-valued input
-                String[] firstValues = new String[fieldNames.length];
-                boolean[] positionEntryOpen = new boolean[fieldNames.length];
-                for (int c = 0; c < valueCount; c++) {
-                    Map<String, String> items = parser.apply(input.getBytesRef(position + c, spare).utf8ToString());
+
+                int position = input.getFirstValueIndex(row);
+                int valueCount = input.getValueCount(row);
+                if (valueCount == 1) {
+                    Map<String, String> items = parser.apply(input.getBytesRef(position, spare).utf8ToString());
                     if (items == null) {
+                        for (int i = 0; i < fieldNames.length; i++) {
+                            blockBuilders[i].appendNull();
+                        }
                         continue;
                     }
                     for (int i = 0; i < fieldNames.length; i++) {
                         String val = items.get(fieldNames[i]);
-                        if (val == null) {
+                        BlockUtils.appendValue(blockBuilders[i], val, ElementType.BYTES_REF);
+                    }
+                } else {
+                    // multi-valued input
+                    String[] firstValues = new String[fieldNames.length];
+                    boolean[] positionEntryOpen = new boolean[fieldNames.length];
+                    for (int c = 0; c < valueCount; c++) {
+                        Map<String, String> items = parser.apply(input.getBytesRef(position + c, spare).utf8ToString());
+                        if (items == null) {
                             continue;
                         }
-                        if (firstValues[i] == null) {
-                            firstValues[i] = val;
-                        } else {
-                            if (positionEntryOpen[i] == false) {
-                                positionEntryOpen[i] = true;
-                                blockBuilders[i].beginPositionEntry();
-                                BlockUtils.appendValue(blockBuilders[i], firstValues[i], ElementType.BYTES_REF);
+                        for (int i = 0; i < fieldNames.length; i++) {
+                            String val = items.get(fieldNames[i]);
+                            if (val == null) {
+                                continue;
                             }
-                            BlockUtils.appendValue(blockBuilders[i], val, ElementType.BYTES_REF);
+                            if (firstValues[i] == null) {
+                                firstValues[i] = val;
+                            } else {
+                                if (positionEntryOpen[i] == false) {
+                                    positionEntryOpen[i] = true;
+                                    blockBuilders[i].beginPositionEntry();
+                                    BlockUtils.appendValue(blockBuilders[i], firstValues[i], ElementType.BYTES_REF);
+                                }
+                                BlockUtils.appendValue(blockBuilders[i], val, ElementType.BYTES_REF);
+                            }
                         }
                     }
-                }
-                for (int i = 0; i < fieldNames.length; i++) {
-                    if (positionEntryOpen[i]) {
-                        blockBuilders[i].endPositionEntry();
-                    } else if (firstValues[i] == null) {
-                        blockBuilders[i].appendNull();
-                    } else {
-                        BlockUtils.appendValue(blockBuilders[i], firstValues[i], ElementType.BYTES_REF);
+                    for (int i = 0; i < fieldNames.length; i++) {
+                        if (positionEntryOpen[i]) {
+                            blockBuilders[i].endPositionEntry();
+                        } else if (firstValues[i] == null) {
+                            blockBuilders[i].appendNull();
+                        } else {
+                            BlockUtils.appendValue(blockBuilders[i], firstValues[i], ElementType.BYTES_REF);
+                        }
                     }
                 }
             }

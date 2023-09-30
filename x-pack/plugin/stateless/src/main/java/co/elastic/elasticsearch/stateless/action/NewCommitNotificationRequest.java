@@ -59,6 +59,6 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
 
     @Override
     public String toString() {
-        return "NotifyRequest{" + compoundCommit + '}';
+        return "NewCommitNotificationRequest" + compoundCommit;
     }
 }

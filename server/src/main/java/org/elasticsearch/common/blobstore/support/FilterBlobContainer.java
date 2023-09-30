@@ -80,6 +80,11 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        delegate.writeBlob(blobName, bytes, failIfAlreadyExists);
+    }
+
+    @Override
     public DeleteResult delete() throws IOException {
         return delegate.delete();
     }

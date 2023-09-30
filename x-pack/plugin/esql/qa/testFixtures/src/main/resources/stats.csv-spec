@@ -503,28 +503,37 @@ c:l
 ;
 
 countAllGrouped
-from employees | stats c = count(*) by gender | sort gender;
+from employees | stats c = count(*) by languages | rename languages as l | sort l DESC ; 
 
-c:l | gender:s
-33  | F 
-57  | M
-#10  | null
+c:l | l:i
+10  |null
+21  |5 
+18  |4
+17  |3
+19  |2
+15  |1
 ;
 
 countAllAndOtherStatGrouped
-from employees | stats c = count(*), min = min(emp_no) by gender | sort gender;
+from employees | stats c = count(*), min = min(emp_no) by languages | sort languages;
 
-c:l | min:i    | gender:s
-33  | 10002    | F 
-57  | 10001    | M
-#10  | 10010    | null
+c:l | min:i    | languages:i
+15  | 10005    | 1 
+19  | 10001    | 2
+17  | 10006    | 3
+18  | 10003    | 4
+21  | 10002    | 5
+10  | 10020    | null
 ;
 
 countAllWithEval
-from employees | stats min = min(salary) by gender | eval x = min + 1 | stats c = count(*) by gender | sort gender;
+from employees | rename languages as l | stats min = min(salary) by l | eval x = min + 1 | stats ca = count(*), cx = count(x) by l | sort l; 
 
-c:l | gender:s
-1   | F 
-1   | M
-#1   | null
+ca:l | cx:l | l:i
+1    | 1    | 1 
+1    | 1    | 2
+1    | 1    | 3
+1    | 1    | 4
+1    | 1    | 5
+1    | 1    | null
 ;

@@ -115,13 +115,15 @@ public record StatelessCompoundCommit(
             + translogRecoveryStartFile
             + ", nodeEphemeralId='"
             + nodeEphemeralId
-            + "', commitFiles="
-            + commitFiles
             + '}';
     }
 
     public String toShortDescription() {
         return '[' + blobNameFromGeneration(generation()) + "][" + primaryTerm() + "][" + generation() + ']';
+    }
+
+    public String toLongDescription() {
+        return shardId + toShortDescription() + '[' + translogRecoveryStartFile + "][" + nodeEphemeralId + "][" + commitFiles + ']';
     }
 
     @Override

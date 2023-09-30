@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -83,19 +84,21 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testConstantDelimiter() {
-        EvalOperator.ExpressionEvaluator eval = evaluator(
-            new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
-        ).get(driverContext());
-        /*
-         * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
-         * string because we aren't really sure it's printable. It could be a tab or a bell or some
-         * garbage.
-         */
-        assert ':' == 58;
-        assertThat(eval.toString(), equalTo("SplitSingleByteEvaluator[str=Attribute[channel=0], delim=58]"));
-        assertThat(
-            toJavaObject(eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1))), 0),
-            equalTo(List.of(new BytesRef("foo"), new BytesRef("bar")))
-        );
+        try (
+            EvalOperator.ExpressionEvaluator eval = evaluator(
+                new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
+            ).get(driverContext())
+        ) {
+            /*
+             * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
+             * string because we aren't really sure it's printable. It could be a tab or a bell or some
+             * garbage.
+             */
+            assert ':' == 58;
+            assertThat(eval.toString(), equalTo("SplitSingleByteEvaluator[str=Attribute[channel=0], delim=58]"));
+            try (Block.Ref ref = eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1)))) {
+                assertThat(toJavaObject(ref.block(), 0), equalTo(List.of(new BytesRef("foo"), new BytesRef("bar"))));
+            }
+        }
     }
 }

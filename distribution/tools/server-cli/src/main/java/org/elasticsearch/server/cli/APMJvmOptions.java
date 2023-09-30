@@ -53,7 +53,8 @@ class APMJvmOptions {
         "log_file", "_AGENT_HOME_/../../logs/apm.log",
 
         // ES does not use auto-instrumentation.
-        "instrument", "false"
+        "instrument", "false",
+        "enable_experimental_instrumentations", "true"
         );
 
     /**

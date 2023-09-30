@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.esql.qa.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.http.HttpEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -17,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -25,6 +28,8 @@ import java.net.URL;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -122,5 +127,25 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     @Override
     protected boolean preserveClusterUponCompletion() {
         return true;
+    }
+
+    @Before
+    @After
+    public void assertRequestBreakerEmptyAfterTests() throws Exception {
+        assertRequestBreakerEmpty();
+    }
+
+    public static void assertRequestBreakerEmpty() throws Exception {
+        assertBusy(() -> {
+            HttpEntity entity = adminClient().performRequest(new Request("GET", "/_nodes/stats")).getEntity();
+            Map<?, ?> stats = XContentHelper.convertToMap(XContentType.JSON.xContent(), entity.getContent(), false);
+            Map<?, ?> nodes = (Map<?, ?>) stats.get("nodes");
+            for (Object n : nodes.values()) {
+                Map<?, ?> node = (Map<?, ?>) n;
+                Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
+                Map<?, ?> request = (Map<?, ?>) breakers.get("request");
+                assertMap(request, matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b"));
+            }
+        });
     }
 }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.packageloader;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -44,10 +44,11 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
     // re-using thread pool setup by the ml plugin
     public static final String UTILITY_THREAD_POOL_NAME = "ml_utility";
 
+    // This link will be invalid for serverless, but serverless will never be
+    // air-gapped, so this message should never be needed.
     private static final String MODEL_REPOSITORY_DOCUMENTATION_LINK = format(
-        "https://www.elastic.co/guide/en/machine-learning/%d.%d/ml-nlp-elser.html#air-gapped-install",
-        Version.CURRENT.major,
-        Version.CURRENT.minor
+        "https://www.elastic.co/guide/en/machine-learning/%s/ml-nlp-elser.html#air-gapped-install",
+        Build.current().version().replaceFirst("^(\\d+\\.\\d+).*", "$1")
     );
 
     public MachineLearningPackageLoader() {}

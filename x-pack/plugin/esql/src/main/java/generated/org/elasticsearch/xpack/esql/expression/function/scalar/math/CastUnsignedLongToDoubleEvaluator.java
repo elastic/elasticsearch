@@ -32,17 +32,18 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   }
 
   @Override
-  public Block eval(Page page) {
-    Block vUncastBlock = v.eval(page);
-    if (vUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref vRef = v.eval(page)) {
+      if (vRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      LongBlock vBlock = (LongBlock) vRef.block();
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
     }
-    LongBlock vBlock = (LongBlock) vUncastBlock;
-    LongVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      return eval(page.getPositionCount(), vBlock);
-    }
-    return eval(page.getPositionCount(), vVector).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, LongBlock vBlock) {

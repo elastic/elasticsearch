@@ -238,6 +238,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDereference(EsqlBaseParser.DereferenceContext ctx);
   /**
+   * Enter a parse tree produced by the {@code function}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterFunction(EsqlBaseParser.FunctionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code function}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitFunction(EsqlBaseParser.FunctionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code parenthesizedExpression}
    * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -250,14 +262,12 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx);
   /**
-   * Enter a parse tree produced by the {@code functionExpression}
-   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#functionExpression}.
    * @param ctx the parse tree
    */
   void enterFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);
   /**
-   * Exit a parse tree produced by the {@code functionExpression}
-   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#functionExpression}.
    * @param ctx the parse tree
    */
   void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);

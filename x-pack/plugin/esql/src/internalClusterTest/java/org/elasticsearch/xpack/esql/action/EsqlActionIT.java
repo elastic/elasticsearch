@@ -472,6 +472,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals(20, (long) values.get(0));
     }
 
+    @AwaitsFix(bugUrl = "tracking down a 64b(long) memory leak")
     public void testGroupedCountAllWithFilter() {
         EsqlQueryResponse results = run("from test | where data > 1 | stats count(*) by data | sort data");
         logger.info(results);

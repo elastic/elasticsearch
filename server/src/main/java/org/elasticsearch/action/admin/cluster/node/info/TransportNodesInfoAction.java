@@ -110,7 +110,9 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
+            final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+            nodesInfoRequest.clear().addMetrics(request.requestedMetrics());
+            nodesInfoRequest.writeTo(out);
         }
     }
 }

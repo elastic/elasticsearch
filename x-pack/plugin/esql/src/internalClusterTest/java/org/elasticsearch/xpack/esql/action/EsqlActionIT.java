@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
@@ -34,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -265,7 +265,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             EsqlQueryResponse results = run("from test | stats avg = avg(" + field + ") by color");
             logger.info(results);
             Assert.assertEquals(2, results.columns().size());
-            Assert.assertEquals(4, getValuesList(results).size());
+            Assert.assertEquals(5, getValuesList(results).size());
 
             // assert column metadata
             assertEquals("avg", results.columns().get(0).name());
@@ -276,6 +276,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             }
             List<Group> expectedGroups = List.of(
+                new Group(null, 120.0),
                 new Group("blue", 42.0),
                 new Group("green", 44.0),
                 new Group("red", 43.0),
@@ -283,17 +284,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             );
             List<Group> actualGroups = getValuesList(results).stream()
                 .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
-                .sorted(comparing(c -> c.color))
+                .sorted(Comparator.comparing(c -> c.color, Comparator.nullsFirst(String::compareTo)))
                 .toList();
             assertThat(actualGroups, equalTo(expectedGroups));
-        }
-        for (int i = 0; i < 5; i++) {
-            client().prepareBulk()
-                .add(new DeleteRequest("test").id("no_color_" + i))
-                .add(new DeleteRequest("test").id("no_count_red_" + i))
-                .add(new DeleteRequest("test").id("no_count_yellow_" + i))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
         }
     }
 
@@ -562,11 +555,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data", "long"))));
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data_d", "double"))));
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("time", "long"))));
-
-        // restore index to original pre-test state
-        client().prepareBulk().add(new DeleteRequest("test").id("no_count")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        results = run("from test");
-        Assert.assertEquals(40, getValuesList(results).size());
     }
 
     public void testMultiConditionalWhere() {
@@ -963,9 +951,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTopNPushedToLucene() {
-        BulkRequestBuilder bulkDelete = client().prepareBulk();
-        bulkDelete.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
         for (int i = 5; i < 11; i++) {
             var yellowDocId = "yellow_" + i;
             var yellowNullCountDocId = "yellow_null_count_" + i;
@@ -979,11 +964,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             if (randomBoolean()) {
                 client().admin().indices().prepareRefresh("test").get();
             }
-
-            // build the cleanup request now, as well, not to miss anything ;-)
-            bulkDelete.add(new DeleteRequest("test").id(yellowDocId))
-                .add(new DeleteRequest("test").id(yellowNullCountDocId))
-                .add(new DeleteRequest("test").id(yellowNullDataDocId));
         }
         client().admin().indices().prepareRefresh("test").get();
 

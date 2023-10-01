@@ -146,7 +146,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      * LimitExec[500[INTEGER]]
      * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#24, seen{r}#25],true]
-     *     \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null]]], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"lt":10050,"boost":1.0}}}}}][count{r}#40, seen{r}#41], limit[],
+     *     \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null]]], query[{"esql_single_value":{"field":"emp_no","next":
+     *       {"range":{"emp_no":{"lt":10050,"boost":1.0}}}}}][count{r}#40, seen{r}#41], limit[],
      */
     public void testCountAllWithEval() {
         var plan = plan("""
@@ -164,7 +165,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      * \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#14, seen{r}#15],true]
      *     \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null]]],
-     *     query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10040,"boost":1.0}}}}}][count{r}#30, seen{r}#31], limit[],
+     *     query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10040,"boost":1.0}}}}}][count{r}#30, seen{r}#31],
+     *       limit[],
      */
     public void testCountAllWithFilter() {
         var plan = plan("from test | where emp_no > 10040 | stats c = count(*)");
@@ -183,7 +185,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *     "field" : "emp_no",
      *     "boost" : 1.0
      *   }
-     * }]]], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10040,"boost":1.0}}}}}][count{r}#31, seen{r}#32], limit[],
+     * }]]], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10040,"boost":1.0}}}}}][count{r}#31, seen{r}#32],
+     *   limit[],
      */
     public void testCountFieldWithFilter() {
         var plan = plan("from test | where emp_no > 10040 | stats c = count(emp_no)");
@@ -200,7 +203,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *     \_AggregateExec[[],[COUNT(hidden_s{r}#8) AS c],PARTIAL,8]
      *       \_EvalExec[[salary{f}#20 AS s, s{r}#3 AS hidden_s]]
      *         \_FieldExtractExec[salary{f}#20]
-     *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"lt":10050,"boost":1.0}}}}}][_doc{f}#42], limit[], sort[] estimatedRowSize[16]
+     *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"lt":10050,"boost":1.0}}}}}]
+     *             [_doc{f}#42], limit[], sort[] estimatedRowSize[16]
      */
     public void testCountFieldWithEval() {
         var plan = plan("""

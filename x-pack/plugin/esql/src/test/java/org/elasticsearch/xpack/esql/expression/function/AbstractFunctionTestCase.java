@@ -637,8 +637,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected DriverContext driverContext() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays.withCircuitBreaking(), BlockFactory.getGlobalInstance());
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        breakers.add(breaker);
+        return new DriverContext(bigArrays.withCircuitBreaking(), new BlockFactory(breaker, bigArrays));
     }
 
     @After

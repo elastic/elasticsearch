@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -103,7 +104,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -244,6 +245,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
 
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SUM(salary{f}#882) AS x],FINAL,null]
+     *   \_ExchangeExec[[sum{r}#887, seen{r}#888],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[SUM(salary{f}#882) AS x]]
+     * \_Filter[ROUND(emp_no{f}#877) > 10[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#883, emp_no{f}#877, first_name{f}#87..]]]
+     */
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
         var plan = physicalPlan("""
             from test
@@ -261,9 +272,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         aggregate = as(exchange.child(), AggregateExec.class);
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
 
-        var eval = as(aggregate.child(), EvalExec.class);
-
-        var extract = as(eval.child(), FieldExtractExec.class);
+        var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("salary"));
 
         var filter = as(extract.child(), FilterExec.class);
@@ -271,7 +280,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
-        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 4 /* for doc id, emp_no, salary, and c */));
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no and salary*/));
     }
 
     public void testTripleExtractorPerField() {
@@ -903,16 +912,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     *
-     * ProjectExec[[emp_no{f}#7, x{r}#4]]
-     * \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER]]
-     *   \_ExchangeExec[]
-     *     \_ProjectExec[[emp_no{f}#7, x{r}#4]]
-     *       \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER]]
-     *         \_FieldExtractExec[emp_no{f}#7]
-     *           \_EvalExec[[first_name{f}#8 AS x]]
-     *             \_FieldExtractExec[first_name{f}#8]
-     *               \_EsQueryExec[test], query[][_doc{f}#14], limit[]
+     * ProjectExec[[emp_no{f}#7, first_name{f}#8 AS x]]
+     * \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[],false]
+     *     \_ProjectExec[[emp_no{f}#7, first_name{f}#8]]
+     *       \_FieldExtractExec[emp_no{f}#7, first_name{f}#8]
+     *         \_EsQueryExec[test], query[][_doc{f}#28], limit[5], sort[[FieldSort[field=emp_no{f}#7, direction=ASC, nulls=LAST]]]...
      */
     public void testLocalProjectIncludeLocalAlias() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
@@ -923,16 +928,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | limit 5
             """));
 
+        System.out.println(optimized);
+
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("emp_no", "x"));
-        topN = as(project.child(), TopNExec.class);
-        var extract = as(topN.child(), FieldExtractExec.class);
-        var eval = as(extract.child(), EvalExec.class);
-        extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(names(project.projections()), contains("emp_no", "first_name"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
     }
 
     /**

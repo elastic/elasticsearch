@@ -119,7 +119,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "test",
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
-            BlockFactory.getGlobalInstance(),
+            BlockFactory.getNonBreakingInstance(),
             config(),
             null,
             null,

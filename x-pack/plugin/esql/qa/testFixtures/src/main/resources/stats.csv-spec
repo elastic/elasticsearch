@@ -578,3 +578,68 @@ F
 M
 null
 ;
+
+countFieldNoGrouping
+from employees | where emp_no < 10050 | stats c = count(salary);
+
+c:l
+49
+;
+
+countFieldWithRenamingNoGrouping
+from employees | rename emp_no as e, salary as s | where e < 10050 | stats c = count(s);
+
+c:l
+49
+;
+
+
+countFieldWithAliasNoGrouping
+from employees | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050 | stats c = count(hidden_s);
+
+c:l
+49
+;
+
+countFieldWithGrouping
+from employees | rename languages as l | where emp_no < 10050 | stats c = count(emp_no) by l | sort l;
+
+c:l | l:i 
+9  | 1   
+7  | 2   
+6  | 3   
+9  | 4   
+8  | 5   
+10 | null
+;
+
+countFieldWithAliasWithGrouping
+from employees | rename languages as l | eval e = emp_no | where emp_no < 10050 | stats c = count(e) by l | sort l;
+
+c:l | l:i 
+9  | 1   
+7  | 2   
+6  | 3   
+9  | 4   
+8  | 5   
+10 | null
+;         
+
+countEvalExpNoGrouping
+from employees | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e);
+
+c:l 
+49  
+;         
+
+countEvalExpWithGrouping
+from employees | rename languages as l | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e) by l | sort l;
+
+c:l | l:i 
+9   | 1   
+7   | 2   
+6   | 3   
+9   | 4   
+8   | 5   
+10  | null
+;         

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
@@ -346,7 +347,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         private Tuple<List<Attribute>, List<Stat>> pushableStats(AggregateExec aggregate) {
             AttributeMap<Stat> stats = new AttributeMap<>();
-            Tuple<List<Attribute>, List<Stat>> tuple = new Tuple<>(new ArrayList<Attribute>(), new ArrayList<Stat>());
+            Tuple<List<Attribute>, List<Stat>> tuple = new Tuple<>(new ArrayList<>(), new ArrayList<>());
 
             if (aggregate.groupings().isEmpty()) {
                 for (NamedExpression agg : aggregate.aggregates()) {
@@ -356,9 +357,21 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                             Expression child = as.child();
                             if (child instanceof Count count) {
                                 var target = count.field();
+                                String fieldName = null;
+                                QueryBuilder query = null;
                                 // TODO: add count over field (has to be field attribute)
                                 if (target.foldable()) {
-                                    return new Stat(StringUtils.WILDCARD, COUNT);
+                                    fieldName = StringUtils.WILDCARD;
+                                }
+                                // check if regular field
+                                else {
+                                    if (target instanceof FieldAttribute fa) {
+                                        fieldName = fa.name();
+                                        query = QueryBuilders.existsQuery(fieldName);
+                                    }
+                                }
+                                if (fieldName != null) {
+                                    return new Stat(fieldName, COUNT, query);
                                 }
                             }
                         }

@@ -327,12 +327,7 @@ public class OutboundHandlerTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                EXPECTED_LOGGER_NAME,
-                Level.WARN,
-                "sending transport message "
-            )
+            new MockLogAppender.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
         );
         final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
         Loggers.addAppender(outboundHandlerLogger, mockAppender);

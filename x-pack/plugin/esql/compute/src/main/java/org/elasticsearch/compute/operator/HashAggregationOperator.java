@@ -157,8 +157,7 @@ public class HashAggregationOperator implements Operator {
             success = true;
         } finally {
             // selected should always be closed
-            // TODO: is selected exposed through intermediate aggs?
-            Releasables.closeExpectNoException(selected);
+            Releasables.closeExpectNoException(selected.asBlock()); // we always close blocks, not vectors
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);
             }

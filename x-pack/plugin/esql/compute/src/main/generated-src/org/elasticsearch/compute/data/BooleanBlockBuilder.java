@@ -183,15 +183,15 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
         finish();
         BooleanBlock block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = new ConstantBooleanVector(values[0], 1, blockFactory).asBlock();
+            block = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
             if (isDense() && singleValued()) {
-                block = new BooleanArrayVector(values, positionCount, blockFactory).asBlock();
+                block = blockFactory.newBooleanArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                block = new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                block = blockFactory.newBooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, estimatedBytes);
             }
         }
         /*
@@ -202,7 +202,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
          * still technically be open, meaning the calling code should close it
          * which will return all used memory to the breaker.
          */
-        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
+        // blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
         built();
         return block;
     }

@@ -52,12 +52,12 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
         finish();
         BooleanVector vector;
         if (valueCount == 1) {
-            vector = new ConstantBooleanVector(values[0], 1, blockFactory);
+            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
-            vector = new BooleanArrayVector(values, valueCount, blockFactory);
+            vector = blockFactory.newBooleanArrayVector(values, valueCount, estimatedBytes);
         }
         /*
          * Update the breaker with the actual bytes used.
@@ -67,7 +67,7 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
          * still technically be open, meaning the calling code should close it
          * which will return all used memory to the breaker.
          */
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, false);
+        // blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, false);
         built();
         return vector;
     }

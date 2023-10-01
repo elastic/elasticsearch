@@ -52,12 +52,12 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
         finish();
         DoubleVector vector;
         if (valueCount == 1) {
-            vector = new ConstantDoubleVector(values[0], 1, blockFactory);
+            vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
-            vector = new DoubleArrayVector(values, valueCount, blockFactory);
+            vector = blockFactory.newDoubleArrayVector(values, valueCount, estimatedBytes);
         }
         /*
          * Update the breaker with the actual bytes used.
@@ -67,7 +67,7 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
          * still technically be open, meaning the calling code should close it
          * which will return all used memory to the breaker.
          */
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, false);
+        // blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, false);
         built();
         return vector;
     }

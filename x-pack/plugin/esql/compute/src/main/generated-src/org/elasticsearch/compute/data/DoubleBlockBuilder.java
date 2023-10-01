@@ -183,15 +183,15 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
         finish();
         DoubleBlock block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = new ConstantDoubleVector(values[0], 1, blockFactory).asBlock();
+            block = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
             if (isDense() && singleValued()) {
-                block = new DoubleArrayVector(values, positionCount, blockFactory).asBlock();
+                block = blockFactory.newDoubleArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                block = new DoubleArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                block = blockFactory.newDoubleArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, estimatedBytes);
             }
         }
         /*
@@ -202,7 +202,7 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
          * still technically be open, meaning the calling code should close it
          * which will return all used memory to the breaker.
          */
-        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
+        // blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
         built();
         return block;
     }

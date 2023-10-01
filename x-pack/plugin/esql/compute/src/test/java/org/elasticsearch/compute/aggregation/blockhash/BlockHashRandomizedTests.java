@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
@@ -169,6 +170,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 }
                 assertMap(keyList, keyMatcher);
             }
+            Releasables.closeExpectNoException(keyBlocks);
         }
     }
 

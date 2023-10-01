@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArray;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -96,16 +94,17 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory); // TODO: can replace with driverContext
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
             Operator operator;
             try {
-                operator = simple(bigArrays).get(new DriverContext(bigArrays, blockFactory));
+                operator = simple(bigArrays).get(driverContext);
             } catch (CircuitBreakingException cbe) {
                 // if we failed to even create the operator, then release the input pages
                 releasePageBlocksWhileHandlingException(input);
                 throw cbe;
             }
-            drive(operator, input.iterator());
+            drive(operator, input.iterator(), driverContext);
         });
         assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
@@ -129,17 +128,17 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky).withCircuitBreaking();
         BlockFactory blockFactory = BlockFactory.getInstance(cranky.getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory); // TODO replace with driverContext()
         try {
             Operator operator;
             try {
-                operator = simple(bigArrays).get(new DriverContext(bigArrays, blockFactory));
+                operator = simple(bigArrays).get(driverContext);
             } catch (CircuitBreakingException cbe) {
                 // if we failed to even create the operator, then release the input pages
                 releasePageBlocksWhileHandlingException(input);
                 throw cbe;
             }
-            List<Page> result = drive(operator, input.iterator());
-            Releasables.close(() -> Iterators.map(result.iterator(), p -> p::releaseBlocks));
+            List<Page> result = drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
@@ -189,9 +188,9 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         Operator operator = null;
         try {
             operator = simple(bigArrays).get(context);
-            List<Page> results = drive(operator, input.iterator());
+            List<Page> results = drive(operator, input.iterator(), context);
             assertSimpleOutput(origInput, results);
-            results.forEach(Page::releaseBlocks);
+            // results.forEach(Page::releaseBlocks); // TODO: remove
             assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         } catch (CircuitBreakingException cbe) {
             if (operator == null) {
@@ -202,18 +201,18 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
     }
 
-    protected final List<Page> drive(Operator operator, Iterator<Page> input) {
-        return drive(List.of(operator), input);
+    protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {
+        return drive(List.of(operator), input, driverContext);
     }
 
-    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input) {
+    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input, DriverContext driverContext) {
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
                 driverContext(),
                 new CannedSourceOperator(input),
                 operators,
-                new PageConsumerOperator(results::add),
+                new ResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {

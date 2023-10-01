@@ -569,3 +569,12 @@ ca:l | cx:l | l:i
 1    | 1    | 5
 1    | 1    | null
 ;
+
+aggsWithoutStats
+from employees | stats by gender | sort gender;
+
+gender:keyword
+F
+M
+null
+;

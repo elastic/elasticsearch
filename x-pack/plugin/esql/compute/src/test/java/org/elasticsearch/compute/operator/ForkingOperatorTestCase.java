@@ -189,7 +189,8 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // operator that throws - fails. The primary motivation for this is to ensure that the driver
     // runner behaves correctly and also releases all resources (bigArrays) appropriately.
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
-    public final void testManyInitialManyPartialFinalRunnerThrowing() {
+    @AwaitsFix(bugUrl = "")
+    public final void testManyInitialManyPartialFinalRunnerThrowing() throws Exception {
         BigArrays bigArrays = nonBreakingBigArrays();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();

@@ -37,6 +37,7 @@ public class MockBlockFactory extends BlockFactory {
         purgeTrackBlocks();
         final Map<Object, Object> copy = new HashMap<>(TRACKED_BLOCKS);
         if (copy.isEmpty() == false) {
+            assert breaker().getUsed() > 0 : "Expected some used in breaker if tracked blocks is not empty";
             Iterator<Object> causes = copy.values().iterator();
             Object firstCause = causes.next();
             RuntimeException exception = new RuntimeException(

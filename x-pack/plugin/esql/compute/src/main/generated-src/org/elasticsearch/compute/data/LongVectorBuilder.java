@@ -59,15 +59,6 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
             }
             vector = blockFactory.newLongArrayVector(values, valueCount, estimatedBytes);
         }
-        /*
-         * Update the breaker with the actual bytes used.
-         * We pass false below even though we've used the bytes. That's weird,
-         * but if we break here we will throw away the used memory, letting
-         * it be deallocated. The exception will bubble up and the builder will
-         * still technically be open, meaning the calling code should close it
-         * which will return all used memory to the breaker.
-         */
-        // blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, false);
         built();
         return vector;
     }

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -100,77 +101,86 @@ public class BlockHashRandomizedTests extends ESTestCase {
     }
 
     public void test() {
-        List<ElementType> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
-        BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.size()];
-        Block[] blocks = new Block[types.size()];
-        int pageCount = between(1, 10);
-        int positionCount = 100;
-        int emitBatchSize = 100;
-        try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
-            /*
-             * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
-             */
-            Oracle oracle = new Oracle(
-                forcePackedHash
-                    || false == (types.equals(List.of(ElementType.LONG, ElementType.LONG))
-                        || types.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
-                        || types.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
-            );
+        try {
+            List<ElementType> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
+            BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.size()];
+            Block[] blocks = new Block[types.size()];
+            int pageCount = between(1, 10);
+            int positionCount = 100;
+            int emitBatchSize = 100;
+            try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
+                /*
+                 * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
+                 */
+                Oracle oracle = new Oracle(
+                    forcePackedHash
+                        || false == (types.equals(List.of(ElementType.LONG, ElementType.LONG))
+                            || types.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
+                            || types.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
+                );
 
-            for (int p = 0; p < pageCount; p++) {
-                for (int g = 0; g < blocks.length; g++) {
-                    randomBlocks[g] = BasicBlockTests.randomBlock(
-                        types.get(g),
-                        positionCount,
-                        randomBoolean(),
-                        1,
-                        maxValuesPerPosition,
-                        0,
-                        dups
-                    );
-                    blocks[g] = randomBlocks[g].block();
-                }
-                oracle.add(randomBlocks);
-                int[] batchCount = new int[1];
-                // PackedValuesBlockHash always chunks but the normal single value ones don't
-                boolean usingSingle = forcePackedHash == false && types.size() == 1;
-                BlockHashTests.hash(false, blockHash, ordsAndKeys -> {
-                    if (usingSingle == false) {
-                        assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
+                for (int p = 0; p < pageCount; p++) {
+                    for (int g = 0; g < blocks.length; g++) {
+                        randomBlocks[g] = BasicBlockTests.randomBlock(
+                            types.get(g),
+                            positionCount,
+                            randomBoolean(),
+                            1,
+                            maxValuesPerPosition,
+                            0,
+                            dups
+                        );
+                        blocks[g] = randomBlocks[g].block();
                     }
-                    batchCount[0]++;
-                }, blocks);
-                if (usingSingle) {
-                    assertThat(batchCount[0], equalTo(1));
-                }
-            }
-
-            Block[] keyBlocks = blockHash.getKeys();
-            Set<List<Object>> keys = new TreeSet<>(new KeyComparator());
-            for (int p = 0; p < keyBlocks[0].getPositionCount(); p++) {
-                List<Object> key = new ArrayList<>(keyBlocks.length);
-                for (Block keyBlock : keyBlocks) {
-                    if (keyBlock.isNull(p)) {
-                        key.add(null);
-                    } else {
-                        key.add(BasicBlockTests.valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
-                        assertThat(keyBlock.getValueCount(p), equalTo(1));
+                    oracle.add(randomBlocks);
+                    int[] batchCount = new int[1];
+                    // PackedValuesBlockHash always chunks but the normal single value ones don't
+                    boolean usingSingle = forcePackedHash == false && types.size() == 1;
+                    BlockHashTests.hash(false, blockHash, ordsAndKeys -> {
+                        if (usingSingle == false) {
+                            assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
+                        }
+                        batchCount[0]++;
+                    }, blocks);
+                    if (usingSingle) {
+                        assertThat(batchCount[0], equalTo(1));
                     }
                 }
-                boolean contained = keys.add(key);
-                assertTrue(contained);
-            }
 
-            if (false == keys.equals(oracle.keys)) {
-                List<List<Object>> keyList = new ArrayList<>();
-                keyList.addAll(keys);
-                ListMatcher keyMatcher = matchesList();
-                for (List<Object> k : oracle.keys) {
-                    keyMatcher = keyMatcher.item(k);
+                Block[] keyBlocks = blockHash.getKeys();
+                try {
+                    Set<List<Object>> keys = new TreeSet<>(new KeyComparator());
+                    for (int p = 0; p < keyBlocks[0].getPositionCount(); p++) {
+                        List<Object> key = new ArrayList<>(keyBlocks.length);
+                        for (Block keyBlock : keyBlocks) {
+                            if (keyBlock.isNull(p)) {
+                                key.add(null);
+                            } else {
+                                key.add(BasicBlockTests.valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
+                                assertThat(keyBlock.getValueCount(p), equalTo(1));
+                            }
+                        }
+                        boolean contained = keys.add(key);
+                        assertTrue(contained);
+                    }
+
+                    if (false == keys.equals(oracle.keys)) {
+                        List<List<Object>> keyList = new ArrayList<>();
+                        keyList.addAll(keys);
+                        ListMatcher keyMatcher = matchesList();
+                        for (List<Object> k : oracle.keys) {
+                            keyMatcher = keyMatcher.item(k);
+                        }
+                        assertMap(keyList, keyMatcher);
+                    }
+                } finally {
+                    Releasables.closeExpectNoException(keyBlocks);
                 }
-                assertMap(keyList, keyMatcher);
             }
-            Releasables.closeExpectNoException(keyBlocks);
+        } catch (CircuitBreakingException cbe) {
+            Exception ex = new RuntimeException("byteLimit=" + cbe.getByteLimit() + ", bytesWanted=" + cbe.getBytesWanted());
+            cbe.addSuppressed(ex);
+            throw cbe;
         }
     }
 

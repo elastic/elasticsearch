@@ -296,9 +296,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         if (securityIndex.isAvailable()) {
             loadMappings(listener);
         } else {
+            logger.info("The security index is not yet available - no role mappings can be loaded");
             if (logger.isDebugEnabled()) {
                 logger.debug(
-                    "The security index is not yet available - no role mappings can be loaded. index [{}] [exists: {}] [available: {}]",
+                    "Security Index [{}] [exists: {}] [available: {}]",
                     SECURITY_MAIN_ALIAS,
                     securityIndex.indexExists(),
                     securityIndex.isAvailable()

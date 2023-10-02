@@ -240,7 +240,7 @@ class S3BlobStore implements BlobStore {
                 throw aex.get();
             }
         } catch (Exception e) {
-            throw new IOException("Failed to delete blobs " + partition.stream().limit(delete10).toList(), e);
+            throw new IOException("Failed to delete blobs " + partition.stream().limit(10).toList(), e);
         }
     }
 

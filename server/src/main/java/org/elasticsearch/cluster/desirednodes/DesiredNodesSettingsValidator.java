@@ -22,11 +22,18 @@ import static java.lang.String.format;
 public class DesiredNodesSettingsValidator {
     private record DesiredNodeValidationError(int position, @Nullable String externalId, RuntimeException exception) {}
 
+    @Deprecated(forRemoval = true)
+    private static boolean isCurrentIgnoringQualifiers(String expected, String actual) {
+        // The expected version string may contain -SNAPSHOT; the actual may not
+        // If the actual contains it, the expected must match entirely; this means actual must be a prefix for expected
+        return expected.startsWith(actual);
+    }
+
     public void validate(List<DesiredNode> nodes) {
         final List<DesiredNodeValidationError> validationErrors = new ArrayList<>();
         for (int i = 0; i < nodes.size(); i++) {
             final DesiredNode node = nodes.get(i);
-            if (node.version().equals(Build.current().version()) == false) {
+            if (isCurrentIgnoringQualifiers(Build.current().version(), node.version()) == false) {
                 validationErrors.add(
                     new DesiredNodeValidationError(
                         i,

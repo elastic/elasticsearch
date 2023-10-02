@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
@@ -299,6 +300,25 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(getFromTranslogActionsSent.get(), equalTo(2));
         assertThat(shardRefreshActionsSent.get(), equalTo(1));
         assertThat(getResponse.getSource().get("field"), equalTo("value2"));
+    }
+
+    public void testRealTimeGetSerialStressTest() {
+        startIndexNode();
+        startSearchNode();
+        var indexName = "test-index";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        var docs = randomIntBetween(100, 200);
+        for (int write = 0; write < docs; write++) {
+            var indexResponse = client().prepareIndex(indexName).setSource("date", randomPositiveTimeValue(), "value", randomInt()).get();
+            var id = indexResponse.getId();
+            assertNotEquals(id, "");
+            var gets = randomIntBetween(10, 20);
+            for (int read = 0; read < gets; read++) {
+                var getResponse = client().prepareGet(indexName, id).setRealtime(true).get();
+                assertTrue(Strings.format("(write %d): failed to get '%s' at read %s", write, id, read), getResponse.isExists());
+            }
+        }
     }
 
     public void testGenerationalDocValues() throws Exception {

@@ -818,7 +818,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // reset the reroute flag, at the start of a new pipeline execution this document hasn't been rerouted yet
         ingestDocument.resetReroute();
-        recordPipelineExecution(indexRequest, pipelineId);
+        indexRequest.addPipeline(pipelineId);
 
         try {
             if (pipeline == null) {
@@ -939,12 +939,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 e
             );
             listener.onFailure(e); // document failed!
-        }
-    }
-
-    void recordPipelineExecution(IndexRequest indexRequest, String pipelineId) {
-        if (indexRequest.getListExecutedPipelines()) {
-            indexRequest.addPipeline(pipelineId);
         }
     }
 

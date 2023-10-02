@@ -28,7 +28,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -132,9 +131,7 @@ public record StatelessCompoundCommit(
         // For backward compatibility, use different order than PrimaryTermAndGeneration.writeTo(StreamOutput)
         out.writeVLong(primaryTermAndGeneration.generation());
         out.writeVLong(primaryTermAndGeneration.primaryTerm());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_022)) {
-            out.writeVLong(translogRecoveryStartFile);
-        }
+        out.writeVLong(translogRecoveryStartFile);
         out.writeString(nodeEphemeralId);
         out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
@@ -143,7 +140,7 @@ public record StatelessCompoundCommit(
         return new StatelessCompoundCommit(
             new ShardId(in),
             primaryTermAndGeneration(in),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_022) ? in.readVLong() : 0,
+            in.readVLong(),
             in.readString(),
             in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport)
         );

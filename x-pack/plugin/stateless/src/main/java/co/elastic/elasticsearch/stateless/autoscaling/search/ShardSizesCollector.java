@@ -74,9 +74,6 @@ public class ShardSizesCollector implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
-    // Minimum transport version required for master to be able to handle the metric publications
-    private static final TransportVersion REQUIRED_VERSION = TransportVersions.V_8_500_027;
-
     private final ThreadPool threadPool;
     private final Executor executor;
     private final ShardSizeStatsClient shardSizeStatsClient;
@@ -245,10 +242,6 @@ public class ShardSizesCollector implements ClusterStateListener {
         if (nodeId == null) {
             return;
         }
-        if (minTransportVersion.before(REQUIRED_VERSION)) {
-            logger.warn("Cannot publish shard sizes until cluster is: [{}], found: [{}]", REQUIRED_VERSION, minTransportVersion);
-            return;
-        }
         pendingPublication.drain(); // all shards are going to be published from scratch
         pastPublications.clear();
 
@@ -300,10 +293,6 @@ public class ShardSizesCollector implements ClusterStateListener {
                 return;
             }
             if (nodeId == null) {
-                return;
-            }
-            if (minTransportVersion.before(REQUIRED_VERSION)) {
-                logger.warn("Cannot publish shard sizes until cluster is: [{}], found: [{}]", REQUIRED_VERSION, minTransportVersion);
                 return;
             }
 

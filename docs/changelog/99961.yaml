@@ -1,0 +1,6 @@
+pr: 99961
+summary: "ESQL: Prevent pushdown for filter not supported in Lucene"
+area: ES|QL
+type: bug
+issues:
+ - 99960

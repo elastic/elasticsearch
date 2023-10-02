@@ -67,12 +67,13 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private Response sortByManyLongs(int count) throws IOException {
+        logger.info("sorting by {} longs", count);
         StringBuilder query = makeManyLongs(count);
         query.append("| SORT a, b, i0");
         for (int i = 1; i < count; i++) {
             query.append(", i").append(i);
         }
-        query.append("| KEEP a, b | LIMIT 10000\"}");
+        query.append("\\n| KEEP a, b | LIMIT 10000\"}");
         Request request = new Request("POST", "/_query");
         request.setJsonEntity(query.toString());
         request.setOptions(
@@ -98,26 +99,28 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     /**
-     * This groups on 5000 columns which just {@link StackOverflowError}s.
+     * This groups on 5000 columns which used to throw a {@link StackOverflowError}.
      */
-    @AwaitsFix(bugUrl = "stack overflow!")
     public void testGroupOnManyLongs() throws IOException {
         initManyLongs();
-        ResponseException e = expectThrows(ResponseException.class, () -> groupOnManyLongs(5000));
-        Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(e.getResponse().getEntity()), false);
-        assertMap(
-            map,
-            matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "asdfadfadcircuit_breaking_exception"))
+        Map<?, ?> map = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            EntityUtils.toString(groupOnManyLongs(5000).getEntity()),
+            false
         );
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
+        ListMatcher values = matchesList().item(List.of(9));
+        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
     }
 
     private Response groupOnManyLongs(int count) throws IOException {
+        logger.info("grouping on {} longs", count);
         StringBuilder query = makeManyLongs(count);
         query.append("| STATS MIN(a) BY a, b, i0");
         for (int i = 1; i < count; i++) {
             query.append(", i").append(i);
         }
-        query.append("| STATS MAX(a)\"}");
+        query.append("\\n| STATS MAX(a)\"}");
         Request request = new Request("POST", "/_query");
         request.setJsonEntity(query.toString());
         request.setOptions(
@@ -129,14 +132,15 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private StringBuilder makeManyLongs(int count) {
         StringBuilder query = new StringBuilder();
-        query.append("{\"query\":\"FROM manylongs | EVAL i0 = a + b, i1 = b + i0");
+        query.append("{\"query\":\"FROM manylongs\\n| EVAL i0 = a + b, i1 = b + i0");
         for (int i = 2; i < count; i++) {
             query.append(", i").append(i).append(" = i").append(i - 2).append(" + ").append(i - 1);
         }
-        return query;
+        return query.append("\\n");
     }
 
     private void initManyLongs() throws IOException {
+        logger.info("loading many documents with longs");
         StringBuilder bulk = new StringBuilder();
         for (int a = 0; a < 10; a++) {
             for (int b = 0; b < 10; b++) {

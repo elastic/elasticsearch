@@ -85,10 +85,12 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
             private final Map<String, List<Tuple<SnapshotId, String>>> resultsByRepository = ConcurrentCollections.newConcurrentMap();
 
             Response getResponse() {
+                // copyOf just so we aren't returning the CHM
                 return new Response(Map.copyOf(resultsByRepository));
             }
 
             void addResult(String repository, List<Tuple<SnapshotId, String>> snapshotsToDelete) {
+                // snapshotsToDelete is immutable because it comes from a Stream#toList() so no further copying needed
                 if (snapshotsToDelete.isEmpty()) {
                     assert resultsByRepository.containsKey(repository) == false;
                 } else {

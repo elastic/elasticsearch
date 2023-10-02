@@ -149,6 +149,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *     \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null]]], query[{"esql_single_value":{"field":"emp_no","next":
      *       {"range":{"emp_no":{"lt":10050,"boost":1.0}}}}}][count{r}#40, seen{r}#41], limit[],
      */
+    //TODO: this is suboptimal due to eval not being removed/folded
     public void testCountAllWithEval() {
         var plan = plan("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050

@@ -225,7 +225,7 @@ public class CsvTests extends ESTestCase {
     }
 
     public boolean logResults() {
-        return false;
+        return true;
     }
 
     private void doTest() throws Exception {

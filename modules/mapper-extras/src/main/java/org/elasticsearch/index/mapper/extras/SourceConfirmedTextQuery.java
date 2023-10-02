@@ -25,6 +25,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafSimScorer;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -293,6 +294,14 @@ public final class SourceConfirmedTextQuery extends Query {
                 return new RuntimePhraseScorer(this, approximation, leafSimScorer, valueFetcher, field, in);
             }
 
+            @Override
+            public Matches matches(LeafReaderContext context, int doc) throws IOException {
+                RuntimePhraseScorer scorer = scorer(context);
+                if (scorer == null || scorer.iterator().advance(doc) != doc) {
+                    return null;
+                }
+                return scorer.matches();
+            }
         };
     }
 
@@ -384,6 +393,20 @@ public final class SourceConfirmedTextQuery extends Query {
                 index.reset();
             }
             return frequency;
+        }
+
+        private Matches matches() throws IOException {
+            MemoryIndex index = new MemoryIndex(true, false);
+            List<Object> values = valueFetcher.apply(docID());
+            for (Object value : values) {
+                if (value == null) {
+                    continue;
+                }
+                index.addField(field, value.toString(), indexAnalyzer);
+            }
+            IndexSearcher searcher = index.createSearcher();
+            Weight w = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1);
+            return w.matches(searcher.getLeafContexts().get(0), 0);
         }
     }
 

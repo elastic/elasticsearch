@@ -29,21 +29,23 @@ public class MultivalueDedupeLong {
      */
     private static final int ALWAYS_COPY_MISSING = 300;
 
+    private final Block.Ref ref;
     private final LongBlock block;
     private long[] work = new long[ArrayUtil.oversize(2, Long.BYTES)];
     private int w;
 
-    public MultivalueDedupeLong(LongBlock block) {
-        this.block = block;
+    public MultivalueDedupeLong(Block.Ref ref) {
+        this.ref = ref;
+        this.block = (LongBlock) ref.block();
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public LongBlock dedupeToBlockAdaptive() {
+    public Block.Ref dedupeToBlockAdaptive() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -80,7 +82,7 @@ public class MultivalueDedupeLong {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -89,9 +91,9 @@ public class MultivalueDedupeLong {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public LongBlock dedupeToBlockUsingCopyAndSort() {
+    public Block.Ref dedupeToBlockUsingCopyAndSort() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -106,7 +108,7 @@ public class MultivalueDedupeLong {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -117,9 +119,9 @@ public class MultivalueDedupeLong {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public LongBlock dedupeToBlockUsingCopyMissing() {
+    public Block.Ref dedupeToBlockUsingCopyMissing() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -134,7 +136,7 @@ public class MultivalueDedupeLong {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**

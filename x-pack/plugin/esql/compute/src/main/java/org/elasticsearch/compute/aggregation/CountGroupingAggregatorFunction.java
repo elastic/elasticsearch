@@ -31,6 +31,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     private final LongArrayState state;
     private final List<Integer> channels;
     private final DriverContext driverContext;
+    private final boolean countAll;
 
     public static CountGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
         return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(driverContext.bigArrays(), 0), driverContext);
@@ -44,6 +45,11 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         this.channels = channels;
         this.state = state;
         this.driverContext = driverContext;
+        this.countAll = channels.isEmpty();
+    }
+
+    private int blockIndex() {
+        return countAll ? 0 : channels.get(0);
     }
 
     @Override
@@ -53,33 +59,35 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
-        Block valuesBlock = page.getBlock(channels.get(0));
-        if (valuesBlock.areAllValuesNull()) {
-            state.enableGroupIdTracking(seenGroupIds);
-            return new AddInput() { // TODO return null meaning "don't collect me" and skip those
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {}
-
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {}
-            };
-        }
-        Vector valuesVector = valuesBlock.asVector();
-        if (valuesVector == null) {
-            if (valuesBlock.mayHaveNulls()) {
+        Block valuesBlock = page.getBlock(blockIndex());
+        if (countAll == false) {
+            if (valuesBlock.areAllValuesNull()) {
                 state.enableGroupIdTracking(seenGroupIds);
-            }
-            return new AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    addRawInput(positionOffset, groupIds, valuesBlock);
-                }
+                return new AddInput() { // TODO return null meaning "don't collect me" and skip those
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {}
 
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    addRawInput(positionOffset, groupIds, valuesBlock);
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {}
+                };
+            }
+            Vector valuesVector = valuesBlock.asVector();
+            if (valuesVector == null) {
+                if (valuesBlock.mayHaveNulls()) {
+                    state.enableGroupIdTracking(seenGroupIds);
                 }
-            };
+                return new AddInput() {
+                    @Override
+                    public void add(int positionOffset, IntBlock groupIds) {
+                        addRawInput(positionOffset, groupIds, valuesBlock);
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntVector groupIds) {
+                        addRawInput(positionOffset, groupIds, valuesBlock);
+                    }
+                };
+            }
         }
         return new AddInput() {
             @Override
@@ -123,6 +131,9 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         }
     }
 
+    /**
+     * This method is called for count all.
+     */
     private void addRawInput(IntVector groups) {
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             int groupId = Math.toIntExact(groups.getInt(groupPosition));
@@ -130,6 +141,9 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         }
     }
 
+    /**
+     * This method is called for count all.
+     */
     private void addRawInput(IntBlock groups) {
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             // TODO remove the check one we don't emit null anymore
@@ -148,7 +162,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     @Override
     public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
         assert channels.size() == intermediateBlockCount();
-        assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
         state.enableGroupIdTracking(new SeenGroupIds.Empty());
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();

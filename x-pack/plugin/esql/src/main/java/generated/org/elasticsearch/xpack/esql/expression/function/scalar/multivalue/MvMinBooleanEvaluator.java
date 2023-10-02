@@ -9,7 +9,6 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
@@ -35,93 +34,101 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvSortedAscending()) {
-      return evalAscendingNullable(fieldVal);
+  public Block.Ref evalNullable(Block.Ref ref) {
+    if (ref.block().mvSortedAscending()) {
+      return evalAscendingNullable(ref);
     }
-    BooleanBlock v = (BooleanBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (ref) {
+      BooleanBlock v = (BooleanBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        boolean value = v.getBoolean(first);
+        for (int i = first + 1; i < end; i++) {
+          boolean next = v.getBoolean(i);
+          value = MvMin.process(value, next);
+        }
+        boolean result = value;
+        builder.appendBoolean(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      boolean value = v.getBoolean(first);
-      for (int i = first + 1; i < end; i++) {
-        boolean next = v.getBoolean(i);
-        value = MvMin.process(value, next);
-      }
-      boolean result = value;
-      builder.appendBoolean(result);
+      return Block.Ref.floating(builder.build());
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvSortedAscending()) {
-      return evalAscendingNotNullable(fieldVal);
+  public Block.Ref evalNotNullable(Block.Ref ref) {
+    if (ref.block().mvSortedAscending()) {
+      return evalAscendingNotNullable(ref);
     }
-    BooleanBlock v = (BooleanBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      boolean value = v.getBoolean(first);
-      for (int i = first + 1; i < end; i++) {
-        boolean next = v.getBoolean(i);
-        value = MvMin.process(value, next);
+    try (ref) {
+      BooleanBlock v = (BooleanBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        boolean value = v.getBoolean(first);
+        for (int i = first + 1; i < end; i++) {
+          boolean next = v.getBoolean(i);
+          value = MvMin.process(value, next);
+        }
+        boolean result = value;
+        builder.appendBoolean(result);
       }
-      boolean result = value;
-      builder.appendBoolean(result);
+      return Block.Ref.floating(builder.build().asBlock());
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Block evalAscendingNullable(Block fieldVal) {
-    BooleanBlock v = (BooleanBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+  private Block.Ref evalAscendingNullable(Block.Ref ref) {
+    try (ref) {
+      BooleanBlock v = (BooleanBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMin.ascendingIndex(valueCount);
+        boolean result = v.getBoolean(first + idx);
+        builder.appendBoolean(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMin.ascendingIndex(valueCount);
-      boolean result = v.getBoolean(first + idx);
-      builder.appendBoolean(result);
+      return Block.Ref.floating(builder.build());
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Vector evalAscendingNotNullable(Block fieldVal) {
-    BooleanBlock v = (BooleanBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMin.ascendingIndex(valueCount);
-      boolean result = v.getBoolean(first + idx);
-      builder.appendBoolean(result);
+  private Block.Ref evalAscendingNotNullable(Block.Ref ref) {
+    try (ref) {
+      BooleanBlock v = (BooleanBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMin.ascendingIndex(valueCount);
+        boolean result = v.getBoolean(first + idx);
+        builder.appendBoolean(result);
+      }
+      return Block.Ref.floating(builder.build().asBlock());
     }
-    return builder.build();
   }
 }

@@ -49,6 +49,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
 
     private final LongState state;
     private final List<Integer> channels;
+    private final boolean countAll;
 
     public static CountAggregatorFunction create(List<Integer> inputChannels) {
         return new CountAggregatorFunction(inputChannels, new LongState());
@@ -57,6 +58,8 @@ public class CountAggregatorFunction implements AggregatorFunction {
     private CountAggregatorFunction(List<Integer> channels, LongState state) {
         this.channels = channels;
         this.state = state;
+        // no channels specified means count-all/count(*)
+        this.countAll = channels.isEmpty();
     }
 
     @Override
@@ -64,17 +67,23 @@ public class CountAggregatorFunction implements AggregatorFunction {
         return intermediateStateDesc().size();
     }
 
+    private int blockIndex() {
+        return countAll ? 0 : channels.get(0);
+    }
+
     @Override
     public void addRawInput(Page page) {
-        Block block = page.getBlock(channels.get(0));
+        Block block = page.getBlock(blockIndex());
         LongState state = this.state;
-        state.longValue(state.longValue() + block.getTotalValueCount());
+        int count = countAll ? block.getPositionCount() : block.getTotalValueCount();
+        state.longValue(state.longValue() + count);
     }
 
     @Override
     public void addIntermediateInput(Page page) {
         assert channels.size() == intermediateBlockCount();
-        assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+        var blockIndex = blockIndex();
+        assert page.getBlockCount() >= blockIndex + intermediateStateDesc().size();
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == 1;

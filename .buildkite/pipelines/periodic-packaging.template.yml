@@ -2,7 +2,7 @@ steps:
   - group: packaging-tests-unix
     steps:
       - label: "{{matrix.image}} / packaging-tests-unix"
-        command: ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ destructivePackagingTest
+        command: ./.ci/scripts/packaging-test.sh destructivePackagingTest
         timeout_in_minutes: 300
         matrix:
           setup:

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -117,7 +118,7 @@ public final class ChecksumBlobStoreFormat<T> {
     public T read(String repoName, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
         throws IOException {
         String blobName = blobName(name);
-        try (InputStream in = blobContainer.readBlob(blobName)) {
+        try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT, blobName)) {
             return deserialize(repoName, namedXContentRegistry, in);
         }
     }
@@ -343,7 +344,13 @@ public final class ChecksumBlobStoreFormat<T> {
     public void write(T obj, BlobContainer blobContainer, String name, boolean compress, Map<String, String> serializationParams)
         throws IOException {
         final String blobName = blobName(name);
-        blobContainer.writeMetadataBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
+        blobContainer.writeMetadataBlob(
+            OperationPurpose.SNAPSHOT,
+            blobName,
+            false,
+            false,
+            out -> serialize(obj, blobName, compress, serializationParams, out)
+        );
     }
 
     public void serialize(final T obj, final String blobName, final boolean compress, final OutputStream outputStream) throws IOException {

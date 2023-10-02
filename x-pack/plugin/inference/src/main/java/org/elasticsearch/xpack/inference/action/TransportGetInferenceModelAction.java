@@ -45,7 +45,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
         modelRegistry.getUnparsedModelMap(request.getModelId(), ActionListener.wrap(modelConfigMap -> {
-            var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config());
+            var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config(), modelConfigMap.secrets());
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
                 listener.onFailure(
@@ -58,8 +58,9 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                 );
                 return;
             }
-            var model = service.get().parseConfigLenient(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
-            listener.onResponse(new PutInferenceModelAction.Response(model));
+            var model = service.get()
+                .parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings(), unparsedModel.secrets());
+            listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
         }, listener::onFailure));
     }
 }

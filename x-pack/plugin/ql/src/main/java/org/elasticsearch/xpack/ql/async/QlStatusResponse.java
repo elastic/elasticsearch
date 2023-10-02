@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
@@ -20,12 +20,10 @@ import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
 /**
  * A response for *QL search status request
  */
-public class QlStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
+public class QlStatusResponse extends ActionResponse implements SearchStatusResponse, ToXContentObject {
     private final String id;
     private final boolean isRunning;
     private final boolean isPartial;
@@ -113,11 +111,6 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
         if (isRunning == false) {
             RestStatus.writeTo(out, completionStatus);
         }
-    }
-
-    @Override
-    public RestStatus status() {
-        return OK;
     }
 
     @Override

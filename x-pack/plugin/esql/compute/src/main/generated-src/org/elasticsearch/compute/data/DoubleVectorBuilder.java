@@ -49,17 +49,17 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
 
     @Override
     public DoubleVector build() {
+        finish();
         DoubleVector vector;
         if (valueCount == 1) {
-            vector = new ConstantDoubleVector(values[0], 1, blockFactory);
+            vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
-            vector = new DoubleArrayVector(values, valueCount, blockFactory);
+            vector = blockFactory.newDoubleArrayVector(values, valueCount, estimatedBytes);
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        built();
         return vector;
     }
 }

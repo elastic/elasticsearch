@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.inference.services.elser;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,12 +42,12 @@ public class ElserMlNodeServiceTests extends ESTestCase {
 
         var settings = new HashMap<String, Object>();
         settings.put(
-            Model.SERVICE_SETTINGS,
+            ModelConfigurations.SERVICE_SETTINGS,
             new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
         );
-        settings.put(Model.TASK_SETTINGS, Map.of());
+        settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
 
-        ElserMlNodeModel parsedModel = service.parseConfigStrict("foo", TaskType.SPARSE_EMBEDDING, settings);
+        ElserMlNodeModel parsedModel = service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings);
 
         assertEquals(
             new ElserMlNodeModel(
@@ -64,11 +66,11 @@ public class ElserMlNodeServiceTests extends ESTestCase {
 
         var settings = new HashMap<String, Object>();
         settings.put(
-            Model.SERVICE_SETTINGS,
+            ModelConfigurations.SERVICE_SETTINGS,
             new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
         );
 
-        ElserMlNodeModel parsedModel = service.parseConfigStrict("foo", TaskType.SPARSE_EMBEDDING, settings);
+        ElserMlNodeModel parsedModel = service.parseRequestConfig("foo", TaskType.SPARSE_EMBEDDING, settings);
 
         assertEquals(
             new ElserMlNodeModel(
@@ -88,52 +90,76 @@ public class ElserMlNodeServiceTests extends ESTestCase {
             {
                 var settings = new HashMap<String, Object>();
                 settings.put(
-                    Model.SERVICE_SETTINGS,
+                    ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
                 );
-                settings.put(Model.TASK_SETTINGS, Map.of());
+                settings.put(ModelConfigurations.TASK_SETTINGS, Map.of());
                 settings.put("foo", "bar");
 
                 if (throwOnUnknown) {
                     var e = expectThrows(
                         ElasticsearchStatusException.class,
-                        () -> ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings)
+                        () -> ElserMlNodeService.parseConfig(
+                            throwOnUnknown,
+                            "foo",
+                            TaskType.SPARSE_EMBEDDING,
+                            settings,
+                            Collections.emptyMap()
+                        )
                     );
                     assertThat(
                         e.getMessage(),
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser_mlnode] service")
                     );
                 } else {
-                    var parsed = ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings);
+                    var parsed = ElserMlNodeService.parseConfig(
+                        throwOnUnknown,
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
 
             {
                 var settings = new HashMap<String, Object>();
                 settings.put(
-                    Model.SERVICE_SETTINGS,
+                    ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
                 );
-                settings.put(Model.TASK_SETTINGS, Map.of("foo", "bar"));
+                settings.put(ModelConfigurations.TASK_SETTINGS, Map.of("foo", "bar"));
 
                 if (throwOnUnknown) {
                     var e = expectThrows(
                         ElasticsearchStatusException.class,
-                        () -> ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings)
+                        () -> ElserMlNodeService.parseConfig(
+                            throwOnUnknown,
+                            "foo",
+                            TaskType.SPARSE_EMBEDDING,
+                            settings,
+                            Collections.emptyMap()
+                        )
                     );
                     assertThat(
                         e.getMessage(),
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser_mlnode] service")
                     );
                 } else {
-                    var parsed = ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings);
+                    var parsed = ElserMlNodeService.parseConfig(
+                        throwOnUnknown,
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
 
             {
                 var settings = new HashMap<String, Object>();
                 settings.put(
-                    Model.SERVICE_SETTINGS,
+                    ModelConfigurations.SERVICE_SETTINGS,
                     new HashMap<>(
                         Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4, "foo", "bar")
                     )
@@ -142,14 +168,26 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 if (throwOnUnknown) {
                     var e = expectThrows(
                         ElasticsearchStatusException.class,
-                        () -> ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings)
+                        () -> ElserMlNodeService.parseConfig(
+                            throwOnUnknown,
+                            "foo",
+                            TaskType.SPARSE_EMBEDDING,
+                            settings,
+                            Collections.emptyMap()
+                        )
                     );
                     assertThat(
                         e.getMessage(),
                         containsString("Model configuration contains settings [{foo=bar}] unknown to the [elser_mlnode] service")
                     );
                 } else {
-                    var parsed = ElserMlNodeService.parseConfig(throwOnUnknown, "foo", TaskType.SPARSE_EMBEDDING, settings);
+                    var parsed = ElserMlNodeService.parseConfig(
+                        throwOnUnknown,
+                        "foo",
+                        TaskType.SPARSE_EMBEDDING,
+                        settings,
+                        Collections.emptyMap()
+                    );
                 }
             }
         }

@@ -67,7 +67,7 @@ final class LongBlockHash extends BlockHash {
     }
 
     private IntBlock add(LongBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(Block.Ref.floating(block)).hash(longHash);
         seenNull |= result.sawNull();
         return result.ords();
     }
@@ -82,7 +82,8 @@ final class LongBlockHash extends BlockHash {
             }
             BitSet nulls = new BitSet(1);
             nulls.set(0);
-            return new LongBlock[] { new LongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.ASCENDING) };
+            return new LongBlock[] {
+                new LongArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
         }
 
         final int size = Math.toIntExact(longHash.size());

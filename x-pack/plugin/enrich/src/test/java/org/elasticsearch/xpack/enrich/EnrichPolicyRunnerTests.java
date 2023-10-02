@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -29,7 +30,6 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -112,7 +112,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunner() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
               "field1": "value1",
               "field2": 2,
@@ -196,7 +196,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerGeoMatchType() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {"location":"POINT(10.0 10.0)","zipcode":90210}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
@@ -283,7 +283,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     private void testNumberRangeMatchType(String rangeType) throws Exception {
         final String sourceIndex = "source-index";
         createIndex(sourceIndex, Settings.EMPTY, "_doc", "range", "type=" + rangeType + "_range");
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {"range":{"gt":1,"lt":10},"zipcode":90210}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
@@ -366,7 +366,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     public void testRunnerRangeTypeWithIpRange() throws Exception {
         final String sourceIndexName = "source-index";
         createIndex(sourceIndexName, Settings.EMPTY, "_doc", "subnet", "type=ip_range");
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndexName).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndexName).id("id").source("""
             {"subnet":"10.0.0.0/8","department":"research"}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
             .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
@@ -450,7 +450,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(
+            DocWriteResponse indexRequest = client().index(
                 new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(Strings.format("""
                     {
                       "idx": %s,
@@ -554,7 +554,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         String collidingDocId = randomAlphaOfLength(10);
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(
+            DocWriteResponse indexRequest = client().index(
                 new IndexRequest().index(sourceIndex).id(collidingDocId).routing(collidingDocId + idx).source(Strings.format("""
                     {
                       "idx": %s,
@@ -673,7 +673,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(
+            DocWriteResponse indexRequest = client().index(
                 new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source(Strings.format("""
                     {
                       "idx": %s,
@@ -983,7 +983,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         CreateIndexResponse createResponse = indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder)).actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(
+        DocWriteResponse indexRequest = client().index(
             new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source("""
@@ -1092,7 +1092,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         CreateIndexResponse createResponse = indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder)).actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(
+        DocWriteResponse indexRequest = client().index(
             new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source("""
@@ -1201,7 +1201,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         CreateIndexResponse createResponse = indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder)).actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
               "data": {
                 "subnet": "10.0.0.0/8",
@@ -1316,7 +1316,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         CreateIndexResponse createResponse = indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder)).actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
               "data": {
                 "fields": {
@@ -1440,7 +1440,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         CreateIndexResponse createResponse = indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder)).actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
               "data": {
                 "fields": {
@@ -1564,7 +1564,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         CreateIndexResponse createResponse = indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder)).actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
               "data": {
                 "fields": {
@@ -1707,7 +1707,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         CreateIndexResponse createResponse = indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mappingBuilder)).actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(
+        DocWriteResponse indexRequest = client().index(
             new IndexRequest().index(sourceIndex)
                 .id("id")
                 .source("""
@@ -1787,7 +1787,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerWithForceMergeRetry() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
               "field1": "value1",
               "field2": 2,
@@ -1885,7 +1885,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 if (attempt == 1) {
                     // Put and flush a document to increase the number of segments, simulating not
                     // all segments were merged on the first try.
-                    IndexResponse indexRequest = client().index(
+                    DocWriteResponse indexRequest = client().index(
                         new IndexRequest().index(createdEnrichIndex)
                             .source(unmergedDocument)
                             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -1957,7 +1957,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerCancel() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
               "field1": "value1",
               "field2": 2,

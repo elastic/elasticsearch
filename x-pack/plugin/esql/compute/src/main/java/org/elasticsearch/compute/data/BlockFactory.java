@@ -16,8 +16,6 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 
 import java.util.BitSet;
-import java.util.List;
-import java.util.ServiceLoader;
 
 public class BlockFactory {
 
@@ -26,22 +24,6 @@ public class BlockFactory {
         BigArrays.NON_RECYCLING_INSTANCE
     );
 
-    private static final BlockFactory GLOBAL = loadGlobalFactory();
-    // new BlockFactory(new NoopCircuitBreaker("esql_noop_breaker"), BigArrays.NON_RECYCLING_INSTANCE);
-
-    private static BlockFactory loadGlobalFactory() {
-        ServiceLoader<BlockFactoryParameters> loader = ServiceLoader.load(
-            BlockFactoryParameters.class,
-            BlockFactory.class.getClassLoader()
-        );
-        List<ServiceLoader.Provider<BlockFactoryParameters>> impls = loader.stream().toList();
-        if (impls.size() != 1) {
-            throw new AssertionError("expected exactly one impl, but got:" + impls);
-        }
-        BlockFactoryParameters params = impls.get(0).get();
-        return new BlockFactory(params.breaker(), params.bigArrays());
-    }
-
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
@@ -49,13 +31,6 @@ public class BlockFactory {
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
         this.breaker = breaker;
         this.bigArrays = bigArrays;
-    }
-
-    /**
-     * Returns the global ESQL block factory.
-     */
-    public static BlockFactory getGlobalInstance() {
-        return GLOBAL;
     }
 
     /**

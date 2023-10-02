@@ -141,38 +141,34 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         if (clusterAlias == null) {
             clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         }
-        SearchResponse.Cluster curr = clusters.getCluster(clusterAlias);
-        TimeValue took;
-        SearchResponse.Cluster.Status status;
-        int numFailedShards = curr.getFailedShards() == null ? 1 : curr.getFailedShards() + 1;
 
-        assert curr.getTotalShards() != null : "total shards should be set on the Cluster but not for " + clusterAlias;
-        if (curr.getTotalShards() == numFailedShards) {
-            took = null;
-            if (curr.isSkipUnavailable()) {
-                status = SearchResponse.Cluster.Status.SKIPPED;
+        clusters.compute(clusterAlias, (k, v) -> {
+            TimeValue took;
+            SearchResponse.Cluster.Status status;
+            int numFailedShards = v.getFailedShards() == null ? 1 : v.getFailedShards() + 1;
+
+            assert v.getTotalShards() != null : "total shards should be set on the Cluster but not for " + k;
+            if (v.getTotalShards() == numFailedShards) {
+                took = null;
+                if (v.isSkipUnavailable()) {
+                    status = SearchResponse.Cluster.Status.SKIPPED;
+                } else {
+                    status = SearchResponse.Cluster.Status.FAILED;
+                    // TODO in the fail-fast ticket, should we throw an exception here to stop the search?
+                }
+            } else if (v.getTotalShards() == numFailedShards + v.getSuccessfulShards()) {
+                status = SearchResponse.Cluster.Status.PARTIAL;
+                took = new TimeValue(timeProvider.buildTookInMillis());
             } else {
-                status = SearchResponse.Cluster.Status.FAILED;
-                // TODO in the fail-fast ticket, should we throw an exception here to stop the search?
+                took = null;
+                status = SearchResponse.Cluster.Status.RUNNING;
             }
-        } else if (curr.getTotalShards() == numFailedShards + curr.getSuccessfulShards()) {
-            status = SearchResponse.Cluster.Status.PARTIAL;
-            took = new TimeValue(timeProvider.buildTookInMillis());
-        } else {
-            took = null;
-            status = SearchResponse.Cluster.Status.RUNNING;
-        }
-
-        // creates a new unmodifiable list
-        List<ShardSearchFailure> failures = CollectionUtils.appendToCopy(curr.getFailures(), new ShardSearchFailure(e, shardTarget));
-        clusters.compute(
-            clusterAlias,
-            (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status)
+            return new SearchResponse.Cluster.Builder(v).setStatus(status)
                 .setFailedShards(numFailedShards)
-                .setFailures(failures)
+                .setFailures(CollectionUtils.appendToCopy(v.getFailures(), new ShardSearchFailure(e, shardTarget)))
                 .setTook(took)
-                .build()
-        );
+                .build();
+        });
     }
 
     /**

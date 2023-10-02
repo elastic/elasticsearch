@@ -29,7 +29,6 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -106,7 +105,7 @@ public abstract class StreamInput extends InputStream {
      * when reading large bytes references where possible top avoid needless allocations and copying.
      */
     public BytesReference readBytesReference() throws IOException {
-        int length = readArraySize();
+        int length = readVInt();
         return readBytesReference(length);
     }
 
@@ -167,7 +166,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public BytesRef readBytesRef() throws IOException {
-        int length = readArraySize();
+        int length = readVInt();
         return readBytesRef(length);
     }
 
@@ -433,7 +432,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public String readString() throws IOException {
-        final int charCount = readArraySize();
+        final int charCount = readVInt();
 
         final char[] charBuffer = charCount > SMALL_STRING_LIMIT ? ensureLargeSpare(charCount) : smallSpare.get();
 
@@ -588,7 +587,7 @@ public abstract class StreamInput extends InputStream {
     public abstract int available() throws IOException;
 
     public String[] readStringArray() throws IOException {
-        int size = readArraySize();
+        int size = readVInt();
         if (size == 0) {
             return Strings.EMPTY_ARRAY;
         }
@@ -641,7 +640,7 @@ public abstract class StreamInput extends InputStream {
 
     private <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
         throws IOException {
-        int size = readArraySize();
+        int size = readVInt();
         if (size == 0) {
             return Collections.emptyMap();
         }
@@ -677,7 +676,7 @@ public abstract class StreamInput extends InputStream {
      * @return Never {@code null}.
      */
     public <K, V> Map<K, V> readMapValues(final Writeable.Reader<V> valueReader, final Function<V, K> keyMapper) throws IOException {
-        final int size = readArraySize();
+        final int size = readVInt();
         if (size == 0) {
             return Map.of();
         }
@@ -840,7 +839,7 @@ public abstract class StreamInput extends InputStream {
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 
     private Object[] readArray() throws IOException {
-        int size8 = readArraySize();
+        int size8 = readVInt();
         if (size8 == 0) {
             return EMPTY_OBJECT_ARRAY;
         }
@@ -882,7 +881,7 @@ public abstract class StreamInput extends InputStream {
     private static final int[] EMPTY_INT_ARRAY = new int[0];
 
     public int[] readIntArray() throws IOException {
-        int length = readArraySize();
+        int length = readVInt();
         if (length == 0) {
             return EMPTY_INT_ARRAY;
         }
@@ -894,7 +893,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public int[] readVIntArray() throws IOException {
-        int length = readArraySize();
+        int length = readVInt();
         if (length == 0) {
             return EMPTY_INT_ARRAY;
         }
@@ -908,7 +907,7 @@ public abstract class StreamInput extends InputStream {
     private static final long[] EMPTY_LONG_ARRAY = new long[0];
 
     public long[] readLongArray() throws IOException {
-        int length = readArraySize();
+        int length = readVInt();
         if (length == 0) {
             return EMPTY_LONG_ARRAY;
         }
@@ -920,7 +919,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public long[] readVLongArray() throws IOException {
-        int length = readArraySize();
+        int length = readVInt();
         if (length == 0) {
             return EMPTY_LONG_ARRAY;
         }
@@ -934,7 +933,7 @@ public abstract class StreamInput extends InputStream {
     private static final float[] EMPTY_FLOAT_ARRAY = new float[0];
 
     public float[] readFloatArray() throws IOException {
-        int length = readArraySize();
+        int length = readVInt();
         if (length == 0) {
             return EMPTY_FLOAT_ARRAY;
         }
@@ -948,7 +947,7 @@ public abstract class StreamInput extends InputStream {
     private static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
 
     public double[] readDoubleArray() throws IOException {
-        int length = readArraySize();
+        int length = readVInt();
         if (length == 0) {
             return EMPTY_DOUBLE_ARRAY;
         }
@@ -962,7 +961,7 @@ public abstract class StreamInput extends InputStream {
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
     public byte[] readByteArray() throws IOException {
-        final int length = readArraySize();
+        final int length = readVInt();
         if (length == 0) {
             return EMPTY_BYTE_ARRAY;
         }
@@ -984,7 +983,7 @@ public abstract class StreamInput extends InputStream {
      * @throws IOException if an I/O exception occurs while reading the array
      */
     public <T> T[] readArray(final Writeable.Reader<T> reader, final IntFunction<T[]> arraySupplier) throws IOException {
-        final int length = readArraySize();
+        final int length = readVInt();
         final T[] values = arraySupplier.apply(length);
         for (int i = 0; i < length; i++) {
             values[i] = reader.read(this);
@@ -1080,7 +1079,7 @@ public abstract class StreamInput extends InputStream {
      * Reads a list of objects which was written using {@link StreamOutput#writeCollection}. The returned list is immutable.
      */
     public <T> List<T> readCollectionAsImmutableList(final Writeable.Reader<T> reader) throws IOException {
-        int count = readArraySize();
+        int count = readVInt();
         // special cases small arrays, just like in java.util.List.of(...)
         return switch (count) {
             case 0 -> List.of();
@@ -1146,7 +1145,7 @@ public abstract class StreamInput extends InputStream {
      * that was originally written should also have been a set.
      */
     public <T> Set<T> readCollectionAsImmutableSet(final Writeable.Reader<T> reader) throws IOException {
-        int count = readArraySize();
+        int count = readVInt();
         // special cases small arrays, just like in java.util.Set.of(...)
         return switch (count) {
             case 0 -> Set.of();
@@ -1178,7 +1177,7 @@ public abstract class StreamInput extends InputStream {
      */
     public <C> C readCollection(IntFunction<C> constructor, CheckedBiConsumer<StreamInput, C, IOException> itemConsumer)
         throws IOException {
-        int count = readArraySize();
+        int count = readVInt();
         var result = constructor.apply(count);
         for (int i = 0; i < count; i++) {
             itemConsumer.accept(this, result);
@@ -1195,7 +1194,7 @@ public abstract class StreamInput extends InputStream {
      */
     private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader, IntFunction<C> constructor, C empty)
         throws IOException {
-        int count = readArraySize();
+        int count = readVInt();
         if (count == 0) {
             return empty;
         }
@@ -1257,43 +1256,6 @@ public abstract class StreamInput extends InputStream {
 
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new ByteBufferStreamInput(ByteBuffer.wrap(bytes, offset, length));
-    }
-
-    /**
-     * Reads a vint via {@link #readVInt()} and applies basic checks to ensure the read array size is sane.
-     * This method uses {@link #ensureCanReadBytes(int)} to ensure this stream has enough bytes to read for the read array size.
-     */
-    protected int readArraySize() throws IOException {
-        final int arraySize = readVInt();
-        if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
-            throwExceedsMaxArraySize(arraySize);
-        }
-        if (arraySize < 0) {
-            throwNegative(arraySize);
-        }
-        // lets do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
-        // throw an exception instead of allocating the array based on the size. A simple corrutpted byte can make a node go OOM
-        // if the size is large and for perf reasons we allocate arrays ahead of time
-        ensureCanReadBytes(arraySize);
-        return arraySize;
-    }
-
-    private static void throwNegative(int arraySize) {
-        throw new NegativeArraySizeException("array size must be positive but was: " + arraySize);
-    }
-
-    private static void throwExceedsMaxArraySize(int arraySize) {
-        throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH + " but was: " + arraySize);
-    }
-
-    /**
-     * This method throws an {@link EOFException} if the given number of bytes can not be read from the this stream. This method might
-     * be a no-op depending on the underlying implementation if the information of the remaining bytes is not present.
-     */
-    protected abstract void ensureCanReadBytes(int length) throws EOFException;
-
-    protected static void throwEOF(int bytesToRead, int bytesAvailable) throws EOFException {
-        throw new EOFException("tried to read: " + bytesToRead + " bytes but only " + bytesAvailable + " remaining");
     }
 
     private static final TimeUnit[] TIME_UNITS = TimeUnit.values();

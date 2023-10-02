@@ -34,7 +34,7 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
 
     @Override
     public <T extends NamedWriteable> List<T> readNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
-        int count = readArraySize();
+        int count = readVInt();
         if (count == 0) {
             return Collections.emptyList();
         }

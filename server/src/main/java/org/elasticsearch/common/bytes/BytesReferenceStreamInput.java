@@ -128,9 +128,19 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int bOffset, int len) throws IOException {
-        Objects.checkFromIndexSize(offset(), len, bytesReference.length());
+        try {
+            Objects.checkFromIndexSize(offset(), len, bytesReference.length());
+        } catch (IndexOutOfBoundsException oobe) {
+            rethrowEof(oobe);
+        }
         final int bytesRead = read(b, bOffset, len);
         assert bytesRead == len : bytesRead + " vs " + len;
+    }
+
+    private static void rethrowEof(IndexOutOfBoundsException oobe) throws EOFException {
+        var eof = new EOFException();
+        eof.initCause(oobe);
+        throw eof;
     }
 
     @Override
@@ -171,14 +181,6 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public int available() {
         return bytesReference.length() - offset();
-    }
-
-    @Override
-    protected void ensureCanReadBytes(int bytesToRead) throws EOFException {
-        int bytesAvailable = bytesReference.length() - offset();
-        if (bytesAvailable < bytesToRead) {
-            throwEOF(bytesToRead, bytesAvailable);
-        }
     }
 
     @Override

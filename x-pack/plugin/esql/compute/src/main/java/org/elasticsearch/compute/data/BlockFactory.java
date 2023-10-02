@@ -121,7 +121,7 @@ public class BlockFactory {
         MvOrdering mvOrdering
     ) {
         var b = new BooleanArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
@@ -135,13 +135,13 @@ public class BlockFactory {
 
     public BooleanVector newBooleanArrayVector(boolean[] values, int positionCount, long preAdjustedBytes) {
         var b = new BooleanArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, false);
         return b;
     }
 
     public BooleanBlock newConstantBooleanBlockWith(boolean value, int positions) {
         var b = new ConstantBooleanVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
@@ -151,7 +151,7 @@ public class BlockFactory {
 
     public IntBlock newIntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         var b = new IntArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
@@ -184,13 +184,13 @@ public class BlockFactory {
      */
     public IntVector newIntArrayVector(int[] values, int positionCount, long preAdjustedBytes) {
         var b = new IntArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, false);
         return b;
     }
 
     public IntBlock newConstantIntBlockWith(int value, int positions) {
         var b = new ConstantIntVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
@@ -200,7 +200,7 @@ public class BlockFactory {
 
     public LongBlock newLongArrayBlock(long[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         var b = new LongArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
@@ -218,13 +218,13 @@ public class BlockFactory {
 
     public LongVector newLongArrayVector(long[] values, int positionCount, long preAdjustedBytes) {
         var b = new LongArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, false);
         return b;
     }
 
     public LongBlock newConstantLongBlockWith(long value, int positions) {
         var b = new ConstantLongVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
@@ -240,7 +240,7 @@ public class BlockFactory {
         MvOrdering mvOrdering
     ) {
         var b = new DoubleArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
@@ -258,13 +258,13 @@ public class BlockFactory {
 
     public DoubleVector newDoubleArrayVector(double[] values, int positionCount, long preAdjustedBytes) {
         var b = new DoubleArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, false);
         return b;
     }
 
     public DoubleBlock newConstantDoubleBlockWith(double value, int positions) {
         var b = new ConstantDoubleVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
@@ -280,7 +280,7 @@ public class BlockFactory {
         MvOrdering mvOrdering
     ) {
         var b = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
         return b;
     }
 
@@ -290,19 +290,19 @@ public class BlockFactory {
 
     public BytesRefVector newBytesRefArrayVector(BytesRefArray values, int positionCount) {
         var b = new BytesRefArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), false);
         return b;
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
         var b = new ConstantBytesRefVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 
     public Block newConstantNullBlock(int positions) {
         var b = new ConstantNullBlock(positions, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed(), false);
         return b;
     }
 }

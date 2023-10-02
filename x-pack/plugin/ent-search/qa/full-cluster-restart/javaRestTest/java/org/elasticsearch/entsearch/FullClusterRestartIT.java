@@ -1,13 +1,6 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
- */
-
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
@@ -68,8 +61,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             Request putRequest = new Request("PUT", "_application/analytics/" + newAnalyticsCollectionName);
             assertOK(client().performRequest(putRequest));
 
-            // Validate that NO ILM lifecycle is in place and we are using DLM instead.
-            assertBusy(() -> testDlmDataRetentionPolicy(newAnalyticsCollectionName));
+            // Validate that NO ILM lifecycle is in place and we are using DLS instead.
+            assertBusy(() -> testDslDataRetentionPolicy(newAnalyticsCollectionName));
 
             // Validate that the existing analytics collection created with an older version is still using ILM
             assertBusy(() -> testLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
@@ -91,7 +84,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertNotNull(policy.evaluate(EVENT_DATA_STREAM_LEGACY_ILM_POLICY_NAME));
     }
 
-    private void testDlmDataRetentionPolicy(String analyticsCollectionName) throws IOException {
+    private void testDslDataRetentionPolicy(String analyticsCollectionName) throws IOException {
         String dataStreamName = "behavioral_analytics-events-" + analyticsCollectionName;
         Request getDataStreamRequest = new Request("GET", "_data_stream/" + dataStreamName);
         Response response = client().performRequest(getDataStreamRequest);

@@ -67,9 +67,6 @@ public class IngestLoadSampler implements ClusterStateListener {
         Setting.Property.Dynamic
     );
 
-    // Minimum transport version required for master to be able to handle the metric publications
-    private static final TransportVersion REQUIRED_VERSION = TransportVersions.V_8_500_025;
-
     private final Logger logger = LogManager.getLogger(IngestLoadSampler.class);
     private final ThreadPool threadPool;
     private final Executor executor;
@@ -210,10 +207,6 @@ public class IngestLoadSampler implements ClusterStateListener {
 
     private void publishCurrentLoad(String nodeId) {
         if (nodeId == null) {
-            return;
-        }
-        if (minTransportVersion.before(REQUIRED_VERSION)) {
-            logger.warn("Cannot publish ingest load metric until cluster is: [{}], found: [{}]", REQUIRED_VERSION, minTransportVersion);
             return;
         }
         try {

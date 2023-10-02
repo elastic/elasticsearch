@@ -70,7 +70,6 @@ import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHan
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
-import co.elastic.elasticsearch.stateless.upgrade.StatelessUpgrader;
 import co.elastic.elasticsearch.stateless.xpack.DummyESQLInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyEsqlUsageTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummyILMInfoTransportAction;
@@ -448,9 +447,6 @@ public class Stateless extends Plugin
             memoryMetricsService
         );
         components.add(searchMetricsService);
-
-        StatelessUpgrader statelessUpgrader = new StatelessUpgrader(client, clusterService);
-        clusterService.addListener(statelessUpgrader);
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 

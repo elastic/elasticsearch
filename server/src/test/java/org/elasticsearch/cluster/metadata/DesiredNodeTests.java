@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +39,7 @@ public class DesiredNodeTests extends ESTestCase {
 
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new DesiredNode(settings.build(), 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
+            () -> new DesiredNode(settings.build(), 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Build.current().version())
         );
         assertThat(exception.getMessage(), is(equalTo("[node.name] or [node.external_id] is missing or empty")));
     }
@@ -47,7 +48,7 @@ public class DesiredNodeTests extends ESTestCase {
         final String nodeName = randomAlphaOfLength(10);
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build();
 
-        DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+        DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Build.current().version());
         assertThat(desiredNode.externalId(), is(notNullValue()));
         assertThat(desiredNode.externalId(), is(equalTo(nodeName)));
     }
@@ -57,7 +58,13 @@ public class DesiredNodeTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new DesiredNode(settings, randomInvalidProcessor(), ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
+            () -> new DesiredNode(
+                settings,
+                randomInvalidProcessor(),
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Build.current().version()
+            )
         );
 
         // Processor ranges
@@ -68,7 +75,7 @@ public class DesiredNodeTests extends ESTestCase {
                 new DesiredNode.ProcessorsRange(randomInvalidProcessor(), randomFrom(random(), null, 1.0)),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                Build.current().version()
             )
         );
         expectThrows(
@@ -78,7 +85,7 @@ public class DesiredNodeTests extends ESTestCase {
                 new DesiredNode.ProcessorsRange(randomDouble() + 0.1, randomInvalidProcessor()),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                Build.current().version()
             )
         );
         expectThrows(
@@ -88,7 +95,7 @@ public class DesiredNodeTests extends ESTestCase {
                 new DesiredNode.ProcessorsRange(randomInvalidProcessor(), randomInvalidProcessor()),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                Build.current().version()
             )
         );
 
@@ -101,7 +108,7 @@ public class DesiredNodeTests extends ESTestCase {
                 new DesiredNode.ProcessorsRange(lowerBound, upperBound),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                Build.current().version()
             )
         );
     }
@@ -110,7 +117,7 @@ public class DesiredNodeTests extends ESTestCase {
         {
             final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
 
-            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Build.current().version());
             assertTrue(desiredNode.hasMasterRole());
         }
 
@@ -120,7 +127,7 @@ public class DesiredNodeTests extends ESTestCase {
                 .put(NODE_ROLES_SETTING.getKey(), "master")
                 .build();
 
-            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Build.current().version());
             assertTrue(desiredNode.hasMasterRole());
         }
 
@@ -130,7 +137,7 @@ public class DesiredNodeTests extends ESTestCase {
                 .put(NODE_ROLES_SETTING.getKey(), "data_hot")
                 .build();
 
-            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Build.current().version());
             assertFalse(desiredNode.hasMasterRole());
         }
     }
@@ -143,7 +150,13 @@ public class DesiredNodeTests extends ESTestCase {
             settings.put(NODE_ROLES_SETTING.getKey(), role.roleName());
         }
 
-        final var desiredNode = new DesiredNode(settings.build(), 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+        final var desiredNode = new DesiredNode(
+            settings.build(),
+            1,
+            ByteSizeValue.ofGb(1),
+            ByteSizeValue.ofGb(1),
+            Build.current().version()
+        );
 
         if (role != null) {
             assertThat(desiredNode.getRoles(), hasSize(1));
@@ -162,7 +175,7 @@ public class DesiredNodeTests extends ESTestCase {
                 new DesiredNode.ProcessorsRange(0.4, 1.2),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                Build.current().version()
             );
 
             assertThat(desiredNode.minProcessors().count(), is(equalTo(0.4)));
@@ -172,7 +185,7 @@ public class DesiredNodeTests extends ESTestCase {
         }
 
         {
-            final var desiredNode = new DesiredNode(settings, 1.2, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            final var desiredNode = new DesiredNode(settings, 1.2, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Build.current().version());
 
             assertThat(desiredNode.minProcessors().count(), is(equalTo(1.2)));
             assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1)));
@@ -181,7 +194,13 @@ public class DesiredNodeTests extends ESTestCase {
         }
 
         {
-            final var desiredNode = new DesiredNode(settings, 1024, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            final var desiredNode = new DesiredNode(
+                settings,
+                1024,
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Build.current().version()
+            );
 
             assertThat(desiredNode.minProcessors().count(), is(equalTo(1024.0)));
             assertThat(desiredNode.roundedDownMinProcessors(), is(equalTo(1024)));
@@ -199,7 +218,7 @@ public class DesiredNodeTests extends ESTestCase {
                 new DesiredNode.ProcessorsRange(0.4, 1.2),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                Build.current().version()
             );
             assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(false)));
             assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
@@ -211,14 +230,20 @@ public class DesiredNodeTests extends ESTestCase {
                 randomIntBetween(0, 10) + randomDoubleBetween(0.00001, 0.99999, true),
                 ByteSizeValue.ofGb(1),
                 ByteSizeValue.ofGb(1),
-                Version.CURRENT
+                Build.current().version()
             );
             assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(false)));
             assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
         }
 
         {
-            final var desiredNode = new DesiredNode(settings, 2.0f, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            final var desiredNode = new DesiredNode(
+                settings,
+                2.0f,
+                ByteSizeValue.ofGb(1),
+                ByteSizeValue.ofGb(1),
+                Build.current().version()
+            );
             assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(true)));
             assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
         }
@@ -236,13 +261,13 @@ public class DesiredNodeTests extends ESTestCase {
         final DesiredNode desiredNode1;
         final DesiredNode desiredNode2;
         if (randomBoolean()) {
-            desiredNode1 = new DesiredNode(settings, processorCount, memory, storage, Version.CURRENT);
+            desiredNode1 = new DesiredNode(settings, processorCount, memory, storage, Build.current().version());
             desiredNode2 = new DesiredNode(
                 settings,
                 isEqualOrCloseTo ? (float) processorCount : processorCount + maxDelta,
                 memory,
                 storage,
-                Version.CURRENT
+                Build.current().version()
             );
         } else {
             final double desiredNodes1Min = processorCount;
@@ -268,8 +293,8 @@ public class DesiredNodeTests extends ESTestCase {
                 desiredNodes2Max
             );
 
-            desiredNode1 = new DesiredNode(settings, desiredNodes1ProcessorsRange, memory, storage, Version.CURRENT);
-            desiredNode2 = new DesiredNode(settings, desiredNodes2ProcessorsRange, memory, storage, Version.CURRENT);
+            desiredNode1 = new DesiredNode(settings, desiredNodes1ProcessorsRange, memory, storage, Build.current().version());
+            desiredNode2 = new DesiredNode(settings, desiredNodes2ProcessorsRange, memory, storage, Build.current().version());
         }
 
         assertThat(desiredNode1.equalsWithProcessorsCloseTo(desiredNode2), is(isEqualOrCloseTo));

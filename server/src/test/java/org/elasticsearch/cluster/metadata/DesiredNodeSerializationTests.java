@@ -86,7 +86,7 @@ public class DesiredNodeSerializationTests extends AbstractXContentSerializingTe
                 instance.processorsRange(),
                 instance.memory(),
                 instance.storage(),
-                instance.version().previousMajor()
+                randomAlphaOfLengthBetween(3, 30)
             );
             default -> throw new IllegalStateException("Unexpected value: " + mutationBranch);
         };

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,14 +44,14 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode randomDesiredNode() {
-        return randomDesiredNode(Version.CURRENT, Settings.EMPTY);
+        return randomDesiredNode(Build.current().version(), Settings.EMPTY);
     }
 
     public static DesiredNode randomDesiredNode(Settings settings) {
-        return randomDesiredNode(Version.CURRENT, settings);
+        return randomDesiredNode(Build.current().version(), settings);
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings) {
+    public static DesiredNode randomDesiredNode(String version, Settings settings) {
         if (randomBoolean()) {
             return randomDesiredNode(version, settings, randomProcessorRange());
         } else {
@@ -59,7 +59,7 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         }
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings, double processors) {
+    public static DesiredNode randomDesiredNode(String version, Settings settings, double processors) {
         return new DesiredNode(
             addExternalIdIfMissing(settings),
             processors,
@@ -69,7 +69,7 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
         );
     }
 
-    public static DesiredNode randomDesiredNode(Version version, Settings settings, DesiredNode.ProcessorsRange processorsRange) {
+    public static DesiredNode randomDesiredNode(String version, Settings settings, DesiredNode.ProcessorsRange processorsRange) {
         return new DesiredNode(
             addExternalIdIfMissing(settings),
             processorsRange,

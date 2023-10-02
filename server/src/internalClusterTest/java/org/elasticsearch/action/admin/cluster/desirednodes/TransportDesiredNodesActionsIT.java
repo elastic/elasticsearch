@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -60,7 +60,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     public void testDryRunUpdateDoesNotUpdateEmptyDesiredNodes() {
         UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
-            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
+            randomDryRunUpdateDesiredNodesRequest(Build.current().version(), Settings.EMPTY)
         );
         assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
@@ -68,13 +68,15 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     public void testDryRunUpdateDoesNotUpdateExistingDesiredNodes() {
-        UpdateDesiredNodesResponse response = updateDesiredNodes(randomUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        UpdateDesiredNodesResponse response = updateDesiredNodes(
+            randomUpdateDesiredNodesRequest(Build.current().version(), Settings.EMPTY)
+        );
         assertThat(response.dryRun(), is(equalTo(false)));
 
         DesiredNodes desiredNodes = getLatestDesiredNodes();
 
         UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
-            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
+            randomDryRunUpdateDesiredNodesRequest(Build.current().version(), Settings.EMPTY)
         );
         assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
@@ -180,9 +182,9 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
     }
 
-    public void testUnknownSettingsAreAllowedInFutureVersions() {
+    public void testUnknownSettingsAreAllowed() {
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
-            Version.fromString("99.9.0"),
+            Build.current().version(),
             Settings.builder().put("desired_nodes.random_setting", Integer.MIN_VALUE).build()
         );
 
@@ -203,7 +205,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                 1,
                 20,
                 () -> randomDesiredNode(
-                    Version.CURRENT,
+                    Build.current().version(),
                     Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
                     numProcessors
                 )
@@ -224,7 +226,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     public void testNodeVersionIsValidated() {
-        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(Version.CURRENT.previousMajor(), Settings.EMPTY);
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(randomAlphaOfLength(6), Settings.EMPTY);
 
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -325,10 +327,10 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Settings settings) {
-        return randomUpdateDesiredNodesRequest(Version.CURRENT, settings);
+        return randomUpdateDesiredNodesRequest(Build.current().version(), settings);
     }
 
-    private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Version version, Settings settings) {
+    private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(String version, Settings settings) {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
@@ -337,7 +339,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         );
     }
 
-    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Version version, Settings settings) {
+    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(String version, Settings settings) {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),

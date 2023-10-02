@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.desirednodes;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -22,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 
 public class DesiredNodesSettingsValidatorTests extends ESTestCase {
     public void testNodeVersionValidation() {
-        final List<DesiredNode> desiredNodes = List.of(randomDesiredNode(Version.CURRENT.previousMajor(), Settings.EMPTY));
+        final List<DesiredNode> desiredNodes = List.of(randomDesiredNode("7.0.0", Settings.EMPTY));
 
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator();
 

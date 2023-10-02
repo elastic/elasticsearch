@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import joptsimple.internal.Strings;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -897,7 +897,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             1,
             ByteSizeValue.ONE,
             ByteSizeValue.ONE,
-            Version.CURRENT
+            Build.current().version()
         );
     }
 

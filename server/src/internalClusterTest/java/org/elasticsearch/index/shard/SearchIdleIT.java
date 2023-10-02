@@ -9,12 +9,12 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -125,21 +125,18 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         started.await();
         assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
-            client().prepareIndex("test")
-                .setId("" + i)
-                .setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
-                .execute(new ActionListener<IndexResponse>() {
-                    @Override
-                    public void onResponse(IndexResponse indexResponse) {
-                        indexingDone.countDown();
-                    }
+            client().prepareIndex("test").setId("" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).execute(new ActionListener<>() {
+                @Override
+                public void onResponse(DocWriteResponse indexResponse) {
+                    indexingDone.countDown();
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        indexingDone.countDown();
-                        throw new AssertionError(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    indexingDone.countDown();
+                    throw new AssertionError(e);
+                }
+            });
         }
         indexingDone.await();
         t.join();

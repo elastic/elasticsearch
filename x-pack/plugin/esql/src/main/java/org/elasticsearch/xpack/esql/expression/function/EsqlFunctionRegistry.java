@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -152,6 +153,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(RTrim.class, RTrim::new, "rtrim"),
                 def(Trim.class, Trim::new, "trim"),
                 def(Left.class, Left::new, "left"),
+                def(Replace.class, Replace::new, "replace"),
                 def(Right.class, Right::new, "right"),
                 def(StartsWith.class, StartsWith::new, "starts_with"),
                 def(EndsWith.class, EndsWith::new, "ends_with") },
@@ -196,6 +198,10 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
 
     @Override
     protected String normalize(String name) {
+        return normalizeName(name);
+    }
+
+    public static String normalizeName(String name) {
         return name.toLowerCase(Locale.ROOT);
     }
 

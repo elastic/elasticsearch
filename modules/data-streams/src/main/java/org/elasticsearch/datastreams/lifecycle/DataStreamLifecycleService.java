@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -672,13 +673,21 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
         Metadata metadata = clusterService.state().metadata();
         for (String indexName : errorStore.getAllIndices()) {
-            IndexMetadata indexMeta = metadata.index(indexName);
-            if (indexMeta == null) {
-                logger.trace("Clearing recorded error for index [{}] because the index doesn't exist anymore", indexName);
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexName);
+            DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
+            if (indexAbstraction == null || parentDataStream == null) {
+                logger.trace(
+                    "Clearing recorded error for index [{}] because the index doesn't exist or is not a data stream backing index anymore",
+                    indexName
+                );
                 errorStore.clearRecordedError(indexName);
-            } else if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), metadata::index) == false) {
-                logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", indexName);
-                errorStore.clearRecordedError(indexName);
+            } else if (parentDataStream.getName().equals(dataStream.getName())) {
+                // we're only verifying the indices that pertain to this data stream
+                IndexMetadata indexMeta = metadata.index(indexName);
+                if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), metadata::index) == false) {
+                    logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", indexName);
+                    errorStore.clearRecordedError(indexName);
+                }
             }
         }
     }

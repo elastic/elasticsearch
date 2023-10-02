@@ -59,9 +59,7 @@ public abstract class LuceneOperator extends SourceOperator {
     }
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 
     LuceneScorer getCurrentOrLoadNextScorer() {
         while (currentScorer == null || currentScorer.isDone()) {
@@ -149,6 +147,14 @@ public abstract class LuceneOperator extends SourceOperator {
 
         SearchContext searchContext() {
             return searchContext;
+        }
+
+        Weight weight() {
+            return weight;
+        }
+
+        int position() {
+            return position;
         }
     }
 

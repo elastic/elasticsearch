@@ -8,6 +8,7 @@
 
 package org.elasticsearch.document;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -19,7 +20,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -56,7 +56,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client().prepareIndex()
+        DocWriteResponse indexResponse = client().prepareIndex()
             .setIndex("test")
             .setId("1")
             .setSource(source("1", "test"))

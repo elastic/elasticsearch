@@ -442,42 +442,45 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testUngroupedCountAll() {
-        EsqlQueryResponse results = run("from test | stats count(*)");
-        logger.info(results);
-        Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(1, getValuesList(results).size());
-        assertEquals("count(*)", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        var values = getValuesList(results).get(0);
-        assertEquals(1, values.size());
-        assertEquals(40, (long) values.get(0));
+        try (EsqlQueryResponse results = run("from test | stats count(*)")) {
+            logger.info(results);
+            Assert.assertEquals(1, results.columns().size());
+            Assert.assertEquals(1, getValuesList(results).size());
+            assertEquals("count(*)", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
+            var values = getValuesList(results).get(0);
+            assertEquals(1, values.size());
+            assertEquals(40, (long) values.get(0));
+        }
     }
 
     public void testUngroupedCountAllWithFilter() {
-        EsqlQueryResponse results = run("from test | where data > 1 | stats count(*)");
-        logger.info(results);
-        Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(1, getValuesList(results).size());
-        assertEquals("count(*)", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        var values = getValuesList(results).get(0);
-        assertEquals(1, values.size());
-        assertEquals(20, (long) values.get(0));
+        try (EsqlQueryResponse results = run("from test | where data > 1 | stats count(*)")) {
+            logger.info(results);
+            Assert.assertEquals(1, results.columns().size());
+            Assert.assertEquals(1, getValuesList(results).size());
+            assertEquals("count(*)", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
+            var values = getValuesList(results).get(0);
+            assertEquals(1, values.size());
+            assertEquals(20, (long) values.get(0));
+        }
     }
 
     public void testGroupedCountAllWithFilter() {
-        EsqlQueryResponse results = run("from test | where data > 1 | stats count(*) by data | sort data");
-        logger.info(results);
-        Assert.assertEquals(2, results.columns().size());
-        Assert.assertEquals(1, getValuesList(results).size());
-        assertEquals("count(*)", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        assertEquals("data", results.columns().get(1).name());
-        assertEquals("long", results.columns().get(1).type());
-        var values = getValuesList(results).get(0);
-        assertEquals(2, values.size());
-        assertEquals(20, (long) values.get(0));
-        assertEquals(2L, (long) values.get(1));
+        try (EsqlQueryResponse results = run("from test | where data > 1 | stats count(*) by data | sort data")) {
+            logger.info(results);
+            Assert.assertEquals(2, results.columns().size());
+            Assert.assertEquals(1, getValuesList(results).size());
+            assertEquals("count(*)", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
+            assertEquals("data", results.columns().get(1).name());
+            assertEquals("long", results.columns().get(1).type());
+            var values = getValuesList(results).get(0);
+            assertEquals(2, values.size());
+            assertEquals(20, (long) values.get(0));
+            assertEquals(2L, (long) values.get(1));
+        }
     }
 
     public void testFromStatsEvalWithPragma() {

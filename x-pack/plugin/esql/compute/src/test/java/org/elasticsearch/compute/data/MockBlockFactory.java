@@ -21,13 +21,18 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * A block factory that tracks the creation of blocks, vectors, builders that it creates. The
+ * factory allows to ensure that the blocks are released, as well as inspect the source of the
+ * creation.
+ */
 public class MockBlockFactory extends BlockFactory {
 
     static final boolean TRACK_ALLOCATIONS = true;
 
     static Object trackDetail() {
         return TRACK_ALLOCATIONS
-            ? new RuntimeException("Block allocated from test: " + LuceneTestCase.getTestClass().getName()) // TODO: message
+            ? new RuntimeException("Block allocated from test: " + LuceneTestCase.getTestClass().getName())
             : true;
     }
 

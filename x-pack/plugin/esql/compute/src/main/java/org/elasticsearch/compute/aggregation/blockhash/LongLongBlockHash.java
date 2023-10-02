@@ -52,8 +52,8 @@ final class LongLongBlockHash extends BlockHash {
         LongVector vector1 = block1.asVector();
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
-            try (IntVector groupIds = add(vector1, vector2)) {
-                addInput.add(0, groupIds);
+            try (IntBlock groupIds = add(vector1, vector2).asBlock()) {
+                addInput.add(0, groupIds.asVector());
             }
         } else {
             try (var addBlock = new AddBlock(block1, block2, addInput)) {

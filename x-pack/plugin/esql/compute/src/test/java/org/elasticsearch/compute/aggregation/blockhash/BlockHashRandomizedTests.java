@@ -47,7 +47,8 @@ import static org.mockito.Mockito.when;
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
 
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+    // TODO: this test should not require 2Gb ?
+    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(2));
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
     final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
 

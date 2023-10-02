@@ -67,7 +67,7 @@ public class BlockHashTests extends ESTestCase {
 
     @After
     public void checkBreaker() {
-        assertThat(breaker.getUsed(), is(0L)); // TODO: enable once all blocks are released
+        assertThat(breaker.getUsed(), is(0L));
     }
 
     private final boolean forcePackedHash;

@@ -142,6 +142,6 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(inputEvaluator);
+        Releasables.closeExpectNoException(inputEvaluator, super::close);
     }
 }

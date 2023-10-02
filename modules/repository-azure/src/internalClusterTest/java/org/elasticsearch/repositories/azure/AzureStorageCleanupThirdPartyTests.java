@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -138,8 +139,14 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repo.threadPool().generic().execute(ActionRunnable.run(future, () -> {
             final BlobContainer blobContainer = repo.blobStore().blobContainer(repo.basePath().add("large_write"));
-            blobContainer.writeBlob(UUIDs.base64UUID(), new ByteArrayInputStream(randomByteArrayOfLength(blobSize)), blobSize, false);
-            blobContainer.delete();
+            blobContainer.writeBlob(
+                OperationPurpose.SNAPSHOT,
+                UUIDs.base64UUID(),
+                new ByteArrayInputStream(randomByteArrayOfLength(blobSize)),
+                blobSize,
+                false
+            );
+            blobContainer.delete(OperationPurpose.SNAPSHOT);
         }));
         future.get();
     }

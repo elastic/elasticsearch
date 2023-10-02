@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIn
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -116,7 +115,10 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ds2BackingIndexName = dsBackingIndexName.replace("-ds-", "-ds2-");
         otherDs2BackingIndexName = otherDsBackingIndexName.replace("-other-ds-", "-other-ds2-");
 
-        IndexResponse indexResponse = client.prepareIndex("ds").setOpType(DocWriteRequest.OpType.CREATE).setSource(DOCUMENT_SOURCE).get();
+        DocWriteResponse indexResponse = client.prepareIndex("ds")
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .setSource(DOCUMENT_SOURCE)
+            .get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         id = indexResponse.getId();
 
@@ -297,7 +299,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSnapshotAndRestoreAllIncludeSpecificDataStream() throws Exception {
-        IndexResponse indexResponse = client.prepareIndex("other-ds")
+        DocWriteResponse indexResponse = client.prepareIndex("other-ds")
             .setOpType(DocWriteRequest.OpType.CREATE)
             .setSource(DOCUMENT_SOURCE)
             .get();

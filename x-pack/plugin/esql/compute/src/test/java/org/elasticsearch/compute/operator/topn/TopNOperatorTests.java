@@ -1351,7 +1351,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected DriverContext driverContext() {
+    protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
         return breakingDriverContext();
     }
 

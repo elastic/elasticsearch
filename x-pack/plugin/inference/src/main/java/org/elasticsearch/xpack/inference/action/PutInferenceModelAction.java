@@ -15,11 +15,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.TaskType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -104,18 +104,18 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final Model model;
+        private final ModelConfigurations model;
 
-        public Response(Model model) {
+        public Response(ModelConfigurations model) {
             this.model = model;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            model = new Model(in);
+            model = new ModelConfigurations(in);
         }
 
-        public Model getModel() {
+        public ModelConfigurations getModel() {
             return model;
         }
 

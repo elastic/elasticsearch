@@ -157,7 +157,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
                 // finish other sinks if one of them failed or sources no longer need pages.
                 boolean toFinishSinks = buffer.noMoreInputs() || failure.get() != null;
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
-                    Page page = resp.page();
+                    Page page = resp.takePage();
                     if (page != null) {
                         buffer.addPage(page);
                     }

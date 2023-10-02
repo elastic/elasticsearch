@@ -16,8 +16,6 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 
 import java.util.BitSet;
-import java.util.List;
-import java.util.ServiceLoader;
 
 public class BlockFactory {
 
@@ -26,36 +24,13 @@ public class BlockFactory {
         BigArrays.NON_RECYCLING_INSTANCE
     );
 
-    private static final BlockFactory GLOBAL = loadGlobalFactory();
-    // new BlockFactory(new NoopCircuitBreaker("esql_noop_breaker"), BigArrays.NON_RECYCLING_INSTANCE);
-
-    private static BlockFactory loadGlobalFactory() {
-        ServiceLoader<BlockFactoryParameters> loader = ServiceLoader.load(
-            BlockFactoryParameters.class,
-            BlockFactory.class.getClassLoader()
-        );
-        List<ServiceLoader.Provider<BlockFactoryParameters>> impls = loader.stream().toList();
-        if (impls.size() != 1) {
-            throw new AssertionError("expected exactly one impl, but got:" + impls);
-        }
-        BlockFactoryParameters params = impls.get(0).get();
-        return new BlockFactory(params.breaker(), params.bigArrays());
-    }
-
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
 
-    private BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
         this.breaker = breaker;
         this.bigArrays = bigArrays;
-    }
-
-    /**
-     * Returns the global ESQL block factory.
-     */
-    public static BlockFactory getGlobalInstance() {
-        return GLOBAL;
     }
 
     /**
@@ -134,6 +109,10 @@ public class BlockFactory {
         return new BooleanBlockBuilder(estimatedSize, this);
     }
 
+    BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
+        return new BooleanVectorFixedBuilder(size, this);
+    }
+
     public BooleanBlock newBooleanArrayBlock(
         boolean[] values,
         int positionCount,
@@ -178,6 +157,10 @@ public class BlockFactory {
 
     public IntVector.Builder newIntVectorBuilder(int estimatedSize) {
         return new IntVectorBuilder(estimatedSize, this);
+    }
+
+    IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
+        return new IntVectorFixedBuilder(size, this);
     }
 
     /**
@@ -225,6 +208,10 @@ public class BlockFactory {
         return new LongVectorBuilder(estimatedSize, this);
     }
 
+    LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
+        return new LongVectorFixedBuilder(size, this);
+    }
+
     public LongVector newLongArrayVector(long[] values, int positionCount) {
         return newLongArrayVector(values, positionCount, 0L);
     }
@@ -261,6 +248,10 @@ public class BlockFactory {
         return new DoubleVectorBuilder(estimatedSize, this);
     }
 
+    DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
+        return new DoubleVectorFixedBuilder(size, this);
+    }
+
     public DoubleVector newDoubleArrayVector(double[] values, int positionCount) {
         return newDoubleArrayVector(values, positionCount, 0L);
     }
@@ -289,7 +280,7 @@ public class BlockFactory {
         MvOrdering mvOrdering
     ) {
         var b = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed() - values.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), true);
         return b;
     }
 
@@ -299,7 +290,7 @@ public class BlockFactory {
 
     public BytesRefVector newBytesRefArrayVector(BytesRefArray values, int positionCount) {
         var b = new BytesRefArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - values.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed(), true);
         return b;
     }
 

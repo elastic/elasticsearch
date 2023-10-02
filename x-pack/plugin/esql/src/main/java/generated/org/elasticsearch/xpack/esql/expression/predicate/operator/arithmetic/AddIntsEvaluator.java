@@ -39,26 +39,28 @@ public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   @Override
-  public Block eval(Page page) {
-    Block lhsUncastBlock = lhs.eval(page);
-    if (lhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref lhsRef = lhs.eval(page)) {
+      if (lhsRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      IntBlock lhsBlock = (IntBlock) lhsRef.block();
+      try (Block.Ref rhsRef = rhs.eval(page)) {
+        if (rhsRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        IntBlock rhsBlock = (IntBlock) rhsRef.block();
+        IntVector lhsVector = lhsBlock.asVector();
+        if (lhsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+        }
+        IntVector rhsVector = rhsBlock.asVector();
+        if (rhsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector));
+      }
     }
-    IntBlock lhsBlock = (IntBlock) lhsUncastBlock;
-    Block rhsUncastBlock = rhs.eval(page);
-    if (rhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    IntBlock rhsBlock = (IntBlock) rhsUncastBlock;
-    IntVector lhsVector = lhsBlock.asVector();
-    if (lhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    IntVector rhsVector = rhsBlock.asVector();
-    if (rhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    return eval(page.getPositionCount(), lhsVector, rhsVector);
   }
 
   public IntBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {

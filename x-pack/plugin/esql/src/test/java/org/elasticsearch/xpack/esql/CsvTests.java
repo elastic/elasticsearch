@@ -327,7 +327,7 @@ public class CsvTests extends ESTestCase {
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             bigArrays,
-            BlockFactory.getGlobalInstance(),
+            BlockFactory.getNonBreakingInstance(),
             configuration,
             exchangeSource,
             exchangeSink,
@@ -378,7 +378,7 @@ public class CsvTests extends ESTestCase {
                 Randomness.shuffle(drivers);
             }
             // Execute the driver
-            DriverRunner runner = new DriverRunner() {
+            DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
                     Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);

@@ -36,26 +36,28 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      if (strRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      try (Block.Ref suffixRef = suffix.eval(page)) {
+        if (suffixRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        BytesRefBlock suffixBlock = (BytesRefBlock) suffixRef.block();
+        BytesRefVector strVector = strBlock.asVector();
+        if (strVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, suffixBlock));
+        }
+        BytesRefVector suffixVector = suffixBlock.asVector();
+        if (suffixVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, suffixBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), strVector, suffixVector).asBlock());
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block suffixUncastBlock = suffix.eval(page);
-    if (suffixUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock suffixBlock = (BytesRefBlock) suffixUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, suffixBlock);
-    }
-    BytesRefVector suffixVector = suffixBlock.asVector();
-    if (suffixVector == null) {
-      return eval(page.getPositionCount(), strBlock, suffixBlock);
-    }
-    return eval(page.getPositionCount(), strVector, suffixVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock suffixBlock) {

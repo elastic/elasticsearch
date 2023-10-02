@@ -36,10 +36,6 @@ public class ExchangeSinkOperator extends SinkOperator {
         implements
             SinkOperatorFactory {
 
-        public ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks) {
-            this(exchangeSinks, Function.identity());
-        }
-
         @Override
         public SinkOperator get(DriverContext driverContext) {
             return new ExchangeSinkOperator(exchangeSinks.get(), transformer);

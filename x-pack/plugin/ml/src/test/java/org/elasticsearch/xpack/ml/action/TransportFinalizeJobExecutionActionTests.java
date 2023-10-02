@@ -81,12 +81,8 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
     }
 
     private TransportFinalizeJobExecutionAction createAction(ClusterService clusterService) {
-        // TODO: temporary, remove in #97879
-        TransportService transportService = mock(TransportService.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-
         return new TransportFinalizeJobExecutionAction(
-            transportService,
+            mock(TransportService.class),
             clusterService,
             threadPool,
             mock(ActionFilters.class),

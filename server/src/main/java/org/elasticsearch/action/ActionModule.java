@@ -857,7 +857,9 @@ public class ActionModule extends AbstractModule {
                 }
             }
         }
-        finalFilters.add(new MappedActionFilters(mappedFilters));
+        if (mappedFilters.isEmpty() == false) {
+            finalFilters.add(new MappedActionFilters(mappedFilters));
+        }
         return new ActionFilters(Set.copyOf(finalFilters));
     }
 

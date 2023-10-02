@@ -102,7 +102,8 @@ public class FilterOperatorTests extends OperatorTestCase {
         );
         List<Page> results = drive(
             new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)).get(context),
-            input.iterator()
+            input.iterator(),
+            context
         );
         List<Boolean> found = new ArrayList<>();
         for (var page : results) {

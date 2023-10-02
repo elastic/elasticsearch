@@ -1562,8 +1562,10 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(indexRequest.getContentType(), equalTo(xContentType.canonical()));
             if (executedPipelinesExpected.get(i)) {
                 assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of(pipelineId)));
-            } else {
+            } else if (indexRequest.getListExecutedPipelines()) {
                 assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of()));
+            } else {
+                assertThat(indexRequest.getExecutedPipelines(), nullValue());
             }
         }
     }

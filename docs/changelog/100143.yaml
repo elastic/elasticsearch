@@ -1,0 +1,5 @@
+pr: 100143
+summary: Preserve order of inference results
+area: Machine Learning
+type: bug
+issues: []

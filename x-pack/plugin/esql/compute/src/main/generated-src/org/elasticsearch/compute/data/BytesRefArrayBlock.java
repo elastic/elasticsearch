@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 import java.util.stream.IntStream;
@@ -25,7 +26,18 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     private final BytesRefArray values;
 
     public BytesRefArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        super(positionCount, firstValueIndexes, nulls, mvOrdering);
+        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
+    }
+
+    public BytesRefArrayBlock(
+        BytesRefArray values,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.values = values;
     }
 
@@ -59,12 +71,13 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
             return new BytesRefArrayVector(values, end).asBlock();
         }
         int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new BytesRefArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
+        return new BytesRefArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
     }
 
     public static long ramBytesEstimated(BytesRefArray values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+        // TODO mvordering is shared
     }
 
     @Override
@@ -99,6 +112,11 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     @Override
     public void close() {
-        // no-op
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        Releasables.closeExpectNoException(values);
     }
 }

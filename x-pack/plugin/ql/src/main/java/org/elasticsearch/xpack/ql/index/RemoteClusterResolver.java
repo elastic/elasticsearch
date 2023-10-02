@@ -19,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class RemoteClusterResolver extends RemoteClusterAware {
     private final CopyOnWriteArraySet<String> clusters;
 
+    @SuppressWarnings("this-escape")
     public RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));

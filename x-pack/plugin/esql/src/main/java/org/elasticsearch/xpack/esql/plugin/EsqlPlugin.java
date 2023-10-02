@@ -39,10 +39,10 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -76,6 +75,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> QUERY_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
+        "esql.query.result_truncation_default_size",
+        500,
+        1,
+        10000,
+        Setting.Property.NodeScope
+    );
+
     @Override
     public Collection<Object> createComponents(
         Client client,
@@ -89,18 +96,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        IndexResolver indexResolver = new IndexResolver(
-            client,
-            clusterService.getClusterName().value(),
-            EsqlDataTypeRegistry.INSTANCE,
-            Set::of
-        );
         return List.of(
-            new PlanExecutor(indexResolver, new EnrichPolicyResolver(clusterService, indexResolver, threadPool)),
+            new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of)),
             new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME)
         );
     }

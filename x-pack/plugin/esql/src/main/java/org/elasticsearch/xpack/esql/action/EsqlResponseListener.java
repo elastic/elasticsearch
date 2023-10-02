@@ -118,22 +118,33 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
 
     @Override
     public RestResponse buildResponse(EsqlQueryResponse esqlResponse) throws Exception {
-        RestResponse restResponse;
-        if (mediaType instanceof TextFormat format) {
-            restResponse = RestResponse.chunked(
-                RestStatus.OK,
-                ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse))
-            );
-        } else {
-            restResponse = RestResponse.chunked(
-                RestStatus.OK,
-                ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel)
-            );
+        boolean success = false;
+        try {
+            RestResponse restResponse;
+            if (mediaType instanceof TextFormat format) {
+                restResponse = RestResponse.chunked(
+                    RestStatus.OK,
+                    ChunkedRestResponseBody.fromTextChunks(
+                        format.contentType(restRequest),
+                        format.format(restRequest, esqlResponse),
+                        esqlResponse
+                    )
+                );
+            } else {
+                restResponse = RestResponse.chunked(
+                    RestStatus.OK,
+                    ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel, esqlResponse)
+                );
+            }
+            long tookNanos = stopWatch.stop().getNanos();
+            restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
+            success = true;
+            return restResponse;
+        } finally {
+            if (success == false) {
+                esqlResponse.close();
+            }
         }
-        long tookNanos = stopWatch.stop().getNanos();
-        restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
-
-        return restResponse;
     }
 
     /**
@@ -143,12 +154,16 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         return ActionListener.wrap(r -> {
             onResponse(r);
             // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.info("Successfully executed ESQL query in {}ms:\n{}", stopWatch.stop().getMillis(), esqlQuery);
+            LOGGER.info(
+                "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
+                esqlQuery,
+                stopWatch.stop().getMillis()
+            );
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = stopWatch.stop().getMillis();
             onFailure(ex);
-            LOGGER.info("Failed executing ESQL query in {}ms:\n{}", timeMillis, esqlQuery);
+            LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
         });
     }
 }

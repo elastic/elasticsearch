@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
  * Encodes values for {@link TopNOperator}. Some encoders encode values so sorting
@@ -41,23 +41,23 @@ public interface TopNEncoder {
      */
     VersionTopNEncoder VERSION = new VersionTopNEncoder();
 
-    void encodeLong(long value, BytesRefBuilder bytesRefBuilder);
+    void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder);
 
     long decodeLong(BytesRef bytes);
 
-    void encodeInt(int value, BytesRefBuilder bytesRefBuilder);
+    void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder);
 
     int decodeInt(BytesRef bytes);
 
-    void encodeDouble(double value, BytesRefBuilder bytesRefBuilder);
+    void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder);
 
     double decodeDouble(BytesRef bytes);
 
-    void encodeBoolean(boolean value, BytesRefBuilder bytesRefBuilder);
+    void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder);
 
     boolean decodeBoolean(BytesRef bytes);
 
-    int encodeBytesRef(BytesRef value, BytesRefBuilder bytesRefBuilder);
+    int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
 
     BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch);
 

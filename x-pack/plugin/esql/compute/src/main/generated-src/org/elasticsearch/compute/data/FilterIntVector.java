@@ -21,7 +21,7 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
     private final IntVector vector;
 
     FilterIntVector(IntVector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
     }
 
@@ -88,6 +88,11 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
             }
             sb.append(getInt(i));
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 
     @Override

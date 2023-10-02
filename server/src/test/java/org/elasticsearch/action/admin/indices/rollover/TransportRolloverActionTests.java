@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -79,7 +78,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -302,7 +300,6 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
-        final TransportService mockTransportService = mock(TransportService.class);
         final ClusterService mockClusterService = mock(ClusterService.class);
         final DiscoveryNode mockNode = mock(DiscoveryNode.class);
         when(mockNode.getId()).thenReturn("mocknode");
@@ -357,11 +354,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             WriteLoadForecaster.DEFAULT
         );
 
-        // TODO: temporary, remove in #97879
-        when(mockTransportService.getThreadPool()).thenReturn(mockThreadPool);
-        when(mockThreadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
-            mockTransportService,
+            mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,

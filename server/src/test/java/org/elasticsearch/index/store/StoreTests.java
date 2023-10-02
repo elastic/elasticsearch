@@ -815,7 +815,7 @@ public class StoreTests extends ESTestCase {
         // directory that returns total written bytes as the data set size
         final var directory = new ByteSizeDirectory(StoreTests.newDirectory(random())) {
 
-            final AtomicLong dataSetBytes = new AtomicLong(0L);
+            final AtomicLong dataSetBytes = new AtomicLong(estimateSizeInBytes(getDelegate()));
 
             @Override
             public long estimateSizeInBytes() throws IOException {

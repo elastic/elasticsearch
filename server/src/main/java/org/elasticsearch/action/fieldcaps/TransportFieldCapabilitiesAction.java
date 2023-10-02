@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -56,6 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -83,7 +85,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, ThreadPool.Names.SAME);
+        super(
+            FieldCapabilitiesAction.NAME,
+            transportService,
+            actionFilters,
+            FieldCapabilitiesRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
+        );
         this.threadPool = threadPool;
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
@@ -409,17 +417,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
-            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
-                fieldCap.getType(),
-                key -> new FieldCapabilities.Builder(field, key)
-            );
+            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.type(), key -> new FieldCapabilities.Builder(field, key));
             builder.add(
                 indices,
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
                 fieldCap.isDimension(),
-                fieldCap.getMetricType(),
+                fieldCap.metricType(),
                 fieldCap.meta()
             );
         }
@@ -482,6 +487,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
                 final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
+                final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
@@ -490,7 +496,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
                                 (CancellableTask) task,
                                 shardId,
-                                request.fields(),
+                                fieldNameFilter,
                                 request.filters(),
                                 request.allowedTypes(),
                                 request.indexFilter(),

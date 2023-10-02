@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -113,7 +114,7 @@ public class BlobStoreFormatTests extends ESTestCase {
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
         checksumFormat.write(blobObj, blobContainer, "blob-comp", true);
         checksumFormat.write(blobObj, blobContainer, "blob-not-comp", false);
-        Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix("blob-");
+        Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT, "blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
     }
@@ -146,8 +147,8 @@ public class BlobStoreFormatTests extends ESTestCase {
     }
 
     protected void randomCorruption(BlobContainer blobContainer, String blobName) throws IOException {
-        final byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(blobName).get(blobName).length()];
-        try (InputStream inputStream = blobContainer.readBlob(blobName)) {
+        final byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT, blobName).get(blobName).length()];
+        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, blobName)) {
             Streams.readFully(inputStream, buffer);
         }
         final BytesArray corruptedBytes;
@@ -163,7 +164,7 @@ public class BlobStoreFormatTests extends ESTestCase {
             // another sequence of 8 zero bytes anywhere in the file, let alone such a sequence followed by a correct checksum.
             corruptedBytes = new BytesArray(buffer, 0, location);
         }
-        blobContainer.writeBlob(blobName, corruptedBytes, false);
+        blobContainer.writeBlob(OperationPurpose.SNAPSHOT, blobName, corruptedBytes, false);
     }
 
 }

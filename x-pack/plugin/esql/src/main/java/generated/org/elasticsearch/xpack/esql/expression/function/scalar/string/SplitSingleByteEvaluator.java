@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Split}.
@@ -36,17 +37,18 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      if (strRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      BytesRefVector strVector = strBlock.asVector();
+      if (strVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), strBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), strVector));
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock);
-    }
-    return eval(page.getPositionCount(), strVector);
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
@@ -74,5 +76,10 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   @Override
   public String toString() {
     return "SplitSingleByteEvaluator[" + "str=" + str + ", delim=" + delim + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(str);
   }
 }

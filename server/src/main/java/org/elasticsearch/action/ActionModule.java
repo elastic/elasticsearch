@@ -274,7 +274,6 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -458,8 +457,8 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.time.Instant;
@@ -509,7 +508,6 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
-    private final boolean serverlessEnabled;
     private final RestExtension restExtension;
 
     public ActionModule(
@@ -536,7 +534,6 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.serverlessEnabled = DiscoveryNode.isServerless();
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -680,7 +677,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
-        actions.register(GetHealthAction.INSTANCE, GetHealthAction.TransportAction.class);
+        actions.register(GetHealthAction.INSTANCE, GetHealthAction.LocalAction.class);
         actions.register(PrevalidateNodeRemovalAction.INSTANCE, TransportPrevalidateNodeRemovalAction.class);
         actions.register(HealthApiStatsAction.INSTANCE, HealthApiStatsTransportAction.class);
 

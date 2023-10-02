@@ -107,3 +107,12 @@ However, this API itself sends network messages so may not work correctly if
 the `transport_worker` threads are too busy. It is more reliable to use
 `jstack` to obtain stack dumps or use Java Flight Recorder to obtain a
 profiling trace. These tools are independent of any work the JVM is performing.
+
+It may also be possible to identify some reasons for delays from the server
+logs, particularly looking at warnings from
+`org.elasticsearch.transport.InboundHandler` and
+`org.elasticsearch.transport.OutboundHandler`. Warnings about long processing
+times from the `InboundHandler` are particularly indicative of incorrect
+threading behaviour, whereas the transmission time reported by the
+`OutboundHandler` includes time spent waiting for network congestion and the
+`transport_worker` thread is free to do other work during this time.

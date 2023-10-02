@@ -7,10 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 abstract class KeyExtractorForBoolean implements KeyExtractor {
     static KeyExtractorForBoolean extractorFor(TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, BooleanBlock block) {
@@ -19,11 +18,11 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
             return new KeyExtractorForBoolean.ForVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
-            return block.mvOrdering() == Block.MvOrdering.ASCENDING
+            return block.mvSortedAscending()
                 ? new KeyExtractorForBoolean.MinForAscending(encoder, nul, nonNul, block)
                 : new KeyExtractorForBoolean.MinForUnordered(encoder, nul, nonNul, block);
         }
-        return block.mvOrdering() == Block.MvOrdering.ASCENDING
+        return block.mvSortedAscending()
             ? new KeyExtractorForBoolean.MaxForAscending(encoder, nul, nonNul, block)
             : new KeyExtractorForBoolean.MaxForUnordered(encoder, nul, nonNul, block);
     }
@@ -37,13 +36,13 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BytesRefBuilder key, boolean value) {
+    protected final int nonNul(BreakingBytesRefBuilder key, boolean value) {
         key.append(nonNul);
         TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value, key);
         return Byte.BYTES + 1;
     }
 
-    protected final int nul(BytesRefBuilder key) {
+    protected final int nul(BreakingBytesRefBuilder key) {
         key.append(nul);
         return 1;
     }
@@ -57,7 +56,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             return nonNul(key, vector.getBoolean(position));
         }
     }
@@ -71,7 +70,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 return nul(key);
             }
@@ -88,7 +87,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 return nul(key);
             }
@@ -105,7 +104,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 return nul(key);
@@ -130,7 +129,7 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BytesRefBuilder key, int position) {
+        public int writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 return nul(key);

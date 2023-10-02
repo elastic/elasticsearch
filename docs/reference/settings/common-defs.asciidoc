@@ -57,20 +57,21 @@ end::ssl-key-pem[]
 
 tag::ssl-key-passphrase[]
 The passphrase that is used to decrypt the private key. Since the key might not
-be encrypted, this value is optional.
+be encrypted, this value is optional. deprecated:[7.17.0] Prefer `ssl.secure_key_passphrase` instead.
 +
 You cannot use this setting and `ssl.secure_key_passphrase` at the same time.
 end::ssl-key-passphrase[]
 
 tag::ssl-keystore-key-password[]
 The password for the key in the keystore. The default is the keystore password.
+deprecated:[7.17.0] Prefer `ssl.keystore.secure_key_password` instead.
 +
 You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 //TBD: You cannot use this setting and `ssl.keystore.secure_key_password` at the same time.
 end::ssl-keystore-key-password[]
 
 tag::ssl-keystore-password[]
-The password for the keystore.
+The password for the keystore. deprecated:[7.17.0] Prefer `ssl.keystore.secure_password` instead.
 //TBD: You cannot use this setting and `ssl.keystore.secure_password` at the same time.
 end::ssl-keystore-password[]
 
@@ -122,7 +123,7 @@ or `SSLv3`. See <<fips-140-compliance>>.
 end::ssl-supported-protocols[]
 
 tag::ssl-truststore-password[]
-The password for the truststore.
+The password for the truststore. deprecated:[7.17.0] Prefer `ssl.truststore.secure_password` instead.
 +
 You cannot use this setting and `ssl.truststore.secure_password` at the same
 time.
@@ -160,7 +161,7 @@ Authority (CA); has a `hostname` or IP address that matches the names within
 the certificate.
 
 `certificate`::
-Validates the provided certificate and verifies that it's signed by a 
+Validates the provided certificate and verifies that it's signed by a
 trusted authority (CA), but doesn't check the certificate `hostname`.
 
 `none`::

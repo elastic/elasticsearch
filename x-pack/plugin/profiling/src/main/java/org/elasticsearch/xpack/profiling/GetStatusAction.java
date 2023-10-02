@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,6 +35,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         private boolean resourceManagementEnabled;
         private boolean resourcesCreated;
         private boolean pre891Data;
+        private boolean timedOut;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -41,6 +43,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             resourceManagementEnabled = in.readBoolean();
             resourcesCreated = in.readBoolean();
             pre891Data = in.readBoolean();
+            timedOut = in.readBoolean();
         }
 
         public Response(boolean profilingEnabled, boolean resourceManagementEnabled, boolean resourcesCreated, boolean pre891Data) {
@@ -48,6 +51,14 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             this.resourceManagementEnabled = resourceManagementEnabled;
             this.resourcesCreated = resourcesCreated;
             this.pre891Data = pre891Data;
+        }
+
+        public void setTimedOut(boolean timedOut) {
+            this.timedOut = timedOut;
+        }
+
+        public boolean isResourcesCreated() {
+            return resourcesCreated;
         }
 
         @Override
@@ -66,6 +77,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             out.writeBoolean(resourceManagementEnabled);
             out.writeBoolean(resourcesCreated);
             out.writeBoolean(pre891Data);
+            out.writeBoolean(timedOut);
         }
 
         @Override
@@ -76,12 +88,13 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             return profilingEnabled == response.profilingEnabled
                 && resourceManagementEnabled == response.resourceManagementEnabled
                 && resourcesCreated == response.resourcesCreated
-                && pre891Data == response.pre891Data;
+                && pre891Data == response.pre891Data
+                && timedOut == response.timedOut;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated, pre891Data);
+            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated, pre891Data, timedOut);
         }
 
         @Override
@@ -89,15 +102,28 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             return Strings.toString(this, true, true);
         }
 
+        public RestStatus status() {
+            return timedOut ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
+        }
     }
 
     public static class Request extends AcknowledgedRequest<GetStatusAction.Request> {
+        private boolean waitForResourcesCreated;
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            waitForResourcesCreated = in.readBoolean();
         }
 
         public Request() {}
+
+        public boolean waitForResourcesCreated() {
+            return waitForResourcesCreated;
+        }
+
+        public void waitForResourcesCreated(boolean waitForResourcesCreated) {
+            this.waitForResourcesCreated = waitForResourcesCreated;
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -107,6 +133,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeBoolean(waitForResourcesCreated);
         }
     }
 }

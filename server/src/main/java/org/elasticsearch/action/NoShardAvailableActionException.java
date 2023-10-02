@@ -28,18 +28,22 @@ public class NoShardAvailableActionException extends ElasticsearchException {
         return new NoShardAvailableActionException(null, msg, null, true);
     }
 
+    @SuppressWarnings("this-escape")
     public NoShardAvailableActionException(ShardId shardId) {
         this(shardId, null, null, false);
     }
 
+    @SuppressWarnings("this-escape")
     public NoShardAvailableActionException(ShardId shardId, String msg) {
         this(shardId, msg, null, false);
     }
 
+    @SuppressWarnings("this-escape")
     public NoShardAvailableActionException(ShardId shardId, String msg, Throwable cause) {
         this(shardId, msg, cause, false);
     }
 
+    @SuppressWarnings("this-escape")
     private NoShardAvailableActionException(ShardId shardId, String msg, Throwable cause, boolean onShardFailureWrapper) {
         super(msg, cause);
         setShard(shardId);

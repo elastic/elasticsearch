@@ -37,6 +37,7 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
     private final AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> resultsService;
     private final TransportService transportService;
 
+    @SuppressWarnings("this-escape")
     public AbstractTransportQlAsyncGetResultsAction(
         String actionName,
         TransportService transportService,

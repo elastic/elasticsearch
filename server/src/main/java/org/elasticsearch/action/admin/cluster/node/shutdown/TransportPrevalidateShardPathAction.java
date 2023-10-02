@@ -70,7 +70,7 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
             actionFilters,
             PrevalidateShardPathRequest::new,
             NodePrevalidateShardPathRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transportService = transportService;
         this.nodeEnv = nodeEnv;

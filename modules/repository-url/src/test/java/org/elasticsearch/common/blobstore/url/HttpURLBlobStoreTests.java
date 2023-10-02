@@ -13,7 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPurpose;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -127,10 +127,13 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     public void testRangeReadOutsideOfLegalRange() {
         BlobContainer container = getBlobContainer();
-        expectThrows(IllegalArgumentException.class, () -> container.readBlob(BlobPurpose.SNAPSHOT, blobName, -1, content.length).read());
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> container.readBlob(OperationPurpose.SNAPSHOT, blobName, -1, content.length).read()
+        );
         expectThrows(
             IOException.class,
-            () -> container.readBlob(BlobPurpose.SNAPSHOT, blobName, content.length + 1, content.length).read()
+            () -> container.readBlob(OperationPurpose.SNAPSHOT, blobName, content.length + 1, content.length).read()
         );
     }
 

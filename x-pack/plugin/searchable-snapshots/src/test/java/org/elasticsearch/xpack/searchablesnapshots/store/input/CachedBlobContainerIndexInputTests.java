@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheTestUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPurpose;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -288,7 +288,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
         }
 
         @Override
-        public InputStream readBlob(BlobPurpose purpose, String blobName, long position, long length) throws IOException {
+        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
             return new CountingInputStream(this, super.readBlob(purpose, blobName, position, length));
         }
 
@@ -298,7 +298,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
         }
 
         @Override
-        public InputStream readBlob(BlobPurpose purpose, String name) {
+        public InputStream readBlob(OperationPurpose purpose, String name) {
             assert false : "this method should never be called";
             throw new UnsupportedOperationException();
         }

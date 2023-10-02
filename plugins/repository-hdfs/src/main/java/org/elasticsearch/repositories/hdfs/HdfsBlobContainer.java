@@ -18,8 +18,8 @@ import org.apache.hadoop.fs.Path;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -73,18 +73,18 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     private static final DeleteResult DELETE_RESULT = new DeleteResult(1L, 0L);
 
     @Override
-    public boolean blobExists(BlobPurpose purpose, String blobName) throws IOException {
+    public boolean blobExists(OperationPurpose purpose, String blobName) throws IOException {
         return store.execute(fileContext -> fileContext.util().exists(new Path(path, blobName)));
     }
 
     @Override
-    public DeleteResult delete(BlobPurpose purpose) throws IOException {
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
         store.execute(fileContext -> fileContext.delete(path, true));
         return DELETE_RESULT;
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, final Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, final Iterator<String> blobNames) throws IOException {
         IOException ioe = null;
         while (blobNames.hasNext()) {
             final String blobName = blobNames.next();
@@ -106,7 +106,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
         // FSDataInputStream does buffering internally
         // FSDataInputStream can open connections on read() or skip() so we wrap in
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
@@ -121,7 +121,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(BlobPurpose purpose, String blobName, long position, long length) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
         // FSDataInputStream does buffering internally
         // FSDataInputStream can open connections on read() or skip() so we wrap in
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
@@ -141,7 +141,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(BlobPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         Path blob = new Path(path, blobName);
         // we pass CREATE, which means it fails if a blob already exists.
@@ -159,7 +159,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         Path blob = new Path(path, blobName);
         // we pass CREATE, which means it fails if a blob already exists.
         final EnumSet<CreateFlag> flags = failIfAlreadyExists
@@ -177,7 +177,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeMetadataBlob(
-        BlobPurpose purpose,
+        OperationPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
@@ -221,7 +221,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+    public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         final String tempBlob = FsBlobContainer.tempBlobName(blobName);
         final Path tempBlobPath = new Path(path, tempBlob);
@@ -263,7 +263,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(BlobPurpose purpose, @Nullable final String prefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, @Nullable final String prefix) throws IOException {
         FileStatus[] files;
         try {
             files = store.execute(
@@ -282,12 +282,12 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobs(BlobPurpose purpose) throws IOException {
+    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         return listBlobsByPrefix(purpose, null);
     }
 
     @Override
-    public Map<String, BlobContainer> children(BlobPurpose purpose) throws IOException {
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path));
         Map<String, BlobContainer> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
@@ -346,7 +346,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void compareAndExchangeRegister(
-        BlobPurpose purpose,
+        OperationPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,

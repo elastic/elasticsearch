@@ -20,7 +20,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.util.Progressable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPurpose;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
@@ -131,7 +131,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "foo", data.length), data);
-        assertTrue(container.blobExists(BlobPurpose.SNAPSHOT, "foo"));
+        assertTrue(container.blobExists(OperationPurpose.SNAPSHOT, "foo"));
     }
 
     public void testReadRange() throws Exception {
@@ -162,7 +162,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         int pos = randomIntBetween(0, data.length / 2);
         int len = randomIntBetween(pos, data.length) - pos;
         assertArrayEquals(readBlobPartially(container, "foo", pos, len), Arrays.copyOfRange(data, pos, pos + len));
-        assertTrue(container.blobExists(BlobPurpose.SNAPSHOT, "foo"));
+        assertTrue(container.blobExists(OperationPurpose.SNAPSHOT, "foo"));
     }
 
     public void testReplicationFactor() throws Exception {
@@ -209,24 +209,24 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "foo", data.length), data);
-        assertTrue(container.blobExists(BlobPurpose.SNAPSHOT, "foo"));
+        assertTrue(container.blobExists(OperationPurpose.SNAPSHOT, "foo"));
         writeBlob(container, "bar", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "bar", data.length), data);
-        assertTrue(container.blobExists(BlobPurpose.SNAPSHOT, "bar"));
+        assertTrue(container.blobExists(OperationPurpose.SNAPSHOT, "bar"));
 
-        assertEquals(2, container.listBlobsByPrefix(BlobPurpose.SNAPSHOT, null).size());
-        assertEquals(1, container.listBlobsByPrefix(BlobPurpose.SNAPSHOT, "fo").size());
-        assertEquals(0, container.listBlobsByPrefix(BlobPurpose.SNAPSHOT, "noSuchFile").size());
+        assertEquals(2, container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, null).size());
+        assertEquals(1, container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, "fo").size());
+        assertEquals(0, container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, "noSuchFile").size());
 
-        container.delete(BlobPurpose.SNAPSHOT);
-        assertEquals(0, container.listBlobsByPrefix(BlobPurpose.SNAPSHOT, null).size());
-        assertEquals(0, container.listBlobsByPrefix(BlobPurpose.SNAPSHOT, "fo").size());
-        assertEquals(0, container.listBlobsByPrefix(BlobPurpose.SNAPSHOT, "noSuchFile").size());
+        container.delete(OperationPurpose.SNAPSHOT);
+        assertEquals(0, container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, null).size());
+        assertEquals(0, container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, "fo").size());
+        assertEquals(0, container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, "noSuchFile").size());
     }
 
     public static byte[] readBlobPartially(BlobContainer container, String name, int pos, int length) throws IOException {
         byte[] data = new byte[length];
-        try (InputStream inputStream = container.readBlob(BlobPurpose.SNAPSHOT, name, pos, length)) {
+        try (InputStream inputStream = container.readBlob(OperationPurpose.SNAPSHOT, name, pos, length)) {
             assertThat(Streams.readFully(inputStream, data), CoreMatchers.equalTo(length));
             assertThat(inputStream.read(), CoreMatchers.equalTo(-1));
         }

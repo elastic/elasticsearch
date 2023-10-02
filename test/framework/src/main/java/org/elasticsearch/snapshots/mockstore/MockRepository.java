@@ -18,9 +18,9 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
@@ -527,7 +527,7 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public InputStream readBlob(BlobPurpose purpose, String name) throws IOException {
+            public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
                 if (blockOnReadIndexMeta && name.startsWith(BlobStoreRepository.METADATA_PREFIX) && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(name);
                 } else if (path().equals(basePath())
@@ -542,14 +542,14 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public InputStream readBlob(BlobPurpose purpose, String name, long position, long length) throws IOException {
+            public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
                 maybeReadErrorAfterBlock(name);
                 maybeIOExceptionOrBlock(name);
                 return super.readBlob(purpose, name, position, length);
             }
 
             @Override
-            public DeleteResult delete(BlobPurpose purpose) throws IOException {
+            public DeleteResult delete(OperationPurpose purpose) throws IOException {
                 DeleteResult deleteResult = DeleteResult.ZERO;
                 for (BlobContainer child : children(purpose).values()) {
                     deleteResult = deleteResult.add(child.delete(purpose));
@@ -568,7 +568,7 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException {
+            public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
                 final List<String> names = new ArrayList<>();
                 blobNames.forEachRemaining(names::add);
                 if (blockOnDeleteIndexN && names.stream().anyMatch(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
@@ -578,13 +578,13 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public Map<String, BlobMetadata> listBlobs(BlobPurpose purpose) throws IOException {
+            public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
                 maybeIOExceptionOrBlock("");
                 return super.listBlobs(purpose);
             }
 
             @Override
-            public Map<String, BlobContainer> children(BlobPurpose purpose) throws IOException {
+            public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
                 final Map<String, BlobContainer> res = new HashMap<>();
                 for (Map.Entry<String, BlobContainer> entry : super.children(purpose).entrySet()) {
                     res.put(entry.getKey(), new MockBlobContainer(entry.getValue()));
@@ -593,14 +593,19 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public Map<String, BlobMetadata> listBlobsByPrefix(BlobPurpose purpose, String blobNamePrefix) throws IOException {
+            public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
                 maybeIOExceptionOrBlock(blobNamePrefix);
                 return super.listBlobsByPrefix(purpose, blobNamePrefix);
             }
 
             @Override
-            public void writeBlob(BlobPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                throws IOException {
+            public void writeBlob(
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
                 beforeWrite(blobName);
                 super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
@@ -612,7 +617,7 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeMetadataBlob(
-                BlobPurpose purpose,
+                OperationPurpose purpose,
                 String blobName,
                 boolean failIfAlreadyExists,
                 boolean atomic,
@@ -644,7 +649,7 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeBlobAtomic(
-                final BlobPurpose purpose,
+                final OperationPurpose purpose,
                 final String blobName,
                 final BytesReference bytes,
                 final boolean failIfAlreadyExists

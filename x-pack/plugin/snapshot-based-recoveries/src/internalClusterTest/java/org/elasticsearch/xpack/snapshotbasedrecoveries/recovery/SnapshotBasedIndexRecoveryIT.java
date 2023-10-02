@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPurpose;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -183,7 +183,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     // Take into account only index files
                     if (blobName.startsWith("__") == false) {
                         return super.readBlob(purpose, blobName);
@@ -225,7 +225,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     // Fail only in index files
                     if (blobName.startsWith("__") == false) {
                         return super.readBlob(purpose, blobName);
@@ -288,7 +288,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     BiFunction<String, InputStream, InputStream> delegateSupplier = delegateSupplierRef.get();
                     return delegateSupplier.apply(blobName, super.readBlob(purpose, blobName));
                 }

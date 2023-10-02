@@ -29,7 +29,7 @@ public interface BlobStore extends Closeable {
      */
     @Deprecated(forRemoval = true)
     default void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        deleteBlobsIgnoringIfNotExists(BlobPurpose.SNAPSHOT, blobNames);
+        deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobNames);
     }
 
     // TODO: Remove the default implementation and require each blob store to implement this method. Once it's done, remove the
@@ -40,7 +40,7 @@ public interface BlobStore extends Closeable {
      * @param purpose   the purpose of the delete operation, useful for stats collection
      * @param blobNames the blobs to be deleted
      */
-    default void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException {
+    default void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         throw new UnsupportedOperationException();
     }
 

@@ -20,7 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.common.blobstore.BlobPurpose;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.Releasable;
@@ -528,7 +528,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             assert position + readLength <= fileInfo.length()
                 : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
             stats.addBlobStoreBytesRequested(readLength);
-            return directory.blobContainer().readBlob(BlobPurpose.SNAPSHOT, fileInfo.name(), position, readLength);
+            return directory.blobContainer().readBlob(OperationPurpose.SNAPSHOT, fileInfo.name(), position, readLength);
         }
         return openInputStreamMultipleParts(position, readLength);
     }
@@ -558,7 +558,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
                     ? getRelativePositionInPart(position + readLength - 1) + 1
                     : fileInfo.partBytes(currentPart);
                 return directory.blobContainer()
-                    .readBlob(BlobPurpose.SNAPSHOT, fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
+                    .readBlob(OperationPurpose.SNAPSHOT, fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
             }
         };
     }

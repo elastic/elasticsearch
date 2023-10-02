@@ -11,8 +11,8 @@ package org.elasticsearch.common.blobstore.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
@@ -41,17 +41,17 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public boolean blobExists(BlobPurpose purpose, String blobName) throws IOException {
+    public boolean blobExists(OperationPurpose purpose, String blobName) throws IOException {
         return delegate.blobExists(purpose, blobName);
     }
 
     @Override
-    public InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
         return delegate.readBlob(purpose, blobName);
     }
 
     @Override
-    public InputStream readBlob(BlobPurpose purpose, String blobName, long position, long length) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
         return delegate.readBlob(purpose, blobName, position, length);
     }
 
@@ -61,14 +61,14 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void writeBlob(BlobPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         delegate.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override
     public void writeMetadataBlob(
-        BlobPurpose purpose,
+        OperationPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
@@ -78,39 +78,39 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+    public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         delegate.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
     }
 
     @Override
-    public DeleteResult delete(BlobPurpose purpose) throws IOException {
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
         return delegate.delete(purpose);
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobs(BlobPurpose purpose) throws IOException {
+    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         return delegate.listBlobs(purpose);
     }
 
     @Override
-    public Map<String, BlobContainer> children(BlobPurpose purpose) throws IOException {
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         return delegate.children(purpose).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> wrapChild(e.getValue())));
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(BlobPurpose purpose, String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(purpose, blobNamePrefix);
     }
 
     @Override
     public void compareAndExchangeRegister(
-        BlobPurpose purpose,
+        OperationPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,
@@ -121,7 +121,7 @@ public abstract class FilterBlobContainer implements BlobContainer {
 
     @Override
     public void compareAndSetRegister(
-        BlobPurpose purpose,
+        OperationPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,
@@ -131,7 +131,7 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void getRegister(BlobPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         delegate.getRegister(purpose, key, listener);
     }
 }

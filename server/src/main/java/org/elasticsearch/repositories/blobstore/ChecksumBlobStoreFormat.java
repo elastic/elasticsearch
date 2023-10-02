@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPurpose;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -118,7 +118,7 @@ public final class ChecksumBlobStoreFormat<T> {
     public T read(String repoName, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
         throws IOException {
         String blobName = blobName(name);
-        try (InputStream in = blobContainer.readBlob(BlobPurpose.SNAPSHOT, blobName)) {
+        try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT, blobName)) {
             return deserialize(repoName, namedXContentRegistry, in);
         }
     }
@@ -345,7 +345,7 @@ public final class ChecksumBlobStoreFormat<T> {
         throws IOException {
         final String blobName = blobName(name);
         blobContainer.writeMetadataBlob(
-            BlobPurpose.SNAPSHOT,
+            OperationPurpose.SNAPSHOT,
             blobName,
             false,
             false,

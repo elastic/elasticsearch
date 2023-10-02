@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
-import org.elasticsearch.common.blobstore.BlobPurpose;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -98,7 +98,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                     garbageFuture,
                     () -> repository.blobStore()
                         .blobContainer(repository.basePath())
-                        .writeBlob(BlobPurpose.SNAPSHOT, "snap-foo.dat", new BytesArray(new byte[1]), true)
+                        .writeBlob(OperationPurpose.SNAPSHOT, "snap-foo.dat", new BytesArray(new byte[1]), true)
                 )
             );
         garbageFuture.get();
@@ -147,7 +147,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
                             .writeBlob(
-                                BlobPurpose.SNAPSHOT,
+                                OperationPurpose.SNAPSHOT,
                                 BlobStoreRepository.INDEX_FILE_PREFIX + generation,
                                 new BytesArray(new byte[1]),
                                 true

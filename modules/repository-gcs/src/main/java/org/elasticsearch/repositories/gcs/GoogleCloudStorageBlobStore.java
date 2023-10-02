@@ -25,9 +25,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -492,7 +492,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param purpose The purpose of the delete operation, useful for stats collection
      * @param pathStr Name of path to delete
      */
-    DeleteResult deleteDirectory(BlobPurpose purpose, String pathStr) throws IOException {
+    DeleteResult deleteDirectory(OperationPurpose purpose, String pathStr) throws IOException {
         return SocketAccess.doPrivilegedIOException(() -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             Page<Blob> page = client().list(bucketName, BlobListOption.prefix(pathStr));
@@ -528,7 +528,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param blobNames names of the blobs to delete
      */
     @Override
-    public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }

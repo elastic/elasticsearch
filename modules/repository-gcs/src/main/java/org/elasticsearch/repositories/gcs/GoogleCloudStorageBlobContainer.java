@@ -11,9 +11,9 @@ package org.elasticsearch.repositories.gcs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobPurpose;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -38,7 +38,7 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(BlobPurpose purpose, String blobName) {
+    public boolean blobExists(OperationPurpose purpose, String blobName) {
         try {
             return blobStore.blobExists(buildKey(blobName));
         } catch (Exception e) {
@@ -47,44 +47,45 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobs(BlobPurpose purpose) throws IOException {
+    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
         return blobStore.listBlobs(path);
     }
 
     @Override
-    public Map<String, BlobContainer> children(BlobPurpose purpose) throws IOException {
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         return blobStore.listChildren(path());
     }
 
     @Override
-    public Map<String, BlobMetadata> listBlobsByPrefix(BlobPurpose purpose, String prefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String prefix) throws IOException {
         return blobStore.listBlobsByPrefix(path, prefix);
     }
 
     @Override
-    public InputStream readBlob(BlobPurpose purpose, String blobName) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
         return blobStore.readBlob(buildKey(blobName));
     }
 
     @Override
-    public InputStream readBlob(BlobPurpose purpose, final String blobName, final long position, final long length) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, final String blobName, final long position, final long length)
+        throws IOException {
         return blobStore.readBlob(buildKey(blobName), position, length);
     }
 
     @Override
-    public void writeBlob(BlobPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override
-    public void writeBlob(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists);
     }
 
     @Override
     public void writeMetadataBlob(
-        BlobPurpose purpose,
+        OperationPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
         boolean atomic,
@@ -94,18 +95,18 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(BlobPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+    public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
     }
 
     @Override
-    public DeleteResult delete(BlobPurpose purpose) throws IOException {
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
         return blobStore.deleteDirectory(purpose, path().buildAsString());
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(BlobPurpose purpose, Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         blobStore.deleteBlobsIgnoringIfNotExists(purpose, new Iterator<>() {
             @Override
             public boolean hasNext() {
@@ -126,7 +127,7 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void compareAndExchangeRegister(
-        BlobPurpose purpose,
+        OperationPurpose purpose,
         String key,
         BytesReference expected,
         BytesReference updated,
@@ -137,7 +138,7 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void getRegister(BlobPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         if (skipCas(listener)) return;
         ActionListener.completeWith(listener, () -> blobStore.getRegister(buildKey(key), path, key));
     }

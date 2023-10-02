@@ -493,7 +493,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
             latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
             if (latestCommit != null) {
-                logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit.toLongDescription());
+                logLatestCommit(latestCommit, blobContainer);
                 break;
             }
         }
@@ -515,7 +515,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             if (latestCommit == null) {
                 latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
                 if (latestCommit != null) {
-                    logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit.toLongDescription());
+                    logLatestCommit(latestCommit, blobContainer);
                     StatelessCompoundCommit finalLatestCommit = latestCommit;
                     allBlobs.forEach((key, value) -> {
                         var blobFile = new BlobFile(blobContainerPrimaryTerm, key, value.length());
@@ -533,6 +533,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         final var finalUnreferencedBlobs = Set.copyOf(unreferencedBlobs);
         logger.trace(() -> format("found unreferenced blobs in [%s]: %s", shardContainer.path().buildAsString(), finalUnreferencedBlobs));
         return new Tuple<>(latestCommit, finalUnreferencedBlobs);
+    }
+
+    private static void logLatestCommit(StatelessCompoundCommit latestCommit, BlobContainer blobContainer) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit.toLongDescription());
+        }
     }
 
     public static StatelessCompoundCommit readStatelessCompoundCommit(BlobContainer blobContainer, long generation) throws IOException {

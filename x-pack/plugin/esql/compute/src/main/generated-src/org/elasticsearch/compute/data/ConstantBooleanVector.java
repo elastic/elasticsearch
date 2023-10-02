@@ -15,7 +15,7 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
     private final boolean value;
 
@@ -55,7 +55,7 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(boolean.class);
+        return RAM_BYTES_USED;
     }
 
     @Override

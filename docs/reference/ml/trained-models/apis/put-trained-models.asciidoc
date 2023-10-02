@@ -3,7 +3,9 @@
 = Create trained models API
 [subs="attributes"]
 ++++
+
 <titleabbrev>Create trained models</titleabbrev>
+
 ++++
 
 Creates a trained model.
@@ -1645,6 +1647,16 @@ Appropriate types are:
 * `pytorch`: The stored definition is a PyTorch (specifically a TorchScript) model. Currently only
 NLP models are supported. For more information, refer to {ml-docs}/ml-nlp.html[{nlp-cap}].
 --
+`platform_architecture`::
+(Optional, string)
+If the model only works on one platform, because it is heavily
+optimized for a particular processor architecture and OS combination,
+then this field specifies which. The format of the string must match
+the platform identifiers used by Elasticsearch, so one of, `linux-x86_64`,
+`linux-aarch64`, `darwin-x86_64`, `darwin-aarch64`, or `windows-x86_64`.
+For portable models (those that work independent of processor architecture or
+OS features), leave this field unset.
+
 
 `tags`::
 (Optional, string)

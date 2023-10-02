@@ -47,11 +47,13 @@ public class EsqlDisruptionIT extends EsqlActionIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
+        Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(1000, 2000)))
             .build();
+        logger.info("settings {}", settings);
+        return settings;
     }
 
     @Override

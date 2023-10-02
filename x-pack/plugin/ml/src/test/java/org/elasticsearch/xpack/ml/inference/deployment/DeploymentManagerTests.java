@@ -108,4 +108,5 @@ public class DeploymentManagerTests extends ESTestCase {
 
         assertThat(rejectedCount.intValue(), equalTo(1));
     }
+
 }

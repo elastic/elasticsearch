@@ -36,6 +36,8 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -68,6 +70,7 @@ import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.M
 
 public final class CompositeAggregator extends BucketsAggregator implements SizedBucketAggregator {
 
+    private final Logger logger = LogManager.getLogger(CompositeAggregator.class);
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -107,6 +110,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         // check that the provided size is not greater than the search.max_buckets setting
         int bucketLimit = aggCtx.maxBuckets();
         if (size > bucketLimit) {
+            logger.warn("Too many buckets (max [{}], count [{}])", bucketLimit, size);
             throw new MultiBucketConsumerService.TooManyBucketsException(
                 "Trying to create too many buckets. Must be less than or equal"
                     + " to: ["

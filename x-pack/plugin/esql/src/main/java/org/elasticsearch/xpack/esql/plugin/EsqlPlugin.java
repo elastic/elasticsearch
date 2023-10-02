@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -101,14 +100,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        IndexResolver indexResolver = new IndexResolver(
-            client,
-            clusterService.getClusterName().value(),
-            EsqlDataTypeRegistry.INSTANCE,
-            Set::of
-        );
         return List.of(
-            new PlanExecutor(indexResolver, new EnrichPolicyResolver(clusterService, indexResolver, threadPool)),
+            new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of)),
             new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME)
         );
     }

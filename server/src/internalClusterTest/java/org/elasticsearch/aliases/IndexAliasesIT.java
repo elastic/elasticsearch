@@ -8,6 +8,7 @@
 
 package org.elasticsearch.aliases;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -107,7 +107,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         });
 
         logger.info("--> indexing against [alias1], should work now");
-        IndexResponse indexResponse = client().index(new IndexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON))
+        DocWriteResponse indexResponse = client().index(new IndexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON))
             .actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test"));
 
@@ -1322,7 +1322,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         // Put a couple docs in each index directly
-        IndexResponse res = client().index(new IndexRequest(nonWriteIndex).id("1").source(source("1", "nonwrite"), XContentType.JSON))
+        DocWriteResponse res = client().index(new IndexRequest(nonWriteIndex).id("1").source(source("1", "nonwrite"), XContentType.JSON))
             .get();
         assertThat(res.status().getStatus(), equalTo(201));
         res = client().index(new IndexRequest(writeIndex).id("2").source(source("2", "writeindex"), XContentType.JSON)).get();

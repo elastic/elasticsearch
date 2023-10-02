@@ -205,7 +205,8 @@ emp_no:integer | languages:integer | gender:keyword | first_name:keyword | abc:i
 10100 | 4 | F | Hironobu | 3
 ;
 
-projectFromWithStatsAfterLimit
+# awaitsfix https://github.com/elastic/elasticsearch/issues/99826
+projectFromWithStatsAfterLimit-Ignore
 from employees | sort emp_no | keep gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
 
    m:long | gender:keyword

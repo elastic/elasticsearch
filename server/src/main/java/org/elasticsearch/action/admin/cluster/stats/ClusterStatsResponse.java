@@ -33,6 +33,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final long timestamp;
     final String clusterUUID;
 
+    @SuppressWarnings("this-escape")
     public ClusterStatsResponse(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();

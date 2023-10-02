@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -44,26 +45,28 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
+      try (Block.Ref formatterRef = formatter.eval(page)) {
+        if (formatterRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
+        BytesRefVector valVector = valBlock.asVector();
+        if (valVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+        }
+        BytesRefVector formatterVector = formatterBlock.asVector();
+        if (formatterVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), valVector, formatterVector));
+      }
     }
-    BytesRefBlock valBlock = (BytesRefBlock) valUncastBlock;
-    Block formatterUncastBlock = formatter.eval(page);
-    if (formatterUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock formatterBlock = (BytesRefBlock) formatterUncastBlock;
-    BytesRefVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatterBlock);
-    }
-    BytesRefVector formatterVector = formatterBlock.asVector();
-    if (formatterVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatterBlock);
-    }
-    return eval(page.getPositionCount(), valVector, formatterVector);
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock valBlock, BytesRefBlock formatterBlock) {
@@ -108,5 +111,10 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public String toString() {
     return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val, formatter);
   }
 }

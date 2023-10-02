@@ -20,6 +20,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -311,9 +312,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static class VersionSensitiveWarningsHandler implements WarningsHandler {
         Set<String> requiredSameVersionClusterWarnings = new HashSet<>();
         Set<String> allowedWarnings = new HashSet<>();
-        final Set<Version> testNodeVersions;
+        private final Set<String> testNodeVersions;
 
-        public VersionSensitiveWarningsHandler(Set<Version> nodeVersions) {
+        VersionSensitiveWarningsHandler(Set<String> nodeVersions) {
             this.testNodeVersions = nodeVersions;
         }
 
@@ -355,14 +356,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         private boolean isExclusivelyTargetingCurrentVersionCluster() {
             assertFalse("Node versions running in the cluster are missing", testNodeVersions.isEmpty());
-            return testNodeVersions.size() == 1 && testNodeVersions.iterator().next().equals(Version.CURRENT);
+            return testNodeVersions.size() == 1 && testNodeVersions.iterator().next().equals(Build.current().version());
         }
 
     }
 
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
-        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
+        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(
+            nodeVersions.stream().map(Version::toString).collect(Collectors.toSet())
+        );
         expectationsSetter.accept(warningsHandler);
         builder.setWarningsHandler(warningsHandler);
         return builder.build();

@@ -101,6 +101,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     private String format;
 
     /** Copy constructor. */
+    @SuppressWarnings("this-escape")
     public FieldSortBuilder(FieldSortBuilder template) {
         this(template.fieldName);
         this.order(template.order());

@@ -126,6 +126,9 @@ final class FilterDoubleBlock extends AbstractFilterBlock implements DoubleBlock
 
     @Override
     public void close() {
+        if (block.isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
         Releasables.closeExpectNoException(block);
     }
 }

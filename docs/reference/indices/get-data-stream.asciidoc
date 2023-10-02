@@ -225,7 +225,7 @@ cluster can not write into this data stream or change its mappings.
 
 `lifecycle`::
 (object)
-Functionality in preview:[]. Contains the configuration for the data stream lifecycle management of this data stream.
+Contains the configuration for the data stream lifecycle management of this data stream.
 +
 .Properties of `lifecycle`
 [%collapsible%open]
@@ -265,11 +265,17 @@ The API returns the following response:
       "indices": [
         {
           "index_name": ".ds-my-data-stream-2099.03.07-000001",
-          "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"
+          "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
+          "prefer_ilm": true,
+          "ilm_policy": "my-lifecycle-policy",
+          "managed_by": "Index Lifecycle Management"
         },
         {
           "index_name": ".ds-my-data-stream-2099.03.08-000002",
-          "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"
+          "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
+          "prefer_ilm": true,
+          "ilm_policy": "my-lifecycle-policy",
+          "managed_by": "Index Lifecycle Management"
         }
       ],
       "generation": 2,
@@ -277,6 +283,8 @@ The API returns the following response:
         "my-meta-field": "foo"
       },
       "status": "GREEN",
+      "next_generation_managed_by": "Index Lifecycle Management",
+      "prefer_ilm": true,
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
       "hidden": false,
@@ -292,7 +300,10 @@ The API returns the following response:
       "indices": [
         {
           "index_name": ".ds-my-data-stream-two-2099.03.08-000001",
-          "index_uuid": "3liBu2SYS5axasRt6fUIpA"
+          "index_uuid": "3liBu2SYS5axasRt6fUIpA",
+          "prefer_ilm": true,
+          "ilm_policy": "my-lifecycle-policy",
+          "managed_by": "Index Lifecycle Management"
         }
       ],
       "generation": 1,
@@ -300,6 +311,8 @@ The API returns the following response:
         "my-meta-field": "foo"
       },
       "status": "YELLOW",
+      "next_generation_managed_by": "Index Lifecycle Management",
+      "prefer_ilm": true,
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
       "hidden": false,

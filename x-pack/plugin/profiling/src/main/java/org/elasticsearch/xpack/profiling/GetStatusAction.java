@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         super(NAME, GetStatusAction.Response::new);
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private boolean profilingEnabled;
         private boolean resourceManagementEnabled;
@@ -102,7 +102,6 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             return Strings.toString(this, true, true);
         }
 
-        @Override
         public RestStatus status() {
             return timedOut ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
         }

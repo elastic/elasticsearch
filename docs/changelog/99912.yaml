@@ -1,0 +1,6 @@
+pr: 99912
+summary: Represent histogram value count as long
+area: Aggregations
+type: enhancement
+issues:
+ - 99820

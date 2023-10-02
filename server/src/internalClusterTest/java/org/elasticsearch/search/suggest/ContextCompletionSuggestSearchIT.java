@@ -10,8 +10,8 @@ package org.elasticsearch.search.suggest;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -168,7 +168,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>(Collections.singletonMap("cat", contextMapping));
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
         createIndexAndMapping(mapping);
-        IndexResponse indexResponse = client().prepareIndex(INDEX)
+        DocWriteResponse indexResponse = client().prepareIndex(INDEX)
             .setId("1")
             .setSource(
                 jsonBuilder().startObject()

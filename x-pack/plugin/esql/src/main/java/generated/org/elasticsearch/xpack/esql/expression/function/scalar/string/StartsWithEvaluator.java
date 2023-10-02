@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StartsWith}.
@@ -35,26 +36,28 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      if (strRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      try (Block.Ref prefixRef = prefix.eval(page)) {
+        if (prefixRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        BytesRefBlock prefixBlock = (BytesRefBlock) prefixRef.block();
+        BytesRefVector strVector = strBlock.asVector();
+        if (strVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, prefixBlock));
+        }
+        BytesRefVector prefixVector = prefixBlock.asVector();
+        if (prefixVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, prefixBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), strVector, prefixVector).asBlock());
+      }
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    Block prefixUncastBlock = prefix.eval(page);
-    if (prefixUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock prefixBlock = (BytesRefBlock) prefixUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock, prefixBlock);
-    }
-    BytesRefVector prefixVector = prefixBlock.asVector();
-    if (prefixVector == null) {
-      return eval(page.getPositionCount(), strBlock, prefixBlock);
-    }
-    return eval(page.getPositionCount(), strVector, prefixVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock prefixBlock) {
@@ -89,5 +92,10 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "StartsWithEvaluator[" + "str=" + str + ", prefix=" + prefix + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(str, prefix);
   }
 }

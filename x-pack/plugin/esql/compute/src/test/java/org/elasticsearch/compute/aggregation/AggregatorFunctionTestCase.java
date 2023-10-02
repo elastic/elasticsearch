@@ -184,8 +184,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
      */
     protected void assertOutputFromEmpty(Block b) {
         assertThat(b.elementType(), equalTo(ElementType.NULL));
-        // Awaits fix:
-        // assertThat(b.getPositionCount(), equalTo(1));
+        assertThat(b.getPositionCount(), equalTo(1));
         assertThat(b.areAllValuesNull(), equalTo(true));
         assertThat(b.isNull(0), equalTo(true));
         assertThat(b.getValueCount(0), equalTo(0));

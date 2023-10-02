@@ -51,6 +51,10 @@ import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+/**
+ * Computes the expired snapshots for SLM. Called by {@link SnapshotRetentionTask}, but made into a separate (local-only) transport action
+ * so that it can access the {@link RepositoriesService} directly.
+ */
 public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapshotsAction.Response> {
 
     public static final SLMGetExpiredSnapshotsAction INSTANCE = new SLMGetExpiredSnapshotsAction();

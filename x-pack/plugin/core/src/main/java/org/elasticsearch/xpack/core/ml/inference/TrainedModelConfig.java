@@ -103,6 +103,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     public static final ParseField PER_DEPLOYMENT_MEMORY_BYTES = new ParseField("per_deployment_memory_bytes");
     public static final ParseField PER_ALLOCATION_MEMORY_BYTES = new ParseField("per_allocation_memory_bytes");
+    public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
 
     public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersions.V_8_0_0;
     public static final TransportVersion VERSION_ALLOCATION_MEMORY_ADDED = TransportVersions.V_8_500_064;
@@ -168,6 +169,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             (p, c) -> ignoreUnknownFields ? ModelPackageConfig.fromXContentLenient(p) : ModelPackageConfig.fromXContentStrict(p),
             MODEL_PACKAGE
         );
+        parser.declareString(TrainedModelConfig.Builder::setPlatformArchitecture, PLATFORM_ARCHITECTURE);
 
         return parser;
     }
@@ -195,6 +197,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final TrainedModelLocation location;
     private final ModelPackageConfig modelPackageConfig;
     private Boolean fullDefinition;
+    private String platformArchitecture;
 
     TrainedModelConfig(
         String modelId,
@@ -213,7 +216,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         Map<String, String> defaultFieldMap,
         InferenceConfig inferenceConfig,
         TrainedModelLocation location,
-        ModelPackageConfig modelPackageConfig
+        ModelPackageConfig modelPackageConfig,
+        String platformArchitecture
     ) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.modelType = modelType;
@@ -240,6 +244,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.inferenceConfig = inferenceConfig;
         this.location = location;
         this.modelPackageConfig = modelPackageConfig;
+        this.platformArchitecture = platformArchitecture;
     }
 
     private static TrainedModelInput handleDefaultInput(TrainedModelInput input, TrainedModelType modelType) {
@@ -278,6 +283,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         } else {
             modelPackageConfig = null;
             fullDefinition = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+            platformArchitecture = in.readOptionalString();
+        } else {
+            platformArchitecture = null;
         }
     }
 
@@ -421,6 +431,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             : 0L;
     }
 
+    public String getPlatformArchitecture() {
+        return platformArchitecture;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
@@ -451,6 +465,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeOptionalWriteable(modelPackageConfig);
             out.writeOptionalBoolean(fullDefinition);
         }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+            out.writeOptionalString(platformArchitecture);
+        }
     }
 
     @Override
@@ -462,6 +480,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         if (modelPackageConfig != null) {
             builder.field(MODEL_PACKAGE.getPreferredName(), modelPackageConfig);
+        }
+        if (platformArchitecture != null) {
+            builder.field(PLATFORM_ARCHITECTURE.getPreferredName(), platformArchitecture);
         }
 
         // If the model is to be exported for future import to another cluster, these fields are irrelevant.
@@ -543,7 +564,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             && Objects.equals(defaultFieldMap, that.defaultFieldMap)
             && Objects.equals(inferenceConfig, that.inferenceConfig)
             && Objects.equals(metadata, that.metadata)
-            && Objects.equals(location, that.location);
+            && Objects.equals(location, that.location)
+            && Objects.equals(platformArchitecture, that.platformArchitecture);
     }
 
     @Override
@@ -565,7 +587,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             licenseLevel,
             inferenceConfig,
             defaultFieldMap,
-            location
+            location,
+            platformArchitecture
         );
     }
 
@@ -590,6 +613,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private ModelPackageConfig modelPackageConfig;
         private Long perDeploymentMemoryBytes;
         private Long perAllocationMemoryBytes;
+        private String platformArchitecture;
 
         public Builder() {}
 
@@ -611,6 +635,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.inferenceConfig = config.inferenceConfig;
             this.location = config.location;
             this.modelPackageConfig = config.modelPackageConfig;
+            this.platformArchitecture = config.platformArchitecture;
         }
 
         public Builder setModelId(String modelId) {
@@ -701,6 +726,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 return this;
             }
             return addToMetadata(HYPERPARAMETERS, hyperparameters.stream().map(Hyperparameters::asMap).collect(Collectors.toList()));
+        }
+
+        public Builder setPlatformArchitecture(String platformArchitecture) {
+            this.platformArchitecture = platformArchitecture;
+            return this;
         }
 
         public Builder setModelAliases(Set<String> modelAliases) {
@@ -1022,7 +1052,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 defaultFieldMap,
                 inferenceConfig,
                 location,
-                modelPackageConfig
+                modelPackageConfig,
+                platformArchitecture
             );
         }
     }

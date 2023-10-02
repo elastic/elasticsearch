@@ -9,8 +9,8 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -235,7 +235,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 indexRequest.source(Map.of("some_field", "some_value"));
                 return channel -> client.index(
                     indexRequest,
-                    new RestToXContentListener<>(channel, IndexResponse::status, r -> r.getLocation(indexRequest.routing()))
+                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
                 );
             }
         }

@@ -11,7 +11,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -197,9 +197,9 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             throw new UncheckedIOException(
                 Strings.format(
                     """
-                        Elasticsearch version [{}] has limited support for indices created in version [{}] but this index could not be \
+                        Elasticsearch version [{}] has limited support for indices created with version [{}] but this index could not be \
                         read. It may be using an unsupported feature, or it may be damaged or corrupt. See {} for further information.""",
-                    Version.CURRENT,
+                    Build.current().version(),
                     IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexShard.indexSettings().getSettings()),
                     ReferenceDocs.ARCHIVE_INDICES
                 ),

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -37,32 +38,37 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block eval(Page page) {
-    Block ipUncastBlock = ip.eval(page);
-    if (ipUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock ipBlock = (BytesRefBlock) ipUncastBlock;
-    BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
-    for (int i = 0; i < cidrsBlocks.length; i++) {
-      Block block = cidrs[i].eval(page);
-      if (block.areAllValuesNull()) {
-        return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref ipRef = ip.eval(page)) {
+      if (ipRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
       }
-      cidrsBlocks[i] = (BytesRefBlock) block;
-    }
-    BytesRefVector ipVector = ipBlock.asVector();
-    if (ipVector == null) {
-      return eval(page.getPositionCount(), ipBlock, cidrsBlocks);
-    }
-    BytesRefVector[] cidrsVectors = new BytesRefVector[cidrs.length];
-    for (int i = 0; i < cidrsBlocks.length; i++) {
-      cidrsVectors[i] = cidrsBlocks[i].asVector();
-      if (cidrsVectors[i] == null) {
-        return eval(page.getPositionCount(), ipBlock, cidrsBlocks);
+      BytesRefBlock ipBlock = (BytesRefBlock) ipRef.block();
+      Block.Ref[] cidrsRefs = new Block.Ref[cidrs.length];
+      try (Releasable cidrsRelease = Releasables.wrap(cidrsRefs)) {
+        BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
+        for (int i = 0; i < cidrsBlocks.length; i++) {
+          cidrsRefs[i] = cidrs[i].eval(page);
+          Block block = cidrsRefs[i].block();
+          if (block.areAllValuesNull()) {
+            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          }
+          cidrsBlocks[i] = (BytesRefBlock) block;
+        }
+        BytesRefVector ipVector = ipBlock.asVector();
+        if (ipVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), ipBlock, cidrsBlocks));
+        }
+        BytesRefVector[] cidrsVectors = new BytesRefVector[cidrs.length];
+        for (int i = 0; i < cidrsBlocks.length; i++) {
+          cidrsVectors[i] = cidrsBlocks[i].asVector();
+          if (cidrsVectors[i] == null) {
+            return Block.Ref.floating(eval(page.getPositionCount(), ipBlock, cidrsBlocks));
+          }
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), ipVector, cidrsVectors).asBlock());
       }
     }
-    return eval(page.getPositionCount(), ipVector, cidrsVectors).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {

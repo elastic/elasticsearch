@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -21,20 +22,20 @@ import java.util.stream.LongStream;
 
 public class EvalOperatorTests extends OperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
-        return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
+        return new TupleBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
     record Addition(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block eval(Page page) {
+        public Block.Ref eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
             LongVector.Builder result = LongVector.newVectorBuilder(page.getPositionCount());
             for (int p = 0; p < page.getPositionCount(); p++) {
                 result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
             }
-            return result.build().asBlock();
+            return Block.Ref.floating(result.build().asBlock());
         }
 
         @Override

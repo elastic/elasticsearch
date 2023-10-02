@@ -129,7 +129,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
                 topClasses.stream().map(TopAnswerEntry::asValueMap).collect(Collectors.toList())
             );
         }
-        map.put(PREDICTION_PROBABILITY, score);
+        map.put(ClassificationInferenceResults.PREDICTION_PROBABILITY, score);
     }
 
     @Override
@@ -145,7 +145,7 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
         if (topClasses.size() > 0) {
             builder.field(NlpConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD, topClasses);
         }
-        builder.field(PREDICTION_PROBABILITY, score);
+        builder.field(ClassificationInferenceResults.PREDICTION_PROBABILITY, score);
     }
 
     public int getStartOffset() {

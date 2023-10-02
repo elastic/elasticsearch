@@ -10,8 +10,8 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -147,7 +147,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         return channel -> client.index(
             indexRequest,
-            new RestToXContentListener<>(channel, IndexResponse::status, r -> r.getLocation(indexRequest.routing()))
+            new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
         );
     }
 

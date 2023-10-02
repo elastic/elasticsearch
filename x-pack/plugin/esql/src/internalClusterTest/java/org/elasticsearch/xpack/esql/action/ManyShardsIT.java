@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class ManyShardsIT extends AbstractEsqlIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100142")
     public void testConcurrentQueries() throws Exception {
         int numIndices = between(10, 20);
         for (int i = 0; i < numIndices; i++) {

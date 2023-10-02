@@ -63,6 +63,7 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
         assertThat(getValuesList(response), equalTo(List.of(List.of((double) SIZE))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100141")
     public void testKeyword() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
         try (EsqlQueryResponse response = run("from test | keep const | limit 1")) {
@@ -74,6 +75,7 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
      * Test grouping by runtime keyword which requires disabling the ordinals
      * optimization available to more keyword fields.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100141")
     public void testKeywordBy() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
         EsqlQueryResponse response = run("from test | stats max(foo) by const");
@@ -87,6 +89,7 @@ public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100141")
     public void testDate() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("date");
         EsqlQueryResponse response = run("""

@@ -8,8 +8,8 @@
 package org.elasticsearch.versioning;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -237,7 +237,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                         Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         try {
                             // we should be able to remove timeout or fail hard on timeouts
-                            IndexResponse indexResponse = client().index(indexRequest).actionGet(timeout, TimeUnit.SECONDS);
+                            DocWriteResponse indexResponse = client().index(indexRequest).actionGet(timeout, TimeUnit.SECONDS);
                             IndexResponseHistoryOutput historyOutput = new IndexResponseHistoryOutput(indexResponse);
                             historyResponse.accept(historyOutput);
                             // validate version and seqNo strictly increasing for successful CAS to avoid that overhead during
@@ -515,7 +515,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     private static class IndexResponseHistoryOutput implements HistoryOutput {
         private final Version outputVersion;
 
-        private IndexResponseHistoryOutput(IndexResponse response) {
+        private IndexResponseHistoryOutput(DocWriteResponse response) {
             this(new Version(response.getPrimaryTerm(), response.getSeqNo()));
         }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -65,7 +64,7 @@ public class EsqlActionBreakerIT extends AbstractEsqlIntegTestCase {
 
     public void testBreaker() {
         for (int i = 0; i < 5000; i++) {
-            IndexResponse response = client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i, "bar", i * 2).get();
+            DocWriteResponse response = client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i, "bar", i * 2).get();
             if (response.getResult() != DocWriteResponse.Result.CREATED) {
                 fail("failure: " + response);
             }

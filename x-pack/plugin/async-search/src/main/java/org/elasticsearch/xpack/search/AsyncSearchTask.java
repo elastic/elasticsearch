@@ -511,7 +511,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     logger.warn(">>> JJJ AsyncSearchTask calling cancelTask");
                     cancelTask(() -> {}, "fatal error has occurred in a cross-cluster search - cancelling the search");
                     /// MP TODO ---- start
-                    logger.warn("JJJ: BOGUSITY!!   =========== ++++++++++++++ CANCELLED CANCELLED +++++");
+                    logger.warn("JJJ: BINGO!!   =========== ++++++++++++++ CANCELLED CANCELLED +++++");
                     /// MP TODO ---- end
                 }
             }

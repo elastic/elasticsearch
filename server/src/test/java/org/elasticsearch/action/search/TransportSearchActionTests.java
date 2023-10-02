@@ -915,7 +915,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(numClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 logger.warn(clusters);
                 logger.warn(clusters.toExtendedString());
-                assertEquals(numClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get().getCause();
@@ -967,7 +966,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(numDisconnectedClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
                 logger.warn(clusters.toString());
                 logger.warn(clusters.toExtendedString());
-                assertEquals(numDisconnectedClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
 
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));

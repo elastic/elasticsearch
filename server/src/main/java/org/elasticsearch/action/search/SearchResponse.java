@@ -565,9 +565,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             int running = getClusterStateCount(Cluster.Status.RUNNING);
             int partial = getClusterStateCount(Cluster.Status.PARTIAL);
             int failed = getClusterStateCount(Cluster.Status.FAILED);
+            int cancelled = getClusterStateCount(Cluster.Status.CANCELLED);
             this.ccsMinimizeRoundtrips = false;
             assert total >= 0 : "total is negative: " + total;
-            assert total == successful + skipped + running + partial + failed
+            assert total == successful + skipped + running + partial + failed + cancelled
                 : "successful + skipped + running + partial + failed is not equal to total. total: "
                     + total
                     + " successful: "
@@ -579,7 +580,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     + " partial: "
                     + partial
                     + " failed: "
-                    + failed;
+                    + failed
+                    + " cancelled: "
+                    + cancelled;
         }
 
         private Clusters(Map<String, Cluster> clusterInfoMap) {
@@ -819,6 +822,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 + getClusterStateCount(Cluster.Status.PARTIAL)
                 + ", failed="
                 + getClusterStateCount(Cluster.Status.FAILED)
+                + ", cancelled="
+                + getClusterStateCount(Cluster.Status.CANCELLED)
                 + '}';
         }
 
@@ -829,6 +834,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 + getClusterStateCount(Cluster.Status.SUCCESSFUL)
                 + ", skipped="
                 + getClusterStateCount(Cluster.Status.SKIPPED)
+                + ", partial="
+                + getClusterStateCount(Cluster.Status.PARTIAL)
+                + ", failed="
+                + getClusterStateCount(Cluster.Status.FAILED)
+                + ", cancelled="
+                + getClusterStateCount(Cluster.Status.CANCELLED)
                 + "; clusterInfo: ["
                 + clusterInfo.toString()
                 + "]}";

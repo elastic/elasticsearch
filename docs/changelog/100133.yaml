@@ -1,0 +1,5 @@
+pr: 100133
+summary: Change `DesiredNode` version type to String
+area: Infra/Core
+type: enhancement
+issues: []

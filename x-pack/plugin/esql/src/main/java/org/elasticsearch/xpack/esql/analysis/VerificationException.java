@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import java.util.Collection;
 
 public class VerificationException extends EsqlClientException {
+    public VerificationException(String message, Object... args) {
+        super(message, args);
+    }
 
     protected VerificationException(Collection<Failure> sources) {
         super(Failure.failMessage(sources));

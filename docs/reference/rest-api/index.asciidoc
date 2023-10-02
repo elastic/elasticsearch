@@ -28,8 +28,9 @@ not be included yet.
 * <<graph-explore-api,Graph explore API>>
 * <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
-* <<ingest-apis,Ingest APIs>>
+* <<inference-apis,Inference APIs>>
 * <<info-api,Info API>>
+* <<ingest-apis,Ingest APIs>>
 * <<licensing-apis,Licensing APIs>>
 * <<logstash-apis,Logstash APIs>>
 * <<ml-apis,{ml-cap} APIs>>
@@ -74,8 +75,9 @@ include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
-include::{es-repo-dir}/ingest/apis/index.asciidoc[]
+include::{es-repo-dir}/inference/inference-apis.asciidoc[]
 include::info.asciidoc[]
+include::{es-repo-dir}/ingest/apis/index.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{es-repo-dir}/rest-api/logstash/index.asciidoc[]
 include::{es-repo-dir}/ml/common/apis/index.asciidoc[]

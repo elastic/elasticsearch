@@ -81,10 +81,7 @@ public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
     public void setup() {
         threadPool = new TestThreadPool(TransportProfileHasPrivilegesActionTests.class.getSimpleName());
         transportService = mock(TransportService.class);
-
-        // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
-
         actionFilters = mock(ActionFilters.class);
         authorizationService = mock(AuthorizationService.class);
         nativePrivilegeStore = mock(NativePrivilegeStore.class);

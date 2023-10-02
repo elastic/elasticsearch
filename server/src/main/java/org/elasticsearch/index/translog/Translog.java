@@ -144,6 +144,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param persistedSequenceNumberConsumer a callback that's called whenever an operation with a given sequence number is successfully
      *                                        persisted.
      */
+    @SuppressWarnings("this-escape")
     public Translog(
         final TranslogConfig config,
         final String translogUUID,

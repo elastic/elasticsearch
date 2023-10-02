@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,6 +32,14 @@ public final class Page implements Writeable {
     private final Block[] blocks;
 
     private final int positionCount;
+
+    /**
+     * True if we've called {@link #releaseBlocks()} which causes us to remove the
+     * circuit breaker for the {@link Block}s. The {@link Page} reference should be
+     * removed shortly after this and reading {@linkplain Block}s after release
+     * will fail.
+     */
+    private boolean blocksReleased = false;
 
     /**
      * Creates a new page with the given blocks. Every block has the same number of positions.
@@ -60,9 +68,10 @@ public final class Page implements Writeable {
         // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
         this.blocks = copyBlocks ? blocks.clone() : blocks;
-        if (Assertions.ENABLED) {
-            for (Block b : blocks) {
-                assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
+        for (Block b : blocks) {
+            assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
+            if (b.isReleased()) {
+                throw new IllegalArgumentException("can't build page out of released blocks but [" + b + "] was released");
             }
         }
     }
@@ -93,8 +102,14 @@ public final class Page implements Writeable {
      * @return the block
      */
     public <B extends Block> B getBlock(int blockIndex) {
+        if (blocksReleased) {
+            throw new IllegalStateException("can't read released page");
+        }
         @SuppressWarnings("unchecked")
         B block = (B) blocks[blockIndex];
+        if (block.isReleased()) {
+            throw new IllegalStateException("can't read released block [" + block + "]");
+        }
         return block;
     }
 
@@ -199,6 +214,14 @@ public final class Page implements Writeable {
         for (Block block : blocks) {
             out.writeNamedWriteable(block);
         }
+    }
+
+    /**
+     * Release all blocks in this page, decrementing any breakers accounting for these blocks.
+     */
+    public void releaseBlocks() {
+        blocksReleased = true;
+        Releasables.closeExpectNoException(blocks);
     }
 
     public static class PageWriter implements Writeable.Writer<Page> {

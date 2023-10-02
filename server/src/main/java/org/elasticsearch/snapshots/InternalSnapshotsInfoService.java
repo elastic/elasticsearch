@@ -84,6 +84,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private final Object mutex;
 
+    @SuppressWarnings("this-escape")
     public InternalSnapshotsInfoService(
         final Settings settings,
         final ClusterService clusterService,

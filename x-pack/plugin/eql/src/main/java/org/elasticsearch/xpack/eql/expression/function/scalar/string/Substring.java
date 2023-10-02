@@ -42,6 +42,7 @@ public class Substring extends ScalarFunction implements OptionalArgument {
 
     private final Expression input, start, end;
 
+    @SuppressWarnings("this-escape")
     public Substring(Source source, Expression input, Expression start, Expression end) {
         super(source, Arrays.asList(input, start, end != null ? end : new Literal(source, null, DataTypes.NULL)));
         this.input = input;

@@ -264,17 +264,6 @@ public class TransformConfigVersionTests extends ESTestCase {
         assertEquals("Cannot convert " + Version.fromId(8_11_00_99) + ". Incompatible version", e.getMessage());
     }
 
-    public void testToVersion() {
-        TransformConfigVersion TransformConfigVersion_V_7_7_0 = TransformConfigVersion.V_7_7_0;
-        Version version_V_7_7_0 = TransformConfigVersion.toVersion(TransformConfigVersion_V_7_7_0);
-        assertEquals(version_V_7_7_0.id, TransformConfigVersion_V_7_7_0.id());
-
-        // There's no mapping between Version and TransformConfigVersion values from TransformConfigVersion.V_10 onwards.
-        TransformConfigVersion TransformConfigVersion_V_10 = TransformConfigVersion.V_10;
-        Exception e = expectThrows(IllegalArgumentException.class, () -> TransformConfigVersion.toVersion(TransformConfigVersion_V_10));
-        assertEquals("Cannot convert " + TransformConfigVersion_V_10 + ". Incompatible version", e.getMessage());
-    }
-
     public void testVersionConstantPresent() {
         Set<TransformConfigVersion> ignore = Set.of(
             TransformConfigVersion.ZERO,

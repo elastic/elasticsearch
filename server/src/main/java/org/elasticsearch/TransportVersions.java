@@ -14,11 +14,11 @@ import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 public class TransportVersions {
 
@@ -27,13 +27,16 @@ public class TransportVersions {
      * This map is used during class construction, referenced by the registerTransportVersion method.
      * When all the transport version constants have been registered, the map is cleared & never touched again.
      */
-    static Set<Integer> IDS = new HashSet<>();
+    static TreeSet<Integer> IDS = new TreeSet<>();
 
     static TransportVersion def(int id) {
         if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
 
         if (IDS.add(id) == false) {
             throw new IllegalArgumentException("Version id " + id + " defined twice");
+        }
+        if (id < IDS.last()) {
+            throw new IllegalArgumentException("Version id " + id + " is not defined in the right location. Keep constants sorted");
         }
         return new TransportVersion(id);
     }
@@ -137,6 +140,17 @@ public class TransportVersions {
     public static final TransportVersion COMPAT_VERSIONS_MAPPING_VERSION_ADDED = def(8_500_073);
     public static final TransportVersion V_8_500_074 = def(8_500_074);
     public static final TransportVersion NODE_INFO_INDEX_VERSION_ADDED = def(8_500_075);
+    public static final TransportVersion FIRST_NEW_ID_LAYOUT = def(8_501_00_0);
+    public static final TransportVersion COMMIT_PRIMARY_TERM_GENERATION = def(8_501_00_1);
+    public static final TransportVersion WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED = def(8_502_00_0);
+    public static final TransportVersion RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED = def(8_503_00_0);
+    public static final TransportVersion NODE_INFO_COMPONENT_VERSIONS_ADDED = def(8_504_00_0);
+    public static final TransportVersion COMPACT_FIELD_CAPS_ADDED = def(8_505_00_0);
+    public static final TransportVersion DATA_STREAM_RESPONSE_INDEX_PROPERTIES = def(8_506_00_0);
+    public static final TransportVersion ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED = def(8_507_00_0);
+    public static final TransportVersion LONG_COUNT_IN_HISTOGRAM_ADDED = def(8_508_00_0);
+    public static final TransportVersion INFERENCE_MODEL_SECRETS_ADDED = def(8_509_00_0);
+    public static final TransportVersion NODE_INFO_REQUEST_SIMPLIFIED = def(8_510_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -148,8 +162,24 @@ public class TransportVersions {
      * A new transport version should be added EVERY TIME a change is made to the serialization protocol of one or more classes. Each
      * transport version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_8_1).
      *
-     * To add a new transport version, add a new constant at the bottom of the list, above this comment, which is one greater than the
-     * current highest version and ensure it has a fresh UUID. Don't add other lines, comments, etc.
+     * ADDING A TRANSPORT VERSION
+     * To add a new transport version, add a new constant at the bottom of the list, above this comment. Don't add other lines,
+     * comments, etc. The version id has the following layout:
+     *
+     * M_NNN_SS_P
+     *
+     * M - The major version of Elasticsearch
+     * NNN - The server version part
+     * SS - The serverless version part. It should always be 00 here, it is used by serverless only.
+     * P - The patch version part
+     *
+     * To determine the id of the next TransportVersion constant, do the following:
+     * - Use the same major version, unless bumping majors
+     * - Bump the server version part by 1, unless creating a patch version
+     * - Leave the serverless part as 00
+     * - Bump the patch part if creating a patch version
+     *
+     * If a patch version is created, it should be placed sorted among the other existing constants.
      *
      * REVERTING A TRANSPORT VERSION
      *
@@ -196,7 +226,7 @@ public class TransportVersions {
         IDS = null;
     }
 
-    static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
+    public static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
 

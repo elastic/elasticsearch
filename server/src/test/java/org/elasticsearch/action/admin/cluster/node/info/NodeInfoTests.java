@@ -19,6 +19,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
+import java.util.Map;
+
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -39,6 +41,7 @@ public class NodeInfoTests extends ESTestCase {
             Version.CURRENT,
             TransportVersion.current(),
             IndexVersion.current(),
+            Map.of(),
             Build.current(),
             DiscoveryNodeUtils.builder("test_node")
                 .roles(emptySet())

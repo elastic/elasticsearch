@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -56,10 +57,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -796,6 +800,129 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(writeIndexExplain.getPhase(), is("hot"));
             assertThat(writeIndexExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
         });
+    }
+
+    public void testGetDataStreamResponse() throws Exception {
+        // ILM rolls over every 2 documents
+        RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+
+        putComposableIndexTemplate(
+            indexTemplateName,
+            null,
+            List.of(dataStreamName + "*"),
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
+            null,
+            null
+        );
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexDocs(dataStreamName, 2);
+
+        // wait to rollover
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), is(2));
+        });
+
+        // prefer_ilm false in the index template
+        putComposableIndexTemplate(
+            indexTemplateName,
+            null,
+            List.of(dataStreamName + "*"),
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).put(IndexSettings.PREFER_ILM, false).build(),
+            null,
+            null
+        );
+
+        client().execute(
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90))
+        ).actionGet();
+
+        // rollover again - at this point this data stream should have 2 backing indices managed by ILM and the write index managed by
+        // data stream lifecycle
+        indexDocs(dataStreamName, 2);
+
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            GetDataStreamAction.Response.DataStreamInfo dataStreamInfo = getDataStreamResponse.getDataStreams().get(0);
+            List<Index> indices = dataStreamInfo.getDataStream().getIndices();
+            assertThat(indices.size(), is(3));
+
+            // the prefer_ilm value from the template should be reflected in the response at the top level
+            assertThat(dataStreamInfo.templatePreferIlmValue(), is(false));
+            // the template ILM policy should still be reflected at the top level
+            assertThat(dataStreamInfo.getIlmPolicy(), is(policy));
+
+            List<String> backingIndices = getBackingIndices(dataStreamName);
+            String firstGenerationIndex = backingIndices.get(0);
+            String secondGenerationIndex = backingIndices.get(1);
+            String writeIndex = backingIndices.get(2);
+            assertThat(
+                indices.stream().map(i -> i.getName()).toList(),
+                containsInAnyOrder(firstGenerationIndex, secondGenerationIndex, writeIndex)
+            );
+
+            Function<String, Optional<Index>> backingIndexSupplier = indexName -> indices.stream()
+                .filter(index -> index.getName().equals(indexName))
+                .findFirst();
+
+            // let's assert the policy is reported for all indices (as it's present in the index template) and the value of the
+            // prefer_ilm setting remains true for the first 2 generations and is false for the write index (the generation after rollover)
+            Optional<Index> firstGenSettings = backingIndexSupplier.apply(firstGenerationIndex);
+            assertThat(firstGenSettings.isPresent(), is(true));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(firstGenSettings.get()).preferIlm(), is(true));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(firstGenSettings.get()).ilmPolicyName(), is(policy));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(firstGenSettings.get()).managedBy(), is(ManagedBy.ILM));
+            Optional<Index> secondGenSettings = backingIndexSupplier.apply(secondGenerationIndex);
+            assertThat(secondGenSettings.isPresent(), is(true));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(secondGenSettings.get()).preferIlm(), is(true));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(secondGenSettings.get()).ilmPolicyName(), is(policy));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(secondGenSettings.get()).managedBy(), is(ManagedBy.ILM));
+            Optional<Index> writeIndexSettings = backingIndexSupplier.apply(writeIndex);
+            assertThat(writeIndexSettings.isPresent(), is(true));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(writeIndexSettings.get()).preferIlm(), is(false));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(writeIndexSettings.get()).ilmPolicyName(), is(policy));
+            assertThat(dataStreamInfo.getIndexSettingsValues().get(writeIndexSettings.get()).managedBy(), is(ManagedBy.LIFECYCLE));
+
+            // with the current configuratino, the next generation index will be managed by DSL
+            assertThat(dataStreamInfo.getNextGenerationManagedBy(), is(ManagedBy.LIFECYCLE));
+        });
+
+        // remove ILM policy and prefer_ilm from template
+        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), Settings.builder().build(), null, null);
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        GetDataStreamAction.Response.DataStreamInfo dataStreamInfo = getDataStreamResponse.getDataStreams().get(0);
+        // since the ILM related settings are gone from the index template, this data stream should now be managed by lifecycle
+        assertThat(dataStreamInfo.getNextGenerationManagedBy(), is(ManagedBy.LIFECYCLE));
+
+        // disable data stream lifecycle on the data stream. the future generations will be UNMANAGED
+        client().execute(
+            PutDataStreamLifecycleAction.INSTANCE,
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90), false)
+        ).actionGet();
+
+        getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        dataStreamInfo = getDataStreamResponse.getDataStreams().get(0);
+        // since the ILM related settings are gone from the index template and the lifeclcye is disabled, this data stream should now be
+        // managed unmanaged
+        assertThat(dataStreamInfo.getNextGenerationManagedBy(), is(ManagedBy.UNMANAGED));
     }
 
     static void indexDocs(String dataStream, int numDocs) {

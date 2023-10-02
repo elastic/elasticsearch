@@ -76,8 +76,12 @@ operatorExpression
 primaryExpression
     : constant                                                                          #constantDefault
     | qualifiedName                                                                     #dereference
+    | functionExpression                                                                #function
     | LP booleanExpression RP                                                           #parenthesizedExpression
-    | identifier LP (booleanExpression (COMMA booleanExpression)*)? RP                  #functionExpression
+    ;
+
+functionExpression
+    : identifier LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
     ;
 
 rowCommand

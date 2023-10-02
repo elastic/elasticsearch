@@ -12,6 +12,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.url.http.HttpURLBlobContainer;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
@@ -108,7 +109,7 @@ public class URLBlobStore implements BlobStore {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         throw new UnsupportedOperationException("Bulk deletes are not supported in URL repositories");
     }
 

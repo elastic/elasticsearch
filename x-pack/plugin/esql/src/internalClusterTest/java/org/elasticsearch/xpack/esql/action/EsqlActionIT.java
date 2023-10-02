@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
@@ -35,6 +34,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100127")
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     long epoch = System.currentTimeMillis();
@@ -109,32 +110,33 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     private void testFromStatsGroupingAvgImpl(String command, String expectedGroupName, String expectedFieldName) {
-        EsqlQueryResponse results = run(command);
-        logger.info(results);
-        Assert.assertEquals(2, results.columns().size());
+        try (EsqlQueryResponse results = run(command)) {
+            logger.info(results);
+            Assert.assertEquals(2, results.columns().size());
 
-        // assert column metadata
-        ColumnInfo valuesColumn = results.columns().get(0);
-        assertEquals(expectedFieldName, valuesColumn.name());
-        assertEquals("double", valuesColumn.type());
-        ColumnInfo groupColumn = results.columns().get(1);
-        assertEquals(expectedGroupName, groupColumn.name());
-        assertEquals("long", groupColumn.type());
+            // assert column metadata
+            ColumnInfo valuesColumn = results.columns().get(0);
+            assertEquals(expectedFieldName, valuesColumn.name());
+            assertEquals("double", valuesColumn.type());
+            ColumnInfo groupColumn = results.columns().get(1);
+            assertEquals(expectedGroupName, groupColumn.name());
+            assertEquals("long", groupColumn.type());
 
-        // assert column values
-        List<List<Object>> valueValues = getValuesList(results);
-        assertEquals(2, valueValues.size());
-        // This is loathsome, find a declarative way to assert the expected output.
-        if ((long) valueValues.get(0).get(1) == 1L) {
-            assertEquals(42.0, (double) valueValues.get(0).get(0), 0.0);
-            assertEquals(2L, (long) valueValues.get(1).get(1));
-            assertEquals(44.0, (double) valueValues.get(1).get(0), 0.0);
-        } else if ((long) valueValues.get(0).get(1) == 2L) {
-            assertEquals(42.0, (double) valueValues.get(1).get(0), 0.0);
-            assertEquals(1L, (long) valueValues.get(1).get(1));
-            assertEquals(44.0, (double) valueValues.get(0).get(0), 0.0);
-        } else {
-            fail("Unexpected group value: " + valueValues.get(0).get(0));
+            // assert column values
+            List<List<Object>> valueValues = getValuesList(results);
+            assertEquals(2, valueValues.size());
+            // This is loathsome, find a declarative way to assert the expected output.
+            if ((long) valueValues.get(0).get(1) == 1L) {
+                assertEquals(42.0, (double) valueValues.get(0).get(0), 0.0);
+                assertEquals(2L, (long) valueValues.get(1).get(1));
+                assertEquals(44.0, (double) valueValues.get(1).get(0), 0.0);
+            } else if ((long) valueValues.get(0).get(1) == 2L) {
+                assertEquals(42.0, (double) valueValues.get(1).get(0), 0.0);
+                assertEquals(1L, (long) valueValues.get(1).get(1));
+                assertEquals(44.0, (double) valueValues.get(0).get(0), 0.0);
+            } else {
+                fail("Unexpected group value: " + valueValues.get(0).get(0));
+            }
         }
     }
 
@@ -211,19 +213,20 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             }
         }
         client().admin().indices().prepareRefresh("test").get();
-        EsqlQueryResponse results = run("from test | stats avg(count) by data | sort data");
-        logger.info(results);
+        try (EsqlQueryResponse results = run("from test | stats avg(count) by data | sort data")) {
+            logger.info(results);
 
-        assertThat(results.columns(), hasSize(2));
-        assertEquals("avg(count)", results.columns().get(0).name());
-        assertEquals("double", results.columns().get(0).type());
-        assertEquals("data", results.columns().get(1).name());
-        assertEquals("long", results.columns().get(1).type());
+            assertThat(results.columns(), hasSize(2));
+            assertEquals("avg(count)", results.columns().get(0).name());
+            assertEquals("double", results.columns().get(0).type());
+            assertEquals("data", results.columns().get(1).name());
+            assertEquals("long", results.columns().get(1).type());
 
-        record Group(Long data, Double avg) {}
-        List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null), new Group(null, 12.0));
-        List<Group> actualGroups = getValuesList(results).stream().map(l -> new Group((Long) l.get(1), (Double) l.get(0))).toList();
-        assertThat(actualGroups, equalTo(expectedGroups));
+            record Group(Long data, Double avg) {}
+            List<Group> expectedGroups = List.of(new Group(1L, 42.0), new Group(2L, 44.0), new Group(99L, null), new Group(null, 12.0));
+            List<Group> actualGroups = getValuesList(results).stream().map(l -> new Group((Long) l.get(1), (Double) l.get(0))).toList();
+            assertThat(actualGroups, equalTo(expectedGroups));
+        }
     }
 
     public void testFromStatsGroupingByKeyword() {
@@ -264,7 +267,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             EsqlQueryResponse results = run("from test | stats avg = avg(" + field + ") by color");
             logger.info(results);
             Assert.assertEquals(2, results.columns().size());
-            Assert.assertEquals(4, getValuesList(results).size());
+            Assert.assertEquals(5, getValuesList(results).size());
 
             // assert column metadata
             assertEquals("avg", results.columns().get(0).name());
@@ -275,6 +278,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             }
             List<Group> expectedGroups = List.of(
+                new Group(null, 120.0),
                 new Group("blue", 42.0),
                 new Group("green", 44.0),
                 new Group("red", 43.0),
@@ -282,17 +286,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             );
             List<Group> actualGroups = getValuesList(results).stream()
                 .map(l -> new Group((String) l.get(1), (Double) l.get(0)))
-                .sorted(comparing(c -> c.color))
+                .sorted(Comparator.comparing(c -> c.color, Comparator.nullsFirst(String::compareTo)))
                 .toList();
             assertThat(actualGroups, equalTo(expectedGroups));
-        }
-        for (int i = 0; i < 5; i++) {
-            client().prepareBulk()
-                .add(new DeleteRequest("test").id("no_color_" + i))
-                .add(new DeleteRequest("test").id("no_count_red_" + i))
-                .add(new DeleteRequest("test").id("no_count_yellow_" + i))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
         }
     }
 
@@ -332,18 +328,19 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromSortWithTieBreakerLimit() {
-        EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | keep data, count, time");
-        logger.info(results);
-        assertThat(
-            getValuesList(results),
-            contains(
-                List.of(1L, 44L, epoch + 2),
-                List.of(1L, 44L, epoch + 6),
-                List.of(1L, 44L, epoch + 10),
-                List.of(1L, 44L, epoch + 14),
-                List.of(1L, 44L, epoch + 18)
-            )
-        );
+        try (EsqlQueryResponse results = run("from test | sort data, count desc, time | limit 5 | keep data, count, time")) {
+            logger.info(results);
+            assertThat(
+                getValuesList(results),
+                contains(
+                    List.of(1L, 44L, epoch + 2),
+                    List.of(1L, 44L, epoch + 6),
+                    List.of(1L, 44L, epoch + 10),
+                    List.of(1L, 44L, epoch + 14),
+                    List.of(1L, 44L, epoch + 18)
+                )
+            );
+        }
     }
 
     public void testFromStatsProjectGroup() {
@@ -446,7 +443,48 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertEquals(0.034d, (double) getValuesList(results).get(0).get(0), 0.001d);
     }
 
-    public void testFromStatsThenEval() {
+    public void testUngroupedCountAll() {
+        EsqlQueryResponse results = run("from test | stats count(*)");
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, getValuesList(results).size());
+        assertEquals("count(*)", results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        var values = getValuesList(results).get(0);
+        assertEquals(1, values.size());
+        assertEquals(40, (long) values.get(0));
+    }
+
+    public void testUngroupedCountAllWithFilter() {
+        EsqlQueryResponse results = run("from test | where data > 1 | stats count(*)");
+        logger.info(results);
+        Assert.assertEquals(1, results.columns().size());
+        Assert.assertEquals(1, getValuesList(results).size());
+        assertEquals("count(*)", results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        var values = getValuesList(results).get(0);
+        assertEquals(1, values.size());
+        assertEquals(20, (long) values.get(0));
+    }
+
+    @AwaitsFix(bugUrl = "tracking down a 64b(long) memory leak")
+    public void testGroupedCountAllWithFilter() {
+        EsqlQueryResponse results = run("from test | where data > 1 | stats count(*) by data | sort data");
+        logger.info(results);
+        Assert.assertEquals(2, results.columns().size());
+        Assert.assertEquals(1, getValuesList(results).size());
+        assertEquals("count(*)", results.columns().get(0).name());
+        assertEquals("long", results.columns().get(0).type());
+        assertEquals("data", results.columns().get(1).name());
+        assertEquals("long", results.columns().get(1).type());
+        var values = getValuesList(results).get(0);
+        assertEquals(2, values.size());
+        assertEquals(20, (long) values.get(0));
+        assertEquals(2L, (long) values.get(1));
+    }
+
+    public void testFromStatsEvalWithPragma() {
+        assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         EsqlQueryResponse results = run("from test | stats avg_count = avg(count) | eval x = avg_count + 7");
         logger.info(results);
         Assert.assertEquals(1, getValuesList(results).size());
@@ -492,12 +530,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testStringLength() {
-        EsqlQueryResponse results = run("from test | eval l = length(color)");
-        logger.info(results);
-        assertThat(getValuesList(results), hasSize(40));
-        int countIndex = results.columns().indexOf(new ColumnInfo("l", "integer"));
-        for (List<Object> values : getValuesList(results)) {
-            assertThat((Integer) values.get(countIndex), greaterThanOrEqualTo(3));
+        try (EsqlQueryResponse results = run("from test | eval l = length(color)")) {
+            logger.info(results);
+            assertThat(getValuesList(results), hasSize(40));
+            int countIndex = results.columns().indexOf(new ColumnInfo("l", "integer"));
+            for (List<Object> values : getValuesList(results)) {
+                assertThat((Integer) values.get(countIndex), greaterThanOrEqualTo(3));
+            }
         }
     }
 
@@ -518,11 +557,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data", "long"))));
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("data_d", "double"))));
         assertThat(results.columns(), hasItem(equalTo(new ColumnInfo("time", "long"))));
-
-        // restore index to original pre-test state
-        client().prepareBulk().add(new DeleteRequest("test").id("no_count")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        results = run("from test");
-        Assert.assertEquals(40, getValuesList(results).size());
     }
 
     public void testMultiConditionalWhere() {
@@ -742,19 +776,20 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         indexRandom(true, randomBoolean(), indexRequests);
         int limit = randomIntBetween(1, 10);
         String command = "from test_extract_fields | sort val | limit " + limit;
-        EsqlQueryResponse results = run(command);
-        logger.info(results);
-        // _doc, _segment, _shard are pruned
-        assertThat(results.columns().size(), equalTo(2));
-        assertThat(getValuesList(results), hasSize(Math.min(limit, numDocs)));
-        assertThat(results.columns().get(1).name(), equalTo("val"));
-        assertThat(results.columns().get(0).name(), equalTo("tag"));
-        List<Doc> actualDocs = new ArrayList<>();
-        for (int i = 0; i < getValuesList(results).size(); i++) {
-            List<Object> values = getValuesList(results).get(i);
-            actualDocs.add(new Doc((Long) values.get(1), (String) values.get(0)));
+        try (EsqlQueryResponse results = run(command)) {
+            logger.info(results);
+            // _doc, _segment, _shard are pruned
+            assertThat(results.columns().size(), equalTo(2));
+            assertThat(getValuesList(results), hasSize(Math.min(limit, numDocs)));
+            assertThat(results.columns().get(1).name(), equalTo("val"));
+            assertThat(results.columns().get(0).name(), equalTo("tag"));
+            List<Doc> actualDocs = new ArrayList<>();
+            for (int i = 0; i < getValuesList(results).size(); i++) {
+                List<Object> values = getValuesList(results).get(i);
+                actualDocs.add(new Doc((Long) values.get(1), (String) values.get(0)));
+            }
+            assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
         }
-        assertThat(actualDocs, equalTo(allDocs.stream().limit(limit).toList()));
     }
 
     public void testEvalWithNullAndAvg() {
@@ -776,10 +811,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromLimit() {
-        EsqlQueryResponse results = run("from test | keep data | limit 2");
-        logger.info(results);
-        assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
-        assertThat(getValuesList(results), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
+        try (EsqlQueryResponse results = run("from test | keep data | limit 2")) {
+            logger.info(results);
+            assertThat(results.columns(), contains(new ColumnInfo("data", "long")));
+            assertThat(getValuesList(results), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
+        }
     }
 
     public void testDropAllColumns() {
@@ -917,9 +953,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTopNPushedToLucene() {
-        BulkRequestBuilder bulkDelete = client().prepareBulk();
-        bulkDelete.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
         for (int i = 5; i < 11; i++) {
             var yellowDocId = "yellow_" + i;
             var yellowNullCountDocId = "yellow_null_count_" + i;
@@ -933,57 +966,50 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             if (randomBoolean()) {
                 client().admin().indices().prepareRefresh("test").get();
             }
-
-            // build the cleanup request now, as well, not to miss anything ;-)
-            bulkDelete.add(new DeleteRequest("test").id(yellowDocId))
-                .add(new DeleteRequest("test").id(yellowNullCountDocId))
-                .add(new DeleteRequest("test").id(yellowNullDataDocId));
         }
         client().admin().indices().prepareRefresh("test").get();
 
-        EsqlQueryResponse results = run("""
+        try (EsqlQueryResponse results = run("""
                 from test
                 | where color == "yellow"
                 | sort data desc nulls first, count asc nulls first
                 | limit 10
                 | keep data, count, color
-            """);
-        logger.info(results);
-        Assert.assertEquals(3, results.columns().size());
-        Assert.assertEquals(10, getValuesList(results).size());
+            """)) {
+            logger.info(results);
+            Assert.assertEquals(3, results.columns().size());
+            Assert.assertEquals(10, getValuesList(results).size());
 
-        // assert column metadata
-        assertEquals("data", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        assertEquals("count", results.columns().get(1).name());
-        assertEquals("long", results.columns().get(1).type());
-        assertEquals("color", results.columns().get(2).name());
-        assertEquals("keyword", results.columns().get(2).type());
-        record Group(Long data, Long count, String color) {
-            Group(Long data, Long count) {
-                this(data, count, "yellow");
+            // assert column metadata
+            assertEquals("data", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
+            assertEquals("count", results.columns().get(1).name());
+            assertEquals("long", results.columns().get(1).type());
+            assertEquals("color", results.columns().get(2).name());
+            assertEquals("keyword", results.columns().get(2).type());
+            record Group(Long data, Long count, String color) {
+                Group(Long data, Long count) {
+                    this(data, count, "yellow");
+                }
             }
+            List<Group> expectedGroups = List.of(
+                // data sorted descending nulls first; count sorted ascending nulls first
+                new Group(null, 50L),
+                new Group(null, 60L),
+                new Group(null, 70L),
+                new Group(null, 80L),
+                new Group(null, 90L),
+                new Group(null, 100L),
+                new Group(10L, null),
+                new Group(10L, 100L),
+                new Group(9L, null),
+                new Group(9L, 90L)
+            );
+            List<Group> actualGroups = getValuesList(results).stream()
+                .map(l -> new Group((Long) l.get(0), (Long) l.get(1), (String) l.get(2)))
+                .toList();
+            assertThat(actualGroups, equalTo(expectedGroups));
         }
-        List<Group> expectedGroups = List.of(
-            // data sorted descending nulls first; count sorted ascending nulls first
-            new Group(null, 50L),
-            new Group(null, 60L),
-            new Group(null, 70L),
-            new Group(null, 80L),
-            new Group(null, 90L),
-            new Group(null, 100L),
-            new Group(10L, null),
-            new Group(10L, 100L),
-            new Group(9L, null),
-            new Group(9L, 90L)
-        );
-        List<Group> actualGroups = getValuesList(results).stream()
-            .map(l -> new Group((Long) l.get(0), (Long) l.get(1), (String) l.get(2)))
-            .toList();
-        assertThat(actualGroups, equalTo(expectedGroups));
-
-        // clean-up what we created
-        bulkDelete.get();
     }
 
     /**
@@ -1000,27 +1026,25 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         );
 
         int limit = randomIntBetween(1, 5);
-        EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | keep time");
-        logger.info(results);
-        Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(limit, getValuesList(results).size());
+        try (EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | keep time")) {
+            logger.info(results);
+            Assert.assertEquals(1, results.columns().size());
+            Assert.assertEquals(limit, getValuesList(results).size());
 
-        // assert column metadata
-        assertEquals("time", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
+            // assert column metadata
+            assertEquals("time", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
 
-        boolean sortedDesc = "desc".equals(sortOrder);
-        var expected = LongStream.range(0, 40)
-            .map(i -> epoch + i)
-            .boxed()
-            .sorted(sortedDesc ? reverseOrder() : naturalOrder())
-            .limit(limit)
-            .toList();
-        var actual = getValuesList(results).stream().map(l -> (Long) l.get(0)).toList();
-        assertThat(actual, equalTo(expected));
-
-        // clean-up
-        client().admin().indices().delete(new DeleteIndexRequest("sorted_test_index")).actionGet();
+            boolean sortedDesc = "desc".equals(sortOrder);
+            var expected = LongStream.range(0, 40)
+                .map(i -> epoch + i)
+                .boxed()
+                .sorted(sortedDesc ? reverseOrder() : naturalOrder())
+                .limit(limit)
+                .toList();
+            var actual = getValuesList(results).stream().map(l -> (Long) l.get(0)).toList();
+            assertThat(actual, equalTo(expected));
+        }
     }
 
     /*

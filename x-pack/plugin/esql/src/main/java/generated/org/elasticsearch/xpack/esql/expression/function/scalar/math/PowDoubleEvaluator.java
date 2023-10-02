@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -38,26 +39,28 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block eval(Page page) {
-    Block baseUncastBlock = base.eval(page);
-    if (baseUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref baseRef = base.eval(page)) {
+      if (baseRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      DoubleBlock baseBlock = (DoubleBlock) baseRef.block();
+      try (Block.Ref exponentRef = exponent.eval(page)) {
+        if (exponentRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        DoubleBlock exponentBlock = (DoubleBlock) exponentRef.block();
+        DoubleVector baseVector = baseBlock.asVector();
+        if (baseVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), baseBlock, exponentBlock));
+        }
+        DoubleVector exponentVector = exponentBlock.asVector();
+        if (exponentVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), baseBlock, exponentBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), baseVector, exponentVector));
+      }
     }
-    DoubleBlock baseBlock = (DoubleBlock) baseUncastBlock;
-    Block exponentUncastBlock = exponent.eval(page);
-    if (exponentUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    DoubleBlock exponentBlock = (DoubleBlock) exponentUncastBlock;
-    DoubleVector baseVector = baseBlock.asVector();
-    if (baseVector == null) {
-      return eval(page.getPositionCount(), baseBlock, exponentBlock);
-    }
-    DoubleVector exponentVector = exponentBlock.asVector();
-    if (exponentVector == null) {
-      return eval(page.getPositionCount(), baseBlock, exponentBlock);
-    }
-    return eval(page.getPositionCount(), baseVector, exponentVector);
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
@@ -97,5 +100,10 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public String toString() {
     return "PowDoubleEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(base, exponent);
   }
 }

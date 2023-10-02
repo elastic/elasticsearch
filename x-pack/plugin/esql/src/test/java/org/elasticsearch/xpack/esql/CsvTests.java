@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -66,7 +67,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
@@ -86,12 +86,10 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.URL;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -150,13 +148,8 @@ public class CsvTests extends ESTestCase {
     private final Integer lineNumber;
     private final CsvSpecReader.CsvTestCase testCase;
 
-    private final EsqlConfiguration configuration = new EsqlConfiguration(
-        ZoneOffset.UTC,
-        Locale.US,
-        null,
-        null,
-        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
-        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
+    private final EsqlConfiguration configuration = EsqlTestUtils.configuration(
+        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
@@ -334,6 +327,7 @@ public class CsvTests extends ESTestCase {
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             bigArrays,
+            BlockFactory.getNonBreakingInstance(),
             configuration,
             exchangeSource,
             exchangeSink,
@@ -384,17 +378,18 @@ public class CsvTests extends ESTestCase {
                 Randomness.shuffle(drivers);
             }
             // Execute the driver
-            DriverRunner runner = new DriverRunner() {
+            DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
                     Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
                 }
             };
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            runner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
-            var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
-            return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
+            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)).map(ignore -> {
+                var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
+                return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            }));
+            return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
             Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
             assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));

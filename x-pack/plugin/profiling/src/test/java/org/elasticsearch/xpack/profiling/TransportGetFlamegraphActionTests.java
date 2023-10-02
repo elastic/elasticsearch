@@ -56,6 +56,80 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
         assertEquals(List.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1), response.getCountInclusive());
         assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 1), response.getCountExclusive());
+        assertEquals(
+            List.of(
+                Map.of("fr28zxcZ2UDasxYuu6dV-w12784352", 1),
+                Map.of("fr28zxcZ2UDasxYuu6dV-w19334053", 2),
+                Map.of("fr28zxcZ2UDasxYuu6dV-w19336161", 3),
+                Map.of("fr28zxcZ2UDasxYuu6dV-w18795859", 4),
+                Map.of("fr28zxcZ2UDasxYuu6dV-w18622708", 5),
+                Map.of("fr28zxcZ2UDasxYuu6dV-w18619213", 6),
+                Map.of("fr28zxcZ2UDasxYuu6dV-w12989721", 7),
+                Map.of("fr28zxcZ2UDasxYuu6dV-w13658842", 8),
+                Map.of("fr28zxcZ2UDasxYuu6dV-w16339645", 9),
+                Map.of()
+            ),
+            response.getEdges()
+        );
+        assertEquals(
+            List.of(
+                "",
+                "fr28zxcZ2UDasxYuu6dV-w",
+                "fr28zxcZ2UDasxYuu6dV-w",
+                "fr28zxcZ2UDasxYuu6dV-w",
+                "fr28zxcZ2UDasxYuu6dV-w",
+                "fr28zxcZ2UDasxYuu6dV-w",
+                "fr28zxcZ2UDasxYuu6dV-w",
+                "fr28zxcZ2UDasxYuu6dV-w",
+                "fr28zxcZ2UDasxYuu6dV-w",
+                "fr28zxcZ2UDasxYuu6dV-w"
+            ),
+            response.getFileIds()
+        );
+        assertEquals(List.of(0, 3, 3, 3, 3, 3, 3, 3, 3, 3), response.getFrameTypes());
+        assertEquals(List.of(false, false, false, false, false, false, false, false, false, false), response.getInlineFrames());
+        assertEquals(
+            List.of(
+                "",
+                "containerd",
+                "containerd",
+                "containerd",
+                "containerd",
+                "containerd",
+                "containerd",
+                "containerd",
+                "containerd",
+                "containerd"
+            ),
+            response.getFileNames()
+        );
+        assertEquals(
+            List.of(0, 12784352, 19334053, 19336161, 18795859, 18622708, 18619213, 12989721, 13658842, 16339645),
+            response.getAddressOrLines()
+        );
+        assertEquals(List.of("", "", "", "", "", "", "", "", "", ""), response.getFunctionNames());
+        assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), response.getFunctionOffsets());
+        assertEquals(List.of("", "", "", "", "", "", "", "", "", ""), response.getSourceFileNames());
+        assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), response.getSourceLines());
+    }
 
+    public void testCreateEmptyFlamegraphWithRootNode() {
+        GetStackTracesResponse stacktraces = new GetStackTracesResponse(Map.of(), Map.of(), Map.of(), Map.of(), 0, 1.0d);
+        GetFlamegraphResponse response = TransportGetFlamegraphAction.buildFlamegraph(stacktraces);
+        assertNotNull(response);
+        assertEquals(1, response.getSize());
+        assertEquals(1.0d, response.getSamplingRate(), 0.001d);
+        assertEquals(List.of(0), response.getCountInclusive());
+        assertEquals(List.of(0), response.getCountExclusive());
+        assertEquals(List.of(Map.of()), response.getEdges());
+        assertEquals(List.of(""), response.getFileIds());
+        assertEquals(List.of(0), response.getFrameTypes());
+        assertEquals(List.of(false), response.getInlineFrames());
+        assertEquals(List.of(""), response.getFileNames());
+        assertEquals(List.of(0), response.getAddressOrLines());
+        assertEquals(List.of(""), response.getFunctionNames());
+        assertEquals(List.of(0), response.getFunctionOffsets());
+        assertEquals(List.of(""), response.getSourceFileNames());
+        assertEquals(List.of(0), response.getSourceLines());
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
@@ -142,7 +143,13 @@ public class ExtractorTests extends ESTestCase {
         ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
-        ResultBuilder result = ResultBuilder.resultBuilderFor(testCase.type, testCase.encoder.toUnsortable(), false, 1);
+        ResultBuilder result = ResultBuilder.resultBuilderFor(
+            BlockFactory.getNonBreakingInstance(),
+            testCase.type,
+            testCase.encoder.toUnsortable(),
+            false,
+            1
+        );
         BytesRef values = valuesBuilder.bytesRefView();
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
@@ -163,7 +170,13 @@ public class ExtractorTests extends ESTestCase {
         ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
-        ResultBuilder result = ResultBuilder.resultBuilderFor(testCase.type, testCase.encoder.toUnsortable(), true, 1);
+        ResultBuilder result = ResultBuilder.resultBuilderFor(
+            BlockFactory.getNonBreakingInstance(),
+            testCase.type,
+            testCase.encoder.toUnsortable(),
+            true,
+            1
+        );
         BytesRef keys = keysBuilder.bytesRefView();
         if (testCase.type == ElementType.NULL) {
             assertThat(keys.length, equalTo(1));

@@ -358,11 +358,15 @@ This returns:
       "indices": [
         {
           "index_name": ".ds-my-data-stream-2023.07.26-000001", <1>
-          "index_uuid": "ltOJGmqgTVm4T-Buoe7Acg"
+          "index_uuid": "ltOJGmqgTVm4T-Buoe7Acg",
+          "prefer_ilm": true,
+          "managed_by": "Data stream lifecycle"
         }
       ],
       "generation": 1,
       "status": "GREEN",
+      "next_generation_managed_by": "Data stream lifecycle",
+      "prefer_ilm": true,
       "template": "my-data-stream-template",
       "hidden": false,
       "system": false,

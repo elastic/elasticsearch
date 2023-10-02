@@ -252,6 +252,7 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
+    @SuppressWarnings("this-escape")
     public TransportService(
         Settings settings,
         Transport transport,
@@ -672,7 +673,7 @@ public class TransportService extends AbstractLifecycleComponent
                     + "] but this node is build ["
                     + Build.current().hash()
                     + "] of version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] which has an incompatible wire format",
                 e
             );

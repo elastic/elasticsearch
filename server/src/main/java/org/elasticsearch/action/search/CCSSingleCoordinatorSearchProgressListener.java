@@ -63,7 +63,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
 
-            clusters.compute(clusterAlias, (k, v) -> {
+            clusters.updateCluster(clusterAlias, (k, v) -> {
                 assert v.getTotalShards() == null : "total shards should not be set on a Cluster before onListShards";
 
                 int totalCount = entry.getValue();
@@ -109,7 +109,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
                 clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             }
 
-            clusters.compute(clusterAlias, (k, v) -> {
+            clusters.updateCluster(clusterAlias, (k, v) -> {
                 if (v.isTimedOut()) {
                     return v; // cluster has already been marked as timed out on some other shard
                 }
@@ -138,7 +138,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         }
 
-        clusters.compute(clusterAlias, (k, v) -> {
+        clusters.updateCluster(clusterAlias, (k, v) -> {
             TimeValue took;
             SearchResponse.Cluster.Status status;
             int numFailedShards = v.getFailedShards() == null ? 1 : v.getFailedShards() + 1;
@@ -189,7 +189,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             String clusterAlias = entry.getKey();
             int successfulCount = entry.getValue().intValue();
 
-            clusters.compute(clusterAlias, (k, v) -> {
+            clusters.updateCluster(clusterAlias, (k, v) -> {
                 SearchResponse.Cluster.Status status = v.getStatus();
                 if (status != SearchResponse.Cluster.Status.RUNNING) {
                     // don't swap in a new Cluster if the final state has already been set
@@ -232,7 +232,7 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             String clusterAlias = entry.getKey();
             int successfulCount = entry.getValue().intValue();
 
-            clusters.compute(clusterAlias, (k, v) -> {
+            clusters.updateCluster(clusterAlias, (k, v) -> {
                 SearchResponse.Cluster.Status status = v.getStatus();
                 if (status != SearchResponse.Cluster.Status.RUNNING) {
                     // don't swap in a new Cluster if the final state has already been set

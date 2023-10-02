@@ -740,7 +740,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @param remappingFunction function to transform the oldCluster to a newCluster
          * @return the new Cluster object
          */
-        public Cluster compute(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
+        public Cluster updateCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
             return clusterInfo.compute(clusterAlias, remappingFunction);
         }
 

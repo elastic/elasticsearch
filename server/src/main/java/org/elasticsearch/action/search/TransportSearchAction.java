@@ -774,7 +774,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String clusterAlias,
         boolean skipUnavailable
     ) {
-        clusters.compute(clusterAlias, (k, v) -> {
+        clusters.updateCluster(clusterAlias, (k, v) -> {
             SearchResponse.Cluster.Status status;
             if (skipUnavailable) {
                 status = SearchResponse.Cluster.Status.SKIPPED;
@@ -809,7 +809,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * 4) PARTIAL if it at least one of the shards succeeded but not all
          * 5) SUCCESSFUL if no shards failed (and did not time out)
          */
-        clusters.compute(clusterAlias, (k, v) -> {
+        clusters.updateCluster(clusterAlias, (k, v) -> {
             SearchResponse.Cluster.Status status;
             if (searchResponse.getFailedShards() >= searchResponse.getTotalShards()) {
                 if (skipUnavailable) {
@@ -856,7 +856,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTimeProvider timeProvider
     ) {
         if (response.getGroups().isEmpty()) {
-            clusters.compute(
+            clusters.updateCluster(
                 clusterAlias,
                 (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
                     .setTotalShards(0)

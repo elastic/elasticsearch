@@ -162,7 +162,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         return result;
     }
 
-    private void assertSimple(DriverContext context, int size) {
+    protected final void assertSimple(DriverContext context, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), size));
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> inputClone = CannedSourceOperator.deepCopyOf(input);
@@ -170,7 +170,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> results = drive(simple(bigArrays).get(context), input.iterator());
         assertSimpleOutput(inputClone, results);
         results.forEach(Page::releaseBlocks);
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     protected final List<Page> drive(Operator operator, Iterator<Page> input) {
@@ -179,6 +178,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     protected final List<Page> drive(List<Operator> operators, Iterator<Page> input) {
         List<Page> results = new ArrayList<>();
+        boolean success = false;
         try (
             Driver d = new Driver(
                 driverContext(),
@@ -189,6 +189,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             )
         ) {
             runDriver(d);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+            }
         }
         return results;
     }
@@ -212,7 +217,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                         between(1, 100)
                     ),
                     List.of(),
-                    new PageConsumerOperator(page -> {}),
+                    new PageConsumerOperator(page -> page.releaseBlocks()),
                     Driver.DEFAULT_STATUS_INTERVAL,
                     () -> {}
                 )

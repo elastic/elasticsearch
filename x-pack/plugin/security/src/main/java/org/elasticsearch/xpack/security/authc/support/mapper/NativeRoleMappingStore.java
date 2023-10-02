@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -226,9 +226,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request(),
-                new ActionListener<IndexResponse>() {
+                new ActionListener<DocWriteResponse>() {
                     @Override
-                    public void onResponse(IndexResponse indexResponse) {
+                    public void onResponse(DocWriteResponse indexResponse) {
                         boolean created = indexResponse.getResult() == CREATED;
                         listener.onResponse(created);
                     }

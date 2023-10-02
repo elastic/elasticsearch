@@ -12,11 +12,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -83,9 +86,11 @@ public final class EsqlTestUtils {
 
     public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
+    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
+
     private EsqlTestUtils() {}
 
-    public static EsqlConfiguration configuration(QueryPragmas pragmas) {
+    public static EsqlConfiguration configuration(QueryPragmas pragmas, String query) {
         return new EsqlConfiguration(
             DateUtils.UTC,
             Locale.US,
@@ -93,8 +98,17 @@ public final class EsqlTestUtils {
             null,
             pragmas,
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            query
         );
+    }
+
+    public static EsqlConfiguration configuration(QueryPragmas pragmas) {
+        return configuration(pragmas, StringUtils.EMPTY);
+    }
+
+    public static EsqlConfiguration configuration(String query) {
+        return configuration(new QueryPragmas(Settings.EMPTY), query);
     }
 
     public static Literal L(Object value) {

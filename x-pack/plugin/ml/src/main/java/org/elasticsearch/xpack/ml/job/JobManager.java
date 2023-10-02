@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -666,7 +666,7 @@ public class JobManager {
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
-        CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
+        CheckedConsumer<DocWriteResponse, Exception> modelSizeStatsResponseHandler = response -> {
             // In case we are reverting to the empty snapshot the quantiles will be null
             if (modelSnapshot.getQuantiles() == null) {
                 actionListener.onResponse(new RevertModelSnapshotAction.Response(modelSnapshot));

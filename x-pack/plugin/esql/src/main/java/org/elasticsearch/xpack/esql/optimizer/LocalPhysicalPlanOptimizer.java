@@ -66,6 +66,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -328,6 +329,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             PhysicalPlan plan = aggregateExec;
             if (aggregateExec.child() instanceof EsQueryExec queryExec) {
                 var tuple = pushableStats(aggregateExec);
+
+                // for the moment support pushing count just for one field
+                List<Stat> stats = tuple.v2();
+                if (stats.size() > 1) {
+                    if (stats.stream().map(Stat::name).collect(Collectors.toSet()).size() > 1) {
+                        return aggregateExec;
+                    }
+                }
 
                 // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
                 // use the stats since the attributes are larger in size (due to seen)

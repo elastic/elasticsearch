@@ -1,0 +1,5 @@
+pr: 100084
+summary: Moved APM service version from Version to Build.version()
+area: Infra/Core
+type: enhancement
+issues: []

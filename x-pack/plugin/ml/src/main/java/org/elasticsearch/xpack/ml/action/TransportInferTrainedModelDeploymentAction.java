@@ -114,7 +114,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     }
 
     /**
-     * Create a listener that groups the results is the correct order.
+     * Create a listener that groups the results in the correct order.
      * Exceptions are converted to {@link ErrorInferenceResults},
      * the listener will never call {@code finalListener::onFailure}
      * instead failures are returned as inference results.

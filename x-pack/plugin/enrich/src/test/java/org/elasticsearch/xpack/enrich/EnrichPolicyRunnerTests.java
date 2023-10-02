@@ -2257,7 +2257,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerValidatesIndexIntegrity() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+        DocWriteResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
             {
               "field1": "value1",
               "field2": 2,

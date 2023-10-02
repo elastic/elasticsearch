@@ -774,16 +774,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String clusterAlias,
         boolean skipUnavailable
     ) {
-        SearchResponse.Cluster.Status status;
-        if (skipUnavailable) {
-            status = SearchResponse.Cluster.Status.SKIPPED;
-        } else {
-            status = SearchResponse.Cluster.Status.FAILED;
-        }
-        SearchResponse.Cluster orig = clusters.getCluster(clusterAlias);
-        // returns unmodifiable list based on the original one passed plus the appended failure
-        List<ShardSearchFailure> failures = CollectionUtils.appendToCopy(orig.getFailures(), failure);
-        clusters.compute(clusterAlias, (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status).setFailures(failures).build());
+        clusters.compute(clusterAlias, (k, v) -> {
+            SearchResponse.Cluster.Status status;
+            if (skipUnavailable) {
+                status = SearchResponse.Cluster.Status.SKIPPED;
+            } else {
+                status = SearchResponse.Cluster.Status.FAILED;
+            }
+            return new SearchResponse.Cluster.Builder(v).setStatus(status)
+                .setFailures(CollectionUtils.appendToCopy(v.getFailures(), failure))
+                .build();
+        });
     }
 
     /**
@@ -808,24 +809,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * 4) PARTIAL if it at least one of the shards succeeded but not all
          * 5) SUCCESSFUL if no shards failed (and did not time out)
          */
-        SearchResponse.Cluster.Status status;
-        if (searchResponse.getFailedShards() >= searchResponse.getTotalShards()) {
-            if (skipUnavailable) {
-                status = SearchResponse.Cluster.Status.SKIPPED;
+        clusters.compute(clusterAlias, (k, v) -> {
+            SearchResponse.Cluster.Status status;
+            if (searchResponse.getFailedShards() >= searchResponse.getTotalShards()) {
+                if (skipUnavailable) {
+                    status = SearchResponse.Cluster.Status.SKIPPED;
+                } else {
+                    status = SearchResponse.Cluster.Status.FAILED;
+                }
+            } else if (searchResponse.isTimedOut()) {
+                status = SearchResponse.Cluster.Status.PARTIAL;
+            } else if (searchResponse.getFailedShards() > 0) {
+                status = SearchResponse.Cluster.Status.PARTIAL;
             } else {
-                status = SearchResponse.Cluster.Status.FAILED;
+                status = SearchResponse.Cluster.Status.SUCCESSFUL;
             }
-        } else if (searchResponse.isTimedOut()) {
-            status = SearchResponse.Cluster.Status.PARTIAL;
-        } else if (searchResponse.getFailedShards() > 0) {
-            status = SearchResponse.Cluster.Status.PARTIAL;
-        } else {
-            status = SearchResponse.Cluster.Status.SUCCESSFUL;
-        }
-
-        clusters.compute(
-            clusterAlias,
-            (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status)
+            return new SearchResponse.Cluster.Builder(v).setStatus(status)
                 .setTotalShards(searchResponse.getTotalShards())
                 .setSuccessfulShards(searchResponse.getSuccessfulShards())
                 .setSkippedShards(searchResponse.getSkippedShards())
@@ -833,8 +832,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 .setFailures(Arrays.asList(searchResponse.getShardFailures()))
                 .setTook(searchResponse.getTook())
                 .setTimedOut(searchResponse.isTimedOut())
-                .build()
-        );
+                .build();
+        });
     }
 
     /**

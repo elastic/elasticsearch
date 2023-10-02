@@ -648,7 +648,7 @@ countFieldVsAll
 from employees | stats ca = count(), cn = count(null), cf = count(emp_no) by gender | sort gender;
 
 ca:l|cn:l|cf:l|gender:s
-10  |10  |0   |null
 33  |33  |33  |F
 57  |57  |57  |M
+10  |10  |0   |null
 ;

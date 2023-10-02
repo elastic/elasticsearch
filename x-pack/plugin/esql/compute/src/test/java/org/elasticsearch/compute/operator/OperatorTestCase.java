@@ -192,7 +192,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             operator = simple(bigArrays).get(context);
             List<Page> results = drive(operator, input.iterator(), context);
             assertSimpleOutput(origInput, results);
-            // results.forEach(Page::releaseBlocks); // TODO: remove
             assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         } catch (CircuitBreakingException cbe) {
             if (operator == null) {

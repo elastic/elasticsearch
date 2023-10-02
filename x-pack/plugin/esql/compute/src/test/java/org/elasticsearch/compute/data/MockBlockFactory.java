@@ -31,9 +31,7 @@ public class MockBlockFactory extends BlockFactory {
     static final boolean TRACK_ALLOCATIONS = true;
 
     static Object trackDetail() {
-        return TRACK_ALLOCATIONS
-            ? new RuntimeException("Block allocated from test: " + LuceneTestCase.getTestClass().getName())
-            : true;
+        return TRACK_ALLOCATIONS ? new RuntimeException("Block allocated from test: " + LuceneTestCase.getTestClass().getName()) : true;
     }
 
     final ConcurrentMap<Object, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();

@@ -78,8 +78,8 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     private IntBlock add(BytesRefBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(Block.Ref.floating(block)).hash(bytesRefHash); // TODO: block
-                                                                                                                         // factory
+        // TODO: use block factory
+        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(Block.Ref.floating(block)).hash(bytesRefHash);
         seenNull |= result.sawNull();
         return result.ords();
     }

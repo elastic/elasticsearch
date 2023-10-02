@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final boolean[] values;
+    private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
      * been built.
@@ -25,7 +26,8 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     private int nextIndex;
 
     BooleanVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        blockFactory.adjustBreaker(ramBytesUsed(size), false);
+        preAdjustedBytes = ramBytesUsed(size);
+        blockFactory.adjustBreaker(preAdjustedBytes, false);
         this.blockFactory = blockFactory;
         this.values = new boolean[size];
     }
@@ -54,16 +56,16 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
         }
         nextIndex = -1;
         if (values.length == 1) {
-            return new ConstantBooleanVector(values[0], 1, blockFactory);
+            return blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
         }
-        return new BooleanArrayVector(values, values.length, blockFactory);
+        return blockFactory.newBooleanArrayVector(values, values.length, preAdjustedBytes);
     }
 
     @Override
     public void close() {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
-            blockFactory.adjustBreaker(-ramBytesUsed(values.length), false);
+            blockFactory.adjustBreaker(-preAdjustedBytes, false);
         }
     }
 }

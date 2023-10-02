@@ -57,11 +57,11 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     // is null, then no trial has been exercised. We keep the version to leave open the possibility that we
     // may eventually allow a cluster to exercise a trial every time they upgrade to a new major version.
     @Nullable
-    private TrialLicenseEra trialVersion;
+    private TrialLicenseEra trialEra;
 
-    public LicensesMetadata(License license, TrialLicenseEra trialVersion) {
+    public LicensesMetadata(License license, TrialLicenseEra trialEra) {
         this.license = license;
-        this.trialVersion = trialVersion;
+        this.trialEra = trialEra;
     }
 
     public License getLicense() {
@@ -69,19 +69,19 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     }
 
     boolean isEligibleForTrial() {
-        if (trialVersion == null) {
+        if (trialEra == null) {
             return true;
         }
-        return trialVersion.ableToStartNewTrialSince(TrialLicenseEra.CURRENT);
+        return trialEra.ableToStartNewTrialSince(TrialLicenseEra.CURRENT);
     }
 
     TrialLicenseEra getMostRecentTrialEra() {
-        return trialVersion;
+        return trialEra;
     }
 
     @Override
     public String toString() {
-        return "LicensesMetadata{" + "license=" + license + ", trialVersion=" + trialVersion + '}';
+        return "LicensesMetadata{" + "license=" + license + ", trialVersion=" + trialEra + '}';
     }
 
     @Override
@@ -91,13 +91,13 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
         LicensesMetadata that = (LicensesMetadata) o;
 
-        return Objects.equals(license, that.license) && Objects.equals(trialVersion, that.trialVersion);
+        return Objects.equals(license, that.license) && Objects.equals(trialEra, that.trialEra);
     }
 
     @Override
     public int hashCode() {
         int result = license != null ? license.hashCode() : 0;
-        result = 31 * result + (trialVersion != null ? trialVersion.hashCode() : 0);
+        result = 31 * result + (trialEra != null ? trialEra.hashCode() : 0);
         return result;
     }
 
@@ -151,8 +151,8 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
                 license.toInnerXContent(builder, params);
                 builder.endObject();
             }
-            if (trialVersion != null) {
-                builder.field(Fields.TRIAL_LICENSE, trialVersion.toString());
+            if (trialEra != null) {
+                builder.field(Fields.TRIAL_LICENSE, trialEra.toString());
             }
             return builder;
         }));
@@ -166,11 +166,11 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
             streamOutput.writeBoolean(true); // has a license
             license.writeTo(streamOutput);
         }
-        if (trialVersion == null) {
+        if (trialEra == null) {
             streamOutput.writeBoolean(false);
         } else {
             streamOutput.writeBoolean(true);
-            trialVersion.writeTo(streamOutput);
+            trialEra.writeTo(streamOutput);
         }
     }
 
@@ -182,7 +182,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
         }
         boolean hasExercisedTrial = streamInput.readBoolean();
         if (hasExercisedTrial) {
-            this.trialVersion = new TrialLicenseEra(streamInput);
+            this.trialEra = new TrialLicenseEra(streamInput);
         }
     }
 

@@ -781,6 +781,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean skipUnavailable
     ) {
         clusters.swapCluster(clusterAlias, (k, v) -> {
+            if (v.getStatus() == SearchResponse.Cluster.Status.CANCELLED) {
+                // if already cancelled, don't bother updating with failure info
+                return v;
+            }
             SearchResponse.Cluster.Status status;
             if (skipUnavailable) {
                 status = SearchResponse.Cluster.Status.SKIPPED;

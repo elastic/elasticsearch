@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class CountDistinctBooleanAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceBooleanBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> randomBoolean()).toList());
+        return new SequenceBooleanBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToObj(l -> randomBoolean()).toList());
     }
 
     @Override

@@ -96,6 +96,6 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(inputEvaluator);
+        Releasables.closeExpectNoException(inputEvaluator, super::close);
     }
 }

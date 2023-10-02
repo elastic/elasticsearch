@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 
@@ -20,14 +21,16 @@ public class SequenceBooleanBlockSourceOperator extends AbstractBlockSourceOpera
 
     static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
+    private final BlockFactory blockFactory;
     private final boolean[] values;
 
-    public SequenceBooleanBlockSourceOperator(List<Boolean> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceBooleanBlockSourceOperator(BlockFactory blockFactory, List<Boolean> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceBooleanBlockSourceOperator(List<Boolean> values, int maxPagePositions) {
+    public SequenceBooleanBlockSourceOperator(BlockFactory blockFactory, List<Boolean> values, int maxPagePositions) {
         super(maxPagePositions);
+        this.blockFactory = blockFactory;
         this.values = new boolean[values.size()];
         for (int i = 0; i < values.size(); i++) {
             this.values[i] = values.get(i);
@@ -36,7 +39,7 @@ public class SequenceBooleanBlockSourceOperator extends AbstractBlockSourceOpera
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        BooleanVector.Builder builder = BooleanVector.newVectorBuilder(length);
+        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(length, blockFactory);
         for (int i = 0; i < length; i++) {
             builder.appendBoolean(values[positionOffset + i]);
         }

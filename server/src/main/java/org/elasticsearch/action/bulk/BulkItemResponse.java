@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -30,6 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -44,14 +44,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
-public class BulkItemResponse implements Writeable, StatusToXContentObject {
+public class BulkItemResponse implements Writeable, ToXContentObject {
 
     private static final String _INDEX = "_index";
     private static final String _ID = "_id";
     private static final String STATUS = "status";
     private static final String ERROR = "error";
 
-    @Override
     public RestStatus status() {
         return failure == null ? response.status() : failure.getStatus();
     }

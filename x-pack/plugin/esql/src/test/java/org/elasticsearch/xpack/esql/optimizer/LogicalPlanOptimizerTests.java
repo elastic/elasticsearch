@@ -373,13 +373,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
     }
 
-    // from ... | where a > 1 | stats count(languages) by b | where count(languages) >= 3 and b < 2
-    // => ... | where a > 1 and b < 2 | stats count(languages) by b | where count(languages) >= 3
+    // from ... | where a > 1 | stats count(1) by b | where count(1) >= 3 and b < 2
+    // => ... | where a > 1 and b < 2 | stats count(1) by b | where count(1) >= 3
     public void testSelectivelyPushDownFilterPastFunctionAgg() {
         EsRelation relation = relation();
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
-        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, getFieldAttribute("languages")), THREE);
+        GreaterThanOrEqual aggregateCondition = greaterThanOrEqualOf(new Count(EMPTY, ONE), THREE);
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         // invalid aggregate but that's fine cause its properties are not used by this rule
@@ -401,11 +401,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSelectivelyPushDownFilterPastRefAgg() {
-        // expected plan: "from test | where emp_no > 1 and emp_no < 3 | stats x = count(languages) by emp_no | where x > 7"
+        // expected plan: "from test | where emp_no > 1 and emp_no < 3 | stats x = count(1) by emp_no | where x > 7"
         LogicalPlan plan = optimizedPlan("""
             from test
             | where emp_no > 1
-            | stats x = count(languages) by emp_no
+            | stats x = count(1) by emp_no
             | where x + 2 > 9
             | where emp_no < 3""");
         var limit = as(plan, Limit.class);
@@ -438,7 +438,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testNoPushDownOrFilterPastAgg() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | stats x = count(languages) by emp_no
+            | stats x = count(1) by emp_no
             | where emp_no < 3 or x > 9""");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -453,10 +453,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSelectivePushDownComplexFilterPastAgg() {
-        // expected plan: from test | emp_no > 0 | stats x = count(languages) by emp_no | where emp_no < 3 or x > 9
+        // expected plan: from test | emp_no > 0 | stats x = count(1) by emp_no | where emp_no < 3 or x > 9
         LogicalPlan plan = optimizedPlan("""
             from test
-            | stats x = count(languages) by emp_no
+            | stats x = count(1) by emp_no
             | where (emp_no < 3 or x > 9) and emp_no > 0""");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);

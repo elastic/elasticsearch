@@ -19,7 +19,6 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
@@ -289,9 +288,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 indexRequest,
-                new ActionListener<IndexResponse>() {
+                new ActionListener<DocWriteResponse>() {
                     @Override
-                    public void onResponse(IndexResponse indexResponse) {
+                    public void onResponse(DocWriteResponse indexResponse) {
                         final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                         logger.trace("Created role: [{}]", indexRequest);
                         clearRoleCache(roleName, listener, created);

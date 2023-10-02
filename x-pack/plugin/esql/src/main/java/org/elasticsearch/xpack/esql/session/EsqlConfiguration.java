@@ -7,28 +7,26 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ql.session.Configuration;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 
 public class EsqlConfiguration extends Configuration implements Writeable {
 
-    static final int QUERY_COMPRESS_THRASHOLD_CHARS = KB.toIntBytes(5);
+    static final int QUERY_COMPRESS_THRESHOLD_CHARS = KB.toIntBytes(5);
 
     private final QueryPragmas pragmas;
 
@@ -102,13 +100,11 @@ public class EsqlConfiguration extends Configuration implements Writeable {
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
-        if (query.length() > QUERY_COMPRESS_THRASHOLD_CHARS) { // compare on chars to avoid UTF-8 encoding unless actually required
+        if (query.length() > QUERY_COMPRESS_THRESHOLD_CHARS) { // compare on chars to avoid UTF-8 encoding unless actually required
             out.writeBoolean(true);
-            var baos = new ByteArrayOutputStream();
-            try (var gzip = new GZIPOutputStream(baos)) {
-                gzip.write(query.getBytes(StandardCharsets.UTF_8));
-            }
-            out.writeByteArray(baos.toByteArray());
+            var bytesArray = new BytesArray(query.getBytes(StandardCharsets.UTF_8));
+            var bytesRef = CompressorFactory.COMPRESSOR.compress(bytesArray);
+            out.writeByteArray(bytesRef.array());
         } else {
             out.writeBoolean(false);
             out.writeString(query);
@@ -119,10 +115,8 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         boolean compressed = in.readBoolean();
         if (compressed) {
             byte[] bytes = in.readByteArray();
-            var bais = new ByteArrayInputStream(bytes);
-            try (var gzip = new GZIPInputStream(bais)) {
-                return new String(gzip.readAllBytes(), StandardCharsets.UTF_8);
-            }
+            var bytesRef = CompressorFactory.uncompress(new BytesArray(bytes));
+            return new String(bytesRef.array(), StandardCharsets.UTF_8);
         } else {
             return in.readString();
         }

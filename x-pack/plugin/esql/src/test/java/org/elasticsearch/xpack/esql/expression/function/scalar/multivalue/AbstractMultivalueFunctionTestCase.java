@@ -455,17 +455,19 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             }
             builder.copyFrom(oneRowBlock, 0, 1);
         }
-        Block input = builder.build();
-        Block result = evaluator(buildFieldExpression(testCase)).get(driverContext()).eval(new Page(input));
-
-        assertThat(result.getPositionCount(), equalTo(result.getPositionCount()));
-        for (int p = 0; p < input.getPositionCount(); p++) {
-            if (input.isNull(p)) {
-                assertThat(result.isNull(p), equalTo(true));
-                continue;
+        try (
+            Block input = builder.build();
+            Block.Ref ref = evaluator(buildFieldExpression(testCase)).get(driverContext()).eval(new Page(input))
+        ) {
+            assertThat(ref.block().getPositionCount(), equalTo(ref.block().getPositionCount()));
+            for (int p = 0; p < input.getPositionCount(); p++) {
+                if (input.isNull(p)) {
+                    assertThat(ref.block().isNull(p), equalTo(true));
+                    continue;
+                }
+                assertThat(ref.block().isNull(p), equalTo(false));
+                assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
             }
-            assertThat(result.isNull(p), equalTo(false));
-            assertThat(toJavaObject(result, p), testCase.getMatcher());
         }
     }
 }

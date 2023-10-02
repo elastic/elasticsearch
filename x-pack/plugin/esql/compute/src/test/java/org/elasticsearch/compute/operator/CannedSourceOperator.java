@@ -26,6 +26,10 @@ public class CannedSourceOperator extends SourceOperator {
                 if (in == null) {
                     continue;
                 }
+                if (in.getPositionCount() == 0) {
+                    in.releaseBlocks();
+                    continue;
+                }
                 pages.add(in);
             }
             return pages;

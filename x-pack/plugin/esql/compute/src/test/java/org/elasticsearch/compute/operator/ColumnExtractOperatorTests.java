@@ -52,8 +52,8 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
             new ElementType[] { ElementType.BYTES_REF },
             dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                 @Override
-                public Block eval(Page page) {
-                    return page.getBlock(0);
+                public Block.Ref eval(Page page) {
+                    return new Block.Ref(page.getBlock(0), page);
                 }
 
                 @Override

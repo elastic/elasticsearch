@@ -825,6 +825,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return elementType.fielddataBuilder(this, fieldDataContext);
         }

@@ -65,6 +65,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new ConstantIndexFieldData.Builder(
                 fieldDataContext.fullyQualifiedIndexName(),

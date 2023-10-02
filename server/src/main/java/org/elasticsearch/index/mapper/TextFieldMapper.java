@@ -936,6 +936,14 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SEARCH) {
+                return fielddata;
+            }
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
             if (operation == FielddataOperation.SEARCH) {

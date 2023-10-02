@@ -50,32 +50,38 @@ public class SearchLookup implements SourceProvider {
         Supplier<SearchLookup>,
         MappedFieldType.FielddataOperation,
         IndexFieldData<?>> fieldDataLookup;
+    private final TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, Boolean> fieldDataPredicate;
+
     private final Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider;
 
     /**
      * Create a new SearchLookup, using the default stored fields provider
-     * @param fieldTypeLookup   defines how to look up field types
-     * @param fieldDataLookup   defines how to look up field data
-     * @param sourceProvider    defines how to look up the source
+     * @param fieldTypeLookup    defines how to look up field types
+     * @param fieldDataLookup    defines how to look up field data
+     * @param fieldDataPredicate defines if it is possible to access field data
+     * @param sourceProvider     defines how to look up the source
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, Boolean> fieldDataPredicate,
         SourceProvider sourceProvider
     ) {
-        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
+        this(fieldTypeLookup, fieldDataLookup, fieldDataPredicate, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
     }
 
     /**
      * Create a new SearchLookup, using the default stored fields provider
      * @param fieldTypeLookup       defines how to look up field types
      * @param fieldDataLookup       defines how to look up field data
+     * @param fieldDataPredicate    defines if it is possible to access field data
      * @param sourceProvider        defines how to look up the source
      * @param fieldLookupProvider   defines how to look up stored fields
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, Boolean> fieldDataPredicate,
         SourceProvider sourceProvider,
         Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
     ) {
@@ -83,6 +89,7 @@ public class SearchLookup implements SourceProvider {
         this.fieldChain = Collections.emptySet();
         this.sourceProvider = sourceProvider;
         this.fieldDataLookup = fieldDataLookup;
+        this.fieldDataPredicate = fieldDataPredicate;
         this.fieldLookupProvider = fieldLookupProvider;
     }
 
@@ -98,6 +105,7 @@ public class SearchLookup implements SourceProvider {
         this.sourceProvider = searchLookup.sourceProvider;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.fieldDataPredicate = searchLookup.fieldDataPredicate;
         this.fieldLookupProvider = searchLookup.fieldLookupProvider;
     }
 
@@ -125,7 +133,7 @@ public class SearchLookup implements SourceProvider {
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
         return new LeafSearchLookup(
             context,
-            new LeafDocLookup(fieldTypeLookup, this::getForField, context),
+            new LeafDocLookup(fieldTypeLookup, this::getForField, this::isFielddataSupportedForField, context),
             sourceProvider,
             new LeafStoredFieldsLookup(fieldTypeLookup, fieldLookupProvider.apply(context))
         );
@@ -133,6 +141,10 @@ public class SearchLookup implements SourceProvider {
 
     public MappedFieldType fieldType(String fieldName) {
         return fieldTypeLookup.apply(fieldName);
+    }
+
+    private boolean isFielddataSupportedForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {
+        return fieldDataPredicate.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()), options);
     }
 
     public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {

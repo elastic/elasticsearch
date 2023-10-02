@@ -54,6 +54,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         lookup = new SearchLookup(
             field -> field.equals("field") ? fieldType : null,
             (ignored, _lookup, fdt) -> fieldData,
+            (ignored, _lookup, fdt) -> true,
             (ctx, doc) -> Source.empty(XContentType.JSON)
         );
     }

@@ -120,6 +120,11 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            return hasDocValues();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);

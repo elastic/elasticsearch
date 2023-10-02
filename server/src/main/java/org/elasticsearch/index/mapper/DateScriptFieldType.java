@@ -178,6 +178,11 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
+    public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+        return true;
+    }
+
+    @Override
     public DateScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new DateScriptFieldData.Builder(
             name(),

@@ -15,6 +15,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.EmptyField;
 import org.elasticsearch.script.field.Field;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup;
+    private final BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, Boolean> fieldDataPredicate;
     private final LeafReaderContext reader;
 
     /*
@@ -81,10 +83,12 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, Boolean> fieldDataPredicate,
         LeafReaderContext reader
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
+        this.fieldDataPredicate = fieldDataPredicate;
         this.reader = reader;
     }
 
@@ -98,6 +102,23 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
         if (fieldType == null) {
             throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
+        }
+
+        if (fieldDataPredicate.apply(fieldType, SCRIPT) == false) {
+            return new FieldFactoryWrapper(new DocValuesScriptFieldFactory() {
+                @Override
+                public void setNextDocId(int docId) {}
+
+                @Override
+                public ScriptDocValues<?> toScriptDocValues() {
+                    throw new UnsupportedOperationException("field-style api accessor");
+                }
+
+                @Override
+                public Field<?> toScriptField() {
+                    return new EmptyField(fieldName);
+                }
+            });
         }
 
         // Load the field data on behalf of the script. Otherwise, it would require

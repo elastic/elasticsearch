@@ -81,7 +81,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -1081,9 +1080,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
-            return builder.build(new IndexFieldDataCache.None(), null);
+        var indexFieldDataLookup = new SearchExecutionContext.IndexFieldDataLookup() {
+            @Override
+            public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+                return fieldType.isFielddataSupported(fieldDataContext);
+            }
+
+            @Override
+            public IndexFieldData<?> getForField(MappedFieldType fieldType, FieldDataContext fdc) {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
+                return builder.build(new IndexFieldDataCache.None(), null);
+            }
         };
         MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
         return new SearchExecutionContext(

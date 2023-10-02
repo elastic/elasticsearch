@@ -68,7 +68,7 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript script = new DateFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ft, lookup, ftd) -> false, (ctx, doc) -> null),
                     DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
                     OnScriptError.FAIL,
                     reader.leaves().get(0)
@@ -105,7 +105,7 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    new SearchLookup(field -> null, (ft, l, fdt) -> null, (ft, l, ftd) -> false, SourceProvider.fromStoredFields()),
                     DateFormatter.forPattern("epoch_millis"),
                     OnScriptError.FAIL
                 );

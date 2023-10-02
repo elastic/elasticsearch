@@ -110,6 +110,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
+    public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+        return true;
+    }
+
+    @Override
     public GeoPointScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new GeoPointScriptFieldData.Builder(
             name(),

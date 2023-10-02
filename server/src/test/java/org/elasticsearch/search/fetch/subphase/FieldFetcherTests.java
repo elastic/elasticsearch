@@ -48,7 +48,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.ObjectPath.eval;
@@ -241,10 +240,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 new FieldAndFormat("_ignored", null)
             );
             FieldFetcher fieldFetcher = FieldFetcher.create(
-                newSearchExecutionContext(
-                    mapperService,
-                    (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
-                ),
+                newSearchExecutionContext(mapperService, new SearchExecutionContext.IndexFieldDataLookup() {
+                    @Override
+                    public boolean isFielddataSupportedForField(MappedFieldType ft, FieldDataContext fdc) {
+                        return fieldDataPredicate(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation());
+                    }
+
+                    @Override
+                    public IndexFieldData<?> getForField(MappedFieldType ft, FieldDataContext fdc) {
+                        return fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation());
+                    }
+                }),
                 fieldList
             );
             IndexSearcher searcher = newSearcher(iw);
@@ -1530,7 +1536,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
             mapperService,
-            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+            new SearchExecutionContext.IndexFieldDataLookup() {
+                @Override
+                public boolean isFielddataSupportedForField(MappedFieldType ft, FieldDataContext fdc) {
+                    return fieldDataPredicate(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation());
+                }
+
+                @Override
+                public IndexFieldData<?> getForField(MappedFieldType ft, FieldDataContext fdc) {
+                    return fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation());
+                }
+            }
         );
         withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
             FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
@@ -1560,7 +1576,17 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
             mapperService,
-            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+            new SearchExecutionContext.IndexFieldDataLookup() {
+                @Override
+                public boolean isFielddataSupportedForField(MappedFieldType ft, FieldDataContext fdc) {
+                    return fieldDataPredicate(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation());
+                }
+
+                @Override
+                public IndexFieldData<?> getForField(MappedFieldType ft, FieldDataContext fdc) {
+                    return fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation());
+                }
+            }
         );
         withLuceneIndex(mapperService, iw -> {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));
@@ -1662,7 +1688,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private static SearchExecutionContext newSearchExecutionContext(
         MapperService mapperService,
-        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup
+        SearchExecutionContext.IndexFieldDataLookup indexFieldDataLookup
     ) {
         Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();

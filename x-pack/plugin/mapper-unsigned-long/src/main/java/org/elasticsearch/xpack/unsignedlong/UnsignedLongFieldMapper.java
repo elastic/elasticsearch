@@ -314,6 +314,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SEARCH) {
+                return hasDocValues();
+            }
+            return true;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 

@@ -106,6 +106,15 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Return if fielddata is supported for this field in the given context
+     *
+     * @param fieldDataContext the context for the fielddata
+     */
+    public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+        return false;
+    }
+
+    /**
      * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
      *
      * New field types must implement this method in order to support the search 'fields' option. Except

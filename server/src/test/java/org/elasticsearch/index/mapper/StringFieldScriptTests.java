@@ -65,7 +65,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript script = new StringFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ft, lookup, ftd) -> false, (ctx, doc) -> null),
                     OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
@@ -92,7 +92,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript script = new StringFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ft, lookup, ftd) -> false, (ctx, doc) -> null),
                     OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
@@ -133,7 +133,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    new SearchLookup(field -> null, (ft, l, fdt) -> null, (ft, l, ftd) -> false, SourceProvider.fromStoredFields()),
                     OnScriptError.FAIL
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));
@@ -163,7 +163,7 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
                 StringFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    new SearchLookup(field -> null, (ft, l, fdt) -> null, (ft, l, ftd) -> false, SourceProvider.fromStoredFields()),
                     OnScriptError.FAIL
                 );
                 StringFieldScript stringFieldScript = leafFactory.newInstance(reader.leaves().get(0));

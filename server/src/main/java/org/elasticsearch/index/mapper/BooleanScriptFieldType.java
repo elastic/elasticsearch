@@ -109,6 +109,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
+    public boolean isFielddataSupported(FieldDataContext fieldDataContext) {
+        return true;
+    }
+
+    @Override
     public BooleanScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new BooleanScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), BooleanDocValuesField::new);
     }

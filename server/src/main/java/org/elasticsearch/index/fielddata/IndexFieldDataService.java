@@ -86,6 +86,13 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     /**
+     * Returns if fielddata is available for the provided field type in the provided context.
+     */
+    public boolean isFielddataSupportedForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+        return fieldType.isFielddataSupported(fieldDataContext);
+    }
+
+    /**
      * Returns fielddata for the provided field type, given the provided fully qualified index name, while also making
      * a {@link SearchLookup} supplier available that is required for runtime fields.
      */

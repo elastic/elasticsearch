@@ -100,6 +100,7 @@ setup:
           rank: 1
           boolean: true
           boolean_no_doc_values: true
+          boolean_not_mapped: true
           date: 2017-01-01T12:11:12
           date_no_doc_values: 2017-01-01T12:11:12
           nanos: 2015-01-01T12:10:30.123456789Z
@@ -413,6 +414,66 @@ boolean:
   - match: { hits.hits.0.fields.field.0: 0 }
 
 ---
+boolean_not_existing:
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['boolean_not_existing'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_not_existing').empty"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_not_existing').get(false)"
+  - match: { hits.hits.0.fields.field.0: false }
+
+---
+boolean_not_mapped:
+  - do:
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['boolean_not_mapped'].value"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_not_mapped').get(false)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+---
 boolean_no_doc_values:
   - do:
       catch: bad_request
@@ -447,6 +508,28 @@ boolean_no_doc_values:
             field:
               script:
                 source: "field('boolean_no_doc_values').get(false)"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').empty"
+  - match: { hits.hits.0.fields.field.0: false }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "field('boolean_no_doc_values').empty"
   - match: { hits.hits.0.fields.field.0: true }
 
   - do:
@@ -2300,6 +2383,17 @@ keyword_synthetic:
             field:
               script:
                 source: "doc['keyword'].value"
+  - match: { hits.hits.0.fields.field.0: "not split at all" }
+
+  - do:
+      search:
+        index: test_synthetic
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('keyword').get('null')"
   - match: { hits.hits.0.fields.field.0: "not split at all" }
 
   - do:
@@ -6124,3 +6218,38 @@ unsupported date methods:
                 source: "/* avoid stash */ $('date', null).get(ChronoField.YEAR_OF_ERA)"
   - match: { hits.hits.0.fields.field.0: 2017 }
 
+---
+_id_field:
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['_id'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('_id').empty"
+  - match: { hits.hits.0.fields.field.0: true }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('_id').get(0)"
+  - match: { hits.hits.0.fields.field.0: 0 }

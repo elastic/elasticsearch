@@ -37,7 +37,7 @@ public interface BlobStore extends Closeable {
     /**
      * Delete all the provided blobs from the blob store. Each blob could belong to a different {@code BlobContainer}
      *
-     * @param purpose   the purpose of the delete operation, useful for stats collection
+     * @param purpose   the purpose of the delete operation
      * @param blobNames the blobs to be deleted
      */
     default void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {

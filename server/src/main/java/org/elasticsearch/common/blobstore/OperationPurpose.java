@@ -8,6 +8,10 @@
 
 package org.elasticsearch.common.blobstore;
 
+/**
+ * The purpose of an operation against the blobstore. For example, it can be useful for stats collection
+ * as well as other things that requires further differentiation for the same blob operation.
+ */
 public enum OperationPurpose {
     SNAPSHOT("Snapshot"),
     CLUSTER_STATE("ClusterState"),

@@ -489,7 +489,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     /**
      * Deletes the given path and all its children.
      *
-     * @param purpose The purpose of the delete operation, useful for stats collection
+     * @param purpose The purpose of the delete operation
      * @param pathStr Name of path to delete
      */
     DeleteResult deleteDirectory(OperationPurpose purpose, String pathStr) throws IOException {
@@ -524,7 +524,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     /**
      * Deletes multiple blobs from the specific bucket using a batch request
      *
-     * @param purpose the purpose of the delete operation, useful for stats collection
+     * @param purpose the purpose of the delete operation
      * @param blobNames names of the blobs to delete
      */
     @Override

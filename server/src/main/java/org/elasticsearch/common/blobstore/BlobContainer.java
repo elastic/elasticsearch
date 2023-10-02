@@ -37,7 +37,7 @@ public interface BlobContainer {
     /**
      * Tests whether a blob with the given blob name exists in the container.
      *
-     * @param purpose The purpose of the operation, useful for stats collection.
+     * @param purpose The purpose of the operation
      * @param blobName The name of the blob whose existence is to be determined.
      * @return {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
      */
@@ -51,7 +51,7 @@ public interface BlobContainer {
     /**
      * Creates a new {@link InputStream} for the given blob name.
      *
-     * @param purpose The purpose of the operation, useful for stats collection.
+     * @param purpose The purpose of the operation
      * @param blobName The name of the blob to get an {@link InputStream} for.
      * @return The {@code InputStream} to read the blob.
      * @throws NoSuchFileException if the blob does not exist
@@ -69,7 +69,7 @@ public interface BlobContainer {
      * a specific {@code position} in the blob. The {@code length} is an indication of the
      * number of bytes that are expected to be read from the {@link InputStream}.
      *
-     * @param purpose The purpose of the operation, useful for stats collection.
+     * @param purpose The purpose of the operation
      * @param blobName The name of the blob to get an {@link InputStream} for.
      * @param position The position in the blob where the next byte will be read.
      * @param length   An indication of the number of bytes to be read.
@@ -107,7 +107,7 @@ public interface BlobContainer {
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
      *
-     * @param purpose             The purpose of the operation, useful for stats collection.
+     * @param purpose             The purpose of the operation
      * @param blobName            The name of the blob to write the contents of the input stream to.
      * @param inputStream         The input stream from which to retrieve the bytes to write to the blob.
      * @param blobSize            The size of the blob to be written, in bytes.  It is implementation dependent whether
@@ -127,7 +127,7 @@ public interface BlobContainer {
     /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name.
      *
-     * @param purpose             The purpose of the operation, useful for stats collection.
+     * @param purpose             The purpose of the operation
      * @param blobName            The name of the blob to write the contents of the input stream to.
      * @param bytes               The bytes to write
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
@@ -150,7 +150,7 @@ public interface BlobContainer {
      * This method is only used for streaming serialization of repository metadata that is known to be of limited size
      * at any point in time and across all concurrent invocations of this method.
      *
-     * @param purpose             The purpose of the operation, useful for stats collection.
+     * @param purpose             The purpose of the operation
      * @param blobName            the name of the blob to write
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      * @param atomic              whether the write should be atomic in case the implementation supports it
@@ -178,7 +178,7 @@ public interface BlobContainer {
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
      *
-     * @param purpose             The purpose of the operation, useful for stats collection.
+     * @param purpose             The purpose of the operation
      * @param blobName            The name of the blob to write the contents of the input stream to.
      * @param bytes               The bytes to write
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
@@ -195,7 +195,7 @@ public interface BlobContainer {
     /**
      * Deletes this container and all its contents from the repository.
      *
-     * @param purpose The purpose of the operation, useful for stats collection.
+     * @param purpose The purpose of the operation
      * @return delete result
      * @throws IOException on failure
      */
@@ -210,7 +210,7 @@ public interface BlobContainer {
      * Deletes the blobs with given names. This method will not throw an exception
      * when one or multiple of the given blobs don't exist and simply ignore this case.
      *
-     * @param purpose The purpose of the operation, useful for stats collection.
+     * @param purpose The purpose of the operation
      * @param blobNames the names of the blobs to delete
      * @throws IOException if a subset of blob exists but could not be deleted.
      */
@@ -240,7 +240,7 @@ public interface BlobContainer {
      * a path that has this containers {@link #path()} return as its prefix and has one more path element than the current
      * container's path.
      *
-     * @param purpose The purpose of the operation, useful for stats collection.
+     * @param purpose The purpose of the operation
      * @return Map of name of the child container to child container
      * @throws IOException on failure to list child containers
      */
@@ -254,7 +254,7 @@ public interface BlobContainer {
     /**
      * Lists all blobs in the container that match the specified prefix.
      *
-     * @param purpose The purpose of the operation, useful for stats collection.
+     * @param purpose The purpose of the operation
      * @param blobNamePrefix The prefix to match against blob names in the container.
      * @return A map of the matching blobs in the container.  The keys in the map are the names of the blobs
      * and the values are {@link BlobMetadata}, containing basic information about each blob.
@@ -271,7 +271,7 @@ public interface BlobContainer {
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
      * Keys not yet used start at initial value 0. Returns the current value (before it was updated).
      *
-     * @param purpose  The purpose of the operation, useful for stats collection.
+     * @param purpose  The purpose of the operation
      * @param key      key of the value to update
      * @param expected the expected value
      * @param updated  the new value
@@ -332,7 +332,7 @@ public interface BlobContainer {
      * Gets the value set by {@link #compareAndSetRegister} or {@link #compareAndExchangeRegister} for a given key.
      * If a key has not yet been used, the initial value is an empty {@link BytesReference}.
      *
-     * @param purpose The purpose of the operation, useful for stats collection.
+     * @param purpose The purpose of the operation
      * @param key      key of the value to get
      * @param listener a listener, completed with the value read from the register or {@code OptionalBytesReference#MISSING} if the value
      *                 could not be read due to concurrent activity.

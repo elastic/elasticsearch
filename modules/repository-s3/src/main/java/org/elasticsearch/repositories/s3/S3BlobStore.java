@@ -228,30 +228,30 @@ class S3BlobStore implements BlobStore {
                 blobNames.forEachRemaining(key -> {
                     partition.add(key);
                     if (partition.size() == MAX_BULK_DELETES) {
-                        deletePartition(clientReference, partition, aex, purpose);
+                        deletePartition(purpose, clientReference, partition, aex);
                         partition.clear();
                     }
                 });
                 if (partition.isEmpty() == false) {
-                    deletePartition(clientReference, partition, aex, purpose);
+                    deletePartition(purpose, clientReference, partition, aex);
                 }
             });
             if (aex.get() != null) {
                 throw aex.get();
             }
         } catch (Exception e) {
-            throw new IOException("Failed to delete blobs " + partition.stream().limit(10).toList(), e);
+            throw new IOException("Failed to delete blobs " + partition.stream().limit(delete10).toList(), e);
         }
     }
 
     private void deletePartition(
+        OperationPurpose purpose,
         AmazonS3Reference clientReference,
         List<String> partition,
-        AtomicReference<Exception> aex,
-        OperationPurpose purpose
+        AtomicReference<Exception> aex
     ) {
         try {
-            clientReference.client().deleteObjects(bulkDelete(this, partition, purpose));
+            clientReference.client().deleteObjects(bulkDelete(purpose, this, partition));
         } catch (MultiObjectDeleteException e) {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
@@ -270,7 +270,7 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs, OperationPurpose purpose) {
+    private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {
         return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
             .withQuiet(true)
             .withRequestMetricCollector(blobStore.deleteMetricCollector);

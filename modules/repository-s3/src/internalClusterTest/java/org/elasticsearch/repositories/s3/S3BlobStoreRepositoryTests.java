@@ -216,7 +216,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         final BlobPath blobPath = repository.basePath().add(randomAlphaOfLength(10));
         final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
-        final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT, () -> randomFrom(OperationPurpose.values()));
+        final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         final BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
         blobContainer.writeBlob(purpose, "test.txt", whatToWrite, true);
         try (InputStream is = blobContainer.readBlob(purpose, "test.txt")) {

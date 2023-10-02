@@ -124,7 +124,7 @@ public class SamlServiceProviderIndex implements Closeable {
 
         public DocumentSupplier(DocumentVersion version, Supplier<SamlServiceProviderDocument> document) {
             this.version = version;
-            this.document = new CachedSupplier<>(document);
+            this.document = CachedSupplier.wrap(document);
         }
 
         public SamlServiceProviderDocument getDocument() {

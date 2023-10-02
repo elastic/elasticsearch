@@ -411,3 +411,17 @@ ROW date_string = "2022-05-06"
 date_string:keyword | date:date
 2022-05-06          | 2022-05-06T00:00:00.000Z
 ;
+
+docsReplace
+//tag::replaceString[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "World", "Universe")
+| KEEP str
+// end::replaceString[]
+;
+
+//tag::replaceString-result[]
+str:keyword
+Hello Universe
+// end::replaceString-result[]
+;

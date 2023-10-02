@@ -95,7 +95,8 @@ emp_no:integer |_version:long |_index:keyword
 10002          |1             |employees
 ;
 
-withMvFunction
+# awaitsfix https://github.com/elastic/elasticsearch/issues/99826
+withMvFunction-Ignore
 from employees [metadata _version] | eval i = mv_avg(_version) + 2 | stats min = min(emp_no) by i;
 
 min:integer |i:double
@@ -111,7 +112,8 @@ emp_no:integer |_index:integer |_version:keyword
 10003          |3              |version
 ;
 
-multipleIndices
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+multipleIndices-Ignore
 // tag::multipleIndices[]
 FROM ul_logs, apps [METADATA _index, _version]
 | WHERE id IN (13, 14) AND _version == 1

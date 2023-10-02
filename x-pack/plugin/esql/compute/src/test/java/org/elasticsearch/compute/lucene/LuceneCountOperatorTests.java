@@ -151,7 +151,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         }
         // We can't verify the limit if we have more than one pipeline
         if (dataPartitioning == DataPartitioning.SHARD || size <= limit || taskConcurrency == 1) {
-            assertThat(totalCount, equalTo(size));
+            assertThat(totalCount, equalTo((long)size));
         }
     }
 

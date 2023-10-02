@@ -119,7 +119,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
      * the listener will never call {@code finalListener::onFailure}
      * instead failures are returned as inference results.
      */
-    private ActionListener<InferenceResults> orderedListener(
+    static ActionListener<InferenceResults> orderedListener(
         AtomicInteger count,
         AtomicArray<InferenceResults> results,
         int slot,

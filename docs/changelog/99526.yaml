@@ -2,4 +2,5 @@ pr: 99526
 summary: Add timeout to ESQL
 area: ES|QL
 type: enhancement
-issues: []
+issues:
+ - 99141

@@ -86,7 +86,7 @@ public class DataFrameDataExtractor {
         context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;
         hasPreviousSearchFailed = false;
-        this.trainTestSplitter = new CachedSupplier<>(context.trainTestSplitterFactory::create);
+        this.trainTestSplitter = CachedSupplier.wrap(context.trainTestSplitterFactory::create);
     }
 
     public Map<String, String> getHeaders() {

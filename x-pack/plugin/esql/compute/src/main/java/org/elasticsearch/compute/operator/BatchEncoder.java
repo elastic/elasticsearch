@@ -53,86 +53,25 @@ public abstract class BatchEncoder implements Accountable {
         };
     }
 
-    private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BatchEncoder.class);
-
-    /**
-     * Buffer into which we encode values.
-     */
-    protected final BytesRefBuilder bytes = new BytesRefBuilder();
-
-    /**
-     * Count of values at each position.
-     */
-    private int[] counts = new int[ArrayUtil.oversize(10, Integer.BYTES)];
-
-    /**
-     * Offsets into the {@link #bytes} for each value.
-     */
-    private int[] valueOffsets = new int[ArrayUtil.oversize(10, Integer.BYTES)];
-
-    /**
-     * The first position in the current batch.
-     */
-    private int firstPosition;
-
-    /**
-     * The number of positions in the current batch. It's also the maximum index into
-     * {@link #counts} that has an meaning.
-     */
-    private int positionCount;
-
-    /**
-     * The value being encoded right now.
-     */
-    private int currentValue;
-
-    /**
-     * Build the encoder.
-     * @param batchSize The number of bytes in a batch. We'll allocate this much memory for the
-     *                  encoder and only expand the allocation if the first entry in a batch
-     *                  doesn't fit into the buffer.
-     */
-    BatchEncoder(int batchSize) {
-        bytes.grow(batchSize);
-    }
-
-    /**
-     * The first position in the current batch.
-     */
-    public int firstPosition() {
-        return firstPosition;
-    }
-
     /**
      * The number of positions in the current batch.
      */
-    public int positionCount() {
-        return positionCount;
-    }
+    public abstract int positionCount();
 
     /**
      * The number of values at the position with this offset in the batch.
-     * The actual position in the block we're encoding is {@code positionOffset + firstPosition()}.
      */
-    public int valueCount(int positionOffset) {
-        if (positionOffset >= positionCount) {
-            throw new IllegalArgumentException("wanted " + positionOffset + " but only have " + positionCount);
-        }
-        return counts[positionOffset];
-    }
+    public abstract int valueCount(int positionOffset);
 
     /**
-     * Read the value at the specified index. Values at the first position
-     * start at index {@code 0} and advance one per value. So the values
-     * at position n start at {@code (0..n-1).sum(valueCount)}. There is
+     * Read the value at the specified index then append to the {@code dst}.
+     * Values at the first position start at index {@code 0} and advance one per value.
+     * So the values at position n start at {@code (0..n-1).sum(valueCount)}. There is
      * no random-access way to get the first index for a position.
+     *
+     * @return the number of bytes has read
      */
-    public final BytesRef read(int index, BytesRef scratch) {
-        scratch.bytes = bytes.bytes();
-        scratch.offset = valueOffsets[index];
-        scratch.length = valueOffsets[index + 1] - scratch.offset;
-        return scratch;
-    }
+    public abstract int read(int index, BytesRefBuilder dst);
 
     /**
      * Encodes the next batch of entries. This will encode values until the next
@@ -144,81 +83,227 @@ public abstract class BatchEncoder implements Accountable {
      *     expand and encode that entry.
      * </p>
      */
-    public final void encodeNextBatch() {
-        bytes.clear();
-        firstPosition += positionCount;
-        positionCount = 0;
-        currentValue = 0;
-        readNextBatch();
+    public abstract void encodeNextBatch();
+
+    protected abstract static class MVEncoder extends BatchEncoder {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MVEncoder.class);
+
+        /**
+         * Buffer into which we encode values.
+         */
+        protected final BytesRefBuilder bytes = new BytesRefBuilder();
+
+        /**
+         * Count of values at each position.
+         */
+        private int[] counts = new int[ArrayUtil.oversize(10, Integer.BYTES)];
+
+        /**
+         * Offsets into the {@link #bytes} for each value.
+         */
+        private int[] valueOffsets = new int[ArrayUtil.oversize(10, Integer.BYTES)];
+
+        /**
+         * The first position in the current batch.
+         */
+        private int firstPosition;
+
+        /**
+         * The number of positions in the current batch. It's also the maximum index into
+         * {@link #counts} that has an meaning.
+         */
+        private int positionCount;
+
+        /**
+         * The value being encoded right now.
+         */
+        private int currentValue;
+
+        /**
+         * Build the encoder.
+         * @param batchSize The number of bytes in a batch. We'll allocate this much memory for the
+         *                  encoder and only expand the allocation if the first entry in a batch
+         *                  doesn't fit into the buffer.
+         */
+        MVEncoder(int batchSize) {
+            bytes.grow(batchSize);
+        }
+
+        /**
+         * The first position in the current batch.
+         */
+        protected final int firstPosition() {
+            return firstPosition;
+        }
+
+        /**
+         * The number of positions in the current batch.
+         */
+        @Override
+        public final int positionCount() {
+            return positionCount;
+        }
+
+        /**
+         * The number of values at the position with this offset in the batch.
+         * The actual position in the block we're encoding is {@code positionOffset + firstPosition()}.
+         */
+        @Override
+        public final int valueCount(int positionOffset) {
+            if (positionOffset >= positionCount) {
+                throw new IllegalArgumentException("wanted " + positionOffset + " but only have " + positionCount);
+            }
+            return counts[positionOffset];
+        }
+
+        /**
+         * Read the value at the specified index. Values at the first position
+         * start at index {@code 0} and advance one per value. So the values
+         * at position n start at {@code (0..n-1).sum(valueCount)}. There is
+         * no random-access way to get the first index for a position.
+         */
+        @Override
+        public final int read(int index, BytesRefBuilder dst) {
+            int start = valueOffsets[index];
+            int length = valueOffsets[index + 1] - start;
+            if (length > 0) {
+                dst.append(bytes.bytes(), start, length);
+            }
+            return length;
+        }
+
+        /**
+         * Encodes the next batch of entries. This will encode values until the next
+         * value doesn't fit into the buffer. Callers should iterate on the values
+         * that have been encoded and then call this again for the next batch.
+         * <p>
+         *     It's possible for this batch to be empty if there isn't room for the
+         *     first entry in the buffer. If so, call again to force the buffer to
+         *     expand and encode that entry.
+         * </p>
+         */
+        @Override
+        public final void encodeNextBatch() {
+            bytes.clear();
+            firstPosition += positionCount;
+            positionCount = 0;
+            currentValue = 0;
+            readNextBatch();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + RamUsageEstimator.sizeOf(counts) + RamUsageEstimator.sizeOf(valueOffsets);
+        }
+
+        /**
+         * Encodes the next batch of values. See {@link #encodeNextBatch()}.
+         */
+        protected abstract void readNextBatch();
+
+        /**
+         * Implementations of {@link #readNextBatch} should call this before any
+         * values at the current position.
+         */
+        protected final void startPosition() {
+            counts = ArrayUtil.grow(counts, positionCount + 1);
+            counts[positionCount] = 0;
+        }
+
+        /**
+         * Implementations of {@link #readNextBatch} should call this before adding
+         * each value to the current position to mark its start.
+         */
+        protected final void addingValue() {
+            counts[positionCount]++;
+            valueOffsets = ArrayUtil.grow(valueOffsets, currentValue + 1);
+            valueOffsets[currentValue++] = bytes.length();
+        }
+
+        /**
+         * Implementations of {@link #readNextBatch} should call this to end
+         * the current position.
+         */
+        protected final void endPosition() {
+            valueOffsets = ArrayUtil.grow(valueOffsets, currentValue + 1);
+            valueOffsets[currentValue] = bytes.length();
+            positionCount++;
+        }
+
+        /**
+         * Implementations of {@link #readNextBatch} should call this to encode
+         * an entirely null position.
+         */
+        protected final void encodeNull() {
+            startPosition();
+            addingValue();
+            endPosition();
+        }
+
+        /**
+         * The number of bytes in all entries in the batch.
+         */
+        final int bytesLength() {
+            return bytes.length();
+        }
+
+        /**
+         * The maximum batch size. This starts the same as the constructor parameter
+         * but will grow if a single entry doesn't fit into the batch.
+         */
+        final int bytesCapacity() {
+            return bytes.bytes().length;
+        }
     }
 
-    @Override
-    public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(counts) + RamUsageEstimator.sizeOf(valueOffsets);
-    }
+    protected abstract static class DirectEncoder extends BatchEncoder {
+        protected static final long BASE_RAM_USAGE = RamUsageEstimator.shallowSizeOfInstance(DirectEncoder.class);
+        protected final Block block;
+        private int blockPosition = -1;
+        private int valueCount;
 
-    /**
-     * Encodes the next batch of values. See {@link #encodeNextBatch()}.
-     */
-    protected abstract void readNextBatch();
+        DirectEncoder(Block block) {
+            this.block = block;
+        }
 
-    /**
-     * Implementations of {@link #readNextBatch} should call this before any
-     * values at the current position.
-     */
-    protected final void startPosition() {
-        counts = ArrayUtil.grow(counts, positionCount + 1);
-        counts[positionCount] = 0;
-    }
+        @Override
+        public final void encodeNextBatch() {
+            valueCount = block.getValueCount(++blockPosition);
+        }
 
-    /**
-     * Implementations of {@link #readNextBatch} should call this before adding
-     * each value to the current position to mark its start.
-     */
-    protected final void addingValue() {
-        counts[positionCount]++;
-        valueOffsets = ArrayUtil.grow(valueOffsets, currentValue + 1);
-        valueOffsets[currentValue++] = bytes.length();
-    }
+        @Override
+        public final int positionCount() {
+            return Math.max(valueCount, 1);
+        }
 
-    /**
-     * Implementations of {@link #readNextBatch} should call this to end
-     * the current position.
-     */
-    protected final void endPosition() {
-        valueOffsets = ArrayUtil.grow(valueOffsets, currentValue + 1);
-        valueOffsets[currentValue] = bytes.length();
-        positionCount++;
-    }
+        @Override
+        public final int valueCount(int positionOffset) {
+            assert positionOffset == 0 : positionOffset;
+            return positionCount();
+        }
 
-    /**
-     * Implementations of {@link #readNextBatch} should call this to encode
-     * an entirely null position.
-     */
-    protected final void encodeNull() {
-        startPosition();
-        addingValue();
-        endPosition();
-    }
+        @Override
+        public int read(int index, BytesRefBuilder dst) {
+            if (valueCount == 0) {
+                assert index == 0 : index;
+                return 0;
+            } else {
+                assert index < valueCount : index + " > " + valueCount;
+                return readValueAtBlockIndex(block.getFirstValueIndex(blockPosition) + index, dst);
+            }
+        }
 
-    /**
-     * The number of bytes in all entries in the batch.
-     */
-    final int bytesLength() {
-        return bytes.length();
-    }
+        protected abstract int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst);
 
-    /**
-     * The maximum batch size. This starts the same as the constructor parameter
-     * but will grow if a single entry doesn't fit into the batch.
-     */
-    final int bytesCapacity() {
-        return bytes.bytes().length;
+        @Override
+        public final long ramBytesUsed() {
+            return BASE_RAM_USAGE;
+        }
     }
 
     private static final VarHandle intHandle = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
 
-    protected abstract static class Ints extends BatchEncoder {
+    protected abstract static class Ints extends MVEncoder {
         protected Ints(int batchSize) {
             super(batchSize);
         }
@@ -267,9 +352,26 @@ public abstract class BatchEncoder implements Accountable {
         }
     }
 
+    protected static final class DirectInts extends DirectEncoder {
+        DirectInts(IntBlock block) {
+            super(block);
+        }
+
+        @Override
+        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+            int before = dst.length();
+            int after = before + Integer.BYTES;
+            dst.grow(after);
+            int v = ((IntBlock) block).getInt(valueIndex);
+            intHandle.set(dst.bytes(), before, v);
+            dst.setLength(after);
+            return Integer.BYTES;
+        }
+    }
+
     private static final VarHandle longHandle = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
-    protected abstract static class Longs extends BatchEncoder {
+    protected abstract static class Longs extends MVEncoder {
         protected Longs(int batchSize) {
             super(batchSize);
         }
@@ -300,6 +402,23 @@ public abstract class BatchEncoder implements Accountable {
         }
     }
 
+    protected static final class DirectLongs extends DirectEncoder {
+        DirectLongs(LongBlock block) {
+            super(block);
+        }
+
+        @Override
+        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+            int before = dst.length();
+            int after = before + Long.BYTES;
+            dst.grow(after);
+            long v = ((LongBlock) block).getLong(valueIndex);
+            longHandle.set(dst.bytes(), before, v);
+            dst.setLength(after);
+            return Long.BYTES;
+        }
+    }
+
     private static class LongsDecoder implements Decoder {
         @Override
         public void decode(Block.Builder builder, IsNull isNull, BytesRef[] encoded, int count) {
@@ -320,7 +439,7 @@ public abstract class BatchEncoder implements Accountable {
 
     private static final VarHandle doubleHandle = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
-    protected abstract static class Doubles extends BatchEncoder {
+    protected abstract static class Doubles extends MVEncoder {
         protected Doubles(int batchSize) {
             super(batchSize);
         }
@@ -351,6 +470,23 @@ public abstract class BatchEncoder implements Accountable {
         }
     }
 
+    protected static final class DirectDoubles extends DirectEncoder {
+        DirectDoubles(DoubleBlock block) {
+            super(block);
+        }
+
+        @Override
+        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+            int before = dst.length();
+            int after = before + Double.BYTES;
+            dst.grow(after);
+            double v = ((DoubleBlock) block).getDouble(valueIndex);
+            doubleHandle.set(dst.bytes(), before, v);
+            dst.setLength(after);
+            return Double.BYTES;
+        }
+    }
+
     private static class DoublesDecoder implements Decoder {
         @Override
         public void decode(Block.Builder builder, IsNull isNull, BytesRef[] encoded, int count) {
@@ -368,7 +504,7 @@ public abstract class BatchEncoder implements Accountable {
         }
     }
 
-    protected abstract static class Booleans extends BatchEncoder {
+    protected abstract static class Booleans extends MVEncoder {
         protected Booleans(int batchSize) {
             super(batchSize);
         }
@@ -396,6 +532,19 @@ public abstract class BatchEncoder implements Accountable {
         }
     }
 
+    protected static final class DirectBooleans extends DirectEncoder {
+        DirectBooleans(BooleanBlock block) {
+            super(block);
+        }
+
+        @Override
+        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+            var v = ((BooleanBlock) block).getBoolean(valueIndex);
+            dst.append((byte) (v ? 1 : 0));
+            return 1;
+        }
+    }
+
     private static class BooleansDecoder implements Decoder {
         @Override
         public void decode(Block.Builder builder, IsNull isNull, BytesRef[] encoded, int count) {
@@ -413,7 +562,7 @@ public abstract class BatchEncoder implements Accountable {
         }
     }
 
-    protected abstract static class BytesRefs extends BatchEncoder {
+    protected abstract static class BytesRefs extends MVEncoder {
         protected BytesRefs(int batchSize) {
             super(batchSize);
         }
@@ -445,6 +594,25 @@ public abstract class BatchEncoder implements Accountable {
             intHandle.set(bytes.bytes(), bytes.length(), v.length);
             bytes.setLength(bytes.length() + Integer.BYTES);
             bytes.append(v);
+        }
+    }
+
+    protected static final class DirectBytesRefs extends DirectEncoder {
+        private final BytesRef scratch = new BytesRef();
+
+        DirectBytesRefs(BytesRefBlock block) {
+            super(block);
+        }
+
+        @Override
+        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+            var v = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+            int start = dst.length();
+            dst.grow(start + Integer.BYTES + v.length);
+            intHandle.set(dst.bytes(), start, v.length);
+            dst.setLength(start + Integer.BYTES);
+            dst.append(v);
+            return Integer.BYTES + v.length;
         }
     }
 

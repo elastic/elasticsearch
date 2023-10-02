@@ -157,7 +157,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
         }
     }
 
-    private static class SnapshotDetailsByPolicy {
+    static class SnapshotDetailsByPolicy {
         private final Map<String, Map<SnapshotId, RepositoryData.SnapshotDetails>> snapshotsByPolicy = new HashMap<>();
 
         synchronized void add(SnapshotId snapshotId, RepositoryData.SnapshotDetails snapshotDetails) {
@@ -174,11 +174,13 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
         }
     }
 
-    private static void getSnapshotDetailsByPolicy(
+    // Exposed for testing
+    static void getSnapshotDetailsByPolicy(
         Repository repository,
         RepositoryData repositoryData,
         ActionListener<SnapshotDetailsByPolicy> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
         final var snapshotDetailsByPolicy = new SnapshotDetailsByPolicy();
         final var snapshotsWithMissingDetails = new ArrayList<SnapshotId>();
 
@@ -214,11 +216,13 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
         }
     }
 
-    private static List<Tuple<SnapshotId, String>> getSnapshotsToDelete(
+    // Exposed for testing
+    static List<Tuple<SnapshotId, String>> getSnapshotsToDelete(
         String repositoryName,
         Map<String, SnapshotLifecyclePolicy> policies,
         SnapshotDetailsByPolicy snapshotDetailsByPolicy
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
         return snapshotDetailsByPolicy.flatMap((policyName, snapshotsForPolicy) -> {
             final var policy = policies.get(policyName);
             if (policy == null) {

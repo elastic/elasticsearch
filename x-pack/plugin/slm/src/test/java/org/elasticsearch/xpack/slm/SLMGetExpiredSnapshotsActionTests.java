@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -32,6 +33,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
@@ -44,7 +46,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -81,9 +85,13 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
         runActionTest(List.of(mkInfo("keep", OTHER_REPO_POLICY_ID)), Set.of());
     }
 
+    private static SnapshotId mkId(String snapshotId) {
+        return new SnapshotId(snapshotId, snapshotId);
+    }
+
     private static SnapshotInfo mkInfo(String snapshotId, @Nullable String slmPolicy) {
         return new SnapshotInfo(
-            new Snapshot(REPO_NAME, new SnapshotId(snapshotId, snapshotId)),
+            new Snapshot(REPO_NAME, mkId(snapshotId)),
             List.of(),
             List.of(),
             List.of(),
@@ -116,6 +124,137 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(transportService.getTaskManager()).thenReturn(null);
 
+        final var repository = createMockRepository(threadPool, snapshotInfos);
+
+        final var repositoriesService = mock(RepositoriesService.class);
+        when(repositoriesService.repository(anyString())).then(invocation -> {
+            final String requestedRepoName = invocation.getArgument(0);
+            if (REPO_NAME.equals(requestedRepoName)) {
+                return repository;
+            } else {
+                throw new RepositoryMissingException(requestedRepoName);
+            }
+        });
+
+        final var action = new SLMGetExpiredSnapshotsAction.LocalAction(transportService, repositoriesService, new ActionFilters(Set.of()));
+        final var task = new Task(1, "direct", SLMGetExpiredSnapshotsAction.INSTANCE.name(), "", TaskId.EMPTY_TASK_ID, Map.of());
+
+        final var policyMap = createPolicies(
+            snapshotInfos.stream()
+                .filter(s -> POLICY_ID.equals(RepositoryData.SnapshotDetails.fromSnapshotInfo(s).getSlmPolicy()))
+                .map(SnapshotInfo::snapshotId)
+                .collect(Collectors.toSet()),
+            snapshotsToDelete
+        );
+
+        final var responseFuture = new PlainActionFuture<SLMGetExpiredSnapshotsAction.Response>();
+        action.doExecute(task, new SLMGetExpiredSnapshotsAction.Request(List.of(REPO_NAME), policyMap), responseFuture);
+        deterministicTaskQueue.runAllTasks();
+        assertTrue(responseFuture.isDone());
+        final var deletedSnapshots = responseFuture.actionGet().snapshotsToDelete();
+        if (snapshotsToDelete.isEmpty()) {
+            assertThat(deletedSnapshots, anEmptyMap());
+        } else {
+            assertThat(deletedSnapshots.keySet(), equalTo(Set.of(REPO_NAME)));
+            final var repoDeletedSnapshots = deletedSnapshots.get(REPO_NAME);
+            assertEquals(snapshotsToDelete, repoDeletedSnapshots.stream().map(Tuple::v1).collect(Collectors.toSet()));
+            assertEquals(Set.of(POLICY_ID), repoDeletedSnapshots.stream().map(Tuple::v2).collect(Collectors.toSet()));
+        }
+    }
+
+    public void testGetSnapshotDetailsByPolicy() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final Set<String> snapshotIds = randomSet(0, 10, () -> randomAlphaOfLength(10));
+        final var policyNames = new String[] { "policy-1", "policy-2", "policy-3" };
+        final var snapshotInfos = snapshotIds.stream().map(s -> mkInfo(s, randomFrom(policyNames))).toList();
+        final var repository = createMockRepository(deterministicTaskQueue.getThreadPool(), snapshotInfos);
+
+        record SeenSnapshotInfo(SnapshotId snapshotId, String policyId) {}
+        final var seenSnapshotInfos = snapshotInfos.stream()
+            .map(si -> new SeenSnapshotInfo(si.snapshotId(), RepositoryData.SnapshotDetails.fromSnapshotInfo(si).getSlmPolicy()))
+            .collect(Collectors.toSet());
+
+        SubscribableListener
+
+            .newForked(repository::getRepositoryData)
+
+            .<SLMGetExpiredSnapshotsAction.SnapshotDetailsByPolicy>andThen(
+                (l, rd) -> SLMGetExpiredSnapshotsAction.getSnapshotDetailsByPolicy(repository, rd, l)
+            )
+
+            .andThen((l, snapshotDetailsByPolicy) -> {
+                snapshotDetailsByPolicy.flatMap((policyId, snapshotsMap) -> snapshotsMap.entrySet().stream().map(entry -> {
+                    assertThat(policyId, oneOf(policyNames));
+                    assertEquals(policyId, entry.getValue().getSlmPolicy());
+                    return new SeenSnapshotInfo(entry.getKey(), policyId);
+                })).forEach(seenSnapshotInfo -> assertTrue(seenSnapshotInfos.remove(seenSnapshotInfo)));
+            });
+
+        deterministicTaskQueue.runAllTasks();
+        assertThat(seenSnapshotInfos, empty());
+    }
+
+    public void testGetSnapshotsToDelete() {
+        final var snapshotDetailsByPolicy = new SLMGetExpiredSnapshotsAction.SnapshotDetailsByPolicy();
+
+        assertEquals(
+            List.of(),
+            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(REPO_NAME, createPolicies(Set.of(), Set.of()), snapshotDetailsByPolicy)
+        );
+
+        snapshotDetailsByPolicy.add(mkId("snapshot-with-unknown-policy"), mkDetails("unknown-policy-id"));
+
+        assertEquals(
+            List.of(),
+            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(REPO_NAME, createPolicies(Set.of(), Set.of()), snapshotDetailsByPolicy)
+        );
+
+        snapshotDetailsByPolicy.add(mkId("no-retention"), mkDetails(NO_RETENTION_POLICY_ID));
+
+        assertEquals(
+            List.of(),
+            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(REPO_NAME, createPolicies(Set.of(), Set.of()), snapshotDetailsByPolicy)
+        );
+
+        snapshotDetailsByPolicy.add(mkId("other-repo-policy"), mkDetails(OTHER_REPO_POLICY_ID));
+
+        assertEquals(
+            List.of(),
+            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(REPO_NAME, createPolicies(Set.of(), Set.of()), snapshotDetailsByPolicy)
+        );
+
+        snapshotDetailsByPolicy.add(mkId("expiry-candidate"), mkDetails(POLICY_ID));
+
+        assertEquals(
+            List.of(),
+            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
+                REPO_NAME,
+                createPolicies(Set.of(mkId("expiry-candidate")), Set.of()),
+                snapshotDetailsByPolicy
+            )
+        );
+
+        assertEquals(
+            List.of(Tuple.tuple(mkId("expiry-candidate"), POLICY_ID)),
+            SLMGetExpiredSnapshotsAction.getSnapshotsToDelete(
+                REPO_NAME,
+                createPolicies(Set.of(mkId("expiry-candidate")), Set.of(mkId("expiry-candidate"))),
+                snapshotDetailsByPolicy
+            )
+        );
+    }
+
+    private static RepositoryData.SnapshotDetails mkDetails(String policyId) {
+        return new RepositoryData.SnapshotDetails(
+            randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL),
+            IndexVersion.current(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            policyId
+        );
+    }
+
+    private static Repository createMockRepository(ThreadPool threadPool, List<SnapshotInfo> snapshotInfos) {
         final var repository = mock(Repository.class);
         doAnswer(invocation -> {
             final ActionListener<RepositoryData> listener = invocation.getArgument(0);
@@ -163,20 +302,14 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
 
         doAnswer(invocation -> new RepositoryMetadata(REPO_NAME, "test", Settings.EMPTY)).when(repository).getMetadata();
 
-        final var repositoriesService = mock(RepositoriesService.class);
-        when(repositoriesService.repository(anyString())).then(invocation -> {
-            final String requestedRepoName = invocation.getArgument(0);
-            if (REPO_NAME.equals(requestedRepoName)) {
-                return repository;
-            } else {
-                throw new RepositoryMissingException(requestedRepoName);
-            }
-        });
+        return repository;
+    }
 
-        final var action = new SLMGetExpiredSnapshotsAction.LocalAction(transportService, repositoriesService, new ActionFilters(Set.of()));
-        final var task = new Task(1, "direct", SLMGetExpiredSnapshotsAction.INSTANCE.name(), "", TaskId.EMPTY_TASK_ID, Map.of());
-
-        final var policyMap = Stream.of(
+    private static Map<String, SnapshotLifecyclePolicy> createPolicies(
+        Set<SnapshotId> expectedSnapshotIds,
+        Set<SnapshotId> snapshotsToDelete
+    ) {
+        return Stream.of(
             new SnapshotLifecyclePolicy(
                 POLICY_ID,
                 "snap",
@@ -190,13 +323,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
                         RepositoryData.SnapshotDetails snapshotDetails,
                         Map<SnapshotId, RepositoryData.SnapshotDetails> allSnapshots
                     ) {
-                        assertEquals(
-                            allSnapshots.keySet(),
-                            snapshotInfos.stream()
-                                .filter(s -> POLICY_ID.equals(RepositoryData.SnapshotDetails.fromSnapshotInfo(s).getSlmPolicy()))
-                                .map(SnapshotInfo::snapshotId)
-                                .collect(Collectors.toSet())
-                        );
+                        assertEquals(allSnapshots.keySet(), expectedSnapshotIds);
                         assertEquals(POLICY_ID, snapshotDetails.getSlmPolicy());
                         return snapshotsToDelete.contains(snapshotId);
                     }
@@ -228,19 +355,5 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 randomBoolean() ? null : SnapshotRetentionConfiguration.EMPTY
             )
         ).collect(Collectors.toMap(SnapshotLifecyclePolicy::getId, p -> p));
-
-        final var responseFuture = new PlainActionFuture<SLMGetExpiredSnapshotsAction.Response>();
-        action.doExecute(task, new SLMGetExpiredSnapshotsAction.Request(List.of(REPO_NAME), policyMap), responseFuture);
-        deterministicTaskQueue.runAllTasks();
-        assertTrue(responseFuture.isDone());
-        final var deletedSnapshots = responseFuture.actionGet().snapshotsToDelete();
-        if (snapshotsToDelete.isEmpty()) {
-            assertThat(deletedSnapshots, anEmptyMap());
-        } else {
-            assertThat(deletedSnapshots.keySet(), equalTo(Set.of(REPO_NAME)));
-            final var repoDeletedSnapshots = deletedSnapshots.get(REPO_NAME);
-            assertEquals(snapshotsToDelete, repoDeletedSnapshots.stream().map(Tuple::v1).collect(Collectors.toSet()));
-            assertEquals(Set.of(POLICY_ID), repoDeletedSnapshots.stream().map(Tuple::v2).collect(Collectors.toSet()));
-        }
     }
 }

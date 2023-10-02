@@ -9,7 +9,9 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
@@ -296,6 +298,14 @@ public final class SourceConfirmedTextQuery extends Query {
 
             @Override
             public Matches matches(LeafReaderContext context, int doc) throws IOException {
+                FieldInfo fi = context.reader().getFieldInfos().fieldInfo(field);
+                if (fi == null) {
+                    return null;
+                }
+                if (fi.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) > 0) {
+                    Weight innerWeight = in.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
+                    return innerWeight.matches(context, doc);
+                }
                 RuntimePhraseScorer scorer = scorer(context);
                 if (scorer == null || scorer.iterator().advance(doc) != doc) {
                     return null;

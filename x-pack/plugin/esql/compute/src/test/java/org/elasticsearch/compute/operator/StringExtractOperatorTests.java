@@ -98,7 +98,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
             @Override
             public void close() {}
-        }, new FirstWord("test"));
+        }, new FirstWord("test"), driverContext());
 
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
         builder.beginPositionEntry();

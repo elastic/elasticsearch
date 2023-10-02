@@ -9,13 +9,14 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,6 +43,6 @@ public class RestGetPipelineAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(restRequest.param("id"))
         );
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        return channel -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.admin().cluster().getPipeline(request, new RestToXContentListener<>(channel, GetPipelineResponse::status));
     }
 }

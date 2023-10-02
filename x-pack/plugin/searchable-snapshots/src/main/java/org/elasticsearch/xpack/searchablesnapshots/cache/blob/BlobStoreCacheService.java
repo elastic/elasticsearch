@@ -14,10 +14,10 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.blobcache.common.ByteRange;
@@ -274,7 +274,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
                 innerPut(request, new ActionListener<>() {
                     @Override
-                    public void onResponse(IndexResponse indexResponse) {
+                    public void onResponse(DocWriteResponse indexResponse) {
                         logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
                         wrappedListener.onResponse(null);
                     }
@@ -297,7 +297,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void innerPut(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    protected void innerPut(final IndexRequest request, final ActionListener<DocWriteResponse> listener) {
         client.index(request, listener);
     }
 

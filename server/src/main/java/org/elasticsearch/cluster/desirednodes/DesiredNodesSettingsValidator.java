@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.desirednodes;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ public class DesiredNodesSettingsValidator {
     private static boolean isCurrentIgnoringQualifiers(String expected, String actual) {
         // The expected version string may contain -SNAPSHOT; the actual may not
         // If the actual contains it, the expected must match entirely; this means actual must be a prefix for expected
-        return expected.startsWith(actual);
+        return Strings.isNullOrEmpty(actual) == false && expected.startsWith(actual);
     }
 
     public void validate(List<DesiredNode> nodes) {

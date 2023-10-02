@@ -766,7 +766,7 @@ teardown:
           nodes:
             - { settings: { "node.external_id": "instance-000187"}, processors: 64, memory: "1b", storage: "1b", node_version: " " }
   - match: { status: 400 }
-  - match: { error.type: x_content_parse_exception }
+  - match: { error.type: illegal_argument_exception }
 ---
 "Test node version can not be null":
   - do:

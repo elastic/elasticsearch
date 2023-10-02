@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -133,16 +132,16 @@ public class Verifier {
                             || field instanceof MetadataAttribute
                             || field instanceof ReferenceAttribute
                             || field instanceof Literal) == false) {
-                                failures.add(
-                                    fail(
-                                        e,
-                                        "aggregate function's field must be an attribute or literal; found ["
-                                            + field.sourceText()
-                                            + "] of type ["
-                                            + field.nodeName()
-                                            + "]"
-                                    )
-                                );
+                            failures.add(
+                                fail(
+                                    e,
+                                    "aggregate function's field must be an attribute or literal; found ["
+                                        + field.sourceText()
+                                        + "] of type ["
+                                        + field.nodeName()
+                                        + "]"
+                                )
+                            );
                         }
                     } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
                         failures.add(

@@ -34,7 +34,7 @@ public class TrialLicenseEraTests extends ESTestCase {
             versionToEraSerialization(version);
         }
 
-        for (int i = 2; i <= 1_000; i++) { // 1000 chosen arbitrarily; we really just want to make sure there's room to grow
+        for (int i = 2; i < 100; i++) { // old Version class only grows to 99, so that's the limit
             eraToVersionSerialization(new TrialLicenseEra(i));
         }
     }
@@ -52,7 +52,7 @@ public class TrialLicenseEraTests extends ESTestCase {
             ) {
                 in.setTransportVersion(TransportVersion.current());
                 TrialLicenseEra readEra = new TrialLicenseEra(in);
-                assertEquals(readEra.asInt(), version.major);
+                assertEquals(version.major, (byte) readEra.asInt());
                 return readEra;
             }
         }
@@ -72,7 +72,7 @@ public class TrialLicenseEraTests extends ESTestCase {
             ) {
                 in.setTransportVersion(TransportVersion.current());
                 Version readVersion = Version.readVersion(in);
-                assertEquals(readVersion.major, era.asInt());
+                assertEquals(readVersion.major, (byte) era.asInt());
                 return readVersion;
             }
         }

@@ -19,11 +19,12 @@ import java.util.Objects;
 /**
  * Sometimes we release a version with a bunch of cool new features, and we want people to be able to start a new trial license in a cluster
  * that's already used a trial and let it expire. This class controls when we do that. The serialization of this class is designed to
- * maintain compatibility with old-school Elasticsearch versions.
+ * maintain compatibility with old-school Elasticsearch versions (specifically the {@link org.elasticsearch.Version} class).
  */
 public class TrialLicenseEra implements ToXContentFragment, Writeable {
 
-    // Increment this when we want users to be able to start a new trial
+    // Increment this when we want users to be able to start a new trial. Note that BWC with old versions of Elasticsearch cause this to be
+    // limited to a maximum of 99 (inclusive). See the Version class for more info.
     public static final TrialLicenseEra CURRENT = new TrialLicenseEra(8);
 
     private final int era;
@@ -33,7 +34,7 @@ public class TrialLicenseEra implements ToXContentFragment, Writeable {
     }
 
     public TrialLicenseEra(StreamInput in) throws IOException {
-        this.era = (in.readVInt() - 99) / 1000000;
+        this.era = (in.readVInt() - 99) / 1000000; // Copied from the constructor of Version
     }
 
     public static TrialLicenseEra fromString(String from) {

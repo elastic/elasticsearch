@@ -13,8 +13,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.util.stream.IntStream;
-
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
  * new block which is appended to the page.
@@ -55,17 +53,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(evaluator);
-    }
-
-    /** Returns a copy of the give block, if the block appears in the page. */
-    // TODO: this is a catch all, can be removed when we validate that evaluators always return copies
-    // for now it just looks like Attributes returns a reference?
-    static Block maybeCopyBlock(Page page, Block block) {
-        if (IntStream.range(0, page.getBlockCount()).mapToObj(page::getBlock).anyMatch(b -> b == block)) {
-            return BlockUtils.deepCopyOf(block);
-        }
-        return block;
+        Releasables.closeExpectNoException(evaluator, super::close);
     }
 
     /**

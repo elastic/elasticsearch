@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100127")
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     long epoch = System.currentTimeMillis();
@@ -940,7 +942,22 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testShowFunctions() {
         EsqlQueryResponse results = run("show functions");
-        assertThat(results.columns(), equalTo(List.of(new ColumnInfo("name", "keyword"), new ColumnInfo("synopsis", "keyword"))));
+        assertThat(
+            results.columns(),
+            equalTo(
+                List.of(
+                    new ColumnInfo("name", "keyword"),
+                    new ColumnInfo("synopsis", "keyword"),
+                    new ColumnInfo("argNames", "keyword"),
+                    new ColumnInfo("argTypes", "keyword"),
+                    new ColumnInfo("argDescriptions", "keyword"),
+                    new ColumnInfo("returnType", "keyword"),
+                    new ColumnInfo("description", "keyword"),
+                    new ColumnInfo("optionalArgs", "boolean"),
+                    new ColumnInfo("variadic", "boolean")
+                )
+            )
+        );
         assertThat(getValuesList(results).size(), equalTo(new EsqlFunctionRegistry().listFunctions().size()));
     }
 

@@ -7,11 +7,11 @@
 package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
@@ -549,7 +549,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         final long nbDocs = randomIntBetween(0, 50);
         for (long i = 0; i < nbDocs; i++) {
-            final IndexResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            final DocWriteResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
         }
 
@@ -580,7 +580,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
         for (long i = 0; i < nbDocs; i++) {
-            final IndexResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
+            final DocWriteResponse indexResponse = client().prepareIndex(indexName).setId(Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
             if (rarely()) {
                 indicesAdmin().prepareFlush(indexName).get();

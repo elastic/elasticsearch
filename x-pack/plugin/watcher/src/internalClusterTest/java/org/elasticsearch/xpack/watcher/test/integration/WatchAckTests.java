@@ -10,7 +10,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -54,7 +53,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     @Before
     public void indexTestDocument() {
-        IndexResponse eventIndexResponse = client().prepareIndex()
+        DocWriteResponse eventIndexResponse = client().prepareIndex()
             .setIndex("events")
             .setId(id)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

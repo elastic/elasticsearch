@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final long[] values;
+    private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
      * been built.
@@ -25,7 +26,8 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     private int nextIndex;
 
     LongVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        blockFactory.adjustBreaker(ramBytesUsed(size), false);
+        preAdjustedBytes = ramBytesUsed(size);
+        blockFactory.adjustBreaker(preAdjustedBytes, false);
         this.blockFactory = blockFactory;
         this.values = new long[size];
     }
@@ -54,16 +56,16 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         }
         nextIndex = -1;
         if (values.length == 1) {
-            return new ConstantLongVector(values[0], 1, blockFactory);
+            return blockFactory.newConstantLongBlockWith(values[0], 1, preAdjustedBytes).asVector();
         }
-        return new LongArrayVector(values, values.length, blockFactory);
+        return blockFactory.newLongArrayVector(values, values.length, preAdjustedBytes);
     }
 
     @Override
     public void close() {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
-            blockFactory.adjustBreaker(-ramBytesUsed(values.length), false);
+            blockFactory.adjustBreaker(-preAdjustedBytes, false);
         }
     }
 }

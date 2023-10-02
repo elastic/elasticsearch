@@ -177,26 +177,6 @@ public class MockBlockFactory extends BlockFactory {
         return b;
     }
 
-    // public static class MockIntBlockBuilder extends IntBlockBuilder {
-    //
-    // boolean built = false;
-    //
-    // MockIntBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-    // super(estimatedSize, blockFactory);
-    // }
-    //
-    // @Override
-    // public IntBlock build() {
-    // built = true;
-    // return super.build();
-    // }
-    //
-    // public boolean isBuilt() {
-    // return built;
-    // }
-    //
-    // }
-
     @Override
     public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
         // var b = new MockIntBlockBuilder(estimatedSize, super);

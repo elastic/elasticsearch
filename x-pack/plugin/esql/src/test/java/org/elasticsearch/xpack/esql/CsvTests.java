@@ -327,7 +327,7 @@ public class CsvTests extends ESTestCase {
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             bigArrays,
-            BlockFactory.getGlobalInstance(),
+            BlockFactory.getNonBreakingInstance(),
             configuration,
             exchangeSource,
             exchangeSink,

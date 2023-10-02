@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.GroupSpec;
@@ -234,18 +233,31 @@ public class OrdinalsGroupingOperator implements Operator {
         };
         final List<GroupingAggregator> aggregators = createGroupingAggregators();
         try {
+            boolean seenNulls = false;
+            for (OrdinalSegmentAggregator agg : ordinalAggregators.values()) {
+                if (agg.seenNulls()) {
+                    seenNulls = true;
+                    for (int i = 0; i < aggregators.size(); i++) {
+                        aggregators.get(i).addIntermediateRow(0, agg.aggregators.get(i), 0);
+                    }
+                }
+            }
             for (OrdinalSegmentAggregator agg : ordinalAggregators.values()) {
                 final AggregatedResultIterator it = agg.getResultIterator();
                 if (it.next()) {
                     pq.add(it);
                 }
             }
-            int position = -1;
+            final int startPosition = seenNulls ? 0 : -1;
+            int position = startPosition;
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
             var blockBuilder = BytesRefBlock.newBlockBuilder(1);
+            if (seenNulls) {
+                blockBuilder.appendNull();
+            }
             while (pq.size() > 0) {
                 final AggregatedResultIterator top = pq.top();
-                if (position == -1 || lastTerm.get().equals(top.currentTerm) == false) {
+                if (position == startPosition || lastTerm.get().equals(top.currentTerm) == false) {
                     position++;
                     lastTerm.copyBytes(top.currentTerm);
                     blockBuilder.appendBytesRef(top.currentTerm);
@@ -338,11 +350,8 @@ public class OrdinalsGroupingOperator implements Operator {
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
                     currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
                 }
-                final IntBlock ordinals = currentReader.readOrdinals(docs);
+                final IntBlock ordinals = currentReader.readOrdinalsAdded1(docs);
                 for (int p = 0; p < ordinals.getPositionCount(); p++) {
-                    if (ordinals.isNull(p)) {
-                        continue;
-                    }
                     int start = ordinals.getFirstValueIndex(p);
                     int end = start + ordinals.getValueCount(p);
                     for (int i = start; i < end; i++) {
@@ -350,8 +359,8 @@ public class OrdinalsGroupingOperator implements Operator {
                         visitedOrds.set(ord);
                     }
                 }
-                for (GroupingAggregator aggregator : aggregators) {
-                    aggregator.prepareProcessPage(this, page).add(0, ordinals);
+                for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                    addInput.add(0, ordinals);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -360,6 +369,10 @@ public class OrdinalsGroupingOperator implements Operator {
 
         AggregatedResultIterator getResultIterator() throws IOException {
             return new AggregatedResultIterator(aggregators, visitedOrds, withOrdinals.ordinalsValues(leafReaderContext));
+        }
+
+        boolean seenNulls() {
+            return visitedOrds.get(0);
         }
 
         @Override
@@ -377,7 +390,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
     private static class AggregatedResultIterator {
         private BytesRef currentTerm;
-        private long currentOrd = -1;
+        private long currentOrd = 0;
         private final List<GroupingAggregator> aggregators;
         private final BitArray ords;
         private final SortedSetDocValues dv;
@@ -395,8 +408,9 @@ public class OrdinalsGroupingOperator implements Operator {
 
         boolean next() throws IOException {
             currentOrd = ords.nextSetBit(currentOrd + 1);
+            assert currentOrd > 0 : currentOrd;
             if (currentOrd < Long.MAX_VALUE) {
-                currentTerm = dv.lookupOrd(currentOrd);
+                currentTerm = dv.lookupOrd(currentOrd - 1);
                 return true;
             } else {
                 currentTerm = null;
@@ -446,6 +460,51 @@ public class OrdinalsGroupingOperator implements Operator {
         @Override
         public void close() {
             Releasables.close(extractor, aggregator);
+        }
+    }
+
+    static final class BlockOrdinalsReader {
+        private final SortedSetDocValues sortedSetDocValues;
+        private final Thread creationThread;
+
+        BlockOrdinalsReader(SortedSetDocValues sortedSetDocValues) {
+            this.sortedSetDocValues = sortedSetDocValues;
+            this.creationThread = Thread.currentThread();
+        }
+
+        IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
+            for (int p = 0; p < positionCount; p++) {
+                int doc = docs.getInt(p);
+                if (false == sortedSetDocValues.advanceExact(doc)) {
+                    builder.appendInt(0);
+                    continue;
+                }
+                int count = sortedSetDocValues.docValueCount();
+                // TODO don't come this way if there are a zillion ords on the field
+                if (count == 1) {
+                    builder.appendInt(Math.toIntExact(sortedSetDocValues.nextOrd() + 1));
+                    continue;
+                }
+                builder.beginPositionEntry();
+                for (int i = 0; i < count; i++) {
+                    builder.appendInt(Math.toIntExact(sortedSetDocValues.nextOrd() + 1));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
+        }
+
+        int docID() {
+            return sortedSetDocValues.docID();
+        }
+
+        /**
+         * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
+         */
+        static boolean canReuse(BlockOrdinalsReader reader, int startingDocID) {
+            return reader != null && reader.creationThread == Thread.currentThread() && reader.docID() <= startingDocID;
         }
     }
 }

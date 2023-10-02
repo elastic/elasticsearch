@@ -192,6 +192,10 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
 
     @Override
     protected String normalize(String name) {
+        return normalizeName(name);
+    }
+
+    public static String normalizeName(String name) {
         return name.toLowerCase(Locale.ROOT);
     }
 }

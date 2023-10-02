@@ -292,7 +292,7 @@ public class MlConfigVersionTests extends ESTestCase {
 
         for (String version : new String[] { "10.2", "7.17.2.99", "9" }) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> MlConfigVersion.fromString(version));
-            assertEquals("ML config version ["+ version + "] not valid", e.getMessage());
+            assertEquals("ML config version [" + version + "] not valid", e.getMessage());
         }
     }
 }

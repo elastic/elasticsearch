@@ -10,7 +10,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
@@ -36,101 +35,109 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvSortedAscending()) {
-      return evalAscendingNullable(fieldVal);
+  public Block.Ref evalNullable(Block.Ref ref) {
+    if (ref.block().mvSortedAscending()) {
+      return evalAscendingNullable(ref);
     }
-    BytesRefBlock v = (BytesRefBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    BytesRef firstScratch = new BytesRef();
-    BytesRef nextScratch = new BytesRef();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (ref) {
+      BytesRefBlock v = (BytesRefBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+      BytesRef firstScratch = new BytesRef();
+      BytesRef nextScratch = new BytesRef();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        BytesRef value = v.getBytesRef(first, firstScratch);
+        for (int i = first + 1; i < end; i++) {
+          BytesRef next = v.getBytesRef(i, nextScratch);
+          MvMin.process(value, next);
+        }
+        BytesRef result = value;
+        builder.appendBytesRef(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      BytesRef value = v.getBytesRef(first, firstScratch);
-      for (int i = first + 1; i < end; i++) {
-        BytesRef next = v.getBytesRef(i, nextScratch);
-        MvMin.process(value, next);
-      }
-      BytesRef result = value;
-      builder.appendBytesRef(result);
+      return Block.Ref.floating(builder.build());
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvSortedAscending()) {
-      return evalAscendingNotNullable(fieldVal);
+  public Block.Ref evalNotNullable(Block.Ref ref) {
+    if (ref.block().mvSortedAscending()) {
+      return evalAscendingNotNullable(ref);
     }
-    BytesRefBlock v = (BytesRefBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory());
-    BytesRef firstScratch = new BytesRef();
-    BytesRef nextScratch = new BytesRef();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      BytesRef value = v.getBytesRef(first, firstScratch);
-      for (int i = first + 1; i < end; i++) {
-        BytesRef next = v.getBytesRef(i, nextScratch);
-        MvMin.process(value, next);
+    try (ref) {
+      BytesRefBlock v = (BytesRefBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory());
+      BytesRef firstScratch = new BytesRef();
+      BytesRef nextScratch = new BytesRef();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        BytesRef value = v.getBytesRef(first, firstScratch);
+        for (int i = first + 1; i < end; i++) {
+          BytesRef next = v.getBytesRef(i, nextScratch);
+          MvMin.process(value, next);
+        }
+        BytesRef result = value;
+        builder.appendBytesRef(result);
       }
-      BytesRef result = value;
-      builder.appendBytesRef(result);
+      return Block.Ref.floating(builder.build().asBlock());
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Block evalAscendingNullable(Block fieldVal) {
-    BytesRefBlock v = (BytesRefBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    BytesRef firstScratch = new BytesRef();
-    BytesRef nextScratch = new BytesRef();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+  private Block.Ref evalAscendingNullable(Block.Ref ref) {
+    try (ref) {
+      BytesRefBlock v = (BytesRefBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+      BytesRef firstScratch = new BytesRef();
+      BytesRef nextScratch = new BytesRef();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMin.ascendingIndex(valueCount);
+        BytesRef result = v.getBytesRef(first + idx, firstScratch);
+        builder.appendBytesRef(result);
       }
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMin.ascendingIndex(valueCount);
-      BytesRef result = v.getBytesRef(first + idx, firstScratch);
-      builder.appendBytesRef(result);
+      return Block.Ref.floating(builder.build());
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Vector evalAscendingNotNullable(Block fieldVal) {
-    BytesRefBlock v = (BytesRefBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory());
-    BytesRef firstScratch = new BytesRef();
-    BytesRef nextScratch = new BytesRef();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMin.ascendingIndex(valueCount);
-      BytesRef result = v.getBytesRef(first + idx, firstScratch);
-      builder.appendBytesRef(result);
+  private Block.Ref evalAscendingNotNullable(Block.Ref ref) {
+    try (ref) {
+      BytesRefBlock v = (BytesRefBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory());
+      BytesRef firstScratch = new BytesRef();
+      BytesRef nextScratch = new BytesRef();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMin.ascendingIndex(valueCount);
+        BytesRef result = v.getBytesRef(first + idx, firstScratch);
+        builder.appendBytesRef(result);
+      }
+      return Block.Ref.floating(builder.build().asBlock());
     }
-    return builder.build();
   }
 }

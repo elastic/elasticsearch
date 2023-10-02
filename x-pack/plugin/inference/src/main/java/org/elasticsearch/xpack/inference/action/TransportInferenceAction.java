@@ -42,7 +42,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     protected void doExecute(Task task, InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
 
         ActionListener<ModelRegistry.ModelConfigMap> getModelListener = ActionListener.wrap(modelConfigMap -> {
-            var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config());
+            var unparsedModel = UnparsedModel.unparsedModelFromMap(modelConfigMap.config(), modelConfigMap.secrets());
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
                 listener.onFailure(
@@ -68,7 +68,8 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 return;
             }
 
-            var model = service.get().parseConfigLenient(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings());
+            var model = service.get()
+                .parsePersistedConfig(unparsedModel.modelId(), unparsedModel.taskType(), unparsedModel.settings(), unparsedModel.secrets());
             inferOnService(model, request, service.get(), listener);
         }, listener::onFailure);
 

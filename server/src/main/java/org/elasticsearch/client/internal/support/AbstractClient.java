@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
@@ -265,7 +266,6 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
@@ -390,12 +390,12 @@ public abstract class AbstractClient implements Client {
     );
 
     @Override
-    public ActionFuture<IndexResponse> index(final IndexRequest request) {
+    public ActionFuture<DocWriteResponse> index(final IndexRequest request) {
         return execute(IndexAction.INSTANCE, request);
     }
 
     @Override
-    public void index(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    public void index(final IndexRequest request, final ActionListener<DocWriteResponse> listener) {
         execute(IndexAction.INSTANCE, request, listener);
     }
 

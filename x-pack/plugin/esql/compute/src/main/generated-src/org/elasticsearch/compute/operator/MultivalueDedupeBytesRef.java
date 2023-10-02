@@ -29,12 +29,14 @@ public class MultivalueDedupeBytesRef {
      * The choice of number has been experimentally derived.
      */
     private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
+    private final Block.Ref ref;
     private final BytesRefBlock block;
     private BytesRef[] work = new BytesRef[ArrayUtil.oversize(2, org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
     private int w;
 
-    public MultivalueDedupeBytesRef(BytesRefBlock block) {
-        this.block = block;
+    public MultivalueDedupeBytesRef(Block.Ref ref) {
+        this.ref = ref;
+        this.block = (BytesRefBlock) ref.block();
         // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
         fillWork(0, work.length);
     }
@@ -43,9 +45,9 @@ public class MultivalueDedupeBytesRef {
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public BytesRefBlock dedupeToBlockAdaptive() {
+    public Block.Ref dedupeToBlockAdaptive() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -82,7 +84,7 @@ public class MultivalueDedupeBytesRef {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -91,9 +93,9 @@ public class MultivalueDedupeBytesRef {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public BytesRefBlock dedupeToBlockUsingCopyAndSort() {
+    public Block.Ref dedupeToBlockUsingCopyAndSort() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -108,7 +110,7 @@ public class MultivalueDedupeBytesRef {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -119,9 +121,9 @@ public class MultivalueDedupeBytesRef {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public BytesRefBlock dedupeToBlockUsingCopyMissing() {
+    public Block.Ref dedupeToBlockUsingCopyMissing() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -136,7 +138,7 @@ public class MultivalueDedupeBytesRef {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**

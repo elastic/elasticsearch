@@ -15,7 +15,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -40,7 +39,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
-import org.junit.After;
 
 import java.lang.reflect.Field;
 import java.net.InetAddress;
@@ -1351,21 +1349,9 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
-    private final List<CircuitBreaker> breakers = new ArrayList<>();
-
     @Override
     protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
-    }
-
-    @After
-    public void allBreakersEmpty() {
-        for (CircuitBreaker breaker : breakers) {
-            assertThat(breaker.getUsed(), equalTo(0L));
-        }
+        return breakingDriverContext();
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

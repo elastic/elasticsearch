@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -71,7 +72,7 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     private IntBlock add(BytesRefBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hash(bytesRefHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(Block.Ref.floating(block)).hash(bytesRefHash);
         seenNull |= result.sawNull();
         return result.ords();
     }

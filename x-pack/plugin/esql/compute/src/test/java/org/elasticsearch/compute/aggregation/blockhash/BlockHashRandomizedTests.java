@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -47,8 +46,7 @@ import static org.mockito.Mockito.when;
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
 
-    // TODO: this test should not require 2Gb ?
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(2));
+    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
     final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
 
@@ -115,7 +113,6 @@ public class BlockHashRandomizedTests extends ESTestCase {
         int pageCount = between(1, 10);
         int positionCount = 100;
         int emitBatchSize = 100;
-        List<Releasable> releasables = new ArrayList<>();
         try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
             /*
              * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
@@ -149,7 +146,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
                     }
                     batchCount[0]++;
-                    releasables.add(ordsAndKeys.nonEmpty().asBlock());
+                    Releasables.closeExpectNoException(ordsAndKeys.nonEmpty().asBlock());
                 }, blocks);
                 if (usingSingle) {
                     assertThat(batchCount[0], equalTo(1));
@@ -184,7 +181,6 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 }
             } finally {
                 Releasables.closeExpectNoException(keyBlocks);
-                releasables.stream().forEach(Releasables::closeExpectNoException);
                 blockFactory.ensureAllBlocksAreReleased();
             }
         }

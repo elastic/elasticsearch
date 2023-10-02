@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -52,6 +51,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -290,6 +290,45 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public void testSerializationOfSimple() {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         assertSerialization(buildFieldExpression(testCase));
+    }
+
+    @AfterClass
+    public static void testFunctionInfo() {
+        FunctionDefinition definition = definition();
+        if (definition == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping function info checks because the function isn't registered");
+            return;
+        }
+        EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
+        List<EsqlFunctionRegistry.ArgSignature> args = description.args();
+
+        List<Set<String>> typesFromSignature = new ArrayList<>();
+        Set<String> returnFromSignature = new HashSet<>();
+        for (int i = 0; i < args.size(); i++) {
+            typesFromSignature.add(new HashSet<>());
+        }
+        for (Map.Entry<List<DataType>, DataType> entry : signatures.entrySet()) {
+            List<DataType> types = entry.getKey();
+            for (int i = 0; i < args.size() && i < types.size(); i++) {
+                typesFromSignature.get(i).add(types.get(i).esType());
+            }
+            returnFromSignature.add(entry.getValue().esType());
+        }
+
+        for (int i = 0; i < args.size(); i++) {
+            Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toSet());
+            if (annotationTypes.equals(Set.of("?"))) {
+                continue; // TODO remove this eventually, so that all the functions will have to provide singature info
+            }
+            Set<String> signatureTypes = typesFromSignature.get(i);
+            assertEquals(annotationTypes, signatureTypes);
+        }
+
+        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toSet());
+        if (returnTypes.equals(Set.of("?")) == false) { // TODO remove this eventually, so that all the functions will have to provide
+                                                        // singature info
+            assertEquals(returnTypes, returnFromSignature);
+        }
     }
 
     /**
@@ -573,16 +612,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
 
-        List<String> definedSignature = ShowFunctions.signature(definition);
+        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
         StringBuilder header = new StringBuilder();
-        for (String arg : definedSignature) {
+        for (String arg : args) {
             header.append(arg).append(" | ");
         }
         header.append("result");
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) {
-            if (sig.getKey().size() != definedSignature.size()) {
+            if (sig.getKey().size() != args.size()) {
                 continue;
             }
             StringBuilder b = new StringBuilder();

@@ -11,7 +11,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.function.Function;
 
 public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
-    public Abs(Source source, @Named("n") Expression n) {
+    public Abs(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

@@ -26,10 +26,6 @@ public class TupleBlockSourceOperator extends AbstractBlockSourceOperator {
 
     private final List<Tuple<Long, Long>> values;
 
-    public TupleBlockSourceOperator(Stream<Tuple<Long, Long>> values) {
-        this(BlockFactory.getNonBreakingInstance(), values, DEFAULT_MAX_PAGE_POSITIONS);
-    }
-
     public TupleBlockSourceOperator(BlockFactory blockFactory, Stream<Tuple<Long, Long>> values) {
         this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
@@ -40,14 +36,14 @@ public class TupleBlockSourceOperator extends AbstractBlockSourceOperator {
         this.values = values.toList();
     }
 
-    public TupleBlockSourceOperator(List<Tuple<Long, Long>> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public TupleBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, Long>> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public TupleBlockSourceOperator(List<Tuple<Long, Long>> values, int maxPagePositions) {
+    public TupleBlockSourceOperator(BlockFactory blockFactory, List<Tuple<Long, Long>> values, int maxPagePositions) {
         super(maxPagePositions);
+        this.blockFactory = blockFactory;
         this.values = values;
-        blockFactory = BlockFactory.getNonBreakingInstance();
     }
 
     @Override

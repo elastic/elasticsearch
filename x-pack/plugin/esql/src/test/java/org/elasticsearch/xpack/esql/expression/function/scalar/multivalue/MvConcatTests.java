@@ -11,86 +11,69 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
-public class MvConcatTests extends AbstractScalarFunctionTestCase {
+public class MvConcatTests extends AbstractFunctionTestCase {
     public MvConcatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("mv_concat basic test", () -> {
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(
-                        List.of(new BytesRef("foo"), new BytesRef("bar"), new BytesRef("baz")),
-                        DataTypes.KEYWORD,
-                        "field"
-                    ),
-                    new TestCaseSupplier.TypedData(new BytesRef(", "), DataTypes.KEYWORD, "delim")
-                ),
-                "MvConcat[field=Attribute[channel=0], delim=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
-                equalTo(new BytesRef("foo, bar, baz"))
-            );
-        })));
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType fieldType : EsqlDataTypes.types()) {
+            if (EsqlDataTypes.isString(fieldType) == false) {
+                continue;
+            }
+            for (DataType delimType : EsqlDataTypes.types()) {
+                if (EsqlDataTypes.isString(delimType) == false) {
+                    continue;
+                }
+                for (int l = 1; l < 10; l++) {
+                    int length = l;
+                    suppliers.add(new TestCaseSupplier(fieldType + "/" + l + " " + delimType, List.of(fieldType, delimType), () -> {
+                        String delim = randomAlphaOfLengthBetween(0, 5);
+                        List<BytesRef> data = new ArrayList<>(length);
+                        String expected = null;
+                        for (int i = 0; i < length; i++) {
+                            String value = randomRealisticUnicodeOfLengthBetween(0, 10);
+                            data.add(new BytesRef(value));
+                            if (expected == null) {
+                                expected = value;
+                            } else {
+                                expected += delim + value;
+                            }
+                        }
+                        return new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(data, fieldType, "field"),
+                                new TestCaseSupplier.TypedData(new BytesRef(delim), delimType, "delim")
+                            ),
+                            "MvConcat[field=Attribute[channel=0], delim=Attribute[channel=1]]",
+                            DataTypes.KEYWORD,
+                            equalTo(new BytesRef(expected))
+                        );
+                    }));
+                }
+            }
+        }
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new MvConcat(source, args.get(0), args.get(1));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(strings()));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
-    }
-
-    public void testNull() {
-        // TODO: add these into the test parameters
-        BytesRef foo = new BytesRef("foo");
-        BytesRef bar = new BytesRef("bar");
-        BytesRef delim = new BytesRef(";");
-        Expression expression = buildFieldExpression(testCase);
-        DriverContext dvrCtx = driverContext();
-
-        assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(Arrays.asList(foo, bar), null))), 0), nullValue());
-        assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(foo, null))), 0), nullValue());
-        assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(null, null))), 0), nullValue());
-
-        assertThat(
-            toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(Arrays.asList(foo, bar), Arrays.asList(delim, bar)))), 0),
-            nullValue()
-        );
-        assertThat(
-            toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(foo, Arrays.asList(delim, bar)))), 0),
-            nullValue()
-        );
-        assertThat(
-            toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(null, Arrays.asList(delim, bar)))), 0),
-            nullValue()
-        );
-
-        assertThat(toJavaObject(evaluator(expression).get(dvrCtx).eval(row(Arrays.asList(null, delim))), 0), nullValue());
     }
 }

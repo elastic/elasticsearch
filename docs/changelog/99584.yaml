@@ -1,0 +1,5 @@
+pr: 99584
+summary: Adding an option for trained models to be platform specific
+area: Machine Learning
+type: enhancement
+issues: []

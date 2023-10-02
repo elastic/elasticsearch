@@ -45,6 +45,12 @@ public class VectorFixedBuilderTests extends ESTestCase {
         this.elementType = elementType;
     }
 
+    public void testCloseWithoutBuilding() {
+        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        vectorBuilder(10, blockFactory).close();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testBuildSmall() {
         testBuild(between(1, 100));
     }
@@ -59,25 +65,32 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     private void testBuild(int size) {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        Vector.Builder builder = vectorBuilder(size, blockFactory);
-        BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, false, 1, 1, 0, 0);
-        fill(builder, random.block().asVector());
-        try (Vector built = builder.build()) {
-            assertThat(built, equalTo(random.block().asVector()));
-            assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
+        try (Vector.Builder builder = vectorBuilder(size, blockFactory)) {
+            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, false, 1, 1, 0, 0);
+            fill(builder, random.block().asVector());
+            try (Vector built = builder.build()) {
+                assertThat(built, equalTo(random.block().asVector()));
+                assertThat(blockFactory.breaker().getUsed(), equalTo(built.ramBytesUsed()));
+            }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     public void testDoubleBuild() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
-        Vector.Builder builder = vectorBuilder(10, blockFactory);
-        BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-        fill(builder, random.block().asVector());
-        try (Vector built = builder.build()) {
-            assertThat(built, equalTo(random.block().asVector()));
+        try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
+            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+            fill(builder, random.block().asVector());
+            try (Vector built = builder.build()) {
+                assertThat(built, equalTo(random.block().asVector()));
+            }
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+            Exception e = expectThrows(IllegalStateException.class, builder::build);
+            assertThat(e.getMessage(), equalTo("already closed"));
         }
-        Exception e = expectThrows(IllegalStateException.class, builder::build);
-        assertThat(e.getMessage(), equalTo("already closed"));
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+
     }
 
     public void testCranky() {

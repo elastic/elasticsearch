@@ -73,9 +73,6 @@ public final class SourceDestValidator {
     public static final String REMOTE_CLUSTERS_TRANSPORT_TOO_OLD =
         "remote clusters are expected to run at least transport version [{0}] (reason: [{1}]),"
             + " but the following clusters were too old: [{2}]";
-    public static final String REMOTE_CLUSTERS_CONFIG_TOO_OLD =
-        "remote clusters are expected to run at least config version [{0}] (reason: [{1}]),"
-            + " but the following clusters were too old: [{2}]";
     public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -29,20 +30,22 @@ public class MultivalueDedupeBoolean {
      */
     public static final int TRUE_ORD = 2;
 
+    private final Block.Ref ref;
     private final BooleanBlock block;
     private boolean seenTrue;
     private boolean seenFalse;
 
-    public MultivalueDedupeBoolean(BooleanBlock block) {
-        this.block = block;
+    public MultivalueDedupeBoolean(Block.Ref ref) {
+        this.ref = ref;
+        this.block = (BooleanBlock) ref.block();
     }
 
     /**
      * Dedupe values using an adaptive algorithm based on the size of the input list.
      */
-    public BooleanBlock dedupeToBlock() {
+    public Block.Ref dedupeToBlock() {
         if (false == block.mayHaveMultivaluedFields()) {
-            return block;
+            return ref;
         }
         BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -57,7 +60,7 @@ public class MultivalueDedupeBoolean {
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**

@@ -471,9 +471,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final int total;
         private final int successful;   // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
         private final int skipped;      // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
-        private final int running;      // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
-        private final int partial;      // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
-        private final int failed;       // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
 
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
         // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
@@ -503,6 +500,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             assert remoteClusterIndices.size() > 0 : "At least one remote cluster must be passed into this Cluster constructor";
             this.total = remoteClusterIndices.size() + (localIndices == null ? 0 : 1);
             assert total >= 1 : "No local indices or remote clusters passed in";
+            this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
+            this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
             Map<String, AtomicReference<Cluster>> m = new HashMap<>();
             if (localIndices != null) {
@@ -517,11 +516,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 m.put(clusterAlias, new AtomicReference<>(c));
             }
             this.clusterInfo = Collections.unmodifiableMap(m);
-            this.successful = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SUCCESSFUL);
-            this.skipped = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.SKIPPED);
-            this.running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
-            this.partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
-            this.failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);
         }
 
         /**
@@ -539,36 +533,39 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
-            this.running = 0;
-            this.partial = 0;
-            this.failed = 0;
             this.ccsMinimizeRoundtrips = false;
             this.clusterInfo = Collections.emptyMap();  // will never be used if created from this constructor
         }
 
         public Clusters(StreamInput in) throws IOException {
             this.total = in.readVInt();
-            this.successful = in.readVInt();
-            this.skipped = in.readVInt();
+            int successfulTemp = in.readVInt();
+            int skippedTemp = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
                     this.clusterInfo = Collections.emptyMap();
+                    this.successful = successfulTemp;
+                    this.skipped = skippedTemp;
                 } else {
                     Map<String, AtomicReference<Cluster>> m = new HashMap<>();
                     clusterList.forEach(c -> m.put(c.getClusterAlias(), new AtomicReference<>(c)));
                     this.clusterInfo = Collections.unmodifiableMap(m);
+                    this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
+                    this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
                 }
             } else {
+                this.successful = successfulTemp;
+                this.skipped = skippedTemp;
                 this.clusterInfo = Collections.emptyMap();
             }
-            this.running = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.RUNNING);
-            this.partial = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.PARTIAL);
-            this.failed = determineCountFromClusterInfo(cluster -> cluster.getStatus() == Cluster.Status.FAILED);
+            int running = getClusterStateCount(Cluster.Status.RUNNING);
+            int partial = getClusterStateCount(Cluster.Status.PARTIAL);
+            int failed = getClusterStateCount(Cluster.Status.FAILED);
             this.ccsMinimizeRoundtrips = false;
             assert total >= 0 : "total is negative: " + total;
-            assert total >= successful + skipped + running + partial + failed
-                : "successful + skipped + running + partial + failed is larger than total. total: "
+            assert total == successful + skipped + running + partial + failed
+                : "successful + skipped + running + partial + failed is not equal to total. total: "
                     + total
                     + " successful: "
                     + successful
@@ -586,11 +583,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             assert clusterInfoMap.size() > 0 : "this constructor should not be called with an empty Cluster info map";
             this.total = clusterInfoMap.size();
             this.clusterInfo = clusterInfoMap;
-            this.successful = 0;    // calculated from clusterInfo map for minimize_roundtrips
-            this.skipped = 0;       // calculated from clusterInfo map for minimize_roundtrips
-            this.running = 0;       // calculated from clusterInfo map for minimize_roundtrips
-            this.partial = 0;       // calculated from clusterInfo map for minimize_roundtrips
-            this.failed = 0;        // calculated from clusterInfo map for minimize_roundtrips
+            this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
+            this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
             // should only be called if "details" section of fromXContent is present (for ccsMinimizeRoundtrips)
             this.ccsMinimizeRoundtrips = true;
         }
@@ -705,11 +699,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public int getClusterStateCount(Cluster.Status status) {
             if (clusterInfo.isEmpty()) {
                 return switch (status) {
-                    case RUNNING -> running;
                     case SUCCESSFUL -> successful;
-                    case PARTIAL -> partial;
                     case SKIPPED -> skipped;
-                    case FAILED -> failed;
+                    default -> 0;
                 };
             } else {
                 return determineCountFromClusterInfo(cluster -> cluster.getStatus() == status);
@@ -752,16 +744,23 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             Clusters clusters = (Clusters) o;
             return total == clusters.total
-                && successful == clusters.successful
-                && skipped == clusters.skipped
-                && running == clusters.running
-                && partial == clusters.partial
-                && failed == clusters.failed;
+                && getClusterStateCount(Cluster.Status.SUCCESSFUL) == clusters.getClusterStateCount(Cluster.Status.SUCCESSFUL)
+                && getClusterStateCount(Cluster.Status.SKIPPED) == clusters.getClusterStateCount(Cluster.Status.SKIPPED)
+                && getClusterStateCount(Cluster.Status.RUNNING) == clusters.getClusterStateCount(Cluster.Status.RUNNING)
+                && getClusterStateCount(Cluster.Status.PARTIAL) == clusters.getClusterStateCount(Cluster.Status.PARTIAL)
+                && getClusterStateCount(Cluster.Status.FAILED) == clusters.getClusterStateCount(Cluster.Status.FAILED);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(total, successful, skipped, running, partial, failed);
+            return Objects.hash(
+                total,
+                getClusterStateCount(Cluster.Status.SUCCESSFUL),
+                getClusterStateCount(Cluster.Status.SKIPPED),
+                getClusterStateCount(Cluster.Status.RUNNING),
+                getClusterStateCount(Cluster.Status.PARTIAL),
+                getClusterStateCount(Cluster.Status.FAILED)
+            );
         }
 
         @Override

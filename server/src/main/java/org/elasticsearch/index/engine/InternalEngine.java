@@ -878,6 +878,18 @@ public class InternalEngine extends Engine {
         }
         boolean getFromSearcherIfNotInTranslog = getFromSearcher;
         if (versionValue != null) {
+            /*
+             * Once we've seen the ID in the live version map, in two cases it is still possible not to
+             * be able to follow up with serving the get from the translog:
+             *  1. It is possible that once attempt handling the get, we won't see the doc in the translog
+             *     since it might have been moved out.
+             *     TODO: ideally we should keep around translog entries long enough to cover this case
+             *  2. We might not be tracking translog locations in the live version map (see @link{trackTranslogLocation})
+             *
+             * In these cases, we should always fall back to get the doc from the internal searcher.
+             */
+
+            getFromSearcherIfNotInTranslog = true;
             if (versionValue.isDelete()) {
                 return GetResult.NOT_EXISTS;
             }
@@ -911,11 +923,8 @@ public class InternalEngine extends Engine {
                         throw new EngineException(shardId, "failed to read operation from translog", e);
                     }
                 } else {
+                    // We need to start tracking translog locations in the live version map.
                     trackTranslogLocation.set(true);
-                    // We need to start tracking translog locations in the live version map. Refresh and
-                    // serve all the real-time gets with a missing translog location from the internal searcher
-                    // (until a flush happens) even if we're supposed to only get from translog.
-                    getFromSearcherIfNotInTranslog = true;
                 }
             }
             assert versionValue.seqNo >= 0 : versionValue;

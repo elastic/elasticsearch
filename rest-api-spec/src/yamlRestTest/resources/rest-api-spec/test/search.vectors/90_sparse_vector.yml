@@ -145,8 +145,8 @@
 "Sparse vector in 7.x":
   - skip:
       features: allowed_warnings
-      version: "8.0.0 - "
-      reason: "sparse_vector field type supported in 7.x"
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/100003"
   - do:
       allowed_warnings:
         - "The [sparse_vector] field type is deprecated and will be removed in 8.0."

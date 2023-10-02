@@ -50,7 +50,11 @@ public interface Vector extends Accountable, Releasable {
     /** The block factory associated with this vector. */
     BlockFactory blockFactory();
 
-    interface Builder {
+    /**
+     * Builds {@link Vector}s. Typically, you use one of it's direct supinterfaces like {@link IntVector.Builder}.
+     * This is {@link Releasable} and should be released after building the vector or if building the vector fails.
+     */
+    interface Builder extends Releasable {
         /**
          * Builds the block. This method can be called multiple times.
          */

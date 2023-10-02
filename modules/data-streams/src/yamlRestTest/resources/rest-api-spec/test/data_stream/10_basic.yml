@@ -312,6 +312,77 @@ setup:
   - is_true: acknowledged
 
 ---
+"Get data stream and check DSL and ILM information":
+  - skip:
+      version: " - 8.10.99"
+      reason: "data streams DSL and ILM mixing information available in 8.11+"
+
+  - do:
+      allowed_warnings:
+        - "index template [mixing-dsl-template] has index patterns [mixing-dsl-stream] matching patterns from existing older templates
+        [global] with patterns (global => [*]); this template [mixing-dsl-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: mixing-dsl-template
+        body:
+          index_patterns: [mixing-dsl-stream]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date_nanos
+            lifecycle:
+              data_retention: "30d"
+              enabled: false
+            settings:
+              index.lifecycle.prefer_ilm: false
+              index.lifecycle.name: "missing_ilm_policy"
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: mixing-dsl-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: mixing-dsl-stream
+  - match: { data_streams.0.name: mixing-dsl-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.0.ilm_policy: "missing_ilm_policy" }
+  - match: { data_streams.0.prefer_ilm: false }
+  - match: { data_streams.0.next_generation_managed_by: "Index Lifecycle Management" }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.prefer_ilm: false }
+  - match: { data_streams.0.indices.0.ilm_policy: "missing_ilm_policy" }
+  - match: { data_streams.0.indices.0.managed_by: "Index Lifecycle Management" }
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "*"
+        body: >
+          {
+            "data_retention": "30d",
+            "enabled": true
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: mixing-dsl-stream
+  - match: { data_streams.0.name: mixing-dsl-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.0.ilm_policy: "missing_ilm_policy" }
+  - match: { data_streams.0.prefer_ilm: false }
+  - match: { data_streams.0.next_generation_managed_by: "Data stream lifecycle" }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.prefer_ilm: false }
+  - match: { data_streams.0.indices.0.ilm_policy: "missing_ilm_policy" }
+  - match: { data_streams.0.indices.0.managed_by: "Data stream lifecycle" }
+
+---
 "Delete data stream with backing indices":
   - skip:
       version: " - 7.8.99"

@@ -82,8 +82,8 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     /**
      * A builder the for {@link DocBlock}.
      */
-    public static Builder newBlockBuilder(int estimatedSize) {
-        return new Builder(estimatedSize);
+    public static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return new Builder(estimatedSize, blockFactory);
     }
 
     public static class Builder implements Block.Builder {
@@ -91,10 +91,10 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
 
-        private Builder(int estimatedSize) {
-            shards = IntVector.newVectorBuilder(estimatedSize);
-            segments = IntVector.newVectorBuilder(estimatedSize);
-            docs = IntVector.newVectorBuilder(estimatedSize);
+        private Builder(int estimatedSize, BlockFactory blockFactory) {
+            shards = IntVector.newVectorBuilder(estimatedSize, blockFactory);
+            segments = IntVector.newVectorBuilder(estimatedSize, blockFactory);
+            docs = IntVector.newVectorBuilder(estimatedSize, blockFactory);
         }
 
         public Builder appendShard(int shard) {
@@ -152,6 +152,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         public DocBlock build() {
             // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
             return new DocVector(shards.build(), segments.build(), docs.build(), null).asBlock();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(shards, segments, docs);
         }
     }
 }

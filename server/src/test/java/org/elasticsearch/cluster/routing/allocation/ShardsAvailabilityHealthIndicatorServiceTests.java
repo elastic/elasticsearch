@@ -533,8 +533,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testShouldBeGreenWhenThereAreInitializingPrimaries() {
-        var clusterState = createClusterStateWith(List.of(index("restarting-index", new ShardAllocation("node-0", CREATING))), List.of());
+    public void testShouldBeGreenWhenThereAreInitializingPrimariesAndReplicas() {
+        var clusterState = createClusterStateWith(
+            List.of(index("restarting-index", new ShardAllocation("node-0", CREATING), new ShardAllocation("node-1", CREATING))),
+            List.of()
+        );
         var service = createShardsAvailabilityIndicatorService(clusterState);
 
         assertThat(
@@ -542,8 +545,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 creating primary shard.",
-                    Map.of("creating_primaries", 1),
+                    "This cluster has 1 creating primary shard, 1 creating replica shard.",
+                    Map.of("creating_primaries", 1, "creating_replicas", 1),
                     emptyList(),
                     emptyList()
                 )
@@ -1765,6 +1768,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             override.getOrDefault("started_primaries", 0),
             "unassigned_replicas",
             override.getOrDefault("unassigned_replicas", 0),
+            "creating_replicas",
+            override.getOrDefault("creating_replicas", 0),
             "initializing_replicas",
             override.getOrDefault("initializing_replicas", 0),
             "restarting_replicas",

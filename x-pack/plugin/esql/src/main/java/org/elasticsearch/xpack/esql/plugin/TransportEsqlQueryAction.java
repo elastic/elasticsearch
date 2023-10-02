@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
@@ -69,8 +71,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        EsqlBlockFactoryParams.init(bigArrays);
-        var blockFactory = BlockFactory.getGlobalInstance();
+        var blockFactory = createBlockFactory(bigArrays);
         this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.computeService = new ComputeService(
@@ -83,6 +84,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactory
         );
         this.settings = settings;
+    }
+
+    static BlockFactory createBlockFactory(BigArrays bigArrays) {
+        CircuitBreaker circuitBreaker = bigArrays.breakerService().getBreaker("request");
+        Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
+        return new BlockFactory(circuitBreaker, bigArrays);
     }
 
     @Override

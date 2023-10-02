@@ -47,7 +47,14 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
-        super(GetAsyncStatusAction.NAME, transportService, actionFilters, GetAsyncStatusRequest::new);
+        super(
+            GetAsyncStatusAction.NAME,
+            true,
+            transportService,
+            actionFilters,
+            GetAsyncStatusRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.store = new AsyncTaskIndexService<>(

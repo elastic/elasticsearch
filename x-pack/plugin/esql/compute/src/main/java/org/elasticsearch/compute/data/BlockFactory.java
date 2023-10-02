@@ -67,11 +67,11 @@ public class BlockFactory {
             try {
                 breaker.addEstimateBytesAndMaybeBreak(delta, "<esql_block_factory>");
             } catch (CircuitBreakingException e) {
-                if (isDataAlreadyCreated) {
-                    // since we've already created the data, we need to
-                    // add it so closing the stream re-adjusts properly
-                    breaker.addWithoutBreaking(delta);
-                }
+                // if (isDataAlreadyCreated) { // TODO: remove isDataAlreadyCreated
+                // since we've already created the data, we need to
+                // add it so closing the stream re-adjusts properly
+                // breaker.addWithoutBreaking(delta);
+                // }
                 // re-throw the original exception
                 throw e;
             }

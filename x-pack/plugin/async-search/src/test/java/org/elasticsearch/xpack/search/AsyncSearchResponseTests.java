@@ -505,8 +505,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         );
         updated = clusters.updateCluster(
             cluster1.getClusterAlias(),
-            (k, v) -> new SearchResponse.Cluster.Builder(v) // TODO-MP what about skip unavailable = false?
-                .setStatus(SearchResponse.Cluster.Status.SKIPPED)
+            (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SKIPPED)
                 .setTotalShards(2)
                 .setSuccessfulShards(0)
                 .setSkippedShards(0)

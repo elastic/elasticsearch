@@ -475,7 +475,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
         // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
-        // updates to the Cluster occur by CAS swapping in new Cluster objects into the AtomicReference in the map.
+        // updates to the Cluster occur with the updateCluster method that given the key to map transforms an
+        // old Cluster Object to a new Cluster Object with the remapping function.
         private final Map<String, Cluster> clusterInfo;
 
         // not Writeable since it is only needed on the (primary) CCS coordinator

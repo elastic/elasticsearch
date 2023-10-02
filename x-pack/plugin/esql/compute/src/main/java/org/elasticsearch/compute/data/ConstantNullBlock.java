@@ -68,6 +68,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public Block filter(int... positions) {
+        close();
         return new ConstantNullBlock(positions.length);
     }
 

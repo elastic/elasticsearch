@@ -428,7 +428,7 @@ public class ExchangeServiceTests extends ESTestCase {
 
     private MockTransportService newTransportService() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(ClusterModule.getNamedWriteables());
-        namedWriteables.addAll(Block.getNamedWriteables());
+        namedWriteables.addAll(Block.getNamedWriteables(BlockFactory::getNonBreakingInstance));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         MockTransportService service = MockTransportService.createNewService(
             Settings.EMPTY,

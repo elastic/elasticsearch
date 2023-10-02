@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
@@ -17,10 +16,16 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected DriverContext driverContext() {
+        return breakingDriverContext();
+    }
+
+    @Override
+    protected LimitOperator.Factory simple(BigArrays bigArrays) {
         return new LimitOperator.Factory(100);
     }
 
@@ -53,16 +58,21 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     public void testStatus() {
-        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
+        BlockFactory blockFactory = driverContext().blockFactory();
+        LimitOperator op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
 
         LimitOperator.Status status = op.status();
         assertThat(status.limit(), equalTo(100));
         assertThat(status.limitRemaining(), equalTo(100));
         assertThat(status.pagesProcessed(), equalTo(0));
 
-        Page p = new Page(Block.constantNullBlock(10));
-        op.addInput(p);
-        assertSame(p, op.getOutput());
+        Page p = new Page(blockFactory.newConstantNullBlock(10));
+        try {
+            op.addInput(p);
+            assertSame(p, op.getOutput());
+        } finally {
+            p.releaseBlocks();
+        }
         status = op.status();
         assertThat(status.limit(), equalTo(100));
         assertThat(status.limitRemaining(), equalTo(90));
@@ -70,14 +80,52 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     public void testNeedInput() {
-        LimitOperator op = (LimitOperator) simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
-        assertTrue(op.needsInput());
-        Page p = new Page(Block.constantNullBlock(10));
-        op.addInput(p);
-        assertFalse(op.needsInput());
-        op.getOutput();
-        assertTrue(op.needsInput());
-        op.finish();
-        assertFalse(op.needsInput());
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (LimitOperator op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+            assertTrue(op.needsInput());
+            Page p = new Page(blockFactory.newConstantNullBlock(10));
+            op.addInput(p);
+            assertFalse(op.needsInput());
+            op.getOutput().releaseBlocks();
+            assertTrue(op.needsInput());
+            op.finish();
+            assertFalse(op.needsInput());
+        }
+    }
+
+    public void testBlockBiggerThanRemaining() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (LimitOperator op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+            assertTrue(op.needsInput());
+            Page p = new Page(blockFactory.newConstantNullBlock(200));  // test doesn't close because operator returns a view
+            op.addInput(p);
+            assertFalse(op.needsInput());
+            Page result = op.getOutput();
+            try {
+                assertThat(result.getPositionCount(), equalTo(100));
+            } finally {
+                result.releaseBlocks();
+            }
+            assertFalse(op.needsInput());
+            assertTrue(op.isFinished());
+        }
+    }
+
+    public void testBlockPreciselyRemaining() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (LimitOperator op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+            assertTrue(op.needsInput());
+            Page p = new Page(blockFactory.newConstantNullBlock(100));  // test doesn't close because operator returns same page
+            op.addInput(p);
+            assertFalse(op.needsInput());
+            Page result = op.getOutput();
+            try {
+                assertThat(result, sameInstance(p));
+            } finally {
+                result.releaseBlocks();
+            }
+            assertFalse(op.needsInput());
+            assertTrue(op.isFinished());
+        }
     }
 }

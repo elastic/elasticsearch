@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * Block that stores BytesRef values.
@@ -40,33 +41,36 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
     @Override
     BytesRefBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", BytesRefBlock::of);
-
     @Override
     default String getWriteableName() {
         return "BytesRefBlock";
     }
 
-    static BytesRefBlock of(StreamInput in) throws IOException {
+    static NamedWriteableRegistry.Entry namedWriteableEntry(Supplier<BlockFactory> blockFactory) {
+        return new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", in -> readFrom(blockFactory.get(), in));
+    }
+
+    private static BytesRefBlock readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return BytesRefVector.of(in).asBlock();
+            return BytesRefVector.readFrom(blockFactory, in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendBytesRef(in.readBytesRef());
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendBytesRef(in.readBytesRef());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override

@@ -62,7 +62,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ExchangeService exchangeService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        EsqlPlugin.BlockFactoryHolder blockFactoryHolder
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -84,6 +85,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactory
         );
         this.settings = settings;
+        /*
+         * This hacks the block factory into a shared place where
+         * it can be used for deserialization. We'd prefer a less
+         * strange way to do it, but Plugin doesn't give us access
+         * to BigArrays, which we need to build the BlockFactory
+         * up front.
+         */
+        blockFactoryHolder.blockFactory = blockFactory;
     }
 
     static BlockFactory createBlockFactory(BigArrays bigArrays) {

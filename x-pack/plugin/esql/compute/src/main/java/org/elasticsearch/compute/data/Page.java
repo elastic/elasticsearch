@@ -224,20 +224,4 @@ public final class Page implements Writeable {
         blocksReleased = true;
         Releasables.closeExpectNoException(blocks);
     }
-
-    public static class PageWriter implements Writeable.Writer<Page> {
-
-        @Override
-        public void write(StreamOutput out, Page value) throws IOException {
-            value.writeTo(out);
-        }
-    }
-
-    public static class PageReader implements Writeable.Reader<Page> {
-
-        @Override
-        public Page read(StreamInput in) throws IOException {
-            return new Page(in);
-        }
-    }
 }

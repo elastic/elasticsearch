@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -83,6 +84,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
+    private BlockFactoryHolder blockFactoryHolder = new BlockFactoryHolder();
+
     @Override
     public Collection<Object> createComponents(
         Client client,
@@ -102,7 +105,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     ) {
         return List.of(
             new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of)),
-            new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME)
+            new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME),
+            blockFactoryHolder
         );
     }
 
@@ -153,7 +157,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 ValuesSourceReaderOperator.Status.ENTRY,
                 SingleValueQuery.ENTRY
             ).stream(),
-            Block.getNamedWriteables().stream()
+            Block.getNamedWriteables(blockFactoryHolder).stream()
         ).toList();
     }
 
@@ -180,5 +184,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
+    }
+
+    static class BlockFactoryHolder implements Supplier<BlockFactory> {
+        BlockFactory blockFactory;
+
+        @Override
+        public BlockFactory get() {
+            return blockFactory;
+        }
     }
 }

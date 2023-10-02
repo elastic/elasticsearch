@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * Block that stores double values.
@@ -36,33 +37,36 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
     @Override
     DoubleBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", DoubleBlock::of);
-
     @Override
     default String getWriteableName() {
         return "DoubleBlock";
     }
 
-    static DoubleBlock of(StreamInput in) throws IOException {
+    static NamedWriteableRegistry.Entry namedWriteableEntry(Supplier<BlockFactory> blockFactory) {
+        return new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", in -> readFrom(blockFactory.get(), in));
+    }
+
+    private static DoubleBlock readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return DoubleVector.of(in).asBlock();
+            return DoubleVector.readFrom(blockFactory, in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendDouble(in.readDouble());
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendDouble(in.readDouble());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override

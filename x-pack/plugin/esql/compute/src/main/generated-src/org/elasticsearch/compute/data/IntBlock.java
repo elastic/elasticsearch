@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * Block that stores int values.
@@ -36,33 +37,36 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
     @Override
     IntBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::of);
-
     @Override
     default String getWriteableName() {
         return "IntBlock";
     }
 
-    static IntBlock of(StreamInput in) throws IOException {
+    static NamedWriteableRegistry.Entry namedWriteableEntry(Supplier<BlockFactory> blockFactory) {
+        return new NamedWriteableRegistry.Entry(Block.class, "IntBlock", in -> readFrom(blockFactory.get(), in));
+    }
+
+    private static IntBlock readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return IntVector.of(in).asBlock();
+            return IntVector.readFrom(blockFactory, in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendInt(in.readInt());
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendInt(in.readInt());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override

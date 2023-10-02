@@ -147,6 +147,13 @@ public class BlockFactory {
         return b;
     }
 
+    public BooleanVector newConstantBooleanVector(boolean value, int positions) {
+        adjustBreaker(ConstantBooleanVector.RAM_BYTES_USED, false);
+        var v = new ConstantBooleanVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantBooleanVector.RAM_BYTES_USED;
+        return v;
+    }
+
     public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
         return new IntBlockBuilder(estimatedSize, this);
     }
@@ -207,7 +214,7 @@ public class BlockFactory {
     public IntVector newConstantIntVector(int value, int positions) {
         adjustBreaker(ConstantIntVector.RAM_BYTES_USED, false);
         var v = new ConstantIntVector(value, positions, this);
-        adjustBreaker(v.ramBytesUsed() - ConstantIntVector.RAM_BYTES_USED, true);
+        assert v.ramBytesUsed() == ConstantLongVector.RAM_BYTES_USED;
         return v;
     }
 
@@ -253,6 +260,13 @@ public class BlockFactory {
         return b;
     }
 
+    public LongVector newConstantLongVector(long value, int positions) {
+        adjustBreaker(ConstantLongVector.RAM_BYTES_USED, false);
+        var v = new ConstantLongVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantLongVector.RAM_BYTES_USED;
+        return v;
+    }
+
     public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
         return new DoubleBlockBuilder(estimatedSize, this);
     }
@@ -296,6 +310,13 @@ public class BlockFactory {
         return b;
     }
 
+    public DoubleVector newConstantDoubleVector(double value, int positions) {
+        adjustBreaker(ConstantDoubleVector.RAM_BYTES_USED, false);
+        var v = new ConstantDoubleVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantDoubleVector.RAM_BYTES_USED;
+        return v;
+    }
+
     public BytesRefBlock.Builder newBytesRefBlockBuilder(int estimatedSize) {
         return new BytesRefBlockBuilder(estimatedSize, bigArrays, this);
     }
@@ -320,6 +341,14 @@ public class BlockFactory {
         var b = new ConstantBytesRefVector(value, positions, this).asBlock();
         adjustBreaker(b.ramBytesUsed(), true);
         return b;
+    }
+
+    public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
+        long preadjusted = ConstantBytesRefVector.ramBytesUsed(value);
+        adjustBreaker(preadjusted, false);
+        var v = new ConstantBytesRefVector(value, positions, this);
+        assert v.ramBytesUsed() == preadjusted;
+        return v;
     }
 
     public Block newConstantNullBlock(int positions) {

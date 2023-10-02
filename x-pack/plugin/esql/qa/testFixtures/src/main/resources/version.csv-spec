@@ -139,8 +139,7 @@ id:i  |name:s     |version:v
 9     |iiiii      |bad
 ;
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-orderByVersionMultipleCasts-Ignore
+orderByVersionMultipleCasts
 FROM apps | EVAL o = TO_VER(CONCAT("1.", TO_STR(version))) | SORT o, id;
 
 id:i           |name:s         |version:v      |o:v        
@@ -289,8 +288,7 @@ idx:i  |version:v
 14     | 5.2.9
 ;
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-case-Ignore
+case
 FROM apps
 | EVAL version_text = TO_STR(version)
 | WHERE version IS NULL OR version_text LIKE "1*"

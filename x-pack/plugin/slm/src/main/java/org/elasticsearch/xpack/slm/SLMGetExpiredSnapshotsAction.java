@@ -127,11 +127,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
                                 .<SnapshotDetailsByPolicy>andThen(
                                     retentionExecutor,
                                     threadContext,
-                                    (l, repositoryData) -> getSnapshotDetailsByPolicy(
-                                        repositoriesService.repository(repositoryName),
-                                        repositoryData,
-                                        l
-                                    )
+                                    (l, repositoryData) -> getSnapshotDetailsByPolicy(repository, repositoryData, l)
                                 )
 
                                 // Compute snapshots to delete for each (relevant) policy

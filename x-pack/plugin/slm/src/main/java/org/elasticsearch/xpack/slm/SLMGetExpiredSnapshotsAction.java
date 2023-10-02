@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -57,10 +58,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
     private static final Logger logger = LogManager.getLogger(SLMGetExpiredSnapshotsAction.class);
 
     private SLMGetExpiredSnapshotsAction() {
-        super("cluster:admin/slm/execute/get_expired_snapshots", in -> {
-            assert false : "local-only action";
-            throw new UnsupportedOperationException();
-        });
+        super("cluster:admin/slm/execute/get_expired_snapshots", Writeable.Reader.localOnly());
     }
 
     public static class LocalAction extends TransportAction<Request, Response> {
@@ -277,8 +275,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
 
         @Override
         public void writeTo(StreamOutput out) {
-            assert false : "local-only action";
-            throw new UnsupportedOperationException();
+            TransportAction.localOnly();
         }
     }
 
@@ -295,8 +292,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
 
         @Override
         public void writeTo(StreamOutput out) {
-            assert false : "local-only action";
-            throw new UnsupportedOperationException();
+            TransportAction.localOnly();
         }
     }
 

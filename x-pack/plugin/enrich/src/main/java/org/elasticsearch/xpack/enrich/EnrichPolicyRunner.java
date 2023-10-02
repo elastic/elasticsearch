@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -34,6 +35,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,6 +44,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -569,9 +572,65 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void waitForIndexGreen(final String destinationIndexName) {
         ClusterHealthRequest request = new ClusterHealthRequest(destinationIndexName).waitForGreenStatus();
-        enrichOriginClient().admin()
-            .cluster()
-            .health(request, listener.delegateFailure((l, r) -> updateEnrichPolicyAlias(destinationIndexName)));
+        enrichOriginClient().admin().cluster().health(request, listener.delegateFailure((l, r) -> {
+            try {
+                updateEnrichPolicyAlias(destinationIndexName);
+            } catch (Exception e) {
+                l.onFailure(e);
+            }
+        }));
+    }
+
+    /**
+     * Ensures that the index we are about to promote at the end of a policy execution exists, is intact, and has not been damaged
+     * during the policy execution. In some cases, it is possible for the index being constructed to be deleted during the policy execution
+     * and recreated with invalid mappings/data. We validate that the mapping exists and that it contains the expected meta fields on it to
+     * guard against accidental removal and recreation during policy execution.
+     */
+    private void validateIndexBeforePromotion(String destinationIndexName, ClusterState clusterState) {
+        IndexMetadata destinationIndex = clusterState.metadata().index(destinationIndexName);
+        if (destinationIndex == null) {
+            throw new IndexNotFoundException(
+                "was not able to promote it as part of executing enrich policy [" + policyName + "]",
+                destinationIndexName
+            );
+        }
+        MappingMetadata mapping = destinationIndex.mapping();
+        if (mapping == null) {
+            throw new ResourceNotFoundException(
+                "Could not locate mapping for enrich index [{}] while completing [{}] policy run",
+                destinationIndexName,
+                policyName
+            );
+        }
+        Map<String, Object> mappingSource = mapping.sourceAsMap();
+        Object meta = mappingSource.get("_meta");
+        if (meta instanceof Map<?, ?>) {
+            Map<?, ?> metaMap = ((Map<?, ?>) meta);
+            Object policyNameMetaField = metaMap.get(ENRICH_POLICY_NAME_FIELD_NAME);
+            if (policyNameMetaField == null) {
+                throw new ElasticsearchException(
+                    "Could not verify enrich index [{}] metadata before completing [{}] policy run: policy name meta field missing",
+                    destinationIndexName,
+                    policyName
+                );
+            } else if (policyName.equals(policyNameMetaField) == false) {
+                throw new ElasticsearchException(
+                    "Could not verify enrich index [{}] metadata before completing [{}] policy run: policy name meta field does not "
+                        + "match expected value of [{}], was [{}]",
+                    destinationIndexName,
+                    policyName,
+                    policyName,
+                    policyNameMetaField.toString()
+                );
+            }
+        } else {
+            throw new ElasticsearchException(
+                "Could not verify enrich index [{}] metadata before completing [{}] policy run: mapping meta field missing",
+                destinationIndexName,
+                policyName
+            );
+        }
     }
 
     private void updateEnrichPolicyAlias(final String destinationIndexName) {
@@ -579,6 +638,7 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         ClusterState clusterState = clusterService.state();
+        validateIndexBeforePromotion(destinationIndexName, clusterState);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = clusterState.metadata().findAliases(aliasRequest, concreteIndices);
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();

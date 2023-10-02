@@ -236,7 +236,7 @@ public class InboundHandlerTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "expected message",
-                InboundHandler.class.getCanonicalName(),
+                EXPECTED_LOGGER_NAME,
                 Level.WARN,
                 "error processing handshake version"
             )
@@ -273,6 +273,12 @@ public class InboundHandlerTests extends ESTestCase {
         }
     }
 
+    /**
+     * This logger is mentioned in the docs by name, so we cannot rename it without adjusting the docs. Thus we fix the expected logger
+     * name in this string constant rather than using {@code InboundHandler.class.getCanonicalName()}.
+     */
+    private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.InboundHandler";
+
     public void testLogsSlowInboundProcessing() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
@@ -284,12 +290,7 @@ public class InboundHandlerTests extends ESTestCase {
             final TransportVersion remoteVersion = TransportVersion.current();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "expected slow request",
-                    InboundHandler.class.getCanonicalName(),
-                    Level.WARN,
-                    "handling request "
-                )
+                new MockLogAppender.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
             );
 
             final long requestId = randomNonNegativeLong();
@@ -316,12 +317,7 @@ public class InboundHandlerTests extends ESTestCase {
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "expected slow response",
-                    InboundHandler.class.getCanonicalName(),
-                    Level.WARN,
-                    "handling response "
-                )
+                new MockLogAppender.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
             );
 
             final long responseId = randomNonNegativeLong();

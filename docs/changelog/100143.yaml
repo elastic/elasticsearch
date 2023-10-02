@@ -1,5 +1,5 @@
 pr: 100143
-summary: When calling the _infer API with multiple inputs on a model deployment with more than one allocation the output results order was not guaranteed to match the input order. The fix ensures the output order matches the input order.
+summary: Preserve order of inference results when calling the _infer API with multiple inputs on a model deployment with more than one allocation the output results order was not guaranteed to match the input order. The fix ensures the output order matches the input order.
 area: Machine Learning
 type: bug
 issues: []

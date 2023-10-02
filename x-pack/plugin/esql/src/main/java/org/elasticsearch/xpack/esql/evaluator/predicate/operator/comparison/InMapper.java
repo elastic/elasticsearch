@@ -47,7 +47,7 @@ public class InMapper extends ExpressionMapper<In> {
 
     record InExpressionEvaluator(List<EvalOperator.ExpressionEvaluator> listEvaluators) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block eval(Page page) {
+        public Block.Ref eval(Page page) {
             int positionCount = page.getPositionCount();
             boolean[] values = new boolean[positionCount];
             BitSet nulls = new BitSet(positionCount); // at least one evaluation resulted in NULL on a row
@@ -55,21 +55,22 @@ public class InMapper extends ExpressionMapper<In> {
 
             for (int i = 0; i < listEvaluators().size(); i++) {
                 var evaluator = listEvaluators.get(i);
-                Block block = evaluator.eval(page);
+                try (Block.Ref ref = evaluator.eval(page)) {
 
-                Vector vector = block.asVector();
-                if (vector != null) {
-                    updateValues((BooleanVector) vector, values);
-                } else {
-                    if (block.areAllValuesNull()) {
-                        nullInValues = true;
+                    Vector vector = ref.block().asVector();
+                    if (vector != null) {
+                        updateValues((BooleanVector) vector, values);
                     } else {
-                        updateValues((BooleanBlock) block, values, nulls);
+                        if (ref.block().areAllValuesNull()) {
+                            nullInValues = true;
+                        } else {
+                            updateValues((BooleanBlock) ref.block(), values, nulls);
+                        }
                     }
                 }
             }
 
-            return evalWithNulls(values, nulls, nullInValues);
+            return Block.Ref.floating(evalWithNulls(values, nulls, nullInValues));
         }
 
         private static void updateValues(BooleanVector vector, boolean[] values) {

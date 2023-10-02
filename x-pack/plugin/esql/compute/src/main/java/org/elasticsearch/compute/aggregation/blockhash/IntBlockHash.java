@@ -63,7 +63,7 @@ final class IntBlockHash extends BlockHash {
     }
 
     private IntBlock add(IntBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeInt(block).hash(longHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeInt(Block.Ref.floating(block)).hash(longHash);
         seenNull |= result.sawNull();
         return result.ords();
     }

@@ -53,12 +53,14 @@ $elseif(long)$
     private static final int ALWAYS_COPY_MISSING = 300;
 $endif$
 
+    private final Block.Ref ref;
     private final $Type$Block block;
     private $type$[] work = new $type$[ArrayUtil.oversize(2, $BYTES$)];
     private int w;
 
-    public MultivalueDedupe$Type$($Type$Block block) {
-        this.block = block;
+    public MultivalueDedupe$Type$(Block.Ref ref) {
+        this.ref = ref;
+        this.block = ($Type$Block) ref.block();
 $if(BytesRef)$
         // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
         fillWork(0, work.length);
@@ -69,9 +71,9 @@ $endif$
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public $Type$Block dedupeToBlockAdaptive() {
+    public Block.Ref dedupeToBlockAdaptive() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -112,7 +114,7 @@ $endif$
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -121,9 +123,9 @@ $endif$
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public $Type$Block dedupeToBlockUsingCopyAndSort() {
+    public Block.Ref dedupeToBlockUsingCopyAndSort() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -142,7 +144,7 @@ $endif$
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -153,9 +155,9 @@ $endif$
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public $Type$Block dedupeToBlockUsingCopyMissing() {
+    public Block.Ref dedupeToBlockUsingCopyMissing() {
         if (block.mvDeduplicated()) {
-            return block;
+            return ref;
         }
         $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -174,7 +176,7 @@ $endif$
                 }
             }
         }
-        return builder.build();
+        return Block.Ref.floating(builder.build());
     }
 
     /**

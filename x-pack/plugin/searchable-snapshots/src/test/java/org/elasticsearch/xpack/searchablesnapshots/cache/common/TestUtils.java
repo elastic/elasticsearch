@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -271,7 +272,7 @@ public final class TestUtils {
         }
 
         @Override
-        protected void innerPut(IndexRequest request, ActionListener<IndexResponse> listener) {
+        protected void innerPut(IndexRequest request, ActionListener<DocWriteResponse> listener) {
             listener.onFailure(new IndexNotFoundException(request.index()));
         }
 
@@ -315,7 +316,7 @@ public final class TestUtils {
         }
 
         @Override
-        protected void innerPut(IndexRequest request, ActionListener<IndexResponse> listener) {
+        protected void innerPut(IndexRequest request, ActionListener<DocWriteResponse> listener) {
             final BytesArray bytesArray = blobs.put(request.id(), new BytesArray(request.source().toBytesRef(), true));
             listener.onResponse(
                 new IndexResponse(

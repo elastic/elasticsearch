@@ -41,39 +41,40 @@ public class FilterOperator extends AbstractPageMappingOperator {
         int rowCount = 0;
         int[] positions = new int[page.getPositionCount()];
 
-        Block uncastTest = evaluator.eval(page);
-        if (uncastTest.areAllValuesNull()) {
-            // All results are null which is like false. No values selected.
-            return null;
-        }
-        BooleanBlock test = (BooleanBlock) uncastTest;
-        // TODO we can detect constant true or false from the type
-        // TODO or we could make a new method in bool-valued evaluators that returns a list of numbers
-        for (int p = 0; p < page.getPositionCount(); p++) {
-            if (test.isNull(p) || test.getValueCount(p) != 1) {
-                // Null is like false
-                // And, for now, multivalued results are like false too
-                continue;
+        try (Block.Ref ref = evaluator.eval(page)) {
+            if (ref.block().areAllValuesNull()) {
+                // All results are null which is like false. No values selected.
+                return null;
             }
-            if (test.getBoolean(test.getFirstValueIndex(p))) {
-                positions[rowCount++] = p;
+            BooleanBlock test = (BooleanBlock) ref.block();
+            // TODO we can detect constant true or false from the type
+            // TODO or we could make a new method in bool-valued evaluators that returns a list of numbers
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                if (test.isNull(p) || test.getValueCount(p) != 1) {
+                    // Null is like false
+                    // And, for now, multivalued results are like false too
+                    continue;
+                }
+                if (test.getBoolean(test.getFirstValueIndex(p))) {
+                    positions[rowCount++] = p;
+                }
             }
-        }
 
-        if (rowCount == 0) {
-            return null;
-        }
-        if (rowCount == page.getPositionCount()) {
-            return page;
-        }
-        positions = Arrays.copyOf(positions, rowCount);
+            if (rowCount == 0) {
+                return null;
+            }
+            if (rowCount == page.getPositionCount()) {
+                return page;
+            }
+            positions = Arrays.copyOf(positions, rowCount);
 
-        Block[] filteredBlocks = new Block[page.getBlockCount()];
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            filteredBlocks[i] = page.getBlock(i).filter(positions);
-        }
+            Block[] filteredBlocks = new Block[page.getBlockCount()];
+            for (int i = 0; i < page.getBlockCount(); i++) {
+                filteredBlocks[i] = page.getBlock(i).filter(positions);
+            }
 
-        return new Page(filteredBlocks);
+            return new Page(filteredBlocks);
+        }
     }
 
     @Override

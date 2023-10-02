@@ -45,6 +45,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
 
     public static final String DOWSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
     private static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
+    public static final String DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME = "downsample.min_number_of_replicas";
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {

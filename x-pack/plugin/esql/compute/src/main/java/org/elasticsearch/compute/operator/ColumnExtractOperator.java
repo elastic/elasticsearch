@@ -59,23 +59,25 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
             blockBuilders[i] = types[i].newBlockBuilder(rowsCount);
         }
 
-        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page);
-        BytesRef spare = new BytesRef();
-        for (int row = 0; row < rowsCount; row++) {
-            if (input.isNull(row)) {
-                for (int i = 0; i < blockBuilders.length; i++) {
-                    blockBuilders[i].appendNull();
+        try (Block.Ref ref = inputEvaluator.eval(page)) {
+            BytesRefBlock input = (BytesRefBlock) ref.block();
+            BytesRef spare = new BytesRef();
+            for (int row = 0; row < rowsCount; row++) {
+                if (input.isNull(row)) {
+                    for (int i = 0; i < blockBuilders.length; i++) {
+                        blockBuilders[i].appendNull();
+                    }
+                    continue;
                 }
-                continue;
+                evaluator.computeRow(input, row, blockBuilders, spare);
             }
-            evaluator.computeRow(input, row, blockBuilders, spare);
-        }
 
-        Block[] blocks = new Block[blockBuilders.length];
-        for (int i = 0; i < blockBuilders.length; i++) {
-            blocks[i] = blockBuilders[i].build();
+            Block[] blocks = new Block[blockBuilders.length];
+            for (int i = 0; i < blockBuilders.length; i++) {
+                blocks[i] = blockBuilders[i].build();
+            }
+            return page.appendBlocks(blocks);
         }
-        return page.appendBlocks(blocks);
     }
 
     @Override

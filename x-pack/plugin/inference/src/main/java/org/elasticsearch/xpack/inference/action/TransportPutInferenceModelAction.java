@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -74,7 +75,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     ) throws Exception {
 
         var requestAsMap = requestToMap(request);
-        String serviceName = (String) requestAsMap.remove(Model.SERVICE);
+        String serviceName = (String) requestAsMap.remove(ModelConfigurations.SERVICE);
         if (serviceName == null) {
             listener.onFailure(new ElasticsearchStatusException("Model configuration is missing a service", RestStatus.BAD_REQUEST));
             return;
@@ -86,7 +87,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        var model = service.get().parseConfigStrict(request.getModelId(), request.getTaskType(), requestAsMap);
+        var model = service.get().parseRequestConfig(request.getModelId(), request.getTaskType(), requestAsMap);
         // model is valid good to persist then start
         this.modelRegistry.storeModel(
             model,
@@ -97,7 +98,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
         service.start(
             model,
-            ActionListener.wrap(ok -> listener.onResponse(new PutInferenceModelAction.Response(model)), listener::onFailure)
+            ActionListener.wrap(
+                ok -> listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations())),
+                listener::onFailure
+            )
         );
     }
 

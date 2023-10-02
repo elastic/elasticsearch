@@ -651,11 +651,20 @@ public class EnrichPolicyRunner implements Runnable {
         Object meta = mappingSource.get("_meta");
         if (meta instanceof Map<?, ?> metaMap) {
             Object policyNameMetaField = metaMap.get(ENRICH_POLICY_NAME_FIELD_NAME);
-            if (policyName.equals(policyNameMetaField) == false) {
+            if (policyNameMetaField == null) {
                 throw new ElasticsearchException(
                     "Could not verify enrich index [{}] metadata before completing [{}] policy run: policy name meta field missing",
                     destinationIndexName,
                     policyName
+                );
+            } else if (policyName.equals(policyNameMetaField) == false) {
+                throw new ElasticsearchException(
+                    "Could not verify enrich index [{}] metadata before completing [{}] policy run: policy name meta field does not "
+                        + "match expected value of [{}], was [{}]",
+                    destinationIndexName,
+                    policyName,
+                    policyName,
+                    policyNameMetaField.toString()
                 );
             }
         } else {

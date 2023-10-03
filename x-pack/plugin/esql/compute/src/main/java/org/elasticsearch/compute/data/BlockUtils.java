@@ -138,10 +138,17 @@ public final class BlockUtils {
         return Arrays.stream(wrappers).map(b -> b.builder.build()).toArray(Block[]::new);
     }
 
+    /** Returns a deep copy of the given block, using the non-breaking block factory for creating the copy block. */
     public static Block deepCopyOf(Block block) {
-        Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount());
-        builder.copyFrom(block, 0, block.getPositionCount());
-        return builder.build();
+        return deepCopyOf(block, BlockFactory.getNonBreakingInstance());
+    }
+
+    /** Returns a deep copy of the given block, using the blockFactory for creating the copy block. */
+    public static Block deepCopyOf(Block block, BlockFactory blockFactory) {
+        try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory)) {
+            builder.copyFrom(block, 0, block.getPositionCount());
+            return builder.build();
+        }
     }
 
     private static Class<?> type(List<List<Object>> list, int i) {

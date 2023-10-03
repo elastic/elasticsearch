@@ -32,7 +32,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader
     ) {
-        this(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this(actionName, true, transportService, actionFilters, requestReader);
     }
 
     protected HandledTransportAction(

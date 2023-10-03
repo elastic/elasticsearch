@@ -13,7 +13,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 
 import static org.hamcrest.Matchers.equalTo;
 
-abstract class AbstractNonTextScriptFieldTypeTestCase extends AbstractScriptFieldTypeTestCase {
+public abstract class AbstractNonTextScriptFieldTypeTestCase extends AbstractScriptFieldTypeTestCase {
     public void testFuzzyQueryIsError() {
         assertQueryOnlyOnTextAndKeyword(
             "fuzzy",

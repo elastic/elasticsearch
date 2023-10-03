@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -64,7 +65,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         ThreadPool threadPool,
         ClusterService clusterService
     ) {
-        super(PreviewDataFrameAnalyticsAction.NAME, transportService, actionFilters, Request::new);
+        super(PreviewDataFrameAnalyticsAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
         this.threadPool = threadPool;

@@ -86,7 +86,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         Client client,
         BigArrays bigArrays
     ) {
-        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
+        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())

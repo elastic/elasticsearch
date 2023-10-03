@@ -1,16 +1,18 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
-apply plugin: 'elasticsearch.java-rest-test'
+dependencies {
+  javaRestTestImplementation project(path: xpackModule('core'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(":client:rest")
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
-}
-
-if (BuildParams.inFipsJvm) {
-  // Test clusters run with security disabled
-  tasks.named("javaRestTest").configure { enabled = false }
 }
 
 //tasks.named('javaRestTestTestingConventions').configure {

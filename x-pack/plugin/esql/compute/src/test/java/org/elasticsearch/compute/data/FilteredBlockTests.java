@@ -8,12 +8,17 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.BitSet;
@@ -21,12 +26,26 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FilteredBlockTests extends ESTestCase {
 
+    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+
+    @Before
+    @After
+    public void checkBreaker() {
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
     public void testFilterAllPositions() {
         var positionCount = 100;
-        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
+        var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var filteredVector = vector.filter();
 
         assertEquals(0, filteredVector.getPositionCount());
@@ -35,11 +54,12 @@ public class FilteredBlockTests extends ESTestCase {
         var filteredBlock = vector.asBlock().filter();
         assertEquals(0, filteredBlock.getPositionCount());
         expectThrows(ArrayIndexOutOfBoundsException.class, () -> filteredBlock.getInt(0));
+        releaseAndAssertBreaker(filteredBlock);
     }
 
     public void testKeepAllPositions() {
         var positionCount = 100;
-        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
+        var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).toArray();
 
         var filteredVector = vector.filter(positions);
@@ -50,11 +70,12 @@ public class FilteredBlockTests extends ESTestCase {
         var filteredBlock = vector.filter(positions).asBlock();
         assertEquals(positionCount, filteredBlock.getPositionCount());
         assertEquals(anyPosition, filteredBlock.getInt(anyPosition));
+        releaseAndAssertBreaker(filteredBlock);
     }
 
     public void testKeepSomePositions() {
         var positionCount = 100;
-        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
+        var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).filter(i -> i % 2 == 0).toArray();
 
         var filteredVector = vector.filter(positions);
@@ -66,11 +87,12 @@ public class FilteredBlockTests extends ESTestCase {
         var filteredBlock = vector.asBlock().filter(positions);
         assertEquals(positionCount / 2, filteredBlock.getPositionCount());
         assertEquals(anyPosition * 2, filteredBlock.getInt(anyPosition));
+        releaseAndAssertBreaker(filteredBlock);
     }
 
     public void testFilterOnFilter() {  // TODO: tired of this sv / mv block here. do more below
         var positionCount = 100;
-        var vector = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
+        var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
 
         var filteredVector = vector.filter(IntStream.range(0, positionCount).filter(i1 -> i1 % 2 == 0).toArray());
         var filteredTwice = filteredVector.filter(IntStream.range(0, positionCount / 2).filter(i -> i % 2 == 0).toArray());
@@ -78,6 +100,7 @@ public class FilteredBlockTests extends ESTestCase {
         assertEquals(positionCount / 4, filteredTwice.getPositionCount());
         var anyPosition = randomIntBetween(0, positionCount / 4 - 1);
         assertEquals(anyPosition * 4, filteredTwice.getInt(anyPosition));
+        releaseAndAssertBreaker(filteredTwice);
     }
 
     public void testFilterOnNull() {
@@ -85,9 +108,9 @@ public class FilteredBlockTests extends ESTestCase {
         if (randomBoolean()) {
             var nulls = new BitSet();
             nulls.set(1);
-            block = new IntArrayBlock(new int[] { 10, 0, 30, 40 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
+            block = blockFactory.newIntArrayBlock(new int[] { 10, 0, 30, 40 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
         } else {
-            var blockBuilder = IntBlock.newBlockBuilder(4);
+            var blockBuilder = blockFactory.newIntBlockBuilder(4);
             blockBuilder.appendInt(10);
             blockBuilder.appendNull();
             blockBuilder.appendInt(30);
@@ -104,6 +127,7 @@ public class FilteredBlockTests extends ESTestCase {
         assertEquals(2, filtered.getTotalValueCount());
         assertFalse(filtered.isNull(1));
         assertEquals(30, filtered.getInt(filtered.getFirstValueIndex(1)));
+        releaseAndAssertBreaker(filtered);
     }
 
     public void testFilterOnAllNullsBlock() {
@@ -111,9 +135,9 @@ public class FilteredBlockTests extends ESTestCase {
         if (randomBoolean()) {
             var nulls = new BitSet();
             nulls.set(0, 4);
-            block = new IntArrayBlock(new int[] { 0, 0, 0, 0 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
+            block = blockFactory.newIntArrayBlock(new int[] { 0, 0, 0, 0 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
         } else {
-            var blockBuilder = IntBlock.newBlockBuilder(4);
+            var blockBuilder = blockFactory.newIntBlockBuilder(4);
             blockBuilder.appendNull();
             blockBuilder.appendNull();
             blockBuilder.appendNull();
@@ -128,14 +152,15 @@ public class FilteredBlockTests extends ESTestCase {
         assertTrue(filtered.areAllValuesNull());
         assertEquals(3, filtered.nullValuesCount());
         assertEquals(0, filtered.getTotalValueCount());
+        releaseAndAssertBreaker(filtered);
     }
 
     public void testFilterOnNoNullsBlock() {
         IntBlock block;
         if (randomBoolean()) {
-            block = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4).asBlock();
+            block = blockFactory.newIntArrayVector(new int[] { 10, 20, 30, 40 }, 4).asBlock();
         } else {
-            var blockBuilder = IntBlock.newBlockBuilder(4);
+            var blockBuilder = blockFactory.newIntBlockBuilder(4);
             blockBuilder.appendInt(10);
             blockBuilder.appendInt(20);
             blockBuilder.appendInt(30);
@@ -153,6 +178,7 @@ public class FilteredBlockTests extends ESTestCase {
         assertEquals(20, filtered.asVector().getInt(0));
         assertEquals(30, filtered.asVector().getInt(1));
         assertEquals(40, filtered.asVector().getInt(2));
+        releaseAndAssertBreaker(filtered);
     }
 
     public void testFilterToStringSimple() {
@@ -209,47 +235,52 @@ public class FilteredBlockTests extends ESTestCase {
     }
 
     public void testFilterToStringMultiValue() {
-        var bb = BooleanBlock.newBlockBuilder(6);
+        var bb = blockFactory.newBooleanBlockBuilder(6);
         bb.beginPositionEntry().appendBoolean(true).appendBoolean(true).endPositionEntry();
         bb.beginPositionEntry().appendBoolean(false).appendBoolean(false).endPositionEntry();
         bb.beginPositionEntry().appendBoolean(false).appendBoolean(false).endPositionEntry();
         Block filter = bb.build().filter(0, 1);
         assertThat(filter.toString(), containsString("[[true, true], [false, false]]"));
         assertThat(filter.toString(), containsString("positions=2"));
+        releaseAndAssertBreaker(filter);
 
-        var ib = IntBlock.newBlockBuilder(6);
+        var ib = blockFactory.newIntBlockBuilder(6);
         ib.beginPositionEntry().appendInt(0).appendInt(10).endPositionEntry();
         ib.beginPositionEntry().appendInt(20).appendInt(50).endPositionEntry();
         ib.beginPositionEntry().appendInt(90).appendInt(1000).endPositionEntry();
         filter = ib.build().filter(0, 1);
         assertThat(filter.toString(), containsString("[[0, 10], [20, 50]]"));
         assertThat(filter.toString(), containsString("positions=2"));
+        releaseAndAssertBreaker(filter);
 
-        var lb = LongBlock.newBlockBuilder(6);
+        var lb = blockFactory.newLongBlockBuilder(6);
         lb.beginPositionEntry().appendLong(0).appendLong(10).endPositionEntry();
         lb.beginPositionEntry().appendLong(20).appendLong(50).endPositionEntry();
         lb.beginPositionEntry().appendLong(90).appendLong(1000).endPositionEntry();
         filter = lb.build().filter(0, 1);
         assertThat(filter.toString(), containsString("[[0, 10], [20, 50]]"));
         assertThat(filter.toString(), containsString("positions=2"));
+        releaseAndAssertBreaker(filter);
 
-        var db = DoubleBlock.newBlockBuilder(6);
+        var db = blockFactory.newDoubleBlockBuilder(6);
         db.beginPositionEntry().appendDouble(0).appendDouble(10).endPositionEntry();
         db.beginPositionEntry().appendDouble(0.002).appendDouble(10e8).endPositionEntry();
         db.beginPositionEntry().appendDouble(90).appendDouble(1000).endPositionEntry();
         filter = db.build().filter(0, 1);
         assertThat(filter.toString(), containsString("[[0.0, 10.0], [0.002, 1.0E9]]"));
         assertThat(filter.toString(), containsString("positions=2"));
+        releaseAndAssertBreaker(filter);
 
         assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("3c").toString().equals("[33 63]");
         assert new BytesRef("cat").toString().equals("[63 61 74]") && new BytesRef("dog").toString().equals("[64 6f 67]");
-        var bytesBlock = BytesRefBlock.newBlockBuilder(6);
+        var bytesBlock = blockFactory.newBytesRefBlockBuilder(6);
         bytesBlock.beginPositionEntry().appendBytesRef(new BytesRef("1a")).appendBytesRef(new BytesRef("3c")).endPositionEntry();
         bytesBlock.beginPositionEntry().appendBytesRef(new BytesRef("cat")).appendBytesRef(new BytesRef("dog")).endPositionEntry();
         bytesBlock.beginPositionEntry().appendBytesRef(new BytesRef("pig")).appendBytesRef(new BytesRef("chicken")).endPositionEntry();
         filter = bytesBlock.build().filter(0, 1);
         assertThat(filter.toString(), containsString("[[[31 61], [33 63]], [[63 61 74], [64 6f 67]]"));
         assertThat(filter.toString(), containsString("positions=2"));
+        releaseAndAssertBreaker(filter);
     }
 
     static int randomPosition(int positionCount) {
@@ -262,5 +293,27 @@ public class FilteredBlockTests extends ESTestCase {
         return array;
     }
 
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+    void releaseAndAssertBreaker(Block... blocks) {
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        Page[] pages = Arrays.stream(blocks).map(Page::new).toArray(Page[]::new);
+        Releasables.closeExpectNoException(blocks);
+        Arrays.stream(blocks).forEach(block -> assertThat(block.isReleased(), is(true)));
+        Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotDoubleRelease);
+        Arrays.stream(pages).forEach(BasicBlockTests::assertCannotReadFromPage);
+        Arrays.stream(blocks).forEach(BasicBlockTests::assertCannotAddToPage);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    void releaseAndAssertBreaker(Vector vector) {
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        Releasables.closeExpectNoException(vector);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        return breakerService;
+    }
 }

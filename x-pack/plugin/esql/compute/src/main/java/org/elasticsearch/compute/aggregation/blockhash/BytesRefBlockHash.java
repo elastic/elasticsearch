@@ -18,13 +18,12 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
@@ -47,7 +46,8 @@ final class BytesRefBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    BytesRefBlockHash(int channel, BigArrays bigArrays) {
+    BytesRefBlockHash(int channel, DriverContext driverContext) {
+        super(driverContext);
         this.channel = channel;
         this.bytesRefHash = new BytesRefHash(1, bigArrays);
     }
@@ -57,21 +57,28 @@ final class BytesRefBlockHash extends BlockHash {
         BytesRefBlock block = page.getBlock(channel);
         BytesRefVector vector = block.asVector();
         if (vector == null) {
-            addInput.add(0, add(block));
+            try (IntBlock groupIds = add(block)) {
+                addInput.add(0, groupIds);
+            }
         } else {
-            addInput.add(0, add(vector));
+            try (IntBlock groupIds = add(vector).asBlock()) {
+                addInput.add(0, groupIds.asVector());
+            }
         }
     }
 
     private IntVector add(BytesRefVector vector) {
-        int[] groups = new int[vector.getPositionCount()];
-        for (int i = 0; i < vector.getPositionCount(); i++) {
-            groups[i] = Math.toIntExact(hashOrdToGroupNullReserved(bytesRefHash.add(vector.getBytesRef(i, bytes))));
+        int positions = vector.getPositionCount();
+        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(bytesRefHash.add(vector.getBytesRef(i, bytes)))));
+            }
+            return builder.build();
         }
-        return new IntArrayVector(groups, vector.getPositionCount());
     }
 
     private IntBlock add(BytesRefBlock block) {
+        // TODO: use block factory
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(Block.Ref.floating(block)).hash(bytesRefHash);
         seenNull |= result.sawNull();
         return result.ords();
@@ -86,13 +93,14 @@ final class BytesRefBlockHash extends BlockHash {
         // TODO replace with takeBytesRefsOwnership ?!
 
         if (seenNull) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(Math.toIntExact(bytesRefHash.size() + 1));
-            builder.appendNull();
-            BytesRef spare = new BytesRef();
-            for (long i = 0; i < bytesRefHash.size(); i++) {
-                builder.appendBytesRef(bytesRefHash.get(i, spare));
+            try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(bytesRefHash.size() + 1))) {
+                builder.appendNull();
+                BytesRef spare = new BytesRef();
+                for (long i = 0; i < bytesRefHash.size(); i++) {
+                    builder.appendBytesRef(bytesRefHash.get(i, spare));
+                }
+                return new BytesRefBlock[] { builder.build() };
             }
-            return new BytesRefBlock[] { builder.build() };
         }
 
         final int size = Math.toIntExact(bytesRefHash.size());
@@ -100,7 +108,7 @@ final class BytesRefBlockHash extends BlockHash {
             bytesRefHash.getBytesRefs().writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 return new BytesRefBlock[] {
-                    new BytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock() };
+                    blockFactory.newBytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock() };
             }
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -109,7 +117,7 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(bytesRefHash.size() + 1));
+        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(bytesRefHash.size() + 1), blockFactory);
     }
 
     @Override

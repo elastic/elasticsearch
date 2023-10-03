@@ -40,7 +40,7 @@ import java.util.Objects;
 public class MlAssignmentNotifier implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
-    static final Duration MIN_LOG_CHECK_INTERVAL = Duration.ofSeconds(30);
+    static final Duration MIN_CHECK_UNASSIGNED_INTERVAL = Duration.ofSeconds(30);
     static final Duration LONG_TIME_UNASSIGNED_INTERVAL = Duration.ofMinutes(15);
     static final Duration MIN_REPORT_INTERVAL = Duration.ofHours(6);
 
@@ -88,7 +88,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         }
 
         Instant now = clock.instant();
-        if (lastLogCheck.plus(MIN_LOG_CHECK_INTERVAL).isBefore(now)) {
+        if (lastLogCheck.plus(MIN_CHECK_UNASSIGNED_INTERVAL).isBefore(now)) {
             lastLogCheck = now;
             threadPool.executor(executorName()).execute(() -> logLongTimeUnassigned(now, event.state()));
         }

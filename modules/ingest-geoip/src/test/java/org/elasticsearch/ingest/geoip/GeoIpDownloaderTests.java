@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest.OpType;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -220,7 +221,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         AtomicInteger chunkIndex = new AtomicInteger();
 
-        client.addHandler(IndexAction.INSTANCE, (IndexRequest request, ActionListener<IndexResponse> listener) -> {
+        client.addHandler(IndexAction.INSTANCE, (IndexRequest request, ActionListener<DocWriteResponse> listener) -> {
             int chunk = chunkIndex.getAndIncrement();
             assertEquals(OpType.CREATE, request.opType());
             assertThat(request.id(), Matchers.startsWith("test_" + (chunk + 15) + "_"));

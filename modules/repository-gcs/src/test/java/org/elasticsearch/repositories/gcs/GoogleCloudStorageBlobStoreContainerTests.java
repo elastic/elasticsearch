@@ -19,6 +19,7 @@ import com.google.cloud.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
@@ -90,7 +91,10 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
 
-            IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs.iterator()));
+            IOException e = expectThrows(
+                IOException.class,
+                () -> container.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobs.iterator())
+            );
             assertThat(e.getCause(), instanceOf(StorageException.class));
         }
     }

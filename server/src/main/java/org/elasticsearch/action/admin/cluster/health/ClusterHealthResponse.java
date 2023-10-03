@@ -18,12 +18,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -37,7 +37,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ClusterHealthResponse extends ActionResponse implements StatusToXContentObject {
+public class ClusterHealthResponse extends ActionResponse implements ToXContentObject {
     private static final String CLUSTER_NAME = "cluster_name";
     private static final String STATUS = "status";
     private static final String TIMED_OUT = "timed_out";
@@ -333,7 +333,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         return Strings.toString(this);
     }
 
-    @Override
     public RestStatus status() {
         return isTimedOut() ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
     }

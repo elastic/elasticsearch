@@ -130,6 +130,17 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
                 .setSettings(InferenceIndex.settings())
                 .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
+                .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
+                .setDescription("Contains inference service secrets")
+                .setMappings(InferenceSecretsIndex.mappings())
+                .setSettings(InferenceSecretsIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .setNetNew()
                 .build()
         );
     }

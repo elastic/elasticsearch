@@ -52,8 +52,8 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
             new ElementType[] { ElementType.BYTES_REF },
             dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                 @Override
-                public Block eval(Page page) {
-                    return page.getBlock(0);
+                public Block.Ref eval(Page page) {
+                    return new Block.Ref(page.getBlock(0), page);
                 }
 
                 @Override
@@ -89,7 +89,6 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 }

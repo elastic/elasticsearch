@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -158,7 +159,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
             for (String file : luceneFilesToDownload) {
                 throttledTaskRunner.enqueueTask(refCountingListener.acquire().map(r -> {
                     // TODO: retry
-                    try (r; var inputStream = termBlobContainer.readBlob(file)) {
+                    try (r; var inputStream = termBlobContainer.readBlob(OperationPurpose.SNAPSHOT, file)) {
                         Streams.copy(
                             inputStream,
                             new IndexOutputOutputStream(((Directory) downloadDirectory).createOutput(file, IOContext.DEFAULT))
@@ -284,7 +285,9 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
 
         private TermBlobDirectory(BlobContainer blobContainer) throws IOException {
             super(NoLockFactory.INSTANCE);
-            this.termBlobs = Collections.unmodifiableMap(blobContainer.listBlobsByPrefix(IndexFileNames.SEGMENTS));
+            this.termBlobs = Collections.unmodifiableMap(
+                blobContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT, IndexFileNames.SEGMENTS)
+            );
             this.blobContainer = blobContainer;
         }
 
@@ -302,7 +305,10 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         public IndexInput openInput(String name, IOContext context) throws IOException {
             assert name.startsWith(IndexFileNames.SEGMENTS) || name.endsWith(SEGMENTS_INFO_EXTENSION);
             // TODO: download to disk?
-            return new BytesReferenceIndexInput(name, org.elasticsearch.common.io.Streams.readFully(blobContainer.readBlob(name)));
+            return new BytesReferenceIndexInput(
+                name,
+                org.elasticsearch.common.io.Streams.readFully(blobContainer.readBlob(OperationPurpose.SNAPSHOT, name))
+            );
         }
 
         @Override

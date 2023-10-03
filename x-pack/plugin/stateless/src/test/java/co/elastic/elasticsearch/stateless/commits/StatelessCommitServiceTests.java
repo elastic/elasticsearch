@@ -61,6 +61,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -1558,8 +1559,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         ArrayList<String> filesOnObjectStore = new ArrayList<>();
         for (String commitFile : compoundCommitFiles) {
             BlobContainer blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);
-            try (InputStream inputStream = blobContainer.readBlob(commitFile)) {
-                long fileLength = blobContainer.listBlobs().get(commitFile).length();
+            try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, commitFile)) {
+                long fileLength = blobContainer.listBlobs(OperationPurpose.SNAPSHOT).get(commitFile).length();
                 StatelessCompoundCommit compoundCommit = StatelessCompoundCommit.readFromStore(
                     new InputStreamStreamInput(inputStream),
                     fileLength
@@ -1601,14 +1602,23 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                        throws IOException {
+                    public void writeBlob(
+                        OperationPurpose purpose,
+                        String blobName,
+                        InputStream inputStream,
+                        long blobSize,
+                        boolean failIfAlreadyExists
+                    ) throws IOException {
                         assertFalse(blobName, blobName.startsWith(IndexFileNames.SEGMENTS));
-                        commitFileConsumer.accept(blobName, () -> super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists));
+                        commitFileConsumer.accept(
+                            blobName,
+                            () -> super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists)
+                        );
                     }
 
                     @Override
                     public void writeMetadataBlob(
+                        OperationPurpose purpose,
                         String blobName,
                         boolean failIfAlreadyExists,
                         boolean atomic,
@@ -1617,12 +1627,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         assertTrue(blobName, StatelessCompoundCommit.startsWithBlobPrefix(blobName));
                         compoundCommitFileConsumer.accept(
                             blobName,
-                            () -> super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer)
+                            () -> super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer)
                         );
                     }
 
                     @Override
-                    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
+                    public void writeBlobAtomic(
+                        OperationPurpose purpose,
+                        String blobName,
+                        BytesReference bytes,
+                        boolean failIfAlreadyExists
+                    ) {
                         throw new AssertionError("should not be called");
                     }
                 }

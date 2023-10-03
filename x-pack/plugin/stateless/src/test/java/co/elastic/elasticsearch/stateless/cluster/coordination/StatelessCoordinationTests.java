@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -105,27 +106,35 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
 
                 @Override
                 public void compareAndExchangeRegister(
+                    OperationPurpose purpose,
                     String key,
                     BytesReference expected,
                     BytesReference updated,
                     ActionListener<OptionalBytesReference> listener
                 ) {
-                    disruptibleRegisterConnection.runDisrupted(listener, l -> super.compareAndExchangeRegister(key, expected, updated, l));
+                    disruptibleRegisterConnection.runDisrupted(
+                        listener,
+                        l -> super.compareAndExchangeRegister(purpose, key, expected, updated, l)
+                    );
                 }
 
                 @Override
                 public void compareAndSetRegister(
+                    OperationPurpose purpose,
                     String key,
                     BytesReference expected,
                     BytesReference updated,
                     ActionListener<Boolean> listener
                 ) {
-                    disruptibleRegisterConnection.runDisrupted(listener, l -> super.compareAndSetRegister(key, expected, updated, l));
+                    disruptibleRegisterConnection.runDisrupted(
+                        listener,
+                        l -> super.compareAndSetRegister(purpose, key, expected, updated, l)
+                    );
                 }
 
                 @Override
-                public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
-                    disruptibleRegisterConnection.runDisrupted(listener, l -> super.getRegister(key, l));
+                public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+                    disruptibleRegisterConnection.runDisrupted(listener, l -> super.getRegister(purpose, key, l));
                 }
             }, threadPool) {
                 @Override

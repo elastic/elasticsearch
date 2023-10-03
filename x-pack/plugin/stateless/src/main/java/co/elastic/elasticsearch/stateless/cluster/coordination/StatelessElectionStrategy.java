@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
@@ -103,6 +104,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
             final Lease newLease = new Lease(Math.max(proposedTerm, currentLease.currentTerm + 1), 0);
 
             blobContainer().compareAndSetRegister(
+                OperationPurpose.SNAPSHOT,
                 LEASE_BLOB,
                 currentLease.asBytes(),
                 newLease.asBytes(),
@@ -141,6 +143,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 return;
             }
             blobContainer().compareAndSetRegister(
+                OperationPurpose.SNAPSHOT,
                 LEASE_BLOB,
                 currentLease.asBytes(),
                 newLease.asBytes(),
@@ -212,27 +215,34 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     public void readLease(ActionListener<Optional<Lease>> listener) {
         threadPool.executor(getExecutorName())
-            .execute(ActionRunnable.wrap(listener, l -> blobContainer().getRegister(LEASE_BLOB, l.map(optionalBytesReference -> {
-                if (optionalBytesReference.isPresent()) {
-                    Lease result;
-                    BytesReference bytesReference = optionalBytesReference.bytesReference();
-                    if (bytesReference.length() == 0) {
-                        result = Lease.ZERO;
-                    } else if (bytesReference.length() == Long.BYTES) {
-                        result = new Lease(Long.reverseBytes(bytesReference.getLongLE(0)), Lease.UNSUPPORTED);
-                    } else if (bytesReference.length() == 2 * Long.BYTES) {
-                        result = new Lease(
-                            Long.reverseBytes(bytesReference.getLongLE(0)),
-                            Long.reverseBytes(bytesReference.getLongLE(Long.BYTES))
-                        );
-                    } else {
-                        throw new IllegalArgumentException("cannot read terms from BytesReference of length " + bytesReference.length());
-                    }
-                    return Optional.of(result);
-                } else {
-                    return Optional.empty();
-                }
-            }))));
+            .execute(
+                ActionRunnable.wrap(
+                    listener,
+                    l -> blobContainer().getRegister(OperationPurpose.SNAPSHOT, LEASE_BLOB, l.map(optionalBytesReference -> {
+                        if (optionalBytesReference.isPresent()) {
+                            Lease result;
+                            BytesReference bytesReference = optionalBytesReference.bytesReference();
+                            if (bytesReference.length() == 0) {
+                                result = Lease.ZERO;
+                            } else if (bytesReference.length() == Long.BYTES) {
+                                result = new Lease(Long.reverseBytes(bytesReference.getLongLE(0)), Lease.UNSUPPORTED);
+                            } else if (bytesReference.length() == 2 * Long.BYTES) {
+                                result = new Lease(
+                                    Long.reverseBytes(bytesReference.getLongLE(0)),
+                                    Long.reverseBytes(bytesReference.getLongLE(Long.BYTES))
+                                );
+                            } else {
+                                throw new IllegalArgumentException(
+                                    "cannot read terms from BytesReference of length " + bytesReference.length()
+                                );
+                            }
+                            return Optional.of(result);
+                        } else {
+                            return Optional.empty();
+                        }
+                    }))
+                )
+            );
     }
 
     protected String getExecutorName() {

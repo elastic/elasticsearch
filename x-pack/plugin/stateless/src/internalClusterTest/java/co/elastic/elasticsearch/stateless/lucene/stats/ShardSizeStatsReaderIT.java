@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -215,8 +216,8 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         SegmentInfos segmentInfos = Lucene.readSegmentInfos(shard.store().directory());
         String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
-            blobContainerForCommit.listBlobs().get(commitFile).length()
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(OperationPurpose.SNAPSHOT, commitFile)),
+            blobContainerForCommit.listBlobs(OperationPurpose.SNAPSHOT).get(commitFile).length()
         );
         long size = 0L;
         for (String localFile : segmentInfos.files(false)) {

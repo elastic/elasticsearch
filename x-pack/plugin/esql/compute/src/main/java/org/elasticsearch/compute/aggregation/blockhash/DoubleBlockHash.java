@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -52,7 +51,7 @@ final class DoubleBlockHash extends BlockHash {
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
             seenNull = true;
-            try (IntVector groupIds = new ConstantIntVector(0, block.getPositionCount(), blockFactory)) {
+            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
                 addInput.add(0, groupIds);
             }
         } else {

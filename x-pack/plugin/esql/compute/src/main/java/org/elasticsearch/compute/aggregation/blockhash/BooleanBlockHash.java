@@ -13,7 +13,6 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -42,7 +41,7 @@ final class BooleanBlockHash extends BlockHash {
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
             everSeen[NULL_ORD] = true;
-            try (IntVector groupIds = new ConstantIntVector(0, block.getPositionCount(), blockFactory)) {
+            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
                 addInput.add(0, groupIds);
             }
         } else {

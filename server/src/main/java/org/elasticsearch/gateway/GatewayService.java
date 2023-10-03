@@ -154,50 +154,71 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         // actually make changes to cluster state because either:
         // 1. The previous recovers the cluster state and the current one will be skipped
         // 2. The previous one sees a new cluster term and skips its own execution
-        if (existingPendingStateRecovery == null || existingPendingStateRecovery.term < currentTerm) {
-            final PendingStateRecovery newPendingStateRecovery = new PendingStateRecovery(currentTerm);
+        if (existingPendingStateRecovery == null || existingPendingStateRecovery.expectedTerm < currentTerm) {
+            final PendingStateRecovery newPendingStateRecovery = new PendingStateRecovery(state);
             if (currentPendingStateRecoveryRef.compareAndSet(existingPendingStateRecovery, newPendingStateRecovery)) {
-                newPendingStateRecovery.start(nodes.getDataNodes().size());
+                newPendingStateRecovery.start();
             } else {
                 assert false : "compareAndSet should have succeeded since the cluster state processing is single threaded";
             }
         } else {
-            logger.debug("state recovery is in progress for term [{}]", existingPendingStateRecovery.term);
+            logger.debug("state recovery is in progress for term [{}]", existingPendingStateRecovery.expectedTerm);
         }
     }
 
-    class PendingStateRecovery {
-        private final long term;
+    // Package private for testing
+    AtomicReference<PendingStateRecovery> getCurrentPendingStateRecoveryRef() {
+        return currentPendingStateRecoveryRef;
+    }
 
-        PendingStateRecovery(long term) {
-            this.term = term;
+    class PendingStateRecovery {
+        private final long expectedTerm;
+        private final int currentDataNodeSize;
+
+        PendingStateRecovery(ClusterState state) {
+            this.expectedTerm = state.term();
+            this.currentDataNodeSize = state.nodes().getDataNodes().size();
         }
 
-        void start(int dataNodeSize) {
+        void start() {
+            if (recoverAfterDataNodes != -1 && currentDataNodeSize < recoverAfterDataNodes) {
+                logger.debug(
+                    "not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
+                    currentDataNodeSize,
+                    recoverAfterDataNodes
+                );
+                resetState();
+                return;
+            }
+
             if (recoverAfterTime == null) {
-                logger.debug("performing state recovery of term [{}], no delay time is configured", term);
+                logger.debug("performing state recovery of term [{}], no delay time is configured", expectedTerm);
                 runRecoveryImmediately();
-            } else if (expectedDataNodes != -1 && expectedDataNodes <= dataNodeSize) {
-                logger.debug("performing state recovery of term [{}], expected data nodes [{}] is reached", term, expectedDataNodes);
+            } else if (expectedDataNodes != -1 && expectedDataNodes <= currentDataNodeSize) {
+                logger.debug(
+                    "performing state recovery of term [{}], expected data nodes [{}] is reached",
+                    expectedTerm,
+                    expectedDataNodes
+                );
                 runRecoveryImmediately();
             } else {
                 logger.info(
                     "delaying initial state recovery for [{}] of term [{}]. expecting [{}] data nodes, but only have [{}]",
                     recoverAfterTime,
-                    term,
+                    expectedTerm,
                     expectedDataNodes,
-                    dataNodeSize
+                    currentDataNodeSize
                 );
                 threadPool.schedule(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("delayed state recovery of term [" + term + "] failed", e);
+                        logger.warn("delayed state recovery of term [" + expectedTerm + "] failed", e);
                         resetState();
                     }
 
                     @Override
                     protected void doRun() {
-                        submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(term, PendingStateRecovery.this::resetState));
+                        submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(expectedTerm, PendingStateRecovery.this::resetState));
                     }
                 }, recoverAfterTime, threadPool.generic());
             }
@@ -205,9 +226,9 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         void runRecoveryImmediately() {
             try {
-                submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(term, this::resetState));
+                submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(expectedTerm, this::resetState));
             } catch (Exception e) {
-                logger.warn("state recovery of term [" + term + "] failed", e);
+                logger.warn("state recovery of term [" + expectedTerm + "] failed", e);
                 resetState();
             }
         }
@@ -237,14 +258,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             }
             if (expectedTerm != currentState.term()) {
                 logger.debug("skip state recovery since current term [{}] != expected term [{}]", currentState.term(), expectedTerm);
-                return currentState;
-            }
-            if (recoverAfterDataNodes != -1 && currentState.nodes().getDataNodes().size() < recoverAfterDataNodes) {
-                logger.debug(
-                    "not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
-                    currentState.nodes().getDataNodes().size(),
-                    recoverAfterDataNodes
-                );
                 return currentState;
             }
             return ClusterStateUpdaters.removeStateNotRecoveredBlock(
@@ -278,7 +291,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+    void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

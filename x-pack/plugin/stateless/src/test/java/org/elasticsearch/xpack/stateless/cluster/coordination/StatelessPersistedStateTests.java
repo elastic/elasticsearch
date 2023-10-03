@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -103,7 +104,10 @@ public class StatelessPersistedStateTests extends ESTestCase {
             assertThat(persistedClusterState.term(), is(equalTo(term)));
             assertThat(persistedClusterState.metadata().getIndices().keySet().containsAll(indexNames), is(true));
 
-            assertThat(ctx.statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1).listBlobs(), is(not(emptyMap())));
+            assertThat(
+                ctx.statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1).listBlobs(OperationPurpose.SNAPSHOT),
+                is(not(emptyMap()))
+            );
         }
     }
 
@@ -206,15 +210,22 @@ public class StatelessPersistedStateTests extends ESTestCase {
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+            public void writeBlob(
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
                 if (failWritingRegularFiles) {
                     throw new IOException("Failed writing blob " + blobName);
                 }
-                super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+                super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
             }
 
             @Override
             public void writeMetadataBlob(
+                OperationPurpose purpose,
                 String blobName,
                 boolean failIfAlreadyExists,
                 boolean atomic,
@@ -223,7 +234,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
                 if (failWritingCommitFile) {
                     throw new IOException("Failed writing metadata blob " + blobName);
                 }
-                super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
+                super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
             }
         };
 
@@ -250,8 +261,8 @@ public class StatelessPersistedStateTests extends ESTestCase {
             }
 
             @Override
-            public InputStream readBlob(String blobName) throws IOException {
-                return new FilterInputStream(super.readBlob(blobName)) {
+            public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+                return new FilterInputStream(super.readBlob(purpose, blobName)) {
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         if (blobName.startsWith(IndexFileNames.SEGMENTS)) {
@@ -506,7 +517,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
             } catch (NoSuchFileException e) {
                 // ignore
             }
-            assertThat(statelessNode.objectStoreService.getTermLeaseBlobContainer().listBlobs(), is(emptyMap()));
+            assertThat(statelessNode.objectStoreService.getTermLeaseBlobContainer().listBlobs(OperationPurpose.SNAPSHOT), is(emptyMap()));
             IOUtils.close(persistedState, statelessNode);
         }
 

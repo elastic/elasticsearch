@@ -29,6 +29,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -173,7 +174,14 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                     return SharedBytes.readCacheFile(channel, pos, relativePos, len, byteBufferReference);
                 }, (channel, channelPos, relativePos, len, progressUpdater) -> {
                     final long streamStartPosition = rangeToWrite.start() + relativePos;
-                    try (InputStream in = blobContainer.readBlob(this.cacheFile.getCacheKey().fileName(), streamStartPosition, len)) {
+                    try (
+                        InputStream in = blobContainer.readBlob(
+                            OperationPurpose.SNAPSHOT,
+                            this.cacheFile.getCacheKey().fileName(),
+                            streamStartPosition,
+                            len
+                        )
+                    ) {
                         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
                         logger.trace(
                             "{}: writing channel {} pos {} length {} (details: {})",
@@ -198,7 +206,14 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             } catch (Exception e) {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
                     int len = length - bytesRead;
-                    try (InputStream in = blobContainer.readBlob(this.cacheFile.getCacheKey().fileName(), position, len)) {
+                    try (
+                        InputStream in = blobContainer.readBlob(
+                            OperationPurpose.SNAPSHOT,
+                            this.cacheFile.getCacheKey().fileName(),
+                            position,
+                            len
+                        )
+                    ) {
                         final int read = Streams.read(in, b, len);
                         if (read == -1) {
                             BlobCacheUtils.throwEOF(position, len);

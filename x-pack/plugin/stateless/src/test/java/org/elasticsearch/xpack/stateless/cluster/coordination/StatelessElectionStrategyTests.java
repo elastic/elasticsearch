@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -106,16 +107,17 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 }
 
                 @Override
-                public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+                public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
                     if (failToReadRegister) {
                         listener.onFailure(new IOException("Unable to get register value"));
                     } else {
-                        super.getRegister(key, listener);
+                        super.getRegister(purpose, key, listener);
                     }
                 }
 
                 @Override
                 public void compareAndSetRegister(
+                    OperationPurpose purpose,
                     String key,
                     BytesReference expected,
                     BytesReference updated,
@@ -124,7 +126,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                     if (failCASOperation) {
                         listener.onFailure(new IOException("Failed CAS"));
                     } else {
-                        super.compareAndSetRegister(key, expected, updated, listener);
+                        super.compareAndSetRegister(purpose, key, expected, updated, listener);
                     }
                 }
             };
@@ -240,7 +242,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                     }
 
                     @Override
-                    public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+                    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
                         ActionListener.completeWith(listener, registerValueRef::get);
                     }
                 };

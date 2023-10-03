@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.coordination.stateless.Heartbeat;
 import org.elasticsearch.cluster.coordination.stateless.HeartbeatStore;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
@@ -50,7 +51,13 @@ public class StatelessHeartbeatStore implements HeartbeatStore {
             .execute(
                 ActionRunnable.run(
                     listener,
-                    () -> getHeartbeatBlobContainer().writeMetadataBlob(HEARTBEAT_BLOB, false, true, out -> serialize(newHeartbeat, out))
+                    () -> getHeartbeatBlobContainer().writeMetadataBlob(
+                        OperationPurpose.SNAPSHOT,
+                        HEARTBEAT_BLOB,
+                        false,
+                        true,
+                        out -> serialize(newHeartbeat, out)
+                    )
                 )
             );
     }
@@ -58,7 +65,7 @@ public class StatelessHeartbeatStore implements HeartbeatStore {
     @Override
     public void readLatestHeartbeat(ActionListener<Heartbeat> listener) {
         threadPool.executor(getExecutor()).execute(ActionRunnable.supply(listener, () -> {
-            try (InputStream inputStream = getHeartbeatBlobContainer().readBlob(HEARTBEAT_BLOB)) {
+            try (InputStream inputStream = getHeartbeatBlobContainer().readBlob(OperationPurpose.SNAPSHOT, HEARTBEAT_BLOB)) {
                 return deserialize(inputStream);
             } catch (NoSuchFileException e) {
                 return null;

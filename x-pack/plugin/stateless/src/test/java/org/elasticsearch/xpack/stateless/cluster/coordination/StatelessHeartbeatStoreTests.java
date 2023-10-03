@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.stateless.Heartbeat;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
@@ -61,6 +62,7 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
 
                     @Override
                     public void writeMetadataBlob(
+                        OperationPurpose purpose,
                         String blobName,
                         boolean failIfAlreadyExists,
                         boolean atomic,
@@ -94,12 +96,13 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
 
                     @Override
                     public void writeMetadataBlob(
+                        OperationPurpose purpose,
                         String blobName,
                         boolean failIfAlreadyExists,
                         boolean atomic,
                         CheckedConsumer<OutputStream, IOException> writer
                     ) throws IOException {
-                        super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, (out) -> {
+                        super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, (out) -> {
                             try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
                                 writer.accept(outputStream);
                                 byte[] data = outputStream.toByteArray();

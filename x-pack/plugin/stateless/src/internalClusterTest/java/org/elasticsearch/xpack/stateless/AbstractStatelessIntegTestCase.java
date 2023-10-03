@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -286,14 +287,14 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             // can take some time for files to be uploaded to the object store
             assertBusy(() -> {
                 String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());
-                assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+                assertThat(commitFile, blobContainerForCommit.blobExists(OperationPurpose.SNAPSHOT, commitFile), is(true));
                 StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-                    new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
-                    blobContainerForCommit.listBlobs().get(commitFile).length()
+                    new InputStreamStreamInput(blobContainerForCommit.readBlob(OperationPurpose.SNAPSHOT, commitFile)),
+                    blobContainerForCommit.listBlobs(OperationPurpose.SNAPSHOT).get(commitFile).length()
                 );
                 var localFiles = segmentInfos.files(false);
                 var expectedBlobFile = localFiles.stream().map(s -> commit.commitFiles().get(s).blobName()).collect(Collectors.toSet());
-                var remoteFiles = blobContainerForCommit.listBlobs().keySet();
+                var remoteFiles = blobContainerForCommit.listBlobs(OperationPurpose.SNAPSHOT).keySet();
                 assertThat(
                     "Expected that all local files " + localFiles + " exist in remote " + remoteFiles,
                     remoteFiles,
@@ -305,11 +306,12 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                         indexShard.shardId(),
                         blobLocation.primaryTerm()
                     );
-                    assertThat(localFile, blobContainerForFile.blobExists(blobLocation.blobName()), is(true));
+                    assertThat(localFile, blobContainerForFile.blobExists(OperationPurpose.SNAPSHOT, blobLocation.blobName()), is(true));
                     try (
                         IndexInput input = store.directory().openInput(localFile, IOContext.READONCE);
                         InputStream local = new InputStreamIndexInput(input, input.length());
                         InputStream remote = blobContainerForFile.readBlob(
+                            OperationPurpose.SNAPSHOT,
                             blobLocation.blobName(),
                             blobLocation.offset(),
                             blobLocation.fileLength()
@@ -338,10 +340,10 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
 
             String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());
-            assertBusy(() -> assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true)));
+            assertBusy(() -> assertThat(commitFile, blobContainerForCommit.blobExists(OperationPurpose.SNAPSHOT, commitFile), is(true)));
             StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-                new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
-                blobContainerForCommit.listBlobs().get(commitFile).length()
+                new InputStreamStreamInput(blobContainerForCommit.readBlob(OperationPurpose.SNAPSHOT, commitFile)),
+                blobContainerForCommit.listBlobs(OperationPurpose.SNAPSHOT).get(commitFile).length()
             );
 
             for (String localFile : segmentInfos.files(false)) {
@@ -350,7 +352,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 var blobFile = blobPath.blobName();
                 // can take some time for files to be uploaded to the object store
                 assertBusy(() -> {
-                    assertThat(blobFile, blobContainer.blobExists(blobFile), is(true));
+                    assertThat(blobFile, blobContainer.blobExists(OperationPurpose.SNAPSHOT, blobFile), is(true));
 
                     try (
                         IndexInput input = indexStore.directory().openInput(localFile, IOContext.READONCE);

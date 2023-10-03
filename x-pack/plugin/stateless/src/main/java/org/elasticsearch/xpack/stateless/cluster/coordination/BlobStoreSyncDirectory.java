@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
@@ -139,7 +140,7 @@ class BlobStoreSyncDirectory extends FilterDirectory {
                         if (closed.get()) {
                             return;
                         }
-                        blobContainer.deleteBlobsIgnoringIfNotExists(filesToDeleteInTask.iterator());
+                        blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, filesToDeleteInTask.iterator());
                         onFilesDeleted(filesToDeleteInTask);
                     } catch (IOException e) {
                         logger.debug("Unable to delete cluster state stale files {}", filesToDeleteInTask);
@@ -174,9 +175,15 @@ class BlobStoreSyncDirectory extends FilterDirectory {
             final long length = input.length();
             final InputStream inputStream = new InputStreamIndexInput(input, length);
             if (atomic) {
-                blobContainer.writeMetadataBlob(fileName, false, true, out -> Streams.copy(inputStream, out, false));
+                blobContainer.writeMetadataBlob(
+                    OperationPurpose.SNAPSHOT,
+                    fileName,
+                    false,
+                    true,
+                    out -> Streams.copy(inputStream, out, false)
+                );
             } else {
-                blobContainer.writeBlob(fileName, inputStream, length, false);
+                blobContainer.writeBlob(OperationPurpose.SNAPSHOT, fileName, inputStream, length, false);
             }
         }
     }

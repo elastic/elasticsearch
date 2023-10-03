@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -130,10 +131,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, indexNodeName);
         var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
         String commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
-        assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+        assertThat(commitFile, blobContainerForCommit.blobExists(OperationPurpose.SNAPSHOT, commitFile), is(true));
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
-            blobContainerForCommit.listBlobs().get(commitFile).length()
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(OperationPurpose.SNAPSHOT, commitFile)),
+            blobContainerForCommit.listBlobs(OperationPurpose.SNAPSHOT).get(commitFile).length()
         );
         assertThat(
             "Expected that the compound commit has the ephemeral Id of the indexing node",

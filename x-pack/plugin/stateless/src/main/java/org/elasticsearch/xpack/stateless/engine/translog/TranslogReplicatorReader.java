@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.engine.translog;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -74,7 +75,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.translogBlobContainer = translogBlobContainer;
-        Iterator<BlobMetadata> blobs = translogBlobContainer.listBlobs()
+        Iterator<BlobMetadata> blobs = translogBlobContainer.listBlobs(OperationPurpose.SNAPSHOT)
             .entrySet()
             .stream()
             .filter(e -> Long.parseLong(e.getKey()) >= translogRecoveryStartFile)
@@ -103,7 +104,11 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
 
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {
         boolean tryOldVersion = false;
-        try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(blobMetadata.name()))) {
+        try (
+            StreamInput streamInput = new InputStreamStreamInput(
+                translogBlobContainer.readBlob(OperationPurpose.SNAPSHOT, blobMetadata.name())
+            )
+        ) {
             CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
             return getOperationIterator(streamInput, translogHeader);
         } catch (CompoundTranslogHeader.NoVersionCodecException e) {
@@ -117,7 +122,11 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     }
 
     private Iterator<Translog.Operation> readBlobTranslogOperationsOld(BlobMetadata blobMetadata) {
-        try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(blobMetadata.name()))) {
+        try (
+            StreamInput streamInput = new InputStreamStreamInput(
+                translogBlobContainer.readBlob(OperationPurpose.SNAPSHOT, blobMetadata.name())
+            )
+        ) {
             CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStoreOld(blobMetadata.name(), streamInput);
             return getOperationIterator(streamInput, translogHeader);
         } catch (IOException e) {

@@ -45,7 +45,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, IpFieldScript.CONTEXT) {
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             IpFieldScript.Factory factory,
             Script script,
@@ -56,12 +56,14 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         }
 
         @Override
-        IpFieldScript.Factory getParseFromSourceFactory() {
+        protected IpFieldScript.Factory getParseFromSourceFactory() {
             return IpFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected IpFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return IpFieldScript.leafAdapter(parentScriptFactory);
         }
     });

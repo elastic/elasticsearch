@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -196,7 +197,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     public void testBatchEncodeAll() {
         int initCapacity = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
         BasicBlockTests.RandomBlock b = randomBlock();
-        BatchEncoder encoder = MultivalueDedupe.batchEncoder(Block.Ref.floating(b.block()), initCapacity);
+        var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(Block.Ref.floating(b.block()), initCapacity, false);
 
         int valueOffset = 0;
         for (int p = 0, positionOffset = Integer.MAX_VALUE; p < b.block().getPositionCount(); p++, positionOffset++) {
@@ -213,7 +214,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     public void testBatchEncoderStartSmall() {
         assumeFalse("Booleans don't grow in the same way", elementType == ElementType.BOOLEAN);
         BasicBlockTests.RandomBlock b = randomBlock();
-        BatchEncoder encoder = MultivalueDedupe.batchEncoder(Block.Ref.floating(b.block()), 0);
+        var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(Block.Ref.floating(b.block()), 0, false);
 
         /*
          * We run can't fit the first non-null position into our 0 bytes.
@@ -346,7 +347,9 @@ public class MultivalueDedupeTests extends ESTestCase {
         Block.Builder builder = elementType.newBlockBuilder(encoder.valueCount(offset));
         BytesRef[] toDecode = new BytesRef[encoder.valueCount(offset)];
         for (int i = 0; i < toDecode.length; i++) {
-            toDecode[i] = encoder.read(valueOffset++, new BytesRef());
+            BytesRefBuilder dest = new BytesRefBuilder();
+            encoder.read(valueOffset++, dest);
+            toDecode[i] = dest.toBytesRef();
             if (b.values().get(position) == null) {
                 // Nulls are encoded as 0 length values
                 assertThat(toDecode[i].length, equalTo(0));

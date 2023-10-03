@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -166,7 +165,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             driverContext
         );
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     public final void testNullGroups() {
@@ -181,7 +179,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             driverContext
         );
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     private SourceOperator nullGroups(SourceOperator source, BlockFactory blockFactory) {
@@ -217,7 +214,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             driverContext
         );
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     public final void testNullValuesInitialIntermediateFinal() {
@@ -236,7 +232,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             driverContext
         );
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     private SourceOperator nullValues(SourceOperator source, BlockFactory blockFactory) {
@@ -265,7 +260,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             driverContext
         );
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     public final void testMulitvaluedNullGroupsAndValues() {
@@ -282,7 +276,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             driverContext
         );
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     public final void testMulitvaluedNullGroup() {
@@ -298,7 +291,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             driverContext
         );
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     public final void testMulitvaluedNullValues() {
@@ -315,7 +307,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             driverContext
         );
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     public final void testNullOnly() {
@@ -362,7 +353,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertThat(results, hasSize(1));
         Block resultBlock = results.get(0).getBlock(1);
         assertOutputFromNullOnly(resultBlock, 0);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     public final void testNullSome() {
@@ -430,7 +420,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             }
         }
         assertTrue("didn't find the null position. bad position range?", foundNullPosition);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
     }
 
     /**

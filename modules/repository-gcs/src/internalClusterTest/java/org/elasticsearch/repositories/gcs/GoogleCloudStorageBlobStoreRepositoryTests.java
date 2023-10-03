@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
@@ -131,7 +132,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                         f,
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
-                            .deleteBlobsIgnoringIfNotExists(Iterators.single("foo"))
+                            .deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, Iterators.single("foo"))
                     )
                 )
         );
@@ -197,7 +198,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 random().nextBytes(data);
                 writeBlob(container, "foobar", new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob("foobar")) {
+            try (InputStream stream = container.readBlob(OperationPurpose.SNAPSHOT, "foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -208,7 +209,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
             }
-            container.delete();
+            container.delete(OperationPurpose.SNAPSHOT);
         }
     }
 

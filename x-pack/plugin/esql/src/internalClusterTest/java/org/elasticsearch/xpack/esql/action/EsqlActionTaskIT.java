@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -50,6 +52,9 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -63,10 +68,9 @@ import static org.hamcrest.Matchers.not;
  * Tests that we expose a reasonable task status.
  */
 @TestLogging(
-    value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.tasks.TaskCancellationService:TRACE",
-    reason = "These tests are failing frequently; we need logs before muting them"
+    value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE",
+    reason = "These tests were failing frequently, let's learn as much as we can"
 )
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99589")
 public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     private static int PAGE_SIZE;
     private static int NUM_DOCS;
@@ -93,7 +97,8 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         MERGE_DESCRIPTION = """
             \\_ExchangeSourceOperator[]
             \\_AggregationOperator[mode = FINAL, aggs = sum of longs]
-            \\_LimitOperator[limit = 10000]
+            \\_ProjectOperator[projection = [0]]
+            \\_LimitOperator[limit = 500]
             \\_OutputOperator[columns = sum(pause_me)]""";
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
@@ -107,13 +112,35 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        client().admin().indices().prepareCreate("test").setSettings(Map.of("number_of_shards", 1)).setMapping(mapping.endObject()).get();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
+            .setMapping(mapping.endObject())
+            .get();
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < NUM_DOCS; i++) {
             bulk.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i));
         }
         bulk.get();
+        /*
+         * forceMerge so we can be sure that we don't bump into tiny
+         * segments that finish super quickly and cause us to report strange
+         * statuses when we expect "starting".
+         */
+        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).get();
+        /*
+         * Double super extra paranoid check that force merge worked. It's
+         * failed to reduce the index to a single segment and caused this test
+         * to fail in very difficult to debug ways. If it fails again, it'll
+         * trip here. Or maybe it won't! And we'll learn something. Maybe
+         * it's ghosts.
+         */
+        SegmentsStats stats = client().admin().indices().prepareStats("test").get().getPrimaries().getSegments();
+        if (stats.getCount() != 1L) {
+            fail(Strings.toString(stats));
+        }
     }
 
     public void testTaskContents() throws Exception {
@@ -130,19 +157,27 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                 DriverStatus status = (DriverStatus) task.status();
                 assertThat(status.sessionId(), not(emptyOrNullString()));
                 for (DriverStatus.OperatorStatus o : status.activeOperators()) {
+                    logger.info("status {}", o);
                     if (o.operator().startsWith("LuceneSourceOperator[maxPageSize=" + PAGE_SIZE)) {
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
-                        assertThat(oStatus.currentLeaf(), lessThanOrEqualTo(oStatus.totalLeaves()));
-                        assertThat(oStatus.slicePosition(), greaterThanOrEqualTo(0));
-                        if (oStatus.sliceSize() != 0) {
-                            assertThat(oStatus.slicePosition(), lessThanOrEqualTo(oStatus.sliceSize()));
+                        assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));
+                        assertThat(oStatus.sliceIndex(), lessThanOrEqualTo(oStatus.totalSlices()));
+                        assertThat(oStatus.sliceMin(), greaterThanOrEqualTo(0));
+                        assertThat(oStatus.sliceMax(), greaterThanOrEqualTo(oStatus.sliceMin()));
+                        if (oStatus.sliceMin() != 0 && oStatus.sliceMax() != 0) {
+                            assertThat(
+                                oStatus.current(),
+                                either(both(greaterThanOrEqualTo(oStatus.sliceMin())).and(lessThanOrEqualTo(oStatus.sliceMax()))).or(
+                                    equalTo(DocIdSetIterator.NO_MORE_DOCS)
+                                )
+                            );
                         }
                         luceneSources++;
                         continue;
                     }
                     if (o.operator().equals("ValuesSourceReaderOperator[field = pause_me]")) {
                         ValuesSourceReaderOperator.Status oStatus = (ValuesSourceReaderOperator.Status) o.status();
-                        assertThat(oStatus.readersBuilt(), equalTo(Map.of("LongValuesReader", 1)));
+                        assertMap(oStatus.readersBuilt(), matchesMap().entry("LongValuesReader", greaterThanOrEqualTo(1)));
                         assertThat(oStatus.pagesProcessed(), greaterThanOrEqualTo(1));
                         valuesSourceReaders++;
                         continue;
@@ -166,40 +201,51 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             assertThat(exchangeSinks, greaterThanOrEqualTo(1));
             assertThat(exchangeSources, equalTo(1));
         } finally {
-            scriptPermits.release(Integer.MAX_VALUE);
+            scriptPermits.release(NUM_DOCS);
             assertThat(Iterators.flatMap(response.get().values(), i -> i).next(), equalTo((long) NUM_DOCS));
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99582")
     public void testCancelRead() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
-        List<TaskInfo> infos = getTasksStarting();
-        TaskInfo running = infos.stream().filter(t -> t.description().equals(READ_DESCRIPTION)).findFirst().get();
-        cancelTask(running.taskId());
-        assertCancelled(response);
+        try {
+            List<TaskInfo> infos = getTasksStarting();
+            TaskInfo running = infos.stream().filter(t -> t.description().equals(READ_DESCRIPTION)).findFirst().get();
+            cancelTask(running.taskId());
+            assertCancelled(response);
+        } finally {
+            scriptPermits.release(NUM_DOCS);
+        }
     }
 
     public void testCancelMerge() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
-        List<TaskInfo> infos = getTasksStarting();
-        TaskInfo running = infos.stream().filter(t -> t.description().equals(MERGE_DESCRIPTION)).findFirst().get();
-        cancelTask(running.taskId());
-        assertCancelled(response);
+        try {
+            List<TaskInfo> infos = getTasksStarting();
+            TaskInfo running = infos.stream().filter(t -> t.description().equals(MERGE_DESCRIPTION)).findFirst().get();
+            cancelTask(running.taskId());
+            assertCancelled(response);
+        } finally {
+            scriptPermits.release(NUM_DOCS);
+        }
     }
 
     public void testCancelEsqlTask() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
-        getTasksStarting();
-        List<TaskInfo> tasks = client().admin()
-            .cluster()
-            .prepareListTasks()
-            .setActions(EsqlQueryAction.NAME)
-            .setDetailed(true)
-            .get()
-            .getTasks();
-        cancelTask(tasks.get(0).taskId());
-        assertCancelled(response);
+        try {
+            getTasksStarting();
+            List<TaskInfo> tasks = client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(EsqlQueryAction.NAME)
+                .setDetailed(true)
+                .get()
+                .getTasks();
+            cancelTask(tasks.get(0).taskId());
+            assertCancelled(response);
+        } finally {
+            scriptPermits.release(NUM_DOCS);
+        }
     }
 
     private ActionFuture<EsqlQueryResponse> startEsql() {
@@ -225,7 +271,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
         request.setWaitForCompletion(false);
         LOGGER.debug("--> cancelling task [{}] without waiting for completion", taskId);
         client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
-        scriptPermits.release(Integer.MAX_VALUE / 2);
+        scriptPermits.release(NUM_DOCS);
         request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(true);
         LOGGER.debug("--> cancelling task [{}] with waiting for completion", taskId);
@@ -233,8 +279,10 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-    * Fetches tasks until it finds all of them are "starting".
-    */
+     * Fetches tasks until it finds all of them are "starting" or "async".
+     * The "async" part is because the coordinating task almost immediately goes async
+     * because there isn't any data for it to process.
+     */
     private List<TaskInfo> getTasksStarting() throws Exception {
         List<TaskInfo> foundTasks = new ArrayList<>();
         assertBusy(() -> {
@@ -248,10 +296,9 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             assertThat(tasks, hasSize(equalTo(2)));
             for (TaskInfo task : tasks) {
                 assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
-                logger.info("{}", task.description());
-                assertThat(task.description(), either(equalTo(READ_DESCRIPTION)).or(equalTo(MERGE_DESCRIPTION)));
                 DriverStatus status = (DriverStatus) task.status();
-                logger.info("{}", status.status());
+                logger.info("task {} {}", task.description(), status);
+                assertThat(task.description(), either(equalTo(READ_DESCRIPTION)).or(equalTo(MERGE_DESCRIPTION)));
                 /*
                  * Accept tasks that are either starting or have gone
                  * immediately async. The coordinating task is likely

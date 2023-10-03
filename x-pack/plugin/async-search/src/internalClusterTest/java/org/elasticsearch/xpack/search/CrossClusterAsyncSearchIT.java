@@ -182,12 +182,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         waitForSearchTasksToFinish();
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+            assertFalse(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(2));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -213,12 +217,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // check that the async_search/status response includes the same cluster details
         {
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertFalse(statusResponse.isPartial());
 
             SearchResponse.Clusters clusters = statusResponse.getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(2));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -294,12 +302,60 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
             assertNotNull(finishedResponse);
+            assertFalse(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(2));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
+            assertNotNull(localClusterSearchInfo);
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
+            assertNotNull(remoteClusterSearchInfo);
+
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            if (dfs) {
+                // no skipped shards locally when DFS_QUERY_THEN_FETCH is used
+                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            } else {
+                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards - 1));
+            }
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
+
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            if (minimizeRoundtrips) {
+                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards - 1));
+            } else {
+                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
+            }
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThanOrEqualTo(0L));
+        }
+        {
+            AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertNotNull(statusResponse);
+            assertFalse(statusResponse.isPartial());
+
+            SearchResponse.Clusters clusters = statusResponse.getClusters();
+            assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -365,11 +421,20 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+            assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(0));
-            assertThat(clusters.getSkipped(), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            if (skipUnavailable) {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
+            } else {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(2));
+            }
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -387,10 +452,20 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // check that the async_search/status response includes the same cluster details
         {
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertTrue(statusResponse.isPartial());
+
             SearchResponse.Clusters clusters = statusResponse.getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(0));
-            assertThat(clusters.getSkipped(), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            if (skipUnavailable) {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
+            } else {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(2));
+            }
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -456,10 +531,15 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+            assertTrue(finishedResponse.isPartial());
+
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(2));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -488,10 +568,15 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // check that the async_search/status response includes the same cluster details
         {
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertTrue(statusResponse.isPartial());
+
             SearchResponse.Clusters clusters = statusResponse.getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(2));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -575,11 +660,20 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+            assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(1));
-            assertThat(clusters.getSkipped(), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            if (skipUnavailable) {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+            } else {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
+            }
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -618,10 +712,20 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // check that the async_search/status response includes the same cluster details
         {
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertTrue(statusResponse.isPartial());
+
             SearchResponse.Clusters clusters = statusResponse.getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(1));
-            assertThat(clusters.getSkipped(), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            if (skipUnavailable) {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+            } else {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
+            }
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -689,11 +793,15 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
             assertTrue(finishedResponse.getSearchResponse().isTimedOut());
+            assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(2));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -722,11 +830,15 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // check that the async_search/status response includes the same cluster details
         {
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertTrue(statusResponse.isPartial());
 
             SearchResponse.Clusters clusters = statusResponse.getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertThat(clusters.getSuccessful(), equalTo(2));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
             assertNotNull(localClusterSearchInfo);
@@ -784,12 +896,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+            assertFalse(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
             assertThat(clusters.getTotal(), equalTo(1));
-            assertThat(clusters.getSuccessful(), equalTo(1));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 
@@ -807,12 +923,16 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // check that the async_search/status response includes the same cluster details
         {
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertFalse(statusResponse.isPartial());
 
             SearchResponse.Clusters clusters = statusResponse.getClusters();
             assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
             assertThat(clusters.getTotal(), equalTo(1));
-            assertThat(clusters.getSuccessful(), equalTo(1));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 
@@ -859,11 +979,15 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+            assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(1));
-            assertThat(clusters.getSuccessful(), equalTo(1));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 
@@ -882,10 +1006,15 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // check that the async_search/status response includes the same cluster details
         {
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertTrue(statusResponse.isPartial());
+
             SearchResponse.Clusters clusters = statusResponse.getClusters();
             assertThat(clusters.getTotal(), equalTo(1));
-            assertThat(clusters.getSuccessful(), equalTo(1));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
 
             assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 
@@ -937,11 +1066,20 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         waitForSearchTasksToFinish();
         {
             AsyncSearchResponse finishedResponse = getAsyncSearch(response.getId());
+            assertTrue(finishedResponse.isPartial());
 
             SearchResponse.Clusters clusters = finishedResponse.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(1));
-            assertThat(clusters.getSuccessful(), equalTo(0));
-            assertThat(clusters.getSkipped(), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            if (skipUnavailable) {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+            } else {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
+            }
 
             assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 
@@ -956,11 +1094,20 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         // check that the async_search/status response includes the same cluster details
         {
             AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
+            assertTrue(statusResponse.isPartial());
+
             SearchResponse.Clusters clusters = statusResponse.getClusters();
             assertThat(clusters.getTotal(), equalTo(1));
-            assertThat(clusters.getSuccessful(), equalTo(0));
-            assertThat(clusters.getSkipped(), equalTo(1));
-
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(0));
+            if (skipUnavailable) {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(1));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(0));
+            } else {
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+                assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED), equalTo(1));
+            }
             assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
@@ -1099,7 +1246,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertThat(json, matchesRegex(".*task (was)?\s*cancelled.*"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99519")
     public void testCancelViaAsyncSearchDelete() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
@@ -1283,6 +1429,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
 
         AsyncStatusResponse statusResponse = getAsyncStatus(response.getId());
         assertFalse(statusResponse.isRunning());
+        assertTrue(statusResponse.isPartial());
+
         assertEquals(0, statusResponse.getSuccessfulShards());
         assertEquals(0, statusResponse.getSkippedShards());
         assertThat(statusResponse.getFailedShards(), greaterThanOrEqualTo(1));

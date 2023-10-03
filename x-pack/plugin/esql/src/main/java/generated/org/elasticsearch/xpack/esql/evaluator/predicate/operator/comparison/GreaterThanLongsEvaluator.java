@@ -35,26 +35,28 @@ public final class GreaterThanLongsEvaluator implements EvalOperator.ExpressionE
   }
 
   @Override
-  public Block eval(Page page) {
-    Block lhsUncastBlock = lhs.eval(page);
-    if (lhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref lhsRef = lhs.eval(page)) {
+      if (lhsRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      LongBlock lhsBlock = (LongBlock) lhsRef.block();
+      try (Block.Ref rhsRef = rhs.eval(page)) {
+        if (rhsRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        LongBlock rhsBlock = (LongBlock) rhsRef.block();
+        LongVector lhsVector = lhsBlock.asVector();
+        if (lhsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+        }
+        LongVector rhsVector = rhsBlock.asVector();
+        if (rhsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector).asBlock());
+      }
     }
-    LongBlock lhsBlock = (LongBlock) lhsUncastBlock;
-    Block rhsUncastBlock = rhs.eval(page);
-    if (rhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    LongBlock rhsBlock = (LongBlock) rhsUncastBlock;
-    LongVector lhsVector = lhsBlock.asVector();
-    if (lhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    LongVector rhsVector = rhsBlock.asVector();
-    if (rhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {

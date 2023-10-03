@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class MainAction extends ActionType<MainResponse> {
 
@@ -16,6 +17,6 @@ public class MainAction extends ActionType<MainResponse> {
     public static final MainAction INSTANCE = new MainAction();
 
     public MainAction() {
-        super(NAME, MainResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

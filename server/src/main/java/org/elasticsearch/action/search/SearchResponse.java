@@ -696,14 +696,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          */
         public void notifySearchCancelled() {
             assert clusterInfo != null : "ClusterInfo map should never be null";
-            for (AtomicReference<Cluster> clusterRef : clusterInfo.values()) {
-                clusterRef.updateAndGet(curr -> {
-                    if (curr.getStatus() == Cluster.Status.RUNNING) {
-                        return new Cluster.Builder(curr).setStatus(Cluster.Status.CANCELLED).build();
-                    }
-                    return curr;
-                });
-                logger.warn("JJJ Clusters.notifySearchCancelled: cluster status AFTER: " + clusterRef.get().getStatus());
+
+            for (Cluster cluster : clusterInfo.values()) {
+                if (cluster.getStatus() == Cluster.Status.RUNNING) {
+                    swapCluster(cluster.getClusterAlias(), (k, v) -> {
+                        if (v.getStatus() == Cluster.Status.RUNNING) {
+                            return new Cluster.Builder(v).setStatus(Cluster.Status.CANCELLED).build();
+                        } else {
+                            return v;
+                        }
+                    });
+                }
+                logger.warn("JJJ Clusters.notifySearchCancelled: cluster status AFTER: " + cluster.getStatus()); // FIXME - remove
             }
         }
 

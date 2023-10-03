@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -30,17 +29,10 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_DATA_NODES_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.hasItem;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class GatewayServiceTests extends ESTestCase {
 
@@ -80,7 +72,7 @@ public class GatewayServiceTests extends ESTestCase {
     public void testRecoverStateUpdateTask() throws Exception {
         GatewayService service = createService(Settings.builder());
         final long expectedTerm = randomLongBetween(1, 42);
-        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm, () -> {});
+        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm);
 
         ClusterState stateWithBlock = buildClusterState(1, expectedTerm);
 
@@ -95,23 +87,12 @@ public class GatewayServiceTests extends ESTestCase {
     public void testRecoveryWillAbortIfExpectedTermDoesNotMatch() throws Exception {
         GatewayService service = createService(Settings.builder());
         final long expectedTerm = randomLongBetween(1, 42);
-        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm, () -> {});
+        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm);
 
         ClusterState stateWithBlock = buildClusterState(1, randomLongBetween(43, 99));
 
         ClusterState recoveredState = clusterStateUpdateTask.execute(stateWithBlock);
         assertSame(recoveredState, stateWithBlock);
-    }
-
-    public void testRecoveryWillNotRunIfRequiredNumberOfDataNodesNotMet() {
-        GatewayService service = spy(createService(Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 5)));
-        final long expectedTerm = randomLongBetween(1, 42);
-        ClusterState stateWithBlock = buildClusterState(randomIntBetween(1, 4), expectedTerm);
-        final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
-        when(clusterChangedEvent.state()).thenReturn(stateWithBlock);
-        service.clusterChanged(clusterChangedEvent);
-        assertNull(service.getCurrentPendingStateRecoveryRef().get());
-        verify(service, never()).submitUnbatchedTask(any(), any());
     }
 
     private ClusterState buildClusterState(int numberOfNodes, long expectedTerm) {

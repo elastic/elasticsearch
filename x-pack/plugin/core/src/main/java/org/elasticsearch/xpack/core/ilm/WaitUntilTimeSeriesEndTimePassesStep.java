@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 /**
  * This {@link Step} waits until the {@link org.elasticsearch.index.IndexSettings#TIME_SERIES_END_TIME} passes for time series indices.
@@ -30,9 +31,11 @@ import java.util.Locale;
 public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
 
     public static final String NAME = "check-ts-end-time-passed";
+    private final Supplier<Instant> nowSupplier;
 
-    public WaitUntilTimeSeriesEndTimePassesStep(StepKey key, StepKey nextStepKey, Client client) {
+    public WaitUntilTimeSeriesEndTimePassesStep(StepKey key, StepKey nextStepKey, Supplier<Instant> nowSupplier, Client client) {
         super(key, nextStepKey, client);
+        this.nowSupplier = nowSupplier;
     }
 
     @Override
@@ -53,7 +56,7 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
         }
         Instant configuredEndTime = IndexSettings.TIME_SERIES_END_TIME.get(indexMetadata.getSettings());
         assert configuredEndTime != null : "a time series index must have an end time configured but [" + index.getName() + "] does not";
-        if (Instant.now().isBefore(configuredEndTime)) {
+        if (nowSupplier.get().isBefore(configuredEndTime)) {
             listener.onResponse(
                 false,
                 new SingleMessageFieldInfo(

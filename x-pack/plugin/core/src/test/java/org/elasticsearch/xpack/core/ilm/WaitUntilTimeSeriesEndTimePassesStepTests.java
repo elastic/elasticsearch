@@ -31,7 +31,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
     protected WaitUntilTimeSeriesEndTimePassesStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new WaitUntilTimeSeriesEndTimePassesStep(stepKey, nextStepKey, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(stepKey, nextStepKey, Instant::now, client);
     }
 
     @Override
@@ -43,15 +43,15 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
-        return new WaitUntilTimeSeriesEndTimePassesStep(key, nextKey, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(key, nextKey, Instant::now, client);
     }
 
     @Override
     protected WaitUntilTimeSeriesEndTimePassesStep copyInstance(WaitUntilTimeSeriesEndTimePassesStep instance) {
-        return new WaitUntilTimeSeriesEndTimePassesStep(instance.getKey(), instance.getNextStepKey(), client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(instance.getKey(), instance.getNextStepKey(), Instant::now, client);
     }
 
-    public void testEvaluatecondition() {
+    public void testEvaluateCondition() {
         Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         // These ranges are on the edge of each other temporal boundaries.
         Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
@@ -65,11 +65,17 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
         DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+
+        WaitUntilTimeSeriesEndTimePassesStep step = new WaitUntilTimeSeriesEndTimePassesStep(
+            randomStepKey(),
+            randomStepKey(),
+            () -> currentTime,
+            client
+        );
         {
             // end_time has lapsed already so condition must be met
             Index previousGeneration = dataStream.getIndices().get(0);
 
-            WaitUntilTimeSeriesEndTimePassesStep step = createRandomInstance();
             step.evaluateCondition(clusterState.metadata(), previousGeneration, new AsyncWaitStep.Listener() {
 
                 @Override
@@ -88,7 +94,6 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             // end_time is in the future
             Index writeIndex = dataStream.getIndices().get(1);
 
-            WaitUntilTimeSeriesEndTimePassesStep step = createRandomInstance();
             step.evaluateCondition(clusterState.metadata(), writeIndex, new AsyncWaitStep.Listener() {
 
                 @Override
@@ -129,7 +134,6 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
                 .build();
 
             Metadata newMetadata = Metadata.builder(clusterState.metadata()).put(indexMeta, true).build();
-            WaitUntilTimeSeriesEndTimePassesStep step = createRandomInstance();
             step.evaluateCondition(newMetadata, indexMeta.getIndex(), new AsyncWaitStep.Listener() {
 
                 @Override

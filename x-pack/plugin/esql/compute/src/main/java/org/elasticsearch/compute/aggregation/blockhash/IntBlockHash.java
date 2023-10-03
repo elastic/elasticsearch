@@ -45,15 +45,23 @@ final class IntBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        IntBlock block = page.getBlock(channel);
-        IntVector vector = block.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(block)) {
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            seenNull = true;
+            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
                 addInput.add(0, groupIds);
             }
         } else {
-            try (IntBlock groupIds = add(vector).asBlock()) {
-                addInput.add(0, groupIds.asVector());
+            IntBlock intBlock = (IntBlock) block;
+            IntVector intVector = intBlock.asVector();
+            if (intVector == null) {
+                try (IntBlock groupIds = add(intBlock)) {
+                    addInput.add(0, groupIds);
+                }
+            } else {
+                try (IntBlock groupIds = add(intVector).asBlock()) {
+                    addInput.add(0, groupIds.asVector());
+                }
             }
         }
     }

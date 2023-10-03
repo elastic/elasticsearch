@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
@@ -65,6 +66,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -260,8 +262,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
      * this method is supposed to be used to define if a field can be used for exact push down (eg. sort or filter).
      * "aggregatable" is the most accurate information we can have from field_caps as of now.
      * Pushing down operations on fields that are not aggregatable would result in an error.
-     * @param f
-     * @return
      */
     private static boolean isAggregatable(FieldAttribute f) {
         return f.exactAttribute().field().isAggregatable();
@@ -320,13 +320,23 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     /**
      * Looks for the case where certain stats exist right before the query and thus can be pushed down.
      */
-    private static class PushStatsToSource extends OptimizerRule<AggregateExec> {
+    private static class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        AggregateExec,
+        LocalPhysicalOptimizerContext> {
 
         @Override
-        protected PhysicalPlan rule(AggregateExec aggregateExec) {
+        protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
             PhysicalPlan plan = aggregateExec;
             if (aggregateExec.child() instanceof EsQueryExec queryExec) {
-                var tuple = pushableStats(aggregateExec);
+                var tuple = pushableStats(aggregateExec, context);
+
+                // for the moment support pushing count just for one field
+                List<Stat> stats = tuple.v2();
+                if (stats.size() > 1) {
+                    if (stats.stream().map(Stat::name).collect(Collectors.toSet()).size() > 1) {
+                        return aggregateExec;
+                    }
+                }
 
                 // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
                 // use the stats since the attributes are larger in size (due to seen)
@@ -344,9 +354,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        private Tuple<List<Attribute>, List<Stat>> pushableStats(AggregateExec aggregate) {
+        private Tuple<List<Attribute>, List<Stat>> pushableStats(AggregateExec aggregate, LocalPhysicalOptimizerContext context) {
             AttributeMap<Stat> stats = new AttributeMap<>();
-            Tuple<List<Attribute>, List<Stat>> tuple = new Tuple<>(new ArrayList<Attribute>(), new ArrayList<Stat>());
+            Tuple<List<Attribute>, List<Stat>> tuple = new Tuple<>(new ArrayList<>(), new ArrayList<>());
 
             if (aggregate.groupings().isEmpty()) {
                 for (NamedExpression agg : aggregate.aggregates()) {
@@ -356,9 +366,24 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                             Expression child = as.child();
                             if (child instanceof Count count) {
                                 var target = count.field();
+                                String fieldName = null;
+                                QueryBuilder query = null;
                                 // TODO: add count over field (has to be field attribute)
                                 if (target.foldable()) {
-                                    return new Stat(StringUtils.WILDCARD, COUNT);
+                                    fieldName = StringUtils.WILDCARD;
+                                }
+                                // check if regular field
+                                else {
+                                    if (target instanceof FieldAttribute fa) {
+                                        var fName = fa.name();
+                                        if (context.searchStats().isSingleValue(fName)) {
+                                            fieldName = fa.name();
+                                            query = QueryBuilders.existsQuery(fieldName);
+                                        }
+                                    }
+                                }
+                                if (fieldName != null) {
+                                    return new Stat(fieldName, COUNT, query);
                                 }
                             }
                         }

@@ -38,6 +38,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
 
@@ -175,7 +177,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
      *     </ul>
      *     <li>The scheduled recovery can be cancelled if {@code recoverAfterDataNodes} drops below required number
      *     before the recovery can happen. When this happens, the process goes back to the beginning (step 1).
-     *     <li>The recovery is scheduled only once (??) each time {@code recoverAfterDataNodes} crosses the required number
+     *     <li>The recovery is scheduled only once each time {@code recoverAfterDataNodes} crosses the required number
      * </ol>
      *
      * <p> <b>When</b> {@code recoverAfterDataNodes} is <b>Not</b> configured, the cluster either:
@@ -188,7 +190,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     class PendingStateRecovery {
         private final long expectedTerm;
         @Nullable
-        private volatile Scheduler.ScheduledCancellable scheduledRecovery;
+        private Scheduler.ScheduledCancellable scheduledRecovery;
+        private final AtomicBoolean taskSubmitted = new AtomicBoolean();
 
         PendingStateRecovery(long expectedTerm) {
             this.expectedTerm = expectedTerm;
@@ -214,9 +217,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                     expectedTerm,
                     expectedDataNodes
                 );
+                cancelScheduledRecovery();
                 runRecoveryImmediately();
             } else if (recoverAfterTime == null) {
                 logger.debug("performing state recovery of term [{}], no delay time is configured", expectedTerm);
+                cancelScheduledRecovery();
                 runRecoveryImmediately();
             } else {
                 if (scheduledRecovery == null) {
@@ -227,41 +232,37 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                         expectedDataNodes,
                         currentDataNodeSize
                     );
-                    scheduledRecovery = threadPool.schedule(getScheduleTask(), recoverAfterTime, threadPool.generic());
+                    scheduledRecovery = threadPool.schedule(new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("delayed state recovery of term [" + expectedTerm + "] failed", e);
+                        }
+
+                        @Override
+                        protected void doRun() {
+                            final PendingStateRecovery existingPendingStateRecovery = currentPendingStateRecovery;
+                            if (PendingStateRecovery.this == existingPendingStateRecovery) {
+                                runRecoveryImmediately();
+                            } else {
+                                logger.debug(
+                                    "skip scheduled state recovery since a new one of term [{}] has started",
+                                    existingPendingStateRecovery.expectedTerm
+                                );
+                            }
+                        }
+                    }, recoverAfterTime, threadPool.generic());
                 } else {
                     logger.debug("state recovery is in already scheduled for term [{}]", expectedTerm);
                 }
             }
         }
 
-        private AbstractRunnable getScheduleTask() {
-            return new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn("delayed state recovery of term [" + expectedTerm + "] failed", e);
-                }
-
-                @Override
-                protected void doRun() {
-                    final PendingStateRecovery existingPendingStateRecovery = currentPendingStateRecovery;
-                    if (PendingStateRecovery.this == existingPendingStateRecovery) {
-                        // Reset this back to null so that it can be scheduled again in case the cluster
-                        // update task ends up not running due to recoverAfterDataNodes not met
-                        scheduledRecovery = null;
-                        submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(expectedTerm));
-                    } else {
-                        logger.debug(
-                            "skip scheduled state recovery since a new one of term [{}] is ongoing",
-                            existingPendingStateRecovery.expectedTerm
-                        );
-                    }
-                }
-            };
-        }
-
         void runRecoveryImmediately() {
-            cancelScheduledRecovery();
-            submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(expectedTerm));
+            if (taskSubmitted.compareAndSet(false, true)) {
+                submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(expectedTerm));
+            } else {
+                logger.debug("state recovery task is already submitted");
+            }
         }
 
         void cancelScheduledRecovery() {
@@ -290,14 +291,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             }
             if (expectedTerm != currentState.term()) {
                 logger.debug("skip state recovery since current term [{}] != expected term [{}]", currentState.term(), expectedTerm);
-                return currentState;
-            }
-            if (recoverAfterDataNodes != -1 && currentState.nodes().getDataNodes().size() < recoverAfterDataNodes) {
-                logger.debug(
-                    "skip state recovery since data node size [{}] is less than required number [{}]",
-                    currentState.nodes().getDataNodes().size(),
-                    recoverAfterDataNodes
-                );
                 return currentState;
             }
             return ClusterStateUpdaters.removeStateNotRecoveredBlock(

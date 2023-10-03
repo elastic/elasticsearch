@@ -39,31 +39,33 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block evalNullable(Block fieldVal) {
-    LongBlock v = (LongBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
-      }
-      try {
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        long value = v.getLong(first);
-        for (int i = first + 1; i < end; i++) {
-          long next = v.getLong(i);
-          value = MvSum.process(value, next);
+  public Block.Ref evalNullable(Block.Ref ref) {
+    try (ref) {
+      LongBlock v = (LongBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
         }
-        long result = value;
-        builder.appendLong(result);
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        builder.appendNull();
+        try {
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          long value = v.getLong(first);
+          for (int i = first + 1; i < end; i++) {
+            long next = v.getLong(i);
+            value = MvSum.process(value, next);
+          }
+          long result = value;
+          builder.appendLong(result);
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          builder.appendNull();
+        }
       }
+      return Block.Ref.floating(builder.build());
     }
-    return builder.build();
   }
 }

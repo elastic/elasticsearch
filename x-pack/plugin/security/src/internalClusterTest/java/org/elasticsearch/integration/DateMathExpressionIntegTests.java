@@ -10,7 +10,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -67,7 +66,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
             CreateIndexResponse response = client.admin().indices().prepareCreate(expression).get();
             assertThat(response.isAcknowledged(), is(true));
         }
-        IndexResponse response = client.prepareIndex(expression)
+        DocWriteResponse response = client.prepareIndex(expression)
             .setSource("foo", "bar")
             .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
             .get();

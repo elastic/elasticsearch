@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.engine.translog;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -31,11 +33,14 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A {@link Translog.Snapshot} implementation that can read the translog operations from the object store's compound translog files (as
@@ -43,12 +48,17 @@ import java.util.Map;
  */
 public class TranslogReplicatorReader implements Translog.Snapshot {
 
+    private static final Logger logger = LogManager.getLogger(TranslogReplicatorReader.class);
+
     private final ShardId shardId;
     private final long fromSeqNo;
     private final long toSeqNo;
 
     private final BlobContainer translogBlobContainer;
     private final Iterator<? extends Translog.Operation> operations;
+    private long previousTranslogShardGeneration = -1;
+    private final List<BlobMetadata> blobsToRead;
+    private final List<BlobMetadata> blobsMissed = new ArrayList<>();
 
     /**
      * Creates the reader and captures the compound translog files from the object store that will be read when iterating.
@@ -75,13 +85,14 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.translogBlobContainer = translogBlobContainer;
-        Iterator<BlobMetadata> blobs = translogBlobContainer.listBlobs(OperationPurpose.SNAPSHOT)
+        blobsToRead = translogBlobContainer.listBlobs(OperationPurpose.SNAPSHOT)
             .entrySet()
             .stream()
             .filter(e -> Long.parseLong(e.getKey()) >= translogRecoveryStartFile)
             .sorted(Map.Entry.comparingByKey())
             .map(Map.Entry::getValue)
-            .iterator();
+            .toList();
+        Iterator<BlobMetadata> blobs = blobsToRead.iterator();
         operations = Iterators.flatMap(blobs, this::readBlobTranslogOperations);
     }
 
@@ -110,9 +121,14 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             )
         ) {
             CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
-            return getOperationIterator(streamInput, translogHeader);
+            return getOperationIterator(blobMetadata.name(), streamInput, translogHeader);
         } catch (CompoundTranslogHeader.NoVersionCodecException e) {
             tryOldVersion = true;
+        } catch (NoSuchFileException e) {
+            // Skip this file in case it is not relevant for this shard. We will fail when reading the next translog file if there is a hole
+            // in the generations
+            blobsMissed.add(blobMetadata);
+            return Collections.emptyIterator();
         } catch (IOException e) {
             throw new TranslogCorruptedException(blobMetadata.name(), "error while reading translog file from object store", e);
         }
@@ -128,19 +144,50 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             )
         ) {
             CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStoreOld(blobMetadata.name(), streamInput);
-            return getOperationIterator(streamInput, translogHeader);
+            return getOperationIterator(blobMetadata.name(), streamInput, translogHeader);
         } catch (IOException e) {
             throw new TranslogCorruptedException(blobMetadata.name(), "error while reading translog file from object store", e);
         }
     }
 
-    private Iterator<Translog.Operation> getOperationIterator(StreamInput streamInput, CompoundTranslogHeader translogHeader)
+    private Iterator<Translog.Operation> getOperationIterator(String name, StreamInput streamInput, CompoundTranslogHeader translogHeader)
         throws IOException {
         Map<ShardId, TranslogMetadata> metadata = translogHeader.metadata();
 
         // Check if the compound translog file contains eligible operations for this shard
-        if (metadata.containsKey(shardId)) {
+        if (metadata.containsKey(shardId) && metadata.get(shardId).totalOps() != 0) {
             TranslogMetadata translogMetadata = metadata.get(shardId);
+            if (previousTranslogShardGeneration == -1) {
+                previousTranslogShardGeneration = translogMetadata.shardTranslogGeneration();
+            } else {
+                long currentShardGeneration = translogMetadata.shardTranslogGeneration();
+                long diff = currentShardGeneration - previousTranslogShardGeneration;
+                if (currentShardGeneration != -1L && diff == 1L) {
+                    previousTranslogShardGeneration = currentShardGeneration;
+                } else {
+                    logger.error(
+                        format(
+                            "translog recovery failed due to hole in files while reading file [%s]. went from "
+                                + "[translog_shard_generation=%s] to [translog_shard_generation=%s]. at beginning of recovery listed "
+                                + "files: %s. files missing during recovery: %s",
+                            name,
+                            previousTranslogShardGeneration,
+                            currentShardGeneration,
+                            blobsToRead.stream().map(BlobMetadata::name).toList(),
+                            blobsMissed.stream().map(BlobMetadata::name).toList()
+                        )
+                    );
+
+                    throw new TranslogCorruptedException(
+                        name,
+                        "missing translog file went from [translog_shard_generation="
+                            + previousTranslogShardGeneration
+                            + "] to [translog_shard_generation="
+                            + currentShardGeneration
+                            + "]"
+                    );
+                }
+            }
             // Check if at least one of the operations fall within the eligible range
             if (toSeqNo >= translogMetadata.minSeqNo() && fromSeqNo <= translogMetadata.maxSeqNo()) {
                 // Go to the translog file to read it

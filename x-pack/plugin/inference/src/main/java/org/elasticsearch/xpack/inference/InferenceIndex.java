@@ -17,7 +17,6 @@ import java.io.UncheckedIOException;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.inference.Constants.BWC_MAPPINGS_VERSION;
 
 public class InferenceIndex {
 
@@ -62,7 +61,6 @@ public class InferenceIndex {
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", BWC_MAPPINGS_VERSION)
                 .field(SystemIndexDescriptor.VERSION_META_KEY, INDEX_MAPPING_VERSION)
                 .endObject()
                 .field("dynamic", "strict")

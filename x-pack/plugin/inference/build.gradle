@@ -6,8 +6,6 @@
  */
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
-//apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name 'inference'
@@ -22,8 +20,4 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:reindex')
-}
-
-tasks.named('javaRestTest') {
-  usesDefaultDistribution()
 }

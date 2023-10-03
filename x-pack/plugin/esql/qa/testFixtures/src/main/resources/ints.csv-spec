@@ -473,7 +473,8 @@ ROW deg = [90, 180, 270]
 [90, 180, 270] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
 ;
 
-warningWithFromSource
+// AwaitsFix: https://github.com/elastic/elasticsearch/issues/100163
+warningWithFromSource-Ignore
 from employees | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y | limit 1;
 warning:Line 1:65: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:65: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100010000000] out of [integer] range
@@ -482,8 +483,9 @@ y:boolean
 null
 ;
 
+// AwaitsFix: https://github.com/elastic/elasticsearch/issues/100163
 // the test is also notable through having the "failing" operation in the filter, which will be part of the fragment sent to a data node
-multipleWarnings
+multipleWarnings-Ignore
 from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
 warning:Line 1:76: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:76: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [100010000000] out of [integer] range

@@ -242,6 +242,15 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }
 
         if (ids.contains(transformTask.getTransformId())) {
+            if (request.isForce()) {
+                try {
+                    transformTask.shutdown();
+                    listener.onResponse(new Response(true));
+                } catch (ElasticsearchException ex) {
+                    listener.onFailure(ex);
+                }
+                return;
+            }
             // move the call to the generic thread pool, so we do not block the network thread
             threadPool.generic().execute(() -> {
                 transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {

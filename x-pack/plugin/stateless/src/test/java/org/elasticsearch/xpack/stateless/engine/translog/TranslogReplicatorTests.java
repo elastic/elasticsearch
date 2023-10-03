@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Streams;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -632,7 +634,13 @@ public class TranslogReplicatorTests extends ESTestCase {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
             try (BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput)) {
                 // Serialize in old version
-                out.writeMap(metadata);
+                out.writeMap(metadata, StreamOutput::writeWriteable, (out1, value) -> {
+                    out1.writeLong(value.offset());
+                    out1.writeLong(value.size());
+                    out1.writeLong(value.minSeqNo());
+                    out1.writeLong(value.maxSeqNo());
+                    out1.writeLong(value.totalOps());
+                });
                 out.writeLong(out.getChecksum());
                 out.flush();
             }
@@ -834,6 +842,78 @@ public class TranslogReplicatorTests extends ESTestCase {
                 argThat((Executor e) -> true)
             );
         }
+    }
+
+    public void testReplicatorReaderEnsuresNoHolesInShardTranslogGenerations() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm);
+
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        translogReplicator.syncAll(shardId, future);
+        future.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(1));
+
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+
+        PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+        translogReplicator.syncAll(shardId, future2);
+        future2.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(2));
+
+        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
+        currentLocation += operationsBytes[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
+        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
+
+        PlainActionFuture<Void> future3 = PlainActionFuture.newFuture();
+        translogReplicator.syncAll(shardId, future3);
+        future3.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(3));
+
+        compoundFiles.remove(1);
+
+        TranslogCorruptedException translogCorruptedException = expectThrows(
+            TranslogCorruptedException.class,
+            () -> assertTranslogContains(
+                new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
+                operations[0],
+                operations[1],
+                operations[3],
+                operations[2]
+            )
+        );
+
+        assertThat(
+            translogCorruptedException.getMessage(),
+            equalTo(
+                "translog from source [0000000000000000001] is corrupted, missing translog file went from [translog_shard_generation=0] "
+                    + "to [translog_shard_generation=2]"
+            )
+        );
     }
 
     private static Translog.Operation[] generateRandomOperations(int numOps) {

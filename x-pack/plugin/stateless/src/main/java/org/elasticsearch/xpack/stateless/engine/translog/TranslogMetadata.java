@@ -23,10 +23,20 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSeqNo, long totalOps) implements Writeable {
+public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSeqNo, long totalOps, long shardTranslogGeneration)
+    implements
+        Writeable {
 
-    public TranslogMetadata(StreamInput streamInput) throws IOException {
-        this(streamInput.readLong(), streamInput.readLong(), streamInput.readLong(), streamInput.readLong(), streamInput.readLong());
+    public static TranslogMetadata readFromStore(StreamInput streamInput, int version) throws IOException {
+        return new TranslogMetadata(
+            streamInput.readLong(),
+            streamInput.readLong(),
+            streamInput.readLong(),
+            streamInput.readLong(),
+            streamInput.readLong(),
+            version >= CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION ? streamInput.readLong() : -1
+        );
+
     }
 
     @Override
@@ -36,6 +46,7 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
         out.writeLong(minSeqNo);
         out.writeLong(maxSeqNo);
         out.writeLong(totalOps);
+        out.writeLong(shardTranslogGeneration);
     }
 
     @Override
@@ -51,6 +62,8 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
             + maxSeqNo
             + ", totalOps="
             + totalOps
+            + ", shardTranslogGeneration="
+            + shardTranslogGeneration
             + '}';
     }
 }

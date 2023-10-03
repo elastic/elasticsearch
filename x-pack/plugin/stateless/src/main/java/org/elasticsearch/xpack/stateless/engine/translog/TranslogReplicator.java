@@ -300,7 +300,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         synchronized (generateFlushLock) {
             long fileName = nodeState.compoundTranslogGeneration.get();
             lastFlushTime.set(getCurrentTimeMillis());
-            var checkpoints = new HashMap<ShardId, TranslogMetadata>();
+            var metadata = new HashMap<ShardId, TranslogMetadata>();
             var syncedLocations = new HashMap<ShardId, ShardSyncState.SyncMarker>();
 
             var compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
@@ -309,28 +309,26 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             for (var entry : shardSyncStates.entrySet()) {
                 ShardId shardId = entry.getKey();
                 ShardSyncState state = entry.getValue();
-                ShardSyncState.BufferState buffer = state.pollBufferForSync();
-                if (buffer == null) {
-                    continue;
-                }
-
-                syncedLocations.put(shardId, buffer.syncMarker());
+                ShardSyncState.SyncState syncState = state.pollSync();
 
                 long position = compoundTranslogStream.position();
-                buffer.data().bytes().writeTo(compoundTranslogStream);
-                long size = compoundTranslogStream.position() - position;
-                checkpoints.put(shardId, new TranslogMetadata(position, size, buffer.minSeqNo(), buffer.maxSeqNo(), buffer.totalOps()));
+                if (syncState.buffer() != null) {
+                    ShardSyncState.BufferState buffer = syncState.buffer();
+                    buffer.data().bytes().writeTo(compoundTranslogStream);
+                    metadata.put(shardId, syncState.metadata(position, compoundTranslogStream.position() - position));
+                    syncedLocations.put(shardId, buffer.syncMarker());
+                    buffer.close();
+                }
 
-                buffer.close();
             }
 
-            if (checkpoints.isEmpty()) {
+            if (compoundTranslogStream.position() == 0) {
                 Releasables.close(headerStream, compoundTranslogStream);
                 return null;
             }
 
             // Write the header to the stream
-            new CompoundTranslogHeader(checkpoints).writeToStore(headerStream);
+            new CompoundTranslogHeader(metadata).writeToStore(headerStream);
 
             long beforeIncrement = nodeState.compoundTranslogGeneration.getAndIncrement();
             assert beforeIncrement == fileName;
@@ -338,8 +336,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
                 () -> Releasables.close(headerStream, compoundTranslogStream)
             );
-            CompoundTranslogMetadata metadata = new CompoundTranslogMetadata(Strings.format("%019d", fileName), fileName, syncedLocations);
-            return new CompoundTranslog(metadata, compoundTranslogBytes);
+            CompoundTranslogMetadata compoundMetadata = new CompoundTranslogMetadata(
+                Strings.format("%019d", fileName),
+                fileName,
+                metadata,
+                syncedLocations
+            );
+            return new CompoundTranslog(compoundMetadata, compoundTranslogBytes);
         }
     }
 
@@ -426,7 +429,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private record CompoundTranslog(CompoundTranslogMetadata metadata, CompoundTranslogBytes bytes) {}
 
-    private record CompoundTranslogMetadata(String name, long generation, Map<ShardId, ShardSyncState.SyncMarker> syncedLocations) {}
+    private record CompoundTranslogMetadata(
+        String name,
+        long generation,
+        HashMap<ShardId, TranslogMetadata> checkpoints,
+        Map<ShardId, ShardSyncState.SyncMarker> syncedLocations
+    ) {}
 
     private record CompoundTranslogBytes(BytesReference data, Releasable onComplete) implements Releasable {
 
@@ -523,11 +531,17 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final long generation;
         private final String blobName;
+        private final Map<ShardId, TranslogMetadata> checkpoints;
         private final Set<ShardId> includedShards;
 
         BlobTranslogFile(long generation, String blobName, Set<ShardId> includedShards) {
+            this(generation, blobName, Collections.emptyMap(), includedShards);
+        }
+
+        BlobTranslogFile(long generation, String blobName, Map<ShardId, TranslogMetadata> checkpoints, Set<ShardId> includedShards) {
             this.generation = generation;
             this.blobName = blobName;
+            this.checkpoints = checkpoints;
             this.includedShards = includedShards;
         }
 
@@ -539,6 +553,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             return blobName;
         }
 
+        public Map<ShardId, TranslogMetadata> checkpoints() {
+            return checkpoints;
+        }
+
         @Override
         public int compareTo(BlobTranslogFile o) {
             return Long.compare(generation(), o.generation());
@@ -548,7 +566,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private class BlobTranslogFileImpl extends BlobTranslogFile {
 
         private BlobTranslogFileImpl(CompoundTranslogMetadata compoundTranslog) {
-            super(compoundTranslog.generation(), compoundTranslog.name(), compoundTranslog.syncedLocations().keySet());
+            super(
+                compoundTranslog.generation(),
+                compoundTranslog.name(),
+                compoundTranslog.checkpoints(),
+                compoundTranslog.syncedLocations().keySet()
+            );
         }
 
         @Override

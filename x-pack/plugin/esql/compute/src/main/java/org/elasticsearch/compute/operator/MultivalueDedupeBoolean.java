@@ -104,7 +104,10 @@ public class MultivalueDedupeBoolean {
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
-                        case 0 -> encodeNull();
+                        case 0 -> {
+                            encodeNull();
+                            return;
+                        }
                         case 1 -> {
                             boolean v = block.getBoolean(first);
                             startPosition();

@@ -192,7 +192,10 @@ public class MultivalueDedupeInt {
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
-                        case 0 -> encodeNull();
+                        case 0 -> {
+                            encodeNull();
+                            return;
+                        }
                         case 1 -> {
                             int v = block.getInt(first);
                             if (hasCapacity(1)) {

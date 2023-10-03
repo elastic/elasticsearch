@@ -246,7 +246,10 @@ $endif$
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
-                        case 0 -> encodeNull();
+                        case 0 -> {
+                            encodeNull();
+                            return;
+                        }
                         case 1 -> {
 $if(BytesRef)$
                             BytesRef v = block.getBytesRef(first, work[0]);

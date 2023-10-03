@@ -196,7 +196,10 @@ public class MultivalueDedupeBytesRef {
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
-                        case 0 -> encodeNull();
+                        case 0 -> {
+                            encodeNull();
+                            return;
+                        }
                         case 1 -> {
                             BytesRef v = block.getBytesRef(first, work[0]);
                             if (hasCapacity(v.length, 1)) {

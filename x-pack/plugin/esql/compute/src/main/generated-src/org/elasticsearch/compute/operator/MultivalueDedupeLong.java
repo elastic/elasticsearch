@@ -194,7 +194,10 @@ public class MultivalueDedupeLong {
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
-                        case 0 -> encodeNull();
+                        case 0 -> {
+                            encodeNull();
+                            return;
+                        }
                         case 1 -> {
                             long v = block.getLong(first);
                             if (hasCapacity(1)) {

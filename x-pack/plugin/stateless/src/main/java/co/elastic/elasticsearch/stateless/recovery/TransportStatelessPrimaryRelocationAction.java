@@ -27,8 +27,8 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
@@ -64,7 +64,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction.INSTANCE;
 
-public class TransportStatelessPrimaryRelocationAction extends HandledTransportAction<
+public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     StatelessPrimaryRelocationAction.Request,
     ActionResponse.Empty> {
 
@@ -88,7 +88,7 @@ public class TransportStatelessPrimaryRelocationAction extends HandledTransportA
         IndicesService indicesService,
         PeerRecoveryTargetService peerRecoveryTargetService
     ) {
-        super(INSTANCE.name(), transportService, actionFilters, StatelessPrimaryRelocationAction.Request::new);
+        super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;

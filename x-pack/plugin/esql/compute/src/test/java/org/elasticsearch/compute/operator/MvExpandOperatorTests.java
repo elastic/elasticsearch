@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class MvExpandOperatorTests extends OperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
-        return new AbstractBlockSourceOperator(8 * 1024) {
+        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
             private int idx;
 
             @Override

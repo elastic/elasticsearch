@@ -16,7 +16,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.Executor;
 
 /**
- * A {@link TransportAction} which registers a handler for itself with the transport service.
+ * A {@link TransportAction} which, on creation, registers a handler for its own {@link #actionName} with the transport service.
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends TransportAction<
     Request,

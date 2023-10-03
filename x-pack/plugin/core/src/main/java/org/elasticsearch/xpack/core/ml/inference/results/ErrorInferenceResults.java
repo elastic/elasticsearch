@@ -69,6 +69,11 @@ public class ErrorInferenceResults implements InferenceResults {
 
     @Override
     public Map<String, Object> asMap() {
+        return nonResultFeatures();
+    }
+
+    @Override
+    public Map<String, Object> nonResultFeatures() {
         Map<String, Object> asMap = new LinkedHashMap<>();
         asMap.put(NAME, exception.getMessage());
         return asMap;

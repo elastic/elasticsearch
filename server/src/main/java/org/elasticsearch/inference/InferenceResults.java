@@ -31,9 +31,29 @@ public interface InferenceResults extends NamedWriteable, ToXContentFragment {
         }
     }
 
+    static void writeResultToField(InferenceResults results, IngestDocument ingestDocument, String outputField, String modelId, boolean includeModelId) {
+        Objects.requireNonNull(results, "results");
+        Objects.requireNonNull(ingestDocument, "ingestDocument");
+        Objects.requireNonNull(outputField, "outputField");
+        Map<String, Object> resultMap = results.asMap();
+        if (includeModelId) {
+            resultMap.put(MODEL_ID_RESULTS_FIELD, modelId);
+        }
+        Object predictedValue = results.predictedValue();
+        if (predictedValue != null) {
+            if (ingestDocument.hasField(outputField)) {
+                ingestDocument.appendFieldValue(outputField, results.predictedValue());
+            } else {
+                ingestDocument.setFieldValue(outputField, resultMap);
+            }
+        }
+    }
+
     String getResultsField();
 
     Map<String, Object> asMap();
+
+    Map<String, Object> nonResultFeatures();
 
     Object predictedValue();
 }

@@ -213,7 +213,7 @@ public class InferenceProcessor extends AbstractProcessor {
         if (configuredWithInputsFields) {
             List<String> requestInputs = new ArrayList<>();
             for (var inputFields : inputs) {
-                var lookup = (String)fields.get(inputFields.inputField);
+                var lookup = (String) fields.get(inputFields.inputField);
                 if (lookup == null) {
                     lookup = ""; // need to send a non-null request to the same number of results back
                 }
@@ -249,11 +249,15 @@ public class InferenceProcessor extends AbstractProcessor {
 
         if (configuredWithInputsFields) {
             if (response.getInferenceResults().size() != inputs.size()) {
-                throw new ElasticsearchStatusException("number of results [{}] does not match the number of inputs [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR, response.getInferenceResults().size(), inputs.size());
+                throw new ElasticsearchStatusException(
+                    "number of results [{}] does not match the number of inputs [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    response.getInferenceResults().size(),
+                    inputs.size()
+                );
             }
 
-            for (int i=0; i< inputs.size(); i++) {
+            for (int i = 0; i < inputs.size(); i++) {
                 InferenceResults.writeResult(
                     response.getInferenceResults().get(i),
                     ingestDocument,

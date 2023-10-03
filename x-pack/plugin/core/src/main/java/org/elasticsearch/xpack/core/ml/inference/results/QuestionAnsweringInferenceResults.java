@@ -120,7 +120,18 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
 
     @Override
     void addMapFields(Map<String, Object> map) {
+        addNonResultFeaturesToMap(map);
         map.put(resultsField, answer);
+    }
+
+    @Override
+    public Map<String, Object> nonResultFeatures() {
+        var map = super.nonResultFeatures();
+        addNonResultFeaturesToMap(map);
+        return map;
+    }
+
+    private void addNonResultFeaturesToMap(Map<String, Object> map) {
         map.put(START_OFFSET.getPreferredName(), startOffset);
         map.put(END_OFFSET.getPreferredName(), endOffset);
         if (topClasses.isEmpty() == false) {

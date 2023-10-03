@@ -14,6 +14,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -62,6 +63,13 @@ abstract class NlpInferenceResults implements InferenceResults {
         if (isTruncated) {
             map.put("is_truncated", isTruncated);
         }
+        return map;
+    }
+
+    @Override
+    public Map<String, Object> nonResultFeatures() {
+        var map = new HashMap<String, Object>();
+        map.put("is_truncated", isTruncated);
         return map;
     }
 

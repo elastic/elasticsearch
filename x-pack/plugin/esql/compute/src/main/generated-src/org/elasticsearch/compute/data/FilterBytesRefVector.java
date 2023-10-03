@@ -21,9 +21,12 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
 
     private final BytesRefVector vector;
 
+    private final BytesRefBlock block;
+
     FilterBytesRefVector(BytesRefVector vector, int... positions) {
         super(positions, vector.blockFactory());
         this.vector = vector;
+        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
@@ -33,7 +36,7 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
 
     @Override
     public BytesRefBlock asBlock() {
-        return new BytesRefVectorBlock(this);
+        return block;
     }
 
     @Override

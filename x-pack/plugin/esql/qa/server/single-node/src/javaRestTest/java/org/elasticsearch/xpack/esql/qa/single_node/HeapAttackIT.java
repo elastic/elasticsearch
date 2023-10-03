@@ -18,6 +18,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -263,5 +266,11 @@ public class HeapAttackIT extends ESRestTestCase {
             EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
             equalTo("{\"_shards\":{\"total\":2,\"successful\":1,\"failed\":0}}")
         );
+    }
+
+    @Before
+    @After
+    public void assertRequestBreakerEmpty() throws Exception {
+        EsqlSpecTestCase.assertRequestBreakerEmpty();
     }
 }

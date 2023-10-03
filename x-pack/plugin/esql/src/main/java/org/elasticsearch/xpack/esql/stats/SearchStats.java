@@ -170,6 +170,7 @@ public class SearchStats {
                     }, true);
                     break;
                 }
+                stat.singleValue = sv[0];
             }
         }
         return stat.singleValue;

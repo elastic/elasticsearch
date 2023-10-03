@@ -671,3 +671,13 @@ ca:l|cn:l|cf:l|gender:s
 57  |57  |57  |M
 10  |10  |0   |null
 ;
+
+countMultiValue
+from employees | where emp_no == 10010 | stats c = count(job_positions) by job_positions;
+
+c:l |  job_positions:s  
+4   |Architect        
+4   |Purchase Manager 
+4   |Reporting Analyst
+4   |Tech Lead    
+;

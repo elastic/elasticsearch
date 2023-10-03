@@ -57,6 +57,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DownsampleActionIT extends ESRestTestCase {
 
@@ -346,6 +347,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         });
     }
 
+    @SuppressWarnings("unchecked")
     public void testILMWaitsForTimeSeriesEndTimeToLapse() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
@@ -374,13 +376,17 @@ public class DownsampleActionIT extends ESRestTestCase {
         rolloverMaxOneDocCondition(client(), dataStream);
 
         assertBusy(() -> {
-            Map<String, Object> explainIndex = explainIndex(client(), backingIndexName);
             assertThat(
                 "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
                 explainIndex(client(), backingIndexName).get("step"),
                 is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
             );
-            assertThat((String) explainIndex.get("step_info"), containsString("Waiting until the index's time series end time lapses"));
+
+            assertThat(explainIndex(client(), backingIndexName).get("step_info"), is(notNullValue()));
+            assertThat(
+                (String) ((Map<String, Object>) explainIndex(client(), backingIndexName).get("step_info")).get("message"),
+                containsString("Waiting until the index's time series end time lapses")
+            );
         }, 30, TimeUnit.SECONDS);
     }
 

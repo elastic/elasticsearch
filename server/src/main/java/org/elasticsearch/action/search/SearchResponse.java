@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -505,7 +504,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
             this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-            Map<String, Cluster> m = new ConcurrentHashMap<>();
+            Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
             if (localIndices != null) {
                 String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
                 Cluster c = new Cluster(localKey, String.join(",", localIndices.indices()), false);
@@ -536,7 +535,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.successful = successful;
             this.skipped = skipped;
             this.ccsMinimizeRoundtrips = false;
-            this.clusterInfo = ConcurrentCollections.newConcurrentMap();  // will never be used if created from this constructor
+            this.clusterInfo = Collections.emptyMap();  // will never be used if created from this constructor
         }
 
         public Clusters(StreamInput in) throws IOException {
@@ -546,11 +545,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
-                    this.clusterInfo = ConcurrentCollections.newConcurrentMap();
+                    this.clusterInfo = Collections.emptyMap();
                     this.successful = successfulTemp;
                     this.skipped = skippedTemp;
                 } else {
-                    Map<String, Cluster> m = new ConcurrentHashMap<>();
+                    Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
                     clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
                     this.clusterInfo = m;
                     this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
@@ -559,7 +558,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             } else {
                 this.successful = successfulTemp;
                 this.skipped = skippedTemp;
-                this.clusterInfo = ConcurrentCollections.newConcurrentMap();
+                this.clusterInfo = Collections.emptyMap();
             }
             int running = getClusterStateCount(Cluster.Status.RUNNING);
             int partial = getClusterStateCount(Cluster.Status.PARTIAL);
@@ -637,7 +636,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             int running = 0;    // 0 for BWC
             int partial = 0;    // 0 for BWC
             int failed = 0;     // 0 for BWC
-            Map<String, Cluster> clusterInfoMap = new ConcurrentHashMap<>();
+            Map<String, Cluster> clusterInfoMap = ConcurrentCollections.newConcurrentMap();
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -737,11 +736,25 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
+         * Utility to swap a Cluster object. Guidelines for the remapping function:
+         * <ul>
+         * <li> The remapping function should return a new Cluster object to swap it for
+         * the existing one.</li>
+         * <li> If in the remapping function you decide to abort the swap you must return
+         * the original Cluster object to keep the map unchanged.</li>
+         * <li> Do not return {@code null}. If the remapping function returns {@code null},
+         * the mapping is removed (or remains absent if initially absent).</li>
+         * <li> If the remapping function itself throws an (unchecked) exception, the exception
+         * is rethrown, and the current mapping is left unchanged. Throwing exception therefore
+         * is OK, but it is generally discouraged.</li>
+         * <li> The remapping function may be called multiple time in a CAS fashion underneath,
+         * make sure that is safe to do so.</li>
+         * </ul>
          * @param clusterAlias key with which the specified value is associated
-         * @param remappingFunction function to transform the oldCluster to a newCluster
+         * @param remappingFunction function to swap the oldCluster to a newCluster
          * @return the new Cluster object
          */
-        public Cluster updateCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
+        public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
             return clusterInfo.compute(clusterAlias, remappingFunction);
         }
 

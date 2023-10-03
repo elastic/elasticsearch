@@ -250,7 +250,7 @@ public class SearchResponseTests extends ESTestCase {
             }
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             List<ShardSearchFailure> finalFailureList = failureList;
-            clusters.updateCluster(
+            clusters.swapCluster(
                 cluster.getClusterAlias(),
                 (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status)
                     .setTotalShards(totalShards)

@@ -465,7 +465,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, true, null, null, 2);
         SearchResponse.Clusters clusters = createCCSClusterObjects(4, 3, true);
 
-        SearchResponse.Cluster updated = clusters.updateCluster(
+        SearchResponse.Cluster updated = clusters.swapCluster(
             RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
                 .setTotalShards(10)
@@ -480,7 +480,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         assertNotNull("Set cluster failed for cluster " + RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, updated);
 
         SearchResponse.Cluster cluster0 = clusters.getCluster("cluster_0");
-        updated = clusters.updateCluster(
+        updated = clusters.swapCluster(
             cluster0.getClusterAlias(),
             (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
                 .setTotalShards(8)
@@ -503,7 +503,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             new CorruptIndexException("abc", "123"),
             new SearchShardTarget("nodeId0", new ShardId("bar1", UUID.randomUUID().toString(), 0), "cluster_1")
         );
-        updated = clusters.updateCluster(
+        updated = clusters.swapCluster(
             cluster1.getClusterAlias(),
             (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SKIPPED)
                 .setTotalShards(2)
@@ -518,7 +518,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         assertNotNull("Set cluster failed for cluster " + cluster1.getClusterAlias(), updated);
 
         SearchResponse.Cluster cluster2 = clusters.getCluster("cluster_2");
-        updated = clusters.updateCluster(
+        updated = clusters.swapCluster(
             cluster2.getClusterAlias(),
             (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.PARTIAL)
                 .setTotalShards(8)
@@ -788,7 +788,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             String localAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             SearchResponse.Cluster updated;
             if (successful > 0) {
-                updated = clusters.updateCluster(
+                updated = clusters.swapCluster(
                     localAlias,
                     (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
                         .setTotalShards(5)
@@ -802,7 +802,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 );
                 successful--;
             } else if (skipped > 0) {
-                updated = clusters.updateCluster(
+                updated = clusters.swapCluster(
                     localAlias,
                     (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SKIPPED)
                         .setTotalShards(5)
@@ -816,7 +816,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 );
                 skipped--;
             } else {
-                updated = clusters.updateCluster(
+                updated = clusters.swapCluster(
                     localAlias,
                     (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.PARTIAL)
                         .setTotalShards(5)
@@ -840,7 +840,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             SearchResponse.Cluster remote = clusters.getCluster(clusterAlias);
             SearchResponse.Cluster updated;
             if (successful > 0) {
-                updated = clusters.updateCluster(
+                updated = clusters.swapCluster(
                     clusterAlias,
                     (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
                         .setTotalShards(5)
@@ -854,7 +854,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 );
                 successful--;
             } else if (skipped > 0) {
-                updated = clusters.updateCluster(
+                updated = clusters.swapCluster(
                     clusterAlias,
                     (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SKIPPED)
                         .setTotalShards(5)
@@ -868,7 +868,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
                 );
                 skipped--;
             } else {
-                updated = clusters.updateCluster(
+                updated = clusters.swapCluster(
                     clusterAlias,
                     (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.PARTIAL)
                         .setTotalShards(5)

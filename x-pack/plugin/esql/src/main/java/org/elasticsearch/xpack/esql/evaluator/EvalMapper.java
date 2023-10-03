@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.evaluator;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -16,6 +17,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
@@ -35,7 +37,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 
 import java.util.List;
-import java.util.function.IntFunction;
 
 public final class EvalMapper {
 
@@ -179,47 +180,38 @@ public final class EvalMapper {
 
         @Override
         public ExpressionEvaluator.Factory map(Literal lit, Layout layout) {
-            record LiteralsEvaluator(IntFunction<Block> block) implements ExpressionEvaluator {
+            record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
                 @Override
                 public Block.Ref eval(Page page) {
-                    return Block.Ref.floating(block.apply(page.getPositionCount()));
+                    return Block.Ref.floating(block(lit, context.blockFactory(), page.getPositionCount()));
+                }
+
+                @Override
+                public String toString() {
+                    return "LiteralsEvaluator[lit=" + lit + ']';
                 }
 
                 @Override
                 public void close() {}
             }
-            // wrap the closure to provide a nice toString (used by tests)
-            var blockClosure = new IntFunction<Block>() {
-                @Override
-                public Block apply(int value) {
-                    return block(lit).apply(value);
-                }
-
-                @Override
-                public String toString() {
-                    return lit.toString();
-                }
-            };
-            return driverContext -> new LiteralsEvaluator(blockClosure);
+            return context -> new LiteralsEvaluator(context, lit);
         }
 
-        private IntFunction<Block> block(Literal lit) {
+        private static Block block(Literal lit, BlockFactory blockFactory, int positions) {
             var value = lit.value();
             if (value == null) {
-                return Block::constantNullBlock;
+                return Block.constantNullBlock(positions, blockFactory);
             }
 
             if (value instanceof List<?> multiValue) {
                 if (multiValue.isEmpty()) {
-                    return Block::constantNullBlock;
+                    return Block.constantNullBlock(positions, blockFactory);
                 }
-                return positions -> {
-                    var wrapper = BlockUtils.wrapperFor(ElementType.fromJava(multiValue.get(0).getClass()), positions);
-                    wrapper.accept(multiValue);
-                    return wrapper.builder().build();
-                };
+                var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
+                wrapper.accept(multiValue);
+                return wrapper.builder().build();
             }
-            return positions -> BlockUtils.constantBlock(value, positions);
+            return BlockUtils.constantBlock(blockFactory, value, positions);
         }
     }
 

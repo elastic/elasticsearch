@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
@@ -422,51 +423,71 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Tests a {@link Block} of values, all copied from the input pattern.
+     * Tests a {@link Block} of values, all copied from the input pattern, read directly from the page.
      * <p>
      *     Note that this'll sometimes be a {@link Vector} of values if the
      *     input pattern contained only a single value.
      * </p>
      */
     public final void testBlockWithoutNulls() {
-        testBlock(false);
+        testBlock(false, false);
+    }
+
+    /**
+     * Tests a {@link Block} of values, all copied from the input pattern, read from an intermediate operator.
+     * <p>
+     *     Note that this'll sometimes be a {@link Vector} of values if the
+     *     input pattern contained only a single value.
+     * </p>
+     */
+    public final void testBlockWithoutNullsFloating() {
+        testBlock(false, true);
     }
 
     /**
      * Tests a {@link Block} of values, all copied from the input pattern with
-     * some null values inserted between.
+     * some null values inserted between, read directly from the page.
      */
     public final void testBlockWithNulls() {
-        testBlock(true);
+        testBlock(true, false);
     }
 
-    private void testBlock(boolean insertNulls) {
+    /**
+     * Tests a {@link Block} of values, all copied from the input pattern with
+     * some null values inserted between, read from an intermediate operator.
+     */
+    public final void testBlockWithNullsFloating() {
+        testBlock(true, true);
+    }
+
+    private void testBlock(boolean insertNulls, boolean readFloating) {
+        DriverContext context = driverContext();
         int positions = between(1, 1024);
         TestCaseSupplier.TypedData data = testCase.getData().get(0);
-        Block oneRowBlock = BlockUtils.fromListRow(testCase.getDataValues())[0];
-        ElementType elementType = LocalExecutionPlanner.toElementType(data.type());
-        Block.Builder builder = elementType.newBlockBuilder(positions);
-        for (int p = 0; p < positions; p++) {
-            if (insertNulls && randomBoolean()) {
-                int nulls = between(1, 5);
-                for (int n = 0; n < nulls; n++) {
-                    builder.appendNull();
+        try (Block oneRowBlock = BlockUtils.fromListRow(context.blockFactory(), testCase.getDataValues())[0]) {
+            ElementType elementType = LocalExecutionPlanner.toElementType(data.type());
+            try (Block.Builder builder = elementType.newBlockBuilder(positions, context.blockFactory())) {
+                for (int p = 0; p < positions; p++) {
+                    if (insertNulls && randomBoolean()) {
+                        int nulls = between(1, 5);
+                        for (int n = 0; n < nulls; n++) {
+                            builder.appendNull();
+                        }
+                    }
+                    builder.copyFrom(oneRowBlock, 0, 1);
                 }
-            }
-            builder.copyFrom(oneRowBlock, 0, 1);
-        }
-        try (
-            Block input = builder.build();
-            Block.Ref ref = evaluator(buildFieldExpression(testCase)).get(driverContext()).eval(new Page(input))
-        ) {
-            assertThat(ref.block().getPositionCount(), equalTo(ref.block().getPositionCount()));
-            for (int p = 0; p < input.getPositionCount(); p++) {
-                if (input.isNull(p)) {
-                    assertThat(ref.block().isNull(p), equalTo(true));
-                    continue;
+                Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+                try (Block input = builder.build(); Block.Ref ref = evaluator(expression).get(context).eval(new Page(input))) {
+                    assertThat(ref.block().getPositionCount(), equalTo(ref.block().getPositionCount()));
+                    for (int p = 0; p < input.getPositionCount(); p++) {
+                        if (input.isNull(p)) {
+                            assertThat(ref.block().isNull(p), equalTo(true));
+                            continue;
+                        }
+                        assertThat(ref.block().isNull(p), equalTo(false));
+                        assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
+                    }
                 }
-                assertThat(ref.block().isNull(p), equalTo(false));
-                assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
             }
         }
     }

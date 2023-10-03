@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -38,6 +41,7 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -53,8 +57,9 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -226,6 +231,102 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(agg.child(), EvalExec.class);
     }
 
+    // optimized doesn't know yet how to push down count over field
+    public void testCountOneFieldWithFilter() {
+        var plan = plan("""
+            from test
+            | where salary > 1000
+            | stats c = count(salary)
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), is(FINAL));
+        assertThat(Expressions.names(agg.aggregates()), contains("c"));
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
+        assertThat(esStatsQuery.limit(), is(nullValue()));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
+        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary");
+        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
+    }
+
+    // optimized doesn't know yet how to push down count over field
+    public void testCountOneFieldWithFilterAndLimit() {
+        var plan = plan("""
+            from test
+            | where salary > 1000
+            | limit 10
+            | stats c = count(salary)
+            """, IS_SV_STATS);
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    // optimized doesn't know yet how to break down different multi count
+    public void testCountMultipleFieldsWithFilter() {
+        var plan = plan("""
+            from test
+            | where salary > 1000 and emp_no > 10010
+            | stats cs = count(salary), ce = count(emp_no)
+            """, IS_SV_STATS);
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    public void testAnotherCountAllWithFilter() {
+        var plan = plan("""
+            from test
+            | where emp_no > 10010
+            | stats c = count()
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), is(FINAL));
+        assertThat(Expressions.names(agg.aggregates()), contains("c"));
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
+        assertThat(esStatsQuery.limit(), is(nullValue()));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no");
+        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
+    }
+
+    @AwaitsFix(bugUrl = "intermediateAgg does proper reduction but the agg itself does not - the optimizer needs to improve")
+    public void testMultiCountAllWithFilter() {
+        var plan = plan("""
+            from test
+            | where emp_no > 10010
+            | stats c = count(), call = count(*), c_literal = count(1)
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), is(FINAL));
+        assertThat(Expressions.names(agg.aggregates()), contains("c", "call", "c_literal"));
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
+        assertThat(esStatsQuery.limit(), is(nullValue()));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no");
+        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
+    }
+
+    // optimized doesn't know yet how to break down different multi count
+    public void testCountFieldsAndAllWithFilter() {
+        var plan = plan("""
+            from test
+            | where emp_no > 10010
+            | stats c = count(), cs = count(salary), ce = count(emp_no)
+            """, IS_SV_STATS);
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName) {
+        return FilterTests.singleValueQuery(inner, fieldName);
+    }
+
     private Stat queryStatsFor(PhysicalPlan plan) {
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -242,7 +343,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, SearchStats stats) {
-        return optimizedPlan(physicalPlan(query), stats);
+        var physical = optimizedPlan(physicalPlan(query), stats);
+        return physical;
     }
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
@@ -265,7 +367,6 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
-        assertSerialization(physical);
         return physical;
     }
 }

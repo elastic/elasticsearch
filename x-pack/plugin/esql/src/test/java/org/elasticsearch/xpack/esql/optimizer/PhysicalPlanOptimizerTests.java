@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -43,8 +42,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -57,7 +54,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -1866,99 +1862,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit().fold(), equalTo(10));
     }
 
-    // optimized doesn't know yet how to push down count over field
-    public void testCountOneFieldWithFilter() {
-        var plan = optimizedPlan(physicalPlan("""
-            from test
-            | where salary > 1000
-            | stats c = count(salary)
-            """));
-
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        assertThat(agg.getMode(), is(FINAL));
-        assertThat(Expressions.names(agg.aggregates()), contains("c"));
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
-        assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
-        var stat = as(esStatsQuery.stats().get(0), Stat.class);
-        assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("salary").gt(1000), "salary");
-        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
-
-    }
-
-    // optimized doesn't know yet how to push down count over field
-    public void testCountOneFieldWithFilterAndLimit() {
-        var plan = optimizedPlan(physicalPlan("""
-            from test
-            | where salary > 1000
-            | limit 10
-            | stats c = count(salary)
-            """));
-        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
-    }
-
-    // optimized doesn't know yet how to break down different multi count
-    public void testCountMultipleFieldsWithFilter() {
-        var plan = optimizedPlan(physicalPlan("""
-            from test
-            | where salary > 1000 and emp_no > 10010
-            | stats cs = count(salary), ce = count(emp_no)
-            """));
-        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
-    }
-
-    public void testCountAllWithFilter() {
-        var plan = optimizedPlan(physicalPlan("""
-            from test
-            | where emp_no > 10010
-            | stats c = count()
-            """));
-
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        assertThat(agg.getMode(), is(FINAL));
-        assertThat(Expressions.names(agg.aggregates()), contains("c"));
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
-        assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no");
-        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
-    }
-
-    @AwaitsFix(bugUrl = "intermediateAgg does proper reduction but the agg itself does not - the optimizer needs to improve")
-    public void testMultiCountAllWithFilter() {
-        var plan = optimizedPlan(physicalPlan("""
-            from test
-            | where emp_no > 10010
-            | stats c = count(), call = count(*), c_literal = count(1)
-            """));
-
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        assertThat(agg.getMode(), is(FINAL));
-        assertThat(Expressions.names(agg.aggregates()), contains("c", "call", "c_literal"));
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
-        assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no");
-        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
-    }
-
-    // optimized doesn't know yet how to break down different multi count
-    public void testCountFieldsAndAllWithFilter() {
-        var plan = optimizedPlan(physicalPlan("""
-            from test
-            | where emp_no > 10010
-            | stats c = count(), cs = count(salary), ce = count(emp_no)
-            """));
-        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
-    }
-
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();
@@ -2014,7 +1917,4 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return sv.next();
     }
 
-    private QueryBuilder wrapWithSingleQuery(QueryBuilder inner, String fieldName) {
-        return FilterTests.singleValueQuery(inner, fieldName);
-    }
 }

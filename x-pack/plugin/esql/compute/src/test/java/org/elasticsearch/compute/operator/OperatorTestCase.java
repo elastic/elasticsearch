@@ -37,10 +37,8 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
-import static org.elasticsearch.compute.data.BlockTestUtils.releasePageBlocksWhileHandlingException;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -121,7 +119,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * properly cleaning up things like {@link BigArray}s, particularly
      * in ctors.
      */
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     public final void testSimpleWithCranky() {
         DriverContext inputFactoryContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
@@ -129,21 +126,21 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky).withCircuitBreaking();
         BlockFactory blockFactory = BlockFactory.getInstance(cranky.getBreaker(CircuitBreaker.REQUEST), bigArrays);
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory); // TODO replace with driverContext()
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+
+        boolean[] driverStarted = new boolean[1];
         try {
-            Operator operator;
-            try {
-                operator = simple(bigArrays).get(driverContext);
-            } catch (CircuitBreakingException cbe) {
-                // if we failed to even create the operator, then release the input pages
-                releasePageBlocksWhileHandlingException(input);
-                throw cbe;
-            }
+            Operator operator = simple(bigArrays).get(driverContext);
+            driverStarted[0] = true;
             List<Page> result = drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+        if (driverStarted[0] == false) {
+            // if drive hasn't even started then we need to release the input pages
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
         }
 
         // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
@@ -186,19 +183,10 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
 
-        Operator operator = null;
-        try {
-            operator = simple(bigArrays).get(context);
-            List<Page> results = drive(operator, input.iterator(), context);
-            assertSimpleOutput(origInput, results);
-            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-        } catch (CircuitBreakingException cbe) {
-            if (operator == null) {
-                // if we failed to even create the operator, then release the input pages
-                releasePageBlocksWhileHandlingException(input);
-            }
-            throw cbe;
-        }
+        List<Page> results = drive(simple(bigArrays).get(context), input.iterator(), context);
+        assertSimpleOutput(origInput, results);
+        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+
     }
 
     protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {

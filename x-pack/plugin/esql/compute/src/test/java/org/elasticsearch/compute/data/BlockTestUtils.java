@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Releasables;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -110,17 +109,5 @@ public class BlockTestUtils {
 
     public static List<Page> deepCopyOf(List<Page> pages, BlockFactory blockFactory) {
         return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
-    }
-
-    /** Releases all blocks in the given Page - ignoring and swallowing exceptions. */
-    public static void releasePageBlocksWhileHandlingException(Page page) {
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            Releasables.closeWhileHandlingException(page.getBlock(i));
-        }
-    }
-
-    /** Releases all blocks in the given Page - ignoring and swallowing exceptions. */
-    public static void releasePageBlocksWhileHandlingException(List<Page> pages) {
-        pages.forEach(BlockTestUtils::releasePageBlocksWhileHandlingException);
     }
 }

@@ -22,18 +22,17 @@ import java.net.InetSocketAddress;
 public class RemoteTransportException extends ActionTransportException implements ElasticsearchWrapperException {
 
     private String clusterAlias;
-    private boolean fatalForCCS;  /// MP TODO: DOCUMENT ME
+    private boolean fatalForCCS; // if true, indicates that a cross-cluster search should be marked as failed
 
     public RemoteTransportException(String msg, Throwable cause) {
         super(msg, null, null, cause);
     }
 
     /**
-     * TODO DOCUMENT ME
-     * @param msg
-     * @param clusterAlias
-     * @param fatalForCCS
-     * @param cause
+     * @param msg error message
+     * @param clusterAlias alias of remote cluster the error occurred on
+     * @param fatalForCCS whether this error is "fatal" for a cross-cluster search (will cause the whole search to fail)
+     * @param cause underlying cause
      */
     public RemoteTransportException(String msg, String clusterAlias, boolean fatalForCCS, Throwable cause) {
         super(msg, null, null, cause);

@@ -496,7 +496,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onFailure(Exception exc) {
-            // if the failure occurred before calling onListShards
+            // handles the case where a failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
 
             boolean failImmediately = (exc instanceof RemoteTransportException rte && rte.isFatalForCCS());

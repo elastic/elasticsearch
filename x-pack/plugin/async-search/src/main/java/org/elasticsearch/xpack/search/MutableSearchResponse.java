@@ -156,31 +156,25 @@ class MutableSearchResponse {
     /**
      * Updates the response with a fatal failure. This method preserves the partial response
      * received from previous updates
+     * @param exc failure
+     * @param failImmediately true indicates that the search is being cancelled due to fatal search error
+     *                        and that a response is being returned to the user potentially before all
+     *                        clusters have reported back. Thus, State should be set to FROZEN_RETURN_EARLY
+     *                        to ignore any late arriving search result updates
      */
     synchronized void updateWithFailure(ElasticsearchException exc, boolean failImmediately) {
-        /// MP TODO --- start
+        // if the incoming exception has a TaskCancelledException then we want to set state to
+        // FROZEN_RETURN_EARLY even if the failImmediately flag was not set to true
+        /// MP TODO: remove this section and do ad-hoc testing to figure out when/why/whether we need it
         Throwable cancelledExc = ExceptionsHelper.unwrap(exc, TaskCancelledException.class);
-        if (cancelledExc != null) {  /// MP TODO: not really sure I need this check
-            logger.warn(" .>> !!! cancelledException in MSR.updateWithFailure: " + cancelledExc.getMessage());
+        if (cancelledExc != null) {
             this.frozen = State.FROZEN_RETURN_EARLY;
-            logger.warn("JJJ MSR.updateWithFailure/then: f->FROZEN_RETURN_EARLY");
-            // try {
-            // throw new RuntimeException("JJJ");
-            // } catch (RuntimeException e) {
-            // logger.warn(e.getMessage() + " stack trace ", e);
-            // }
-
+            logger.warn("JJJ MSR.updateWithFailure cancelledException/then: f->FROZEN_RETURN_EARLY");
         } else {
             failIfFrozen();
             this.frozen = failImmediately ? State.FROZEN_RETURN_EARLY : State.FROZEN_NORMAL;
             logger.warn("JJJ MSR.updateWithFailure/else: f->" + frozen);
-            // try {
-            // throw new RuntimeException("JJJ");
-            // } catch (RuntimeException e) {
-            // logger.warn(e.getMessage() + " stack trace ", e);
-            // }
         }
-        /// MP TODO --- end
 
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();

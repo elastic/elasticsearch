@@ -403,7 +403,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         if (randomBoolean()) {
             request.setBatchedReduceSize(randomIntBetween(2, 256));
-         }
+        }
         request.setKeepOnCompletion(false);
         boolean dfs = randomBoolean();
         if (dfs) {

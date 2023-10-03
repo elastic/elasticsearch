@@ -86,6 +86,7 @@ import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.RemoteClusterConnectionTests;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteClusterServiceTests;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -93,6 +94,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,6 +114,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
@@ -714,7 +717,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(failure.get());
-                // FatalCCSException is present because the remote cluster is skip_unavailable=false
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
                 RemoteTransportException rte = (RemoteTransportException) failure.get();
                 assertTrue(rte.isFatalForCCS());
@@ -1582,4 +1584,116 @@ public class TransportSearchActionTests extends ESTestCase {
             assertTrue(ESTestCase.terminate(threadPool));
         }
     }
+
+    public void testProactivelyMarkOtherClusterSearchesAsFailed() {
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        remoteIndicesByCluster.put("remote1", new OriginalIndices(new String[] { "remote1_idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS));
+        remoteIndicesByCluster.put("remote2", new OriginalIndices(new String[] { "remote2_idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS));
+
+        // test 1
+        // remote1 skip_unavailable=false and is_connected=false, thus should be force marked as FAILED
+        // remote2 skip_unavailable=false and is_connected=true, thus should NOT be force marked as FAILED (still be RUNNING)
+        {
+            boolean skipUnavailable = false;
+            SearchResponse.Clusters clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, true, alias -> skipUnavailable);
+
+            RemoteConnectionInfo.ModeInfo modeInfoRemote1 = Mockito.mock(RemoteConnectionInfo.ModeInfo.class);
+            Mockito.when(modeInfoRemote1.isConnected()).thenReturn(false);
+
+            RemoteConnectionInfo.ModeInfo modeInfoRemote2 = Mockito.mock(RemoteConnectionInfo.ModeInfo.class);
+            Mockito.when(modeInfoRemote2.isConnected()).thenReturn(true);
+
+            RemoteConnectionInfo infoRemote1 = new RemoteConnectionInfo("remote1", modeInfoRemote1, null, skipUnavailable, true);
+            RemoteConnectionInfo infoRemote2 = new RemoteConnectionInfo("remote2", modeInfoRemote2, null, skipUnavailable, true);
+
+            // ensure RUNNING before calling method under test
+            assertEquals(SearchResponse.Cluster.Status.RUNNING, clusters.getCluster("remote1").getStatus());
+            assertEquals(SearchResponse.Cluster.Status.RUNNING, clusters.getCluster("remote2").getStatus());
+
+            TransportSearchAction.proactivelyMarkOtherClusterSearchesAsFailed(clusters, Stream.of(infoRemote1, infoRemote2));
+
+            SearchResponse.Cluster clusterRemote1 = clusters.getCluster("remote1");
+            SearchResponse.Cluster clusterRemote2 = clusters.getCluster("remote2");
+            assertEquals(SearchResponse.Cluster.Status.FAILED, clusterRemote1.getStatus());
+            assertEquals(SearchResponse.Cluster.Status.RUNNING, clusterRemote2.getStatus());
+
+            List<ShardSearchFailure> failures = clusterRemote1.getFailures();
+            assertEquals(1, failures.size());
+            assertThat(failures.get(0).toString(), containsString("cluster [remote1] is not connected and cannot be searched"));
+            assertEquals(0, clusterRemote2.getFailures().size());
+        }
+
+        // test 2
+        // remote1 skip_unavailable=true and is_connected=false, thus should NOT be force marked as FAILED (still be RUNNING)
+        // remote2 skip_unavailable=true and is_connected=true, thus should NOT be force marked as FAILED (still be RUNNING)
+        {
+            boolean skipUnavailable = true;
+            SearchResponse.Clusters clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, true, alias -> skipUnavailable);
+
+            RemoteConnectionInfo.ModeInfo modeInfoRemote1 = Mockito.mock(RemoteConnectionInfo.ModeInfo.class);
+            Mockito.when(modeInfoRemote1.isConnected()).thenReturn(false);
+
+            RemoteConnectionInfo.ModeInfo modeInfoRemote2 = Mockito.mock(RemoteConnectionInfo.ModeInfo.class);
+            Mockito.when(modeInfoRemote2.isConnected()).thenReturn(true);
+
+            RemoteConnectionInfo infoRemote1 = new RemoteConnectionInfo("remote1", modeInfoRemote1, null, skipUnavailable, true);
+            RemoteConnectionInfo infoRemote2 = new RemoteConnectionInfo("remote2", modeInfoRemote2, null, skipUnavailable, true);
+
+            // ensure RUNNING before calling method under test
+            assertEquals(SearchResponse.Cluster.Status.RUNNING, clusters.getCluster("remote1").getStatus());
+            assertEquals(SearchResponse.Cluster.Status.RUNNING, clusters.getCluster("remote2").getStatus());
+
+            TransportSearchAction.proactivelyMarkOtherClusterSearchesAsFailed(clusters, Stream.of(infoRemote1, infoRemote2));
+
+            SearchResponse.Cluster clusterRemote1 = clusters.getCluster("remote1");
+            SearchResponse.Cluster clusterRemote2 = clusters.getCluster("remote2");
+            assertEquals(SearchResponse.Cluster.Status.RUNNING, clusterRemote1.getStatus());
+            assertEquals(SearchResponse.Cluster.Status.RUNNING, clusterRemote2.getStatus());
+
+            assertEquals(0, clusterRemote1.getFailures().size());
+            assertEquals(0, clusterRemote2.getFailures().size());
+        }
+
+        // test 3
+        // remote1 skip_unavailable=false and is_connected=false and has status PARTIAL, thus should NOT be force marked as FAILED
+        // remote2 skip_unavailable=false and is_connected=false and has status CANCELLED, thus should be force marked as FAILED
+        {
+            boolean skipUnavailable = false;
+            SearchResponse.Clusters clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, true, alias -> skipUnavailable);
+
+            // update cluster search status before running method under test
+            clusters.swapCluster("remote1", (k, v) -> {
+                return new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.PARTIAL).build();
+            });
+            clusters.swapCluster("remote2", (k, v) -> {
+                return new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.CANCELLED).build();
+            });
+
+            RemoteConnectionInfo.ModeInfo modeInfoRemote1 = Mockito.mock(RemoteConnectionInfo.ModeInfo.class);
+            Mockito.when(modeInfoRemote1.isConnected()).thenReturn(false);
+
+            RemoteConnectionInfo.ModeInfo modeInfoRemote2 = Mockito.mock(RemoteConnectionInfo.ModeInfo.class);
+            Mockito.when(modeInfoRemote2.isConnected()).thenReturn(false);
+
+            RemoteConnectionInfo infoRemote1 = new RemoteConnectionInfo("remote1", modeInfoRemote1, null, skipUnavailable, true);
+            RemoteConnectionInfo infoRemote2 = new RemoteConnectionInfo("remote2", modeInfoRemote2, null, skipUnavailable, true);
+
+            // ensure RUNNING before calling method under test
+            assertEquals(SearchResponse.Cluster.Status.PARTIAL, clusters.getCluster("remote1").getStatus());
+            assertEquals(SearchResponse.Cluster.Status.CANCELLED, clusters.getCluster("remote2").getStatus());
+
+            TransportSearchAction.proactivelyMarkOtherClusterSearchesAsFailed(clusters, Stream.of(infoRemote1, infoRemote2));
+
+            SearchResponse.Cluster clusterRemote1 = clusters.getCluster("remote1");
+            SearchResponse.Cluster clusterRemote2 = clusters.getCluster("remote2");
+            assertEquals(SearchResponse.Cluster.Status.PARTIAL, clusterRemote1.getStatus());
+            assertEquals(SearchResponse.Cluster.Status.FAILED, clusterRemote2.getStatus());
+
+            assertEquals(0, clusterRemote1.getFailures().size());
+            List<ShardSearchFailure> failures = clusterRemote2.getFailures();
+            assertEquals(1, failures.size());
+            assertThat(failures.get(0).toString(), containsString("cluster [remote2] is not connected and cannot be searched"));
+        }
+    }
+
 }

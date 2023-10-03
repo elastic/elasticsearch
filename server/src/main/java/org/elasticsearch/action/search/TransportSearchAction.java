@@ -73,6 +73,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -100,6 +101,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
@@ -881,30 +883,36 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    // Visible for testing
+    static void proactivelyMarkOtherClusterSearchesAsFailed(SearchResponse.Clusters clusters, Stream<RemoteConnectionInfo> connInfos) {
+        connInfos.forEach(connInfo -> {
+            boolean canSkip = connInfo.isSkipUnavailable();
+            boolean connected = connInfo.getModeInfo().isConnected();
+            if (connected == false && canSkip == false) {
+                markCCSClusterSearchAsFailed(clusters, connInfo.getClusterAlias());
+            }
+        });
+    }
+
     /**
-     * Force mark a Cluster object as FAILED.
-     * This should only be called when a search on another skip_unavailable=false cluster has failed.
-     * This will make a best guess that other clusters are likely to fail, so the caller can
-     * have the best guess of what clusters to exclude if they want to retry a failed CCS.
-     * @param cluster  cluster to mark as failed (if it is still in RUNNING state)
+     * Force mark a Cluster object as FAILED if the cluster has status RUNNING or CANCELLED.
+     * @param clusters holder of the Cluster objects for this search
+     * @param clusterAlias to be marked
      */
-    private static void markCCSClusterSearchAsFailed(SearchResponse.Cluster cluster) {
-        // TODO: this method needs to be rewritten
-//        clusterRef.updateAndGet(curr -> {
-//            if (curr.getStatus() == SearchResponse.Cluster.Status.RUNNING || curr.getStatus() == SearchResponse.Cluster.Status.CANCELLED) {
-//                List<ShardSearchFailure> failures = CollectionUtils.appendToCopy(
-//                    curr.getFailures(),
-//                    new ShardSearchFailure(
-//                        new RuntimeException("cluster '" + curr.getClusterAlias() + "' is not connected and cannot be searched")
-//                    )
-//                );
-//                return new SearchResponse.Cluster.Builder(curr).setStatus(SearchResponse.Cluster.Status.FAILED)
-//                    .setFailures(failures)
-//                    .build();
-//            } else {
-//                return curr;
-//            }
-//        });
+    private static void markCCSClusterSearchAsFailed(SearchResponse.Clusters clusters, String clusterAlias) {
+        clusters.swapCluster(clusterAlias, (k, v) -> {
+            if (v.getStatus() == SearchResponse.Cluster.Status.RUNNING || v.getStatus() == SearchResponse.Cluster.Status.CANCELLED) {
+                List<ShardSearchFailure> failures = CollectionUtils.appendToCopy(
+                    v.getFailures(),
+                    new ShardSearchFailure(
+                        new RuntimeException("cluster [" + v.getClusterAlias() + "] is not connected and cannot be searched")
+                    )
+                );
+                return new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.FAILED).setFailures(failures).build();
+            } else {
+                return v;
+            }
+        });
     }
 
     void executeLocalSearch(
@@ -1501,13 +1509,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         // don't use the force fail path if the search task is being cancelled - let it cancel naturally
                         failImmediately = false;
                     } else {
-                        remoteClusterService.getRemoteConnectionInfos().forEach(connInfo -> {
-                            boolean canSkip = remoteClusterService.isSkipUnavailable(connInfo.getClusterAlias());
-                            boolean connected = connInfo.getModeInfo().isConnected();
-                            if (connected == false && canSkip == false) {
-                                markCCSClusterSearchAsFailed(clusters.getCluster(connInfo.getClusterAlias()));
-                            }
-                        });
+                        // since we are failing fast, check what other clusters lack connectivity and mark those as failed as well
+                        // so that the end user has an idea of what clusters to exclude upon a retry of a failed CCS query
+                        proactivelyMarkOtherClusterSearchesAsFailed(clusters, remoteClusterService.getRemoteConnectionInfos());
                     }
                 }
                 if (exceptions.compareAndSet(null, exception) == false) {
@@ -1536,7 +1540,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     Throwable unwrap = ExceptionsHelper.unwrap(exceptions.get(), TaskCancelledException.class);
                     logger.warn(
-                        "JJJ maybeFinish onFailure->FatalCCSException for cluster '{}'; TaskCancelledException?: {}",
+                        "JJJ maybeFinish onFailure->Fatal Exception for cluster '{}'; TaskCancelledException?: {}",
                         clusterAlias,
                         (unwrap != null)
                     );

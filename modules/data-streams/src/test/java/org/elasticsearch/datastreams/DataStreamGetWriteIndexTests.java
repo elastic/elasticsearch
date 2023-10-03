@@ -221,7 +221,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 false,
                 IndexVersion.current()
-            ).build(MapperBuilderContext.root(false));
+            ).build(MapperBuilderContext.root(false, false));
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
                 new DateFieldMapper.Builder(
@@ -235,7 +235,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             );
             MetadataFieldMapper dtfm = DataStreamTestHelper.getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.root(false)),
+                root.build(MapperBuilderContext.root(false, false)),
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
@@ -270,7 +270,6 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
                 indicesService,
-                null,
                 xContentRegistry()
             );
             rolloverService = new MetadataRolloverService(

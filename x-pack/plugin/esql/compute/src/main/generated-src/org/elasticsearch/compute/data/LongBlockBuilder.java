@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -17,8 +19,11 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
 
     private long[] values;
 
-    LongBlockBuilder(int estimatedSize) {
-        values = new long[Math.max(estimatedSize, 2)];
+    LongBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        values = new long[initialSize];
     }
 
     @Override
@@ -29,6 +34,11 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Long.BYTES;
     }
 
     @Override
@@ -171,17 +181,20 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
     @Override
     public LongBlock build() {
         finish();
+        LongBlock block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            return new ConstantLongVector(values[0], 1).asBlock();
+            block = blockFactory.newConstantLongBlockWith(values[0], 1, estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
             if (isDense() && singleValued()) {
-                return new LongArrayVector(values, positionCount).asBlock();
+                block = blockFactory.newLongArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                return new LongArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                block = blockFactory.newLongArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, estimatedBytes);
             }
         }
+        built();
+        return block;
     }
 }

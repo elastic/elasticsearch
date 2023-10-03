@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
@@ -59,7 +60,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             UpdateWatcherSettingsAction.Request::new,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
     }

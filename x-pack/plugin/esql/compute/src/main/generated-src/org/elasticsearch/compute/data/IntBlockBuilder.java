@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -17,8 +19,11 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
 
     private int[] values;
 
-    IntBlockBuilder(int estimatedSize) {
-        values = new int[Math.max(estimatedSize, 2)];
+    IntBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        values = new int[initialSize];
     }
 
     @Override
@@ -29,6 +34,11 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Integer.BYTES;
     }
 
     @Override
@@ -171,17 +181,20 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     @Override
     public IntBlock build() {
         finish();
+        IntBlock block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            return new ConstantIntVector(values[0], 1).asBlock();
+            block = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
             if (isDense() && singleValued()) {
-                return new IntArrayVector(values, positionCount).asBlock();
+                block = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                return new IntArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                block = blockFactory.newIntArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, estimatedBytes);
             }
         }
+        built();
+        return block;
     }
 }

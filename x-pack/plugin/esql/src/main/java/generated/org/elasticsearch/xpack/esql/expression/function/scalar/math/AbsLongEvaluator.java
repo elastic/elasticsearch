@@ -10,7 +10,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
@@ -19,22 +21,26 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator fieldVal;
 
-  public AbsLongEvaluator(EvalOperator.ExpressionEvaluator fieldVal) {
+  private final DriverContext driverContext;
+
+  public AbsLongEvaluator(EvalOperator.ExpressionEvaluator fieldVal, DriverContext driverContext) {
     this.fieldVal = fieldVal;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block fieldValUncastBlock = fieldVal.eval(page);
-    if (fieldValUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref fieldValRef = fieldVal.eval(page)) {
+      if (fieldValRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      LongBlock fieldValBlock = (LongBlock) fieldValRef.block();
+      LongVector fieldValVector = fieldValBlock.asVector();
+      if (fieldValVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), fieldValBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), fieldValVector).asBlock());
     }
-    LongBlock fieldValBlock = (LongBlock) fieldValUncastBlock;
-    LongVector fieldValVector = fieldValBlock.asVector();
-    if (fieldValVector == null) {
-      return eval(page.getPositionCount(), fieldValBlock);
-    }
-    return eval(page.getPositionCount(), fieldValVector).asBlock();
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
@@ -60,5 +66,10 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public String toString() {
     return "AbsLongEvaluator[" + "fieldVal=" + fieldVal + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(fieldVal);
   }
 }

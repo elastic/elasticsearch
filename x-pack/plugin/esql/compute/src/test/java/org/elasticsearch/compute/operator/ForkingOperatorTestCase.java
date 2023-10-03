@@ -55,8 +55,8 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testInitialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         try (
@@ -79,8 +79,8 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testManyInitialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
@@ -100,8 +100,8 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     public final void testInitialIntermediateFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         try (
@@ -126,8 +126,8 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99160")
     public final void testManyInitialManyPartialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
 
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
         Collections.shuffle(partials, random());
@@ -156,11 +156,11 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // to move the data through the pipeline.
     public final void testManyInitialManyPartialFinalRunner() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, false /* no throwing ops */);
-        var runner = new DriverRunner() {
+        var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
                 Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
@@ -178,11 +178,11 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // runner behaves correctly and also releases all resources (bigArrays) appropriately.
     public final void testManyInitialManyPartialFinalRunnerThrowing() {
         BigArrays bigArrays = nonBreakingBigArrays();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, true /* one throwing op */);
-        var runner = new DriverRunner() {
+        var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
                 Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
@@ -217,7 +217,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         List<Driver> drivers = new ArrayList<>();
         for (List<Page> pages : splitInput) {
-            DriverContext driver1Context = new DriverContext();
+            DriverContext driver1Context = driverContext();
             drivers.add(
                 new Driver(
                     driver1Context,
@@ -234,7 +234,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 )
             );
         }
-        DriverContext driver2Context = new DriverContext();
+        DriverContext driver2Context = driverContext();
         drivers.add(
             new Driver(
                 driver2Context,

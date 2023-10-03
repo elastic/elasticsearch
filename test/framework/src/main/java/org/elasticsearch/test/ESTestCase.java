@@ -751,6 +751,30 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * The maximum value that can be represented as an unsigned long.
+     */
+    public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+
+    /**
+     * A unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
+     */
+    public static BigInteger randomUnsignedLongBetween(BigInteger min, BigInteger max) {
+        if (min.compareTo(BigInteger.ZERO) < 0) {
+            throw new IllegalArgumentException("Must be between [0] and [" + UNSIGNED_LONG_MAX + "]");
+        }
+        if (0 < max.compareTo(UNSIGNED_LONG_MAX)) {
+            throw new IllegalArgumentException("Must be between [0] and [" + UNSIGNED_LONG_MAX + "]");
+        }
+        // Shift the min and max down into the long range
+        long minShifted = min.add(BigInteger.valueOf(Long.MIN_VALUE)).longValueExact();
+        long maxShifted = max.add(BigInteger.valueOf(Long.MIN_VALUE)).longValueExact();
+        // Grab a random number in that range
+        long randomShifted = randomLongBetween(minShifted, maxShifted);
+        // Shift back up into long range
+        return BigInteger.valueOf(randomShifted).subtract(BigInteger.valueOf(Long.MIN_VALUE));
+    }
+
+    /**
      * Returns a "scaled" number of iterations for loops which can have a variable
      * iteration count. This method is effectively
      * an alias to {@link #scaledRandomIntBetween(int, int)}.
@@ -2010,5 +2034,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected static boolean isTurkishLocale() {
         return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
+
+    public static void fail(Throwable t, String msg, Object... args) {
+        throw new AssertionError(org.elasticsearch.common.Strings.format(msg, args), t);
     }
 }

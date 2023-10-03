@@ -269,6 +269,21 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testPeriodAndDurationInEval() {
+        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] in expression [1 " + unit + "]",
+                error("row x = 1 | eval y = 1 " + unit)
+            );
+        }
+        for (var unit : List.of("day", "week", "month", "year")) {
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] in expression [1 " + unit + "]",
+                error("row x = 1 | eval y = 1 " + unit)
+            );
+        }
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
 

@@ -19,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -118,6 +120,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "test",
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
+            BlockFactory.getNonBreakingInstance(),
             config(),
             null,
             null,
@@ -133,7 +136,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "test_user",
             "test_cluser",
             pragmas,
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
+            StringUtils.EMPTY
         );
     }
 

@@ -44,7 +44,7 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
             actionFilters,
             DeleteLicenseRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.licenseService = licenseService;
     }

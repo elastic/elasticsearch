@@ -161,6 +161,7 @@ public class DataCounts implements ToXContentObject, Writeable {
     private Date latestSparseBucketTimeStamp;
     private Instant logTime;
 
+    @SuppressWarnings("this-escape")
     public DataCounts(
         String jobId,
         long processedRecordCount,

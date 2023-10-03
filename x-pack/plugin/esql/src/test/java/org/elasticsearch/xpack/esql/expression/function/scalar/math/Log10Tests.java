@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
-
 public class Log10Tests extends AbstractFunctionTestCase {
     public Log10Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -58,7 +56,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             DataTypes.DOUBLE,
             ul -> Math.log10(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ONE,
-            MAX_UNSIGNED_LONG,
+            UNSIGNED_LONG_MAX,
             List.of()
         );
         TestCaseSupplier.forUnaryDouble(
@@ -84,7 +82,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             0,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
+                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryLong(
@@ -96,7 +94,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             0L,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
+                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryUnsignedLong(
@@ -108,7 +106,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             BigInteger.ZERO,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
+                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -120,7 +118,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             0d,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
+                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
 

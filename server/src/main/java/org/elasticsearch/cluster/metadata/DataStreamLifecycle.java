@@ -57,8 +57,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
-    public static final DataStreamLifecycle DEFAULT = new DataStreamLifecycle();
-
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
@@ -322,6 +320,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
      */
     public record Downsampling(@Nullable List<Round> rounds) implements Writeable, ToXContentFragment {
 
+        public static final long FIVE_MINUTES_MILLIS = TimeValue.timeValueMinutes(5).getMillis();
+
         /**
          * A round represents the configuration for when and how elasticsearch will downsample a backing index.
          * @param after is a TimeValue configuring how old (based on generation age) should a backing index be before downsampling
@@ -354,6 +354,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
             public static Round read(StreamInput in) throws IOException {
                 return new Round(in.readTimeValue(), new DownsampleConfig(in));
+            }
+
+            public Round {
+                if (config.getFixedInterval().estimateMillis() < FIVE_MINUTES_MILLIS) {
+                    throw new IllegalArgumentException(
+                        "A downsampling round must have a fixed interval of at least five minutes but found: " + config.getFixedInterval()
+                    );
+                }
             }
 
             @Override

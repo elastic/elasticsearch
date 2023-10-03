@@ -50,7 +50,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             "template": {
                 "settings":{
                     "index": {
-                        "number_of_replicas": 0,
+                        "number_of_replicas": 1,
                         "number_of_shards": 2,
                         "mode": "time_series"
                     }
@@ -117,7 +117,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             "template": {
                 "settings":{
                     "index": {
-                        "number_of_replicas": 0,
+                        "number_of_replicas": 1,
                         "number_of_shards": 2
                     }
                 },
@@ -408,7 +408,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         var responseBody = entityAsMap(response);
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(6));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_shards"), equalTo("2"));
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("0"));
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("1"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.start_time"), notNullValue());
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
@@ -629,7 +629,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
                     "settings":{
                         "index": {
                             "look_back_time": "24h",
-                            "number_of_replicas": 0,
+                            "number_of_replicas": 1,
                             "mode": "time_series"
                         }
                     },
@@ -681,6 +681,174 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         assertTrue(now.minus(24, ChronoUnit.HOURS).isAfter(startTime));
         String endTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
         assertThat(endTimeFirstBackingIndex, notNullValue());
+    }
+
+    public void testReindexTsdbDataStream() throws Exception {
+        var deleteRequest = new Request("DELETE", "/_index_template/1");
+        assertOK(client().performRequest(deleteRequest));
+        deleteRequest = new Request("DELETE", "/_component_template/custom_template");
+        assertOK(client().performRequest(deleteRequest));
+
+        final int SECONDS_PER_DAY = 24 * 60 * 60;
+        final String CUSTOM_TEMPLATE_WITH_START_END_TIME = """
+            {
+                "template": {
+                    "settings":{
+                        "index": {
+                            "number_of_replicas": 1,
+                            "number_of_shards": 4,
+                            "mode": "time_series",
+                            "routing_path": ["metricset", "k8s.pod.uid"],
+                            "time_series": {
+                                "start_time": "$start",
+                                "end_time": "$end"
+                            }
+                        }
+                    },
+                    "mappings":{
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "metricset": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            },
+                            "k8s": {
+                                "properties": {
+                                    "pod": {
+                                        "properties": {
+                                            "uid": {
+                                                "type": "keyword",
+                                                "time_series_dimension": true
+                                            },
+                                            "name": {
+                                                "type": "keyword"
+                                            },
+                                            "ip": {
+                                                "type": "ip"
+                                            },
+                                            "network": {
+                                                "properties": {
+                                                    "tx": {
+                                                        "type": "long"
+                                                    },
+                                                    "rx": {
+                                                        "type": "long"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+
+        // Create a data stream that's one week old.
+        var request = new Request("POST", "/_component_template/source_template");
+        request.setJsonEntity(
+            CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(8 * SECONDS_PER_DAY)))
+                .replace("$end", formatInstantNanos(Instant.now().minusSeconds(6 * SECONDS_PER_DAY)))
+        );
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["k8s*"],
+                "composed_of": ["source_template"],
+                "data_stream": {
+                }
+            }""");
+        assertOK(client().performRequest(request));
+
+        // Add some docs to it.
+        var bulkRequest = new Request("POST", "/k8s/_bulk");
+        bulkRequest.setJsonEntity(BULK.replace("$now", formatInstantNanos(Instant.now().minusSeconds(7 * SECONDS_PER_DAY))));
+        bulkRequest.addParameter("refresh", "true");
+        var response = client().performRequest(bulkRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+
+        // Clone the old data stream.
+        request = new Request("POST", "/_component_template/destination_template");
+        request.setJsonEntity(
+            CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(8 * SECONDS_PER_DAY)))
+                .replace("$end", formatInstantNanos(Instant.now().minusSeconds(6 * SECONDS_PER_DAY)))
+        );
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_index_template/2");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["k9s*"],
+                "composed_of": ["destination_template"],
+                "data_stream": {
+                }
+            }""");
+        assertOK(client().performRequest(request));
+
+        // Reindex.
+        request = new Request("POST", "/_reindex");
+        request.setJsonEntity("""
+            {
+                "source": {
+                    "index": "k8s"
+                  },
+                  "dest": {
+                    "index": "k9s",
+                    "op_type": "create"
+                  }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        var getDataStreamsRequest = new Request("GET", "/_data_stream");
+        response = client().performRequest(getDataStreamsRequest);
+        assertOK(response);
+        var dataStreams = entityAsMap(response);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(2));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.1.name"), equalTo("k9s"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.1.indices"), hasSize(1));
+
+        // Update the start and end time of the new data stream.
+        request = new Request("POST", "/_component_template/destination_template");
+        request.setJsonEntity(
+            CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(SECONDS_PER_DAY)))
+                .replace("$end", formatInstantNanos(Instant.now().plusSeconds(SECONDS_PER_DAY)))
+        );
+        assertOK(client().performRequest(request));
+
+        // Rollover to create a new index with the new settings.
+        request = new Request("POST", "/k9s/_rollover");
+        client().performRequest(request);
+
+        // Insert a doc with a current timestamp.
+        request = new Request("POST", "/k9s/_doc");
+        request.setJsonEntity(DOC.replace("$time", formatInstantNanos(Instant.now())));
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "_refresh");
+        assertOK(client().performRequest(request));
+
+        var searchRequest = new Request("GET", "k9s/_search");
+        response = client().performRequest(searchRequest);
+        assertOK(response);
+        responseBody = entityAsMap(response);
+        try {
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(9));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.relation"), equalTo("eq"));
+        } catch (Exception | AssertionError e) {
+            logger.error("search response body causing assertion error [" + responseBody + "]", e);
+            throw e;
+        }
     }
 
     private static Map<?, ?> getIndex(String indexName) throws IOException {

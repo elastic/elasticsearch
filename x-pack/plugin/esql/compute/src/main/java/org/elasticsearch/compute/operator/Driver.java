@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
@@ -40,15 +40,25 @@ import java.util.stream.Collectors;
 public class Driver implements Releasable, Describable {
     public static final TimeValue DEFAULT_TIME_BEFORE_YIELDING = TimeValue.timeValueMinutes(5);
     public static final int DEFAULT_MAX_ITERATIONS = 10_000;
+    /**
+     * Minimum time between updating status.
+     */
+    public static final TimeValue DEFAULT_STATUS_INTERVAL = TimeValue.timeValueSeconds(1);
 
     private final String sessionId;
     private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
     private final Releasable releasable;
+    private final long statusNanos;
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
-    private final AtomicReference<ListenableActionFuture<Void>> blocked = new AtomicReference<>();
+    private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
+    /**
+     * Status reported to the tasks API. We write the status at most once every
+     * {@link #statusNanos}, as soon as loop has finished and after {@link #statusNanos}
+     * have passed.
+     */
     private final AtomicReference<DriverStatus> status;
 
     /**
@@ -58,6 +68,7 @@ public class Driver implements Releasable, Describable {
      * @param source source operator
      * @param intermediateOperators  the chain of operators to execute
      * @param sink sink operator
+     * @param statusInterval minimum status reporting interval
      * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
      */
     public Driver(
@@ -67,6 +78,7 @@ public class Driver implements Releasable, Describable {
         SourceOperator source,
         List<Operator> intermediateOperators,
         SinkOperator sink,
+        TimeValue statusInterval,
         Releasable releasable
     ) {
         this.sessionId = sessionId;
@@ -76,6 +88,7 @@ public class Driver implements Releasable, Describable {
         this.activeOperators.add(source);
         this.activeOperators.addAll(intermediateOperators);
         this.activeOperators.add(sink);
+        this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
         this.status = new AtomicReference<>(new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of()));
     }
@@ -95,7 +108,7 @@ public class Driver implements Releasable, Describable {
         SinkOperator sink,
         Releasable releasable
     ) {
-        this("unset", driverContext, () -> null, source, intermediateOperators, sink, releasable);
+        this("unset", driverContext, () -> null, source, intermediateOperators, sink, DEFAULT_STATUS_INTERVAL, releasable);
     }
 
     public DriverContext driverContext() {
@@ -107,29 +120,36 @@ public class Driver implements Releasable, Describable {
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
-    private ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
+    private SubscribableListener<Void> run(TimeValue maxTime, int maxIterations) {
         long maxTimeNanos = maxTime.nanos();
         long startTime = System.nanoTime();
+        long nextStatus = startTime + statusNanos;
         int iter = 0;
         while (isFinished() == false) {
-            ListenableActionFuture<Void> fut = runSingleLoopIteration();
+            SubscribableListener<Void> fut = runSingleLoopIteration();
             if (fut.isDone() == false) {
+                status.set(updateStatus(DriverStatus.Status.ASYNC));
                 return fut;
             }
-            if (++iter >= maxIterations) {
+            if (iter >= maxIterations) {
                 break;
             }
             long now = System.nanoTime();
+            if (now > nextStatus) {
+                status.set(updateStatus(DriverStatus.Status.RUNNING));
+                nextStatus = now + statusNanos;
+            }
+            iter++;
             if (now - startTime > maxTimeNanos) {
                 break;
             }
         }
         if (isFinished()) {
-            status.set(updateStatus(DriverStatus.Status.DONE));  // Report status for the tasks API
+            status.set(updateStatus(DriverStatus.Status.DONE));
             driverContext.finish();
             releasable.close();
         } else {
-            status.set(updateStatus(DriverStatus.Status.RUNNING));  // Report status for the tasks API
+            status.set(updateStatus(DriverStatus.Status.WAITING));
         }
         return Operator.NOT_BLOCKED;
     }
@@ -146,7 +166,7 @@ public class Driver implements Releasable, Describable {
         drainAndCloseOperators(null);
     }
 
-    private ListenableActionFuture<Void> runSingleLoopIteration() {
+    private SubscribableListener<Void> runSingleLoopIteration() {
         ensureNotCancelled();
         boolean movedPage = false;
 
@@ -161,7 +181,13 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 Page page = op.getOutput();
-                if (page != null && page.getPositionCount() != 0) {
+                if (page == null) {
+                    // No result, just move to the next iteration
+                } else if (page.getPositionCount() == 0) {
+                    // Empty result, release any memory it holds immediately and move to the next iteration
+                    page.releaseBlocks();
+                } else {
+                    // Non-empty result from the previous operation, move it to the next operation
                     nextOp.addInput(page);
                     movedPage = true;
                 }
@@ -207,7 +233,7 @@ public class Driver implements Releasable, Describable {
     public void cancel(String reason) {
         if (cancelReason.compareAndSet(null, reason)) {
             synchronized (this) {
-                ListenableActionFuture<Void> fut = this.blocked.get();
+                SubscribableListener<Void> fut = this.blocked.get();
                 if (fut != null) {
                     fut.onFailure(new TaskCancelledException(reason));
                 }
@@ -227,7 +253,7 @@ public class Driver implements Releasable, Describable {
     }
 
     public static void start(Executor executor, Driver driver, int maxIterations, ActionListener<Void> listener) {
-        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));  // Report status for the tasks API
+        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
         schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
     }
 
@@ -256,7 +282,7 @@ public class Driver implements Releasable, Describable {
                     listener.onResponse(null);
                     return;
                 }
-                ListenableActionFuture<Void> fut = driver.run(maxTime, maxIterations);
+                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
                 if (fut.isDone()) {
                     schedule(maxTime, maxIterations, executor, driver, listener);
                 } else {
@@ -279,15 +305,15 @@ public class Driver implements Releasable, Describable {
         });
     }
 
-    private static ListenableActionFuture<Void> oneOf(List<ListenableActionFuture<Void>> futures) {
+    private static SubscribableListener<Void> oneOf(List<SubscribableListener<Void>> futures) {
         if (futures.isEmpty()) {
             return Operator.NOT_BLOCKED;
         }
         if (futures.size() == 1) {
             return futures.get(0);
         }
-        ListenableActionFuture<Void> oneOf = new ListenableActionFuture<>();
-        for (ListenableActionFuture<Void> fut : futures) {
+        SubscribableListener<Void> oneOf = new SubscribableListener<>();
+        for (SubscribableListener<Void> fut : futures) {
             fut.addListener(oneOf);
         }
         return oneOf;

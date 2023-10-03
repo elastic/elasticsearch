@@ -49,6 +49,7 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
+        @SuppressWarnings("this-escape")
         public Request() {
             local(true);
         }

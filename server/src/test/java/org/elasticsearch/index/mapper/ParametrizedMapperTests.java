@@ -282,7 +282,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             pc = pc.createDynamicTemplateContext(null);
         }
         return (TestMapper) new TypeParser().parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
     }
 
     private static TestMapper fromMapping(String mapping, IndexVersion version, TransportVersion transportVersion) {
@@ -344,7 +344,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","fixed":true,"fixed2":true,"required":"value"}""");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapper.merge(badMerge, MapperBuilderContext.root(false))
+            () -> mapper.merge(badMerge, MapperBuilderContext.root(false, false))
         );
         String expectedError = """
             Mapper for [field] conflicts with existing mapper:
@@ -357,7 +357,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // TODO: should we have to include 'fixed' here? Or should updates take as 'defaults' the existing values?
         TestMapper goodMerge = fromMapping("""
             {"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}""");
-        TestMapper merged = (TestMapper) mapper.merge(goodMerge, MapperBuilderContext.root(false));
+        TestMapper merged = (TestMapper) mapper.merge(goodMerge, MapperBuilderContext.root(false, false));
 
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // original mapping is unaffected
         assertEquals("""
@@ -375,7 +375,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String addSubField = """
             {"type":"test_mapper","variable":"foo","required":"value","fields":{"sub2":{"type":"keyword"}}}""";
         TestMapper toMerge = fromMapping(addSubField);
-        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperBuilderContext.root(false));
+        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperBuilderContext.root(false, false));
         assertEquals(XContentHelper.stripWhitespace("""
             {
               "field": {
@@ -398,7 +398,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper badToMerge = fromMapping(badSubField);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> merged.merge(badToMerge, MapperBuilderContext.root(false))
+            () -> merged.merge(badToMerge, MapperBuilderContext.root(false, false))
         );
         assertEquals("mapper [field.sub2] cannot be changed from type [keyword] to [binary]", e.getMessage());
     }
@@ -414,13 +414,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         TestMapper toMerge = fromMapping("""
             {"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}""");
-        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperBuilderContext.root(false));
+        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperBuilderContext.root(false, false));
         assertEquals("""
             {"field":{"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}}""", Strings.toString(merged));
 
         TestMapper removeCopyTo = fromMapping("""
             {"type":"test_mapper","variable":"updated","required":"value"}""");
-        TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo, MapperBuilderContext.root(false));
+        TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo, MapperBuilderContext.root(false, false));
         assertEquals("""
             {"field":{"type":"test_mapper","variable":"updated","required":"value"}}""", Strings.toString(noCopyTo));
     }
@@ -486,7 +486,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper toMerge = fromMapping(conflict);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapper.merge(toMerge, MapperBuilderContext.root(false))
+            () -> mapper.merge(toMerge, MapperBuilderContext.root(false, false))
         );
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n"
@@ -575,7 +575,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         TestMapper original = mapper;
         TestMapper toMerge = fromMapping(mapping);
-        e = expectThrows(IllegalArgumentException.class, () -> original.merge(toMerge, MapperBuilderContext.root(false)));
+        e = expectThrows(IllegalArgumentException.class, () -> original.merge(toMerge, MapperBuilderContext.root(false, false)));
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n" + "\tCannot update parameter [analyzer] from [default] to [_standard]",
             e.getMessage()

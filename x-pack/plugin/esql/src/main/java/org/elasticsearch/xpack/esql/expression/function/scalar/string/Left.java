@@ -11,9 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -43,7 +42,11 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     private final Expression length;
 
-    public Left(Source source, @Named("string") Expression str, @Named("length") Expression length) {
+    public Left(
+        Source source,
+        @Param(name = "string", type = { "keyword" }) Expression str,
+        @Param(name = "length", type = { "integer" }) Expression length
+    ) {
         super(source, Arrays.asList(str, length));
         this.source = source;
         this.str = str;
@@ -69,16 +72,13 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-
-        Supplier<EvalOperator.ExpressionEvaluator> strSupplier = toEvaluator.apply(str);
-        Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = toEvaluator.apply(length);
-        return () -> {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var strSupplier = toEvaluator.apply(str);
+        var lengthSupplier = toEvaluator.apply(length);
+        return dvrCtx -> {
             BytesRef out = new BytesRef();
             UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
-            return new LeftEvaluator(out, cp, strSupplier.get(), lengthSupplier.get());
+            return new LeftEvaluator(out, cp, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
         };
     }
 

@@ -33,7 +33,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.operator.TopNOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;

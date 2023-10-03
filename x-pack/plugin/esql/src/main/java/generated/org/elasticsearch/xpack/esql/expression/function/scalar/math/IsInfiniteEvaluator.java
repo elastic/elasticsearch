@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link IsInfinite}.
@@ -21,22 +23,26 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class IsInfiniteEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
-  public IsInfiniteEvaluator(EvalOperator.ExpressionEvaluator val) {
+  private final DriverContext driverContext;
+
+  public IsInfiniteEvaluator(EvalOperator.ExpressionEvaluator val, DriverContext driverContext) {
     this.val = val;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      DoubleBlock valBlock = (DoubleBlock) valRef.block();
+      DoubleVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), valVector).asBlock());
     }
-    DoubleBlock valBlock = (DoubleBlock) valUncastBlock;
-    DoubleVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock);
-    }
-    return eval(page.getPositionCount(), valVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, DoubleBlock valBlock) {
@@ -62,5 +68,10 @@ public final class IsInfiniteEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "IsInfiniteEvaluator[" + "val=" + val + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -368,9 +367,9 @@ public class NativePrivilegeStore {
         ActionListener<Map<String, List<String>>> listener
     ) {
         securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
+            ActionListener<DocWriteResponse> groupListener = new GroupedActionListener<>(
                 privileges.size(),
-                ActionListener.wrap((Collection<IndexResponse> responses) -> {
+                ActionListener.wrap((Collection<DocWriteResponse> responses) -> {
                     final Map<String, List<String>> createdNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
                         .map(r -> r.getId())
@@ -392,7 +391,7 @@ public class NativePrivilegeStore {
     private void innerPutPrivilege(
         ApplicationPrivilegeDescriptor privilege,
         WriteRequest.RefreshPolicy refreshPolicy,
-        ActionListener<IndexResponse> listener
+        ActionListener<DocWriteResponse> listener
     ) {
         try {
             final String name = privilege.getName();

@@ -175,8 +175,6 @@ public class RestoreService implements ClusterStateApplier {
 
     private final IndexMetadataVerifier indexMetadataVerifier;
 
-    private final MetadataDeleteIndexService metadataDeleteIndexService;
-
     private final ShardLimitValidator shardLimitValidator;
 
     private final ClusterSettings clusterSettings;
@@ -191,12 +189,12 @@ public class RestoreService implements ClusterStateApplier {
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
+    @SuppressWarnings("this-escape")
     public RestoreService(
         ClusterService clusterService,
         RepositoriesService repositoriesService,
         AllocationService allocationService,
         MetadataCreateIndexService createIndexService,
-        MetadataDeleteIndexService metadataDeleteIndexService,
         IndexMetadataVerifier indexMetadataVerifier,
         ShardLimitValidator shardLimitValidator,
         SystemIndices systemIndices,
@@ -209,7 +207,6 @@ public class RestoreService implements ClusterStateApplier {
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.indexMetadataVerifier = indexMetadataVerifier;
-        this.metadataDeleteIndexService = metadataDeleteIndexService;
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
@@ -481,6 +478,7 @@ public class RestoreService implements ClusterStateApplier {
                 metadataBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore).build(),
                 dataStreamsToRestore.values(),
                 updater,
+                clusterService.getSettings(),
                 listener
             )
         );
@@ -1208,6 +1206,7 @@ public class RestoreService implements ClusterStateApplier {
         private final BiConsumer<ClusterState, Metadata.Builder> updater;
 
         private final AllocationActionListener<RestoreCompletionResponse> listener;
+        private final Settings settings;
 
         @Nullable
         private RestoreInfo restoreInfo;
@@ -1221,6 +1220,7 @@ public class RestoreService implements ClusterStateApplier {
             Metadata metadata,
             Collection<DataStream> dataStreamsToRestore,
             BiConsumer<ClusterState, Metadata.Builder> updater,
+            Settings settings,
             ActionListener<RestoreCompletionResponse> listener
         ) {
             super(request.masterNodeTimeout());
@@ -1232,6 +1232,7 @@ public class RestoreService implements ClusterStateApplier {
             this.metadata = metadata;
             this.dataStreamsToRestore = dataStreamsToRestore;
             this.updater = updater;
+            this.settings = settings;
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         }
 
@@ -1241,9 +1242,10 @@ public class RestoreService implements ClusterStateApplier {
             ensureSnapshotNotDeleted(currentState);
 
             // Clear out all existing indices which fall within a system index pattern being restored
-            currentState = metadataDeleteIndexService.deleteIndices(
+            currentState = MetadataDeleteIndexService.deleteIndices(
                 currentState,
-                resolveSystemIndicesToDelete(currentState, featureStatesToRestore)
+                resolveSystemIndicesToDelete(currentState, featureStatesToRestore),
+                settings
             );
 
             // List of searchable snapshots indices to restore

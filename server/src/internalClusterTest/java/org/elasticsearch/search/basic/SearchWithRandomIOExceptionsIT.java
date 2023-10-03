@@ -14,7 +14,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
@@ -124,7 +123,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             added[i] = false;
             try {
-                IndexResponse indexResponse = client().prepareIndex("test")
+                DocWriteResponse indexResponse = client().prepareIndex("test")
                     .setId(Integer.toString(i))
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))

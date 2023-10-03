@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.MAX_UNSIGNED_LONG;
-
 public class FloorTests extends AbstractFunctionTestCase {
     public FloorTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -41,7 +39,7 @@ public class FloorTests extends AbstractFunctionTestCase {
             DataTypes.UNSIGNED_LONG,
             ul -> NumericUtils.asLongUnsigned(ul),
             BigInteger.ZERO,
-            MAX_UNSIGNED_LONG,
+            UNSIGNED_LONG_MAX,
             List.of()
         );
         TestCaseSupplier.forUnaryDouble(

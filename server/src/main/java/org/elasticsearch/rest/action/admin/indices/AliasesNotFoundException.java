@@ -15,6 +15,7 @@ import java.util.Arrays;
 
 public class AliasesNotFoundException extends ResourceNotFoundException {
 
+    @SuppressWarnings("this-escape")
     public AliasesNotFoundException(String... names) {
         super("aliases " + Arrays.toString(names) + " missing");
         this.setResources("aliases", names);

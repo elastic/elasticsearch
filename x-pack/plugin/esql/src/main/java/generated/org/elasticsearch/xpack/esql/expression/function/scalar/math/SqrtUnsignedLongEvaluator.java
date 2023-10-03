@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Sqrt}.
@@ -21,22 +23,27 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
-  public SqrtUnsignedLongEvaluator(EvalOperator.ExpressionEvaluator val) {
+  private final DriverContext driverContext;
+
+  public SqrtUnsignedLongEvaluator(EvalOperator.ExpressionEvaluator val,
+      DriverContext driverContext) {
     this.val = val;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      LongBlock valBlock = (LongBlock) valRef.block();
+      LongVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), valVector).asBlock());
     }
-    LongBlock valBlock = (LongBlock) valUncastBlock;
-    LongVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock);
-    }
-    return eval(page.getPositionCount(), valVector).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
@@ -62,5 +69,10 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   @Override
   public String toString() {
     return "SqrtUnsignedLongEvaluator[" + "val=" + val + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

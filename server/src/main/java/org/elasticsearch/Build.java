@@ -14,10 +14,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.internal.BuildExtension;
+import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
+import java.util.ServiceLoader;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -41,12 +43,8 @@ public record Build(
 
         // finds the pluggable current build, or uses the local build as a fallback
         private static Build findCurrent() {
-            var buildExtension = BuildExtension.load();
-            if (buildExtension == null) {
-                return findLocalBuild();
-            }
-            var build = buildExtension.getCurrentBuild();
-            return build;
+            var buildExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class), () -> Build::findLocalBuild);
+            return buildExtension.getCurrentBuild();
         }
     }
 

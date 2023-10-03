@@ -16,14 +16,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
@@ -48,12 +47,12 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.ContextParser;
@@ -95,7 +94,17 @@ import static org.mockito.Mockito.mock;
 public class NodeTests extends ESTestCase {
 
     public static class CheckPlugin extends Plugin {
-        public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
+        public static final BootstrapCheck CHECK = new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.success();
+            }
+
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
+        };
 
         @Override
         public List<BootstrapCheck> getBootstrapChecks() {
@@ -445,7 +454,7 @@ public class NodeTests extends ESTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService
         ) {
@@ -635,33 +644,19 @@ public class NodeTests extends ESTestCase {
 
         @Override
         public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
-            return Optional.of(new PersistedClusterStateServiceFactory() {
-                @Override
-                public PersistedClusterStateService newPersistedClusterStateService(
-                    NodeEnvironment nodeEnvironment,
-                    NamedXContentRegistry xContentRegistry,
-                    ClusterSettings clusterSettings,
-                    ThreadPool threadPool
-                ) {
-                    throw new AssertionError("not called");
-                }
-
-                @Override
-                public PersistedClusterStateService newPersistedClusterStateService(
-                    NodeEnvironment nodeEnvironment,
-                    NamedXContentRegistry namedXContentRegistry,
-                    ClusterSettings clusterSettings,
-                    ThreadPool threadPool,
-                    CompatibilityVersions compatibilityVersions
-                ) {
-                    return persistedClusterStateService = new PersistedClusterStateService(
+            return Optional.of(
+                (
+                    nodeEnvironment,
+                    namedXContentRegistry,
+                    clusterSettings,
+                    threadPool,
+                    compatibilityVersions) -> persistedClusterStateService = new PersistedClusterStateService(
                         nodeEnvironment,
                         namedXContentRegistry,
                         clusterSettings,
                         threadPool::relativeTimeInMillis
-                    );
-                }
-            });
+                    )
+            );
         }
     }
 

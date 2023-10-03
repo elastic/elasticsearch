@@ -48,6 +48,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
@@ -498,6 +499,16 @@ public class StatementParserTests extends ESTestCase {
 
             wsIndex = query.indexOf(' ', wsIndex + 1);
         } while (wsIndex >= 0);
+    }
+
+    public void testNewLines() {
+        String[] delims = new String[] { "", "\r", "\n", "\r\n" };
+        Function<String, String> queryFun = d -> d + "from " + d + " foo " + d + "| eval " + d + " x = concat(bar, \"baz\")" + d;
+        LogicalPlan reference = statement(queryFun.apply(delims[0]));
+        for (int i = 1; i < delims.length; i++) {
+            LogicalPlan candidate = statement(queryFun.apply(delims[i]));
+            assertThat(candidate, equalTo(reference));
+        }
     }
 
     public void testSuggestAvailableSourceCommandsOnParsingError() {

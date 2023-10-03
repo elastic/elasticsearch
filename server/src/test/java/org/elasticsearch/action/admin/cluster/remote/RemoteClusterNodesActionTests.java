@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,6 +35,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -78,6 +81,8 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                 new NodeInfo(
                     Version.CURRENT,
                     TransportVersion.current(),
+                    IndexVersion.current(),
+                    Map.of(),
                     null,
                     node,
                     null,
@@ -104,7 +109,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             final NodesInfoRequest nodesInfoRequest = invocation.getArgument(2);
-            assertThat(nodesInfoRequest.requestedMetrics(), containsInAnyOrder(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName()));
+            assertThat(nodesInfoRequest.requestedMetrics(), containsInAnyOrder(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName()));
             final ActionListenerResponseHandler<NodesInfoResponse> handler = invocation.getArgument(3);
             handler.handleResponse(nodesInfoResponse);
             return null;
@@ -147,6 +152,8 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                 new NodeInfo(
                     Version.CURRENT,
                     TransportVersion.current(),
+                    IndexVersion.current(),
+                    Map.of(),
                     null,
                     node,
                     null,

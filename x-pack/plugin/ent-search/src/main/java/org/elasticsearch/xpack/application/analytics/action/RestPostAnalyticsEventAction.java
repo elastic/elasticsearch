@@ -13,9 +13,10 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
@@ -48,7 +49,11 @@ public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandle
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
         PostAnalyticsEventAction.Request request = buidRequest(restRequest);
-        return channel -> client.execute(PostAnalyticsEventAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(
+            PostAnalyticsEventAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED)
+        );
     }
 
     private InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {

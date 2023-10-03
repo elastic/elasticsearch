@@ -10,7 +10,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Not}.
@@ -19,22 +21,26 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator v;
 
-  public NotEvaluator(EvalOperator.ExpressionEvaluator v) {
+  private final DriverContext driverContext;
+
+  public NotEvaluator(EvalOperator.ExpressionEvaluator v, DriverContext driverContext) {
     this.v = v;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block vUncastBlock = v.eval(page);
-    if (vUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref vRef = v.eval(page)) {
+      if (vRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BooleanBlock vBlock = (BooleanBlock) vRef.block();
+      BooleanVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
     }
-    BooleanBlock vBlock = (BooleanBlock) vUncastBlock;
-    BooleanVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      return eval(page.getPositionCount(), vBlock);
-    }
-    return eval(page.getPositionCount(), vVector).asBlock();
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock vBlock) {
@@ -60,5 +66,10 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public String toString() {
     return "NotEvaluator[" + "v=" + v + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(v);
   }
 }

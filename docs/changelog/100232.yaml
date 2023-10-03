@@ -1,0 +1,5 @@
+pr: 100232
+summary: "Tracing: Use `doPriv` when working with spans, use `SpanId`"
+area: Infra/Core
+type: bug
+issues: []

@@ -71,8 +71,12 @@ public class AggregationOperator implements Operator {
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
-        for (Aggregator aggregator : aggregators) {
-            aggregator.processPage(page);
+        try {
+            for (Aggregator aggregator : aggregators) {
+                aggregator.processPage(page);
+            }
+        } finally {
+            page.releaseBlocks();
         }
     }
 

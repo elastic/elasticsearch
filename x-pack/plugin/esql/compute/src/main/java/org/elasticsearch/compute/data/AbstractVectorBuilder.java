@@ -13,7 +13,7 @@ abstract class AbstractVectorBuilder implements Vector.Builder {
     /**
      * Has this builder been closed already?
      */
-    private boolean closed = false;
+    boolean closed = false;
 
     protected final BlockFactory blockFactory;
 

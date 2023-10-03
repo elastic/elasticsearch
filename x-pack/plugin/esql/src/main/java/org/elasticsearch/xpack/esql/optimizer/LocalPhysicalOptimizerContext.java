@@ -8,5 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public record LocalPhysicalOptimizerContext(EsqlConfiguration configuration) {}
+public record LocalPhysicalOptimizerContext(EsqlConfiguration configuration, SearchStats searchStats) {}

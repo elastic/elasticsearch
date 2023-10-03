@@ -1016,7 +1016,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 uniqueOrders.stream().toList(),
                 rows
             ),
-            List.of(new Page(blocks.toArray(Block[]::new))).iterator()
+            List.of(new Page(blocks.toArray(Block[]::new))).iterator(),
+            driverContext
         );
         for (Page p : results) {
             readAsRows(actualValues, p);

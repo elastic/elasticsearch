@@ -94,9 +94,14 @@ final class FilterDoubleBlock extends AbstractFilterBlock implements DoubleBlock
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
-        sb.append("[positions=" + getPositionCount() + ", values=[");
-        appendValues(sb);
-        sb.append("]]");
+        sb.append("[positions=" + getPositionCount());
+        sb.append(", released=" + isReleased());
+        if (isReleased() == false) {
+            sb.append(", values=[");
+            appendValues(sb);
+            sb.append("]");
+        }
+        sb.append("]");
         return sb.toString();
     }
 

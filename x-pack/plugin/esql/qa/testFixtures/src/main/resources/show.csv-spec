@@ -57,8 +57,8 @@ now                      |? now()                                               
 percentile               |? percentile(arg1:?, arg2:?)                            |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 pi                       |? pi()                                                  | null                    |  null            | null                                               |?                    | ""                      | null                 | false
 pow                      |"? pow(base:integer|long|double, exponent:integer|double)" |[base, exponent]         |["integer|long|double", "integer|double"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+rate                     |? rate(arg1:?)                                          |arg1                     |?                 |""                                                  |?                    | ""                      | false                | false
 replace                  |"? replace(arg1:?, arg2:?, arg3:?)"                       | [arg1, arg2, arg3]      | [?, ?, ?]        |["", "", ""]                                        |?                    | ""                      | [false, false, false]| false 
-rate                     |rate(arg1:?                                             |arg1                     |?                  |""                                                 |"double")
 right                    |"? right(string:keyword, length:integer)"     |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 round                    |? round(arg1:?, arg2:?)                                 |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 rtrim                    |? rtrim(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
@@ -97,8 +97,8 @@ trim                     |? trim(arg1:?)                                        
 showFunctionsFiltered
 show functions | where starts_with(name, "is_");
 
-  name:keyword           |           synopsis:keyword
-is_finite                |is_finite(arg1)
-is_infinite              |is_infinite(arg1)
-is_nan                   |is_nan(arg1)
+       name:keyword      |                        synopsis:keyword                |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |  returnType:keyword   |  description:keyword  |   optionalArgs:boolean |  variadic:boolean
+is_finite                |? is_finite(arg1:?)                                     |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
+is_infinite              |? is_infinite(arg1:?)                                   |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
+is_nan                   |? is_nan(arg1:?)                                        |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
 ;

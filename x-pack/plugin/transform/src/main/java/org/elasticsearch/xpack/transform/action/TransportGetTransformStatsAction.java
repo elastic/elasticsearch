@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -62,6 +64,9 @@ import java.util.stream.Collectors;
 public class TransportGetTransformStatsAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetTransformStatsAction.class);
+
+    // default timeout share to receive checkpoint info, with the default of 30s: 30s * 0.8 = 24s
+    private static final double CHECKPOINT_INFO_TIMEOUT_SHARE = 0.8;
 
     private final TransformConfigManager transformConfigManager;
     private final TransformCheckpointService transformCheckpointService;
@@ -114,6 +119,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
+
         if (task.isCancelled() == false) {
             task.getCheckpointingInfo(
                 transformCheckpointService,
@@ -130,6 +136,13 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             )
                         );
                     }
+                ),
+                // at this point the transport already spend some time budget in `doExecute`, it is hard to tell what is left:
+                // recording the time spend would be complex and crosses machine boundaries, that's why we use a heuristic here
+                TimeValue.timeValueMillis(
+                    (long) ((request.getTimeout() != null
+                        ? request.getTimeout().millis()
+                        : AcknowledgedRequest.DEFAULT_ACK_TIMEOUT.millis()) * CHECKPOINT_INFO_TIMEOUT_SHARE)
                 )
             );
         } else {

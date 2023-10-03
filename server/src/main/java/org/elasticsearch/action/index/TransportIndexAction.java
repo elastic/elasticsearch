@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -27,7 +28,7 @@ import org.elasticsearch.transport.TransportService;
  * Deprecated use TransportBulkAction with a single item instead
  */
 @Deprecated
-public class TransportIndexAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
+public class TransportIndexAction extends TransportSingleItemBulkWriteAction<IndexRequest, DocWriteResponse> {
 
     @Inject
     public TransportIndexAction(ActionFilters actionFilters, TransportService transportService, TransportBulkAction bulkAction) {

@@ -44,29 +44,6 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
     protected final String transportUnpromotableAction;
     protected final Executor executor;
 
-    /**
-     * Temporary for serverless compatibility. TODO remove.
-     */
-    protected TransportBroadcastUnpromotableAction(
-        String actionName,
-        ClusterService clusterService,
-        TransportService transportService,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        String executor
-    ) {
-        this(
-            actionName,
-            clusterService,
-            transportService,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            transportService.getThreadPool().executor(executor)
-        );
-    }
-
     protected TransportBroadcastUnpromotableAction(
         String actionName,
         ClusterService clusterService,

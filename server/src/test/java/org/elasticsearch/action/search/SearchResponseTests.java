@@ -430,7 +430,10 @@ public class SearchResponseTests extends ESTestCase {
                   "_clusters": {
                     "total": 5,
                     "successful": 3,
-                    "skipped": 2
+                    "skipped": 2,
+                    "running":0,
+                    "partial": 0,
+                    "failed": 0
                   },
                   "hits": {
                     "total": {
@@ -483,8 +486,11 @@ public class SearchResponseTests extends ESTestCase {
                   },
                   "_clusters": {
                     "total": 4,
-                    "successful": 2,
-                    "skipped": 2,
+                    "successful": 1,
+                    "skipped": 1,
+                    "running":0,
+                    "partial": 1,
+                    "failed": 1,
                     "details": {
                       "(local)": {
                         "status": "successful",

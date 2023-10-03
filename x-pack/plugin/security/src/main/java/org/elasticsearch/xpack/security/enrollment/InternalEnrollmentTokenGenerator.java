@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -65,7 +66,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     public void maybeCreateNodeEnrollmentToken(Consumer<String> consumer, Iterator<TimeValue> backoff) {
         // the enrollment token can only be used against the node that generated it
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().nodesIds("_local")
-            .addMetrics(NodesInfoRequest.Metric.HTTP.metricName(), NodesInfoRequest.Metric.TRANSPORT.metricName());
+            .addMetrics(NodesInfoMetrics.Metric.HTTP.metricName(), NodesInfoMetrics.Metric.TRANSPORT.metricName());
 
         client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
             assert response.getNodes().size() == 1;
@@ -133,7 +134,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     public void createKibanaEnrollmentToken(Consumer<EnrollmentToken> consumer, Iterator<TimeValue> backoff) {
         // the enrollment token can only be used against the node that generated it
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().nodesIds("_local")
-            .addMetric(NodesInfoRequest.Metric.HTTP.metricName());
+            .addMetric(NodesInfoMetrics.Metric.HTTP.metricName());
         client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
             assert response.getNodes().size() == 1;
             NodeInfo nodeInfo = response.getNodes().get(0);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.watcher.actions.index;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -241,7 +242,7 @@ public class IndexActionTests extends ESTestCase {
         final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple(Maps.ofEntries(entries)));
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
-        PlainActionFuture<IndexResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<DocWriteResponse> listener = PlainActionFuture.newFuture();
         listener.onResponse(new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true));
         when(client.index(captor.capture())).thenReturn(listener);
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
@@ -339,7 +340,7 @@ public class IndexActionTests extends ESTestCase {
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, payload);
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
-        PlainActionFuture<IndexResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<DocWriteResponse> listener = PlainActionFuture.newFuture();
         listener.onResponse(new IndexResponse(new ShardId(new Index("test-index", "uuid"), 0), docId, 1, 1, 1, true));
         when(client.index(captor.capture())).thenReturn(listener);
 

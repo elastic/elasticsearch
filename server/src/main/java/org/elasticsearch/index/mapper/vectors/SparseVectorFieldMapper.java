@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -110,8 +111,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            // No support for exists queries prior to this version
-            if (context.getIndexSettings().getIndexVersionCreated().before(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
+            if (context.getIndexSettings().getIndexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
+                deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
+                return new MatchNoDocsQuery();
+            } else if (context.getIndexSettings().getIndexVersionCreated().before(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
+                // No support for exists queries prior to this version on 8.x
                 throw new IllegalArgumentException("[sparse_vector] fields do not support [exists] queries");
             }
             return super.existsQuery(context);

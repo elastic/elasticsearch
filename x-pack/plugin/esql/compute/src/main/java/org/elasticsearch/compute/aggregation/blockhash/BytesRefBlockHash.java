@@ -20,6 +20,7 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -54,15 +55,23 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        BytesRefBlock block = page.getBlock(channel);
-        BytesRefVector vector = block.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(block)) {
+        Block block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            seenNull = true;
+            try (IntVector groupIds = new ConstantIntVector(0, block.getPositionCount(), blockFactory)) {
                 addInput.add(0, groupIds);
             }
         } else {
-            try (IntBlock groupIds = add(vector).asBlock()) {
-                addInput.add(0, groupIds.asVector());
+            BytesRefBlock bytesBlock = (BytesRefBlock) block;
+            BytesRefVector bytesVector = bytesBlock.asVector();
+            if (bytesVector == null) {
+                try (IntBlock groupIds = add(bytesBlock)) {
+                    addInput.add(0, groupIds);
+                }
+            } else {
+                try (IntBlock groupIds = add(bytesVector).asBlock()) {
+                    addInput.add(0, groupIds.asVector());
+                }
             }
         }
     }

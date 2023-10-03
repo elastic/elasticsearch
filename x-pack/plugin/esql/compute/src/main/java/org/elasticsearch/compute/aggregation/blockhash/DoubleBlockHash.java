@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -48,15 +49,23 @@ final class DoubleBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        DoubleBlock block = page.getBlock(channel);
-        DoubleVector vector = block.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(block)) {
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            seenNull = true;
+            try (IntVector groupIds = new ConstantIntVector(0, block.getPositionCount(), blockFactory)) {
                 addInput.add(0, groupIds);
             }
         } else {
-            try (IntBlock groupIds = add(vector).asBlock()) {
-                addInput.add(0, groupIds.asVector());
+            DoubleBlock doubleBlock = (DoubleBlock) block;
+            DoubleVector doubleVector = doubleBlock.asVector();
+            if (doubleVector == null) {
+                try (IntBlock groupIds = add(doubleBlock)) {
+                    addInput.add(0, groupIds);
+                }
+            } else {
+                try (IntBlock groupIds = add(doubleVector).asBlock()) {
+                    addInput.add(0, groupIds.asVector());
+                }
             }
         }
     }

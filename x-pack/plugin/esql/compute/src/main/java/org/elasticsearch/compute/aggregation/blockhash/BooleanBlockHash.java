@@ -13,6 +13,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -38,15 +39,23 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        BooleanBlock block = page.getBlock(channel);
-        BooleanVector vector = block.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(block)) {
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            everSeen[NULL_ORD] = true;
+            try (IntVector groupIds = new ConstantIntVector(0, block.getPositionCount(), blockFactory)) {
                 addInput.add(0, groupIds);
             }
         } else {
-            try (IntBlock groupIds = add(vector).asBlock()) {
-                addInput.add(0, groupIds.asVector());
+            BooleanBlock booleanBlock = page.getBlock(channel);
+            BooleanVector booleanVector = booleanBlock.asVector();
+            if (booleanVector == null) {
+                try (IntBlock groupIds = add(booleanBlock)) {
+                    addInput.add(0, groupIds);
+                }
+            } else {
+                try (IntBlock groupIds = add(booleanVector).asBlock()) {
+                    addInput.add(0, groupIds.asVector());
+                }
             }
         }
     }

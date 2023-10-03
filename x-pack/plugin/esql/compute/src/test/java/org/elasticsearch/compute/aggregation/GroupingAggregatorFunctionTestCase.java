@@ -181,6 +181,32 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
+    public void testAllKeyNulls() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        List<Page> input = new ArrayList<>();
+        for (Page p : CannedSourceOperator.collectPages(simpleInput(blockFactory, between(11, 20)))) {
+            if (randomBoolean()) {
+                input.add(p);
+            } else {
+                Block[] blocks = new Block[p.getBlockCount()];
+                blocks[0] = Block.constantNullBlock(p.getPositionCount(), blockFactory);
+                for (int i = 1; i < blocks.length; i++) {
+                    blocks[i] = p.getBlock(i);
+                }
+                p.getBlock(0).close();
+                input.add(new Page(blocks));
+            }
+        }
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> results = drive(
+            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
+            input.iterator(),
+            driverContext
+        );
+        assertSimpleOutput(origInput, results);
+    }
+
     private SourceOperator nullGroups(SourceOperator source, BlockFactory blockFactory) {
         return new NullInsertingSourceOperator(source, blockFactory) {
             @Override

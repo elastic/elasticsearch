@@ -1,7 +1,7 @@
 pr: 100187
 summary: GA the data stream lifecycle
 area: Data streams
-type: "docs, feature"
+type: "feature"
 issues: []
 highlight:
   title: The data stream lifecycle is now in Technical Preview

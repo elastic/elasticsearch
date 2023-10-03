@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPack
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.deployment.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
@@ -78,6 +80,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -132,7 +135,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         Task task,
         PutTrainedModelAction.Request request,
         ClusterState state,
-        ActionListener<Response> listener
+        ActionListener<Response> finalResponseListener
     ) {
         TrainedModelConfig config = request.getTrainedModelConfig();
         try {
@@ -140,7 +143,9 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 config.ensureParsedDefinition(xContentRegistry);
             }
         } catch (IOException ex) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]", ex, config.getModelId()));
+            finalResponseListener.onFailure(
+                ExceptionsHelper.badRequestException("Failed to parse definition for [{}]", ex, config.getModelId())
+            );
             return;
         }
 
@@ -150,7 +155,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             try {
                 config.getModelDefinition().getTrainedModel().validate();
             } catch (ElasticsearchException ex) {
-                listener.onFailure(
+                finalResponseListener.onFailure(
                     ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.", ex, config.getModelId())
                 );
                 return;
@@ -158,7 +163,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
 
             TrainedModelType trainedModelType = TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
             if (trainedModelType == null) {
-                listener.onFailure(
+                finalResponseListener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Unknown trained model definition class [{}]",
                         config.getModelDefinition().getTrainedModel().getName()
@@ -171,7 +176,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 // Set the model type from the definition
                 config = new TrainedModelConfig.Builder(config).setModelType(trainedModelType).build();
             } else if (trainedModelType != config.getModelType()) {
-                listener.onFailure(
+                finalResponseListener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "{} [{}] does not match the model definition type [{}]",
                         TrainedModelConfig.MODEL_TYPE.getPreferredName(),
@@ -183,7 +188,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             }
 
             if (config.getInferenceConfig().isTargetTypeSupported(config.getModelDefinition().getTrainedModel().targetType()) == false) {
-                listener.onFailure(
+                finalResponseListener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Model [{}] inference config type [{}] does not support definition target type [{}]",
                         config.getModelId(),
@@ -196,7 +201,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
 
             TransportVersion minCompatibilityVersion = config.getModelDefinition().getTrainedModel().getMinimalCompatibilityVersion();
             if (state.getMinTransportVersion().before(minCompatibilityVersion)) {
-                listener.onFailure(
+                finalResponseListener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Cannot create model [{}] while cluster upgrade is in progress.",
                         config.getModelId()
@@ -223,7 +228,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         }
 
         if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {
-            listener.onFailure(
+            finalResponseListener.onFailure(
                 ExceptionsHelper.badRequestException(
                     "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
                     config.getModelId()
@@ -233,7 +238,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         }
 
         if (TrainedModelAssignmentMetadata.fromState(state).hasDeployment(trainedModelConfig.getModelId())) {
-            listener.onFailure(
+            finalResponseListener.onFailure(
                 ExceptionsHelper.badRequestException(
                     "Cannot create model [{}] the id is the same as an current model deployment",
                     config.getModelId()
@@ -241,6 +246,14 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             );
             return;
         }
+
+        ActionListener<TrainedModelConfig> finalResponseAction = ActionListener.wrap((configToReturn) -> {
+            finalResponseListener.onResponse(new PutTrainedModelAction.Response(configToReturn));
+        }, finalResponseListener::onFailure);
+
+        ActionListener<TrainedModelConfig> verifyClusterAndModelArchitectures = ActionListener.wrap((configToReturn) -> {
+            verifyMlNodesAndModelArchitectures(configToReturn, client, threadPool, finalResponseAction);
+        }, finalResponseListener::onFailure);
 
         ActionListener<Boolean> finishedStoringListener = ActionListener.wrap(bool -> {
             TrainedModelConfig configToReturn = trainedModelConfig.clearDefinition().build();
@@ -250,19 +263,19 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     modelPackageConfigHolder.get(),
                     request.isWaitForCompletion(),
                     ActionListener.wrap(
-                        downloadTriggered -> listener.onResponse(new PutTrainedModelAction.Response(configToReturn)),
-                        listener::onFailure
+                        downloadTriggered -> verifyClusterAndModelArchitectures.onResponse(configToReturn),
+                        finalResponseListener::onFailure
                     )
                 );
             } else {
-                listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
+                finalResponseListener.onResponse(new PutTrainedModelAction.Response(configToReturn));
             }
-        }, listener::onFailure);
+        }, finalResponseListener::onFailure);
 
         var isPackageModel = config.isPackagedModel();
         ActionListener<Void> checkStorageIndexSizeListener = ActionListener.wrap(
             r -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), finishedStoringListener, isPackageModel),
-            listener::onFailure
+            finalResponseListener::onFailure
         );
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(r -> {
@@ -276,7 +289,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                         IndexStats indexStats = stats.getIndices().get(InferenceIndexConstants.nativeDefinitionStore());
                         if (indexStats != null
                             && indexStats.getTotal().getStore().getSizeInBytes() > MAX_NATIVE_DEFINITION_INDEX_SIZE.getBytes()) {
-                            listener.onFailure(
+                            finalResponseListener.onFailure(
                                 new ElasticsearchStatusException(
                                     "Native model store has exceeded the maximum acceptable size of {}, "
                                         + "please delete older unused pytorch models",
@@ -293,7 +306,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                             checkStorageIndexSizeListener.onResponse(null);
                             return;
                         }
-                        listener.onFailure(
+                        finalResponseListener.onFailure(
                             new ElasticsearchStatusException(
                                 "Unable to calculate stats for definition storage index [{}], please try again later",
                                 RestStatus.SERVICE_UNAVAILABLE,
@@ -305,11 +318,11 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                 return;
             }
             checkStorageIndexSizeListener.onResponse(null);
-        }, listener::onFailure);
+        }, finalResponseListener::onFailure);
 
         ActionListener<Void> modelIdTagCheckListener = ActionListener.wrap(
             r -> checkTagsAgainstModelIds(request.getTrainedModelConfig().getTags(), tagsModelIdCheckListener),
-            listener::onFailure
+            finalResponseListener::onFailure
         );
 
         ActionListener<Void> handlePackageAndTagsListener = ActionListener.wrap(r -> {
@@ -318,27 +331,59 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     try {
                         TrainedModelValidator.validatePackage(trainedModelConfig, resolvedModelPackageConfig, state);
                     } catch (ValidationException e) {
-                        listener.onFailure(e);
+                        finalResponseListener.onFailure(e);
                         return;
                     }
                     modelPackageConfigHolder.set(resolvedModelPackageConfig);
                     setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig, xContentRegistry);
 
                     checkModelIdAgainstTags(trainedModelConfig.getModelId(), modelIdTagCheckListener);
-                }, listener::onFailure));
+                }, finalResponseListener::onFailure));
             } else {
                 checkModelIdAgainstTags(trainedModelConfig.getModelId(), modelIdTagCheckListener);
             }
-        }, listener::onFailure);
+        }, finalResponseListener::onFailure);
 
         checkForExistingTask(
             client,
             trainedModelConfig.getModelId(),
             request.isWaitForCompletion(),
-            listener,
+            finalResponseListener,
             handlePackageAndTagsListener,
             request.timeout()
         );
+    }
+
+    void verifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        Client client,
+        ThreadPool threadPool,
+        ActionListener<TrainedModelConfig> configToReturnListener
+    ) {
+        ActionListener<TrainedModelConfig> addWarningHeaderOnFailureListener = new ActionListener<TrainedModelConfig>() {
+            @Override
+            public void onResponse(TrainedModelConfig config) {
+                assert Objects.equals(config, configToReturn);
+                configToReturnListener.onResponse(configToReturn);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                HeaderWarning.addWarning(e.getMessage());
+                configToReturnListener.onResponse(configToReturn);
+            }
+        };
+
+        callVerifyMlNodesAndModelArchitectures(configToReturn, addWarningHeaderOnFailureListener, client, threadPool);
+    }
+
+    void callVerifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        ActionListener<TrainedModelConfig> failureListener,
+        Client client,
+        ThreadPool threadPool
+    ) {
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(failureListener, client, threadPool, configToReturn);
     }
 
     /**

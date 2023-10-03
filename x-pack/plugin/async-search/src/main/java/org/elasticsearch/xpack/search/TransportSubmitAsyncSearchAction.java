@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -102,7 +102,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                             AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
                             store.createResponse(docId, searchTask.getOriginHeaders(), initialResp, new ActionListener<>() {
                                 @Override
-                                public void onResponse(IndexResponse r) {
+                                public void onResponse(DocWriteResponse r) {
                                     if (searchResponse.isRunning()) {
                                         try {
                                             // store the final response on completion unless the submit is cancelled

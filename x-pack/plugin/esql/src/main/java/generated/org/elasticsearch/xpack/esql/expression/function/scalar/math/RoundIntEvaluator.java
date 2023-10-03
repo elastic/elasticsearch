@@ -35,26 +35,28 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      IntBlock valBlock = (IntBlock) valRef.block();
+      try (Block.Ref decimalsRef = decimals.eval(page)) {
+        if (decimalsRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
+        IntVector valVector = valBlock.asVector();
+        if (valVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+        }
+        LongVector decimalsVector = decimalsBlock.asVector();
+        if (decimalsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), valVector, decimalsVector).asBlock());
+      }
     }
-    IntBlock valBlock = (IntBlock) valUncastBlock;
-    Block decimalsUncastBlock = decimals.eval(page);
-    if (decimalsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    LongBlock decimalsBlock = (LongBlock) decimalsUncastBlock;
-    IntVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock, decimalsBlock);
-    }
-    LongVector decimalsVector = decimalsBlock.asVector();
-    if (decimalsVector == null) {
-      return eval(page.getPositionCount(), valBlock, decimalsBlock);
-    }
-    return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
   }
 
   public IntBlock eval(int positionCount, IntBlock valBlock, LongBlock decimalsBlock) {

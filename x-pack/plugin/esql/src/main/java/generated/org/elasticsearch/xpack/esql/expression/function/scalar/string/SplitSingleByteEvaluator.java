@@ -37,17 +37,18 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   @Override
-  public Block eval(Page page) {
-    Block strUncastBlock = str.eval(page);
-    if (strUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref strRef = str.eval(page)) {
+      if (strRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
+      BytesRefVector strVector = strBlock.asVector();
+      if (strVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), strBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), strVector));
     }
-    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
-    BytesRefVector strVector = strBlock.asVector();
-    if (strVector == null) {
-      return eval(page.getPositionCount(), strBlock);
-    }
-    return eval(page.getPositionCount(), strVector);
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {

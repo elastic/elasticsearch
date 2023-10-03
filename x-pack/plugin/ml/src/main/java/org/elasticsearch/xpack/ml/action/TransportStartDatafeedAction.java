@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -45,7 +46,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -80,7 +80,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_CONFIG_TOO_OLD;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TRANSPORT_TOO_OLD;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -249,7 +249,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             checkRemoteConfigVersions(
                                 datafeedConfigHolder.get(),
                                 remoteAliases,
-                                (cn) -> MlConfigVersion.fromVersion(remoteClusterService.getConnection(cn).getVersion())
+                                (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
                             );
                             createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
@@ -299,17 +299,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     static void checkRemoteConfigVersions(
         DatafeedConfig config,
         List<String> remoteClusters,
-        Function<String, MlConfigVersion> configVersionSupplier
+        Function<String, TransportVersion> transportVersionSupplier
     ) {
-        Optional<Tuple<MlConfigVersion, String>> minVersionAndReason = config.minRequiredConfigVersion();
+        Optional<Tuple<TransportVersion, String>> minVersionAndReason = config.minRequiredTransportVersion();
         if (minVersionAndReason.isPresent() == false) {
             return;
         }
         final String reason = minVersionAndReason.get().v2();
-        final MlConfigVersion minVersion = minVersionAndReason.get().v1();
+        final TransportVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> configVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> transportVersionSupplier.apply(cn).before(minVersion))
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;
@@ -317,7 +317,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         throw ExceptionsHelper.badRequestException(
             Messages.getMessage(
-                REMOTE_CLUSTERS_CONFIG_TOO_OLD,
+                REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
                 minVersion.toString(),
                 reason,
                 Strings.collectionToCommaDelimitedString(clustersTooOld)

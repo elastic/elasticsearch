@@ -90,7 +90,7 @@ public class HeaderWarning {
     }
 
     /**
-     * quoted-string is defined in <a href="https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6">Section 3.2.6 of RFC7230</a>
+     * quoted-string is defined in https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.6
      * quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
      * qdtext         = HTAB / SP /%x21 / %x23-5B / %x5D-7E / obs-text
      * obs-text       = %x80-FF
@@ -100,7 +100,7 @@ public class HeaderWarning {
      * the individual chars from qdText can be validated using the set of chars
      * the \\\\|\\\\\" (escaped '\' 0x20 and '"' 0x5c) which is used for quoted-pair has to be validated as strings
      */
-    private static final BitSet qdTextChars = Stream.of(
+    private static BitSet qdTextChars = Stream.of(
         IntStream.of(0x09),// HTAB
         IntStream.of(0x20), // SPACE
         IntStream.of(0x21), // !
@@ -129,7 +129,7 @@ public class HeaderWarning {
             : String.format(Locale.ROOT, "299 Elasticsearch-%s", Build.current().hash());
     }
 
-    private static final BitSet doesNotNeedEncoding;
+    private static BitSet doesNotNeedEncoding;
 
     static {
         doesNotNeedEncoding = new BitSet(1 + 0xFF);
@@ -265,7 +265,7 @@ public class HeaderWarning {
     private static boolean matchesQuotedString(String qdtext) {
         qdtext = qdtext.replaceAll("\\\\\"", "");
         qdtext = qdtext.replaceAll("\\\\", "");
-        return qdtext.chars().allMatch(qdTextChars::get);
+        return qdtext.chars().allMatch(c -> qdTextChars.get(c));
     }
 
     /**

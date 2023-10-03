@@ -9,7 +9,6 @@
 
 package org.elasticsearch.system.indices;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -110,7 +109,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Build.current().version())
                 .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
                 .endObject()
                 .field("dynamic", "strict")

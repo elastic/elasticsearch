@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal.docker;
 
 import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.GradleException;
@@ -209,6 +210,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // their own environments if they really want to.
         if (BuildParams.isCi() == false) {
             return false;
+        }
+
+        // Even if for some reason Docker exists on Windows agents, flag it as unsupported
+        if (OS.current() == OS.WINDOWS) {
+            return true;
         }
 
         // Only some hosts in CI are configured with Docker. We attempt to work out the OS

@@ -747,7 +747,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * <li> If the remapping function itself throws an (unchecked) exception, the exception
          * is rethrown, and the current mapping is left unchanged. Throwing exception therefore
          * is OK, but it is generally discouraged.</li>
-         * <li> The remapping function may be called multiple time in a CAS fashion underneath,
+         * <li> The remapping function may be called multiple times in a CAS fashion underneath,
          * make sure that is safe to do so.</li>
          * </ul>
          * @param clusterAlias key with which the specified value is associated

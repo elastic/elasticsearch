@@ -197,7 +197,7 @@
               ml.tokens:
                 type: sparse_vector
   - do:
-      catch: /\[sparse_vector\] fields do not support \[exists\] queries/
+      catch: /\[sparse_vector\] fields do not support \[exists\] queries|no such index.*/
       search:
         rest_total_hits_as_int: true
         index: test

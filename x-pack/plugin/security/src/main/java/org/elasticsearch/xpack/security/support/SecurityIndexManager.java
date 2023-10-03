@@ -117,6 +117,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.state.indexExists();
     }
 
+    public boolean indexIsClosed() {
+        return this.state.indexState == IndexMetadata.State.CLOSE;
+    }
+
     public Instant getCreationTime() {
         return this.state.creationTime;
     }

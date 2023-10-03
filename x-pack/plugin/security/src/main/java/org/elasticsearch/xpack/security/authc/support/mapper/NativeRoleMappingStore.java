@@ -297,7 +297,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private void getMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
-            logger.debug("The security index exists - no role mappings can be loaded");
+            logger.debug("The security does not index exist - no role mappings can be loaded");
+            listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.indexIsClosed()) {
+            logger.debug("The security index exists but is closed - no role mappings can be loaded");
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             logger.debug("The security index exists but is not available - no role mappings can be loaded");

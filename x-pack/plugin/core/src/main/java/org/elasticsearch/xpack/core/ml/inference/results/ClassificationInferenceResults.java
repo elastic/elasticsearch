@@ -218,14 +218,8 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     @Override
     public Map<String, Object> asMap() {
-        Map<String, Object> map = nonResultFeatures();
-        map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
-        return map;
-    }
-
-    @Override
-    public Map<String, Object> nonResultFeatures() {
         Map<String, Object> map = new LinkedHashMap<>();
+        map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
         if (topClasses.isEmpty() == false) {
             map.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }

@@ -120,14 +120,8 @@ public class RegressionInferenceResults extends SingleValueInferenceResults {
 
     @Override
     public Map<String, Object> asMap() {
-        Map<String, Object> map = nonResultFeatures();
-        map.put(resultsField, predictedValue());
-        return map;
-    }
-
-    @Override
-    public Map<String, Object> nonResultFeatures() {
         Map<String, Object> map = new LinkedHashMap<>();
+        map.put(resultsField, value());
         if (featureImportance.isEmpty() == false) {
             map.put(FEATURE_IMPORTANCE, featureImportance.stream().map(RegressionFeatureImportance::toMap).collect(Collectors.toList()));
         }

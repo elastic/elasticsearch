@@ -74,12 +74,6 @@ public class NerResults extends NlpInferenceResults {
     }
 
     @Override
-    public Map<String, Object> nonResultFeatures() {
-        var map = super.nonResultFeatures();
-        return Map.of(ENTITY_FIELD, entityGroups.stream().map(EntityGroup::toMap).collect(Collectors.toList()));
-    }
-
-    @Override
     public Object predictedValue() {
         return annotatedResult;
     }

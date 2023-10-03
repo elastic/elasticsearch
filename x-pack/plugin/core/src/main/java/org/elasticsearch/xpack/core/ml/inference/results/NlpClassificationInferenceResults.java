@@ -100,17 +100,6 @@ public class NlpClassificationInferenceResults extends NlpInferenceResults {
     @Override
     void addMapFields(Map<String, Object> map) {
         map.put(resultsField, classificationLabel);
-        addNonResultFeaturesToMap(map);
-    }
-
-    @Override
-    public Map<String, Object> nonResultFeatures() {
-        var map = super.nonResultFeatures();
-        addNonResultFeaturesToMap(map);
-        return map;
-    }
-
-    private void addNonResultFeaturesToMap(Map<String, Object> map) {
         if (topClasses.isEmpty() == false) {
             map.put(
                 NlpConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD,

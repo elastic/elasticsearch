@@ -98,14 +98,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
         boolean[] driverStarted = new boolean[1];
-        Exception e = expectThrows(
-            CircuitBreakingException.class,
-            () -> {
-                var operator = simple(bigArrays).get(driverContext);
-                driverStarted[0] = true;
-                drive(operator, input.iterator(), driverContext);
-            }
-        );
+        Exception e = expectThrows(CircuitBreakingException.class, () -> {
+            var operator = simple(bigArrays).get(driverContext);
+            driverStarted[0] = true;
+            drive(operator, input.iterator(), driverContext);
+        });
         if (driverStarted[0] == false) {
             // if drive hasn't even started then we need to release the input pages
             Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));

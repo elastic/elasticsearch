@@ -247,22 +247,28 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", mockContext());
-                TopDocs docs = searcher.search(query, 4);
-                assertThat(docs.scoreDocs, arrayWithSize(3));
-                assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181354]}"));
-                assertThat(docs.scoreDocs[0].score, equalTo(1.0F));
-                assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181356, 1]}"));
-                assertThat((double) docs.scoreDocs[1].score, closeTo(.333, .001));
-                assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
-                assertThat((double) docs.scoreDocs[2].score, closeTo(.250, .001));
-                Explanation explanation = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F)
-                    .explain(reader.leaves().get(0), docs.scoreDocs[0].doc);
-                assertThat(explanation.toString(), containsString("1.0 = Distance score, computed as weight * pivot / (pivot"));
-                assertThat(explanation.toString(), containsString("1.0 = weight"));
-                assertThat(explanation.toString(), containsString("1 = pivot"));
-                assertThat(explanation.toString(), containsString("1595432181354 = origin"));
-                assertThat(explanation.toString(), containsString("1595432181354 = current value"));
+                TopDocs docs;
+                {
+                    Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", mockContext());
+                    docs = searcher.search(query, 4);
+                    assertThat(docs.scoreDocs, arrayWithSize(3));
+                    assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181354]}"));
+                    assertThat(docs.scoreDocs[0].score, equalTo(1.0F));
+                    assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181356, 1]}"));
+                    assertThat((double) docs.scoreDocs[1].score, closeTo(.333, .001));
+                    assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
+                    assertThat((double) docs.scoreDocs[2].score, closeTo(.250, .001));
+                }
+                {
+                    Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", mockContext());
+                    Explanation explanation = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F)
+                        .explain(reader.leaves().get(0), docs.scoreDocs[0].doc);
+                    assertThat(explanation.toString(), containsString("1.0 = Distance score, computed as weight * pivot / (pivot"));
+                    assertThat(explanation.toString(), containsString("1.0 = weight"));
+                    assertThat(explanation.toString(), containsString("1 = pivot"));
+                    assertThat(explanation.toString(), containsString("1595432181354 = origin"));
+                    assertThat(explanation.toString(), containsString("1595432181354 = current value"));
+                }
             }
         }
     }

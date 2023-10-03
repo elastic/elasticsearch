@@ -120,41 +120,52 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
-
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                {
+                    SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                    assertThat(
+                        searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                             @Override
-                            public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Booleans booleans = (ScriptDocValues.Booleans) getDoc().get("test");
-                                return booleans.get(0) ? 3 : 0;
+                            public boolean needs_score() {
+                                return false;
                             }
-                        };
-                    }
-                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())), equalTo(1));
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
 
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
-                            public double execute(ExplanationHolder explanation) {
-                                BooleanDocValuesField booleans = (BooleanDocValuesField) field("test");
-                                return booleans.getInternal(0) ? 3 : 0;
+                            public ScoreScript newInstance(DocReader docReader) {
+                                return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                                    @Override
+                                    public double execute(ExplanationHolder explanation) {
+                                        ScriptDocValues.Booleans booleans = (ScriptDocValues.Booleans) getDoc().get("test");
+                                        return booleans.get(0) ? 3 : 0;
+                                    }
+                                };
                             }
-                        };
-                    }
-                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())), equalTo(1));
+                        }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
+                        equalTo(1)
+                    );
+                }
+                {
+                    SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                    assertThat(
+                        searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                            @Override
+                            public boolean needs_score() {
+                                return false;
+                            }
+
+                            @Override
+                            public ScoreScript newInstance(DocReader docReader) {
+                                return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                                    @Override
+                                    public double execute(ExplanationHolder explanation) {
+                                        BooleanDocValuesField booleans = (BooleanDocValuesField) field("test");
+                                        return booleans.getInternal(0) ? 3 : 0;
+                                    }
+                                };
+                            }
+                        }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
+                        equalTo(1)
+                    );
+                }
             }
         }
     }

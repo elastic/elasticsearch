@@ -536,7 +536,8 @@ public class IndexResolverTests extends ESTestCase {
         return IndexResolver.mergedMappings(
             SqlDataTypeRegistry.INSTANCE,
             indexPattern,
-            new FieldCapabilitiesResponse(indexNames, fieldCaps)
+            new FieldCapabilitiesResponse(indexNames, fieldCaps),
+            (s, cap) -> null
         );
     }
 

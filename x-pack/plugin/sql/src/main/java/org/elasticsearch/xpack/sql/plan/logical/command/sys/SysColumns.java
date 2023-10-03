@@ -198,7 +198,8 @@ public class SysColumns extends Command {
                             );
                         }
                         delegate.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
-                    })
+                    }),
+                    (s, cap) -> null
                 );
         }
     }

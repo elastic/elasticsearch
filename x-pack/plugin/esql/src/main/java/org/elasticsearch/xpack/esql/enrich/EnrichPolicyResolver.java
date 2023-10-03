@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.session.EsqlSession.SPECIFIC_VALIDITY_VERIFIER;
+
 public class EnrichPolicyResolver {
     private static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
 
@@ -117,7 +119,8 @@ public class EnrichPolicyResolver {
                     IndexResolver.ALL_FIELDS,
                     false,
                     Map.of(),
-                    listener.map(indexResult -> new ResolveResponse(new EnrichPolicyResolution(policyName, policy, indexResult)))
+                    listener.map(indexResult -> new ResolveResponse(new EnrichPolicyResolution(policyName, policy, indexResult))),
+                    SPECIFIC_VALIDITY_VERIFIER
                 );
             }
         }

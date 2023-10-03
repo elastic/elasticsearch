@@ -134,7 +134,7 @@ public class IndexResolver {
     );
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
-    private static final String UNMAPPED = "unmapped";
+    public static final String UNMAPPED = "unmapped";
 
     private final Client client;
     private final String clusterName;
@@ -326,7 +326,9 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
+            listener.delegateFailureAndWrap(
+                (l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response, (s, cap) -> null))
+            )
         );
     }
 
@@ -338,19 +340,23 @@ public class IndexResolver {
         Set<String> fieldNames,
         boolean includeFrozen,
         Map<String, Object> runtimeMappings,
-        ActionListener<IndexResolution> listener
+        ActionListener<IndexResolution> listener,
+        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
+            listener.delegateFailureAndWrap(
+                (l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response, specificValidityVerifier))
+            )
         );
     }
 
     public static IndexResolution mergedMappings(
         DataTypeRegistry typeRegistry,
         String indexPattern,
-        FieldCapabilitiesResponse fieldCapsResponse
+        FieldCapabilitiesResponse fieldCapsResponse,
+        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
     ) {
 
         if (fieldCapsResponse.getIndices().length == 0) {
@@ -359,8 +365,12 @@ public class IndexResolver {
 
         // merge all indices onto the same one
         List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, (n, types) -> {
-            StringBuilder errorMessage = new StringBuilder();
+            InvalidMappedField f = specificValidityVerifier.apply(n, types);
+            if (f != null) {
+                return f;
+            }
 
+            StringBuilder errorMessage = new StringBuilder();
             boolean hasUnmapped = types.containsKey(UNMAPPED);
 
             if (types.size() > (hasUnmapped ? 2 : 1)) {

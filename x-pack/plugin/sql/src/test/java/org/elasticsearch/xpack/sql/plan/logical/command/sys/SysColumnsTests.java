@@ -400,7 +400,7 @@ public class SysColumnsTests extends ESTestCase {
         doAnswer(invocation -> {
             ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), eq(IndexResolver.ALL_FIELDS), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), eq(IndexResolver.ALL_FIELDS), anyBoolean(), any(), any(), eq((s, cap) -> null));
         doAnswer(invocation -> {
             ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
             return Void.TYPE;

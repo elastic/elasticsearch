@@ -167,7 +167,8 @@ public class SqlSession implements Session {
                 IndexResolver.ALL_FIELDS,
                 includeFrozen,
                 configuration.runtimeMappings(),
-                listener.delegateFailureAndWrap((l, indexResult) -> l.onResponse(action.apply(indexResult)))
+                listener.delegateFailureAndWrap((l, indexResult) -> l.onResponse(action.apply(indexResult))),
+                (s, cap) -> null
             );
         } else {
             try {

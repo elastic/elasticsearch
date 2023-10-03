@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.session.EsqlSession.SPECIFIC_VALIDITY_VERIFIER;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlDataTypeRegistryTests extends ESTestCase {
@@ -51,7 +52,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
             Map.of()
         );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(indices, Map.of(fieldCap.getName(), Map.of(esTypeName, fieldCap)));
-        IndexResolution resolution = IndexResolver.mergedMappings(EsqlDataTypeRegistry.INSTANCE, "idx-*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings(EsqlDataTypeRegistry.INSTANCE, "idx-*", caps, SPECIFIC_VALIDITY_VERIFIER);
 
         EsField f = resolution.get().mapping().get(fieldCap.getName());
         assertThat(f.getDataType(), equalTo(expected));

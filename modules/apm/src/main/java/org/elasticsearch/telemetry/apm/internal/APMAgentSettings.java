@@ -172,14 +172,14 @@ public class APMAgentSettings {
 
     public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
         APM_SETTING_PREFIX + "enabled",
-        false,
+        true,
         OperatorDynamic,
         NodeScope
     );
 
     public static final Setting<Boolean> TELEMETRY_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "telemetry.metrics.enabled",
-        false,
+        true,
         OperatorDynamic,
         NodeScope
     );

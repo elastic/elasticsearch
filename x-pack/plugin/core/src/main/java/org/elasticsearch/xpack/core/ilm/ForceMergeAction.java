@@ -188,8 +188,8 @@ public class ForceMergeAction implements LifecycleAction {
 
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(conditionalSkipShrinkStep);
-        mergeSteps.add(waitUntilTimeSeriesEndTimeStep);
         mergeSteps.add(checkNotWriteIndexStep);
+        mergeSteps.add(waitUntilTimeSeriesEndTimeStep);
         mergeSteps.add(noopStep);
 
         if (codecChange) {

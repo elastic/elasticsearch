@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
@@ -146,6 +147,47 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public final void testSimpleDoesNotLeak() {
+        DriverContext inputFactoryContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+
+        List<Block> inputBlocks = new ArrayList<>();
+        for (Page p : input) {
+            for (int i = 0; i < p.getBlockCount(); i++) {
+                inputBlocks.add(p.getBlock(i));
+            }
+        }
+
+        BlockFactory nonBreakingBlockFactory = BlockFactory.getNonBreakingInstance();
+        BigArrays bigArrays = new MockBigArrays(
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            nonBreakingBlockFactory.bigArrays().breakerService()
+        ).withCircuitBreaking();
+        DriverContext driverContext = new DriverContext(bigArrays, nonBreakingBlockFactory);
+
+        Operator operator = simple(bigArrays).get(driverContext);
+        List<Page> result = drive(operator, input.iterator(), driverContext);
+
+        List<Block> resultBlocks = new ArrayList<>();
+        for (Page p : result) {
+            for (int i = 0; i < p.getBlockCount(); i++) {
+                resultBlocks.add(p.getBlock(i));
+            }
+        }
+
+        for (Page p : result) {
+            p.releaseBlocks();
+        }
+
+        for (Block b : resultBlocks) {
+            assertTrue("unreleased result block", b.isReleased());
+        }
+
+        for (Block b : inputBlocks) {
+            assertTrue("unreleased input block", b.isReleased());
+        }
     }
 
     /**

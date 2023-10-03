@@ -25,7 +25,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -149,7 +149,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
         return AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
-            var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
+            var tracer = openTelemetry.getTracer("elasticsearch", Build.current().version());
             return new APMServices(tracer, openTelemetry);
         });
     }

@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,19 +34,19 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        String versionString = randomAlphaOfLength(10);
         IndexVersion indexVersion = IndexVersionUtils.randomVersion();
         Build build = newBuild(
             Build.current(),
             Map.of(
                 "version",
-                version.toString(),
+                versionString,
                 "minWireCompatVersion",
-                version.minimumCompatibilityVersion().toString(),
+                randomAlphaOfLength(10),
                 "minIndexCompatVersion",
                 Build.minimumCompatString(IndexVersion.getMinimumCompatibleIndexVersion(indexVersion.id())),
                 "displayString",
-                Build.defaultDisplayString(Build.current().type(), Build.current().hash(), Build.current().date(), version.toString())
+                Build.defaultDisplayString(Build.current().type(), Build.current().hash(), Build.current().date(), versionString)
             )
         );
         return new MainResponse(nodeName, indexVersion.luceneVersion().toString(), clusterName, clusterUuid, build);

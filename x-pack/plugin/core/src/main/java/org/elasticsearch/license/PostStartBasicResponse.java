@@ -10,10 +10,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class PostStartBasicResponse extends AcknowledgedResponse implements StatusToXContentObject {
+public class PostStartBasicResponse extends AcknowledgedResponse implements ToXContentObject {
 
     private static final ParseField BASIC_WAS_STARTED_FIELD = new ParseField("basic_was_started");
     private static final ParseField ERROR_MESSAGE_FIELD = new ParseField("error_message");
@@ -116,7 +116,6 @@ public class PostStartBasicResponse extends AcknowledgedResponse implements Stat
         }
     }
 
-    @Override
     public RestStatus status() {
         return status.restStatus;
     }

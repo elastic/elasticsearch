@@ -36,7 +36,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -98,8 +97,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.blobCount(1);
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
 
-        final RepositoryAnalyzeAction.Response response = analyseRepository(request);
-        assertThat(response.status(), equalTo(RestStatus.OK));
+        analyseRepository(request);
     }
 
     public void testFailsOnReadError() {

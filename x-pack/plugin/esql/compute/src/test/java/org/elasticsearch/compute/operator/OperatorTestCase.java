@@ -96,18 +96,20 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory); // TODO: can replace with driverContext
-        Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            Operator operator;
-            try {
-                operator = simple(bigArrays).get(driverContext);
-            } catch (CircuitBreakingException cbe) {
-                // if we failed to even create the operator, then release the input pages
-                releasePageBlocksWhileHandlingException(input);
-                throw cbe;
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        boolean[] driverStarted = new boolean[1];
+        Exception e = expectThrows(
+            CircuitBreakingException.class,
+            () -> {
+                var operator = simple(bigArrays).get(driverContext);
+                driverStarted[0] = true;
+                drive(operator, input.iterator(), driverContext);
             }
-            drive(operator, input.iterator(), driverContext);
-        });
+        );
+        if (driverStarted[0] == false) {
+            // if drive hasn't even started then we need to release the input pages
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
+        }
         assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
 

@@ -9,19 +9,18 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
+import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -71,14 +70,13 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
                 ),
-                new PageConsumerOperator(page -> results.add(page)),
+                new ResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         assertDriverContext(driverContext);
     }
 
@@ -94,14 +92,13 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(partials.iterator()),
                 List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new PageConsumerOperator(results::add),
+                new ResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         assertDriverContext(driverContext);
     }
 
@@ -121,14 +118,13 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext),
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
                 ),
-                new PageConsumerOperator(page -> results.add(page)),
+                new ResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         assertDriverContext(driverContext);
     }
 
@@ -152,14 +148,13 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(intermediates.iterator()),
                 List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new PageConsumerOperator(results::add),
+                new ResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         assertDriverContext(driverContext);
     }
 
@@ -181,7 +176,6 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         runner.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
         assertSimpleOutput(origInput, results);
-        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         drivers.stream().map(Driver::driverContext).forEach(OperatorTestCase::assertDriverContext);
     }
 
@@ -191,8 +185,9 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100145")
     public final void testManyInitialManyPartialFinalRunnerThrowing() throws Exception {
+        DriverContext driverContext = driverContext();
         BigArrays bigArrays = nonBreakingBigArrays();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
         List<Driver> drivers = createDriversForInput(bigArrays, input, results, true /* one throwing op */);
@@ -261,7 +256,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driver2Context),
                     intermediateOperatorItr.next()
                 ),
-                new PageConsumerOperator(results::add),
+                new ResultPageSinkOperator(results::add),
                 () -> {}
             )
         );
@@ -311,6 +306,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     private static class ThrowInAddInputOperator extends PassThroughOperator {
         @Override
         public void addInput(Page page) {
+            super.addInput(page); // retain a reference to the Page, so it is not lost
             throw new BadException("bad exception from addInput");
         }
     }
@@ -339,6 +335,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     private static class ThrowInCloseOperator extends PassThroughOperator {
         @Override
         public void close() {
+            super.close();
             throw new BadException("bad exception from close");
         }
     }

@@ -173,6 +173,9 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public void close() {
+        if (output != null) {
+            output.releaseBlocks();
+        }
         Releasables.close(blockHash, () -> Releasables.close(aggregators));
     }
 

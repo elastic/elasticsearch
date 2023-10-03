@@ -34,12 +34,13 @@ import java.util.Map;
 
 public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
 
-    private static final String TRANSLOG_REPLICATOR_CODEC = "translog_replicator_file";
+    static final String TRANSLOG_REPLICATOR_CODEC = "translog_replicator_file";
     // Pin the transport version to 8.9 to ensure that serialization changes of used types can be read without version negotiation. In the
     // future this might need to be advanced if 8.9 is no longer available.
     static final TransportVersion PINNED_TRANSPORT_VERSION = TransportVersion.fromId(8_09_00_99);
-    private static final int VERSION_WITH_TRANSPORT_VERSION = 0;
-    private static final int CURRENT_VERSION = VERSION_WITH_TRANSPORT_VERSION;
+    static final int VERSION_WITH_TRANSPORT_VERSION = 0;
+    static final int VERSION_WITH_SHARD_TRANSLOG_GENERATION = 1;
+    private static final int CURRENT_VERSION = VERSION_WITH_SHARD_TRANSLOG_GENERATION;
 
     public static CompoundTranslogHeader readFromStore(String name, StreamInput streamInput) throws IOException {
         streamInput.setTransportVersion(PINNED_TRANSPORT_VERSION);
@@ -53,21 +54,35 @@ public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
                 VERSION_WITH_TRANSPORT_VERSION,
                 CURRENT_VERSION
             );
-            return readHeader(name, input, false);
+            return readHeader(name, input, version);
         } else {
             throw new NoVersionCodecException();
         }
     }
 
     public static CompoundTranslogHeader readFromStoreOld(String name, StreamInput streamInput) throws IOException {
-        return readHeader(name, new BufferedChecksumStreamInput(streamInput, TRANSLOG_REPLICATOR_CODEC), true);
-    }
-
-    private static CompoundTranslogHeader readHeader(String name, BufferedChecksumStreamInput input, boolean oldHeader) throws IOException {
-        Map<ShardId, TranslogMetadata> metadata = input.readMap(ShardId::new, TranslogMetadata::new);
+        BufferedChecksumStreamInput input = new BufferedChecksumStreamInput(streamInput, TRANSLOG_REPLICATOR_CODEC);
+        Map<ShardId, TranslogMetadata> metadata = input.readMap(ShardId::new, (in) -> TranslogMetadata.readFromStore(in, 0));
         // Verify checksum of compound file
         long expectedChecksum = input.getChecksum();
-        long readChecksum = (oldHeader) ? input.readLong() : Integer.toUnsignedLong(input.readInt());
+        long readChecksum = input.readLong();
+        if (readChecksum != expectedChecksum) {
+            throw new TranslogCorruptedException(
+                name,
+                "checksum verification failed - expected: 0x"
+                    + Long.toHexString(expectedChecksum)
+                    + ", got: 0x"
+                    + Long.toHexString(readChecksum)
+            );
+        }
+        return new CompoundTranslogHeader(metadata);
+    }
+
+    private static CompoundTranslogHeader readHeader(String name, BufferedChecksumStreamInput input, int version) throws IOException {
+        Map<ShardId, TranslogMetadata> metadata = input.readMap(ShardId::new, (in) -> TranslogMetadata.readFromStore(in, version));
+        // Verify checksum of compound file
+        long expectedChecksum = input.getChecksum();
+        long readChecksum = Integer.toUnsignedLong(input.readInt());
         if (readChecksum != expectedChecksum) {
             throw new TranslogCorruptedException(
                 name,

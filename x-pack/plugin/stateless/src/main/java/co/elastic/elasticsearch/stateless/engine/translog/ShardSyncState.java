@@ -49,6 +49,9 @@ class ShardSyncState {
     private volatile Translog.Location processedLocation = new Translog.Location(0, 0, 0);
     private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
     private final Object bufferLock = new Object();
+    // This resets to 0 after a recovery. However, this is fine because we will always force a flush prior to startig new indexing
+    // operations meaning that the translog start file will be marked.
+    private long shardTranslogGeneration = 0;
     private BufferState bufferState = null;
     private final AtomicReference<State> state = new AtomicReference<>(State.OPEN);
 
@@ -172,7 +175,7 @@ class ShardSyncState {
             assert newProcessedLocation.compareTo(processedLocation) > 0;
             processedLocation = newProcessedLocation;
             if (bufferState == null) {
-                bufferState = new BufferState(new ReleasableBytesStreamOutput(bigArrays));
+                bufferState = new BufferState(new ReleasableBytesStreamOutput(bigArrays), shardTranslogGeneration++);
             } else {
                 assert location.compareTo(bufferState.location) >= 0;
             }
@@ -186,11 +189,11 @@ class ShardSyncState {
         }
     }
 
-    public BufferState pollBufferForSync() {
+    public SyncState pollSync() {
         synchronized (bufferLock) {
             BufferState toReturn = bufferState;
             bufferState = null;
-            return toReturn;
+            return new SyncState(toReturn);
         }
     }
 
@@ -242,17 +245,38 @@ class ShardSyncState {
         }
     }
 
+    record SyncState(BufferState buffer) {
+
+        TranslogMetadata metadata(long position, long size) {
+            if (size == 0) {
+                assert buffer == null;
+                return new TranslogMetadata(position, 0, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, 0, -1L);
+            } else {
+                return new TranslogMetadata(
+                    position,
+                    size,
+                    buffer.minSeqNo(),
+                    buffer.maxSeqNo(),
+                    buffer.totalOps(),
+                    buffer.getShardTranslogGeneration()
+                );
+            }
+        }
+    }
+
     class BufferState implements Releasable {
 
         private final ReleasableBytesStreamOutput data;
+        private final long shardTranslogGeneration;
         private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long totalOps = 0;
 
         private Translog.Location location;
 
-        private BufferState(ReleasableBytesStreamOutput data) {
+        private BufferState(ReleasableBytesStreamOutput data, long shardTranslogGeneration) {
             this.data = data;
+            this.shardTranslogGeneration = shardTranslogGeneration;
         }
 
         public final void append(BytesReference data, long seqNo, Translog.Location location) throws IOException {
@@ -277,6 +301,10 @@ class ShardSyncState {
 
         public long totalOps() {
             return totalOps;
+        }
+
+        public long getShardTranslogGeneration() {
+            return shardTranslogGeneration;
         }
 
         public SyncMarker syncMarker() {

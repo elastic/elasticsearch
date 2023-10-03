@@ -182,8 +182,27 @@ setup:
   - close_to: { aggregations.weighted_multi_value_avg.value: { value: 1.777777, error: 0.000001 } }
 
 ---
+"Multi weight field not allowed (old)":
+  - skip:
+      version: " 8.11.0 - "
+      reason: "Changed status code"
+      features: close_to
+  - do:
+      catch: bad_request
+      search:
+        body:
+          aggs:
+            weighted_multi_weight_avg:
+              weighted_avg:
+                value:
+                  field: integer_field
+                weight:
+                  field: multi_value_field
+---
 "Multi weight field not allowed":
   - skip:
+      version: " - 8.10.99"
+      reason: "Changed status code"
       features: close_to
   - do:
       catch: bad_request

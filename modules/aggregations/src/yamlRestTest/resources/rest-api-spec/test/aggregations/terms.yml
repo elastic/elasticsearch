@@ -78,7 +78,87 @@ setup:
   - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
 
 ---
+"IP test (old)":
+  - skip:
+      version: "8.11.0 - "
+      reason: "Changed rest status for error in 8.11"
+
+  - do:
+      index:
+        index: test_1
+        id: "1"
+        body: { "ip": "::1" }
+
+  - do:
+      index:
+        index: test_1
+        id: "2"
+        body: { "ip": "127.0.0.1" }
+
+  - do:
+      index:
+        index: test_1
+        id: "3"
+        body: { "ip": "::1" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 2 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "::1" }
+
+  - is_false: aggregations.ip_terms.buckets.0.key_as_string
+
+  - match: { aggregations.ip_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.ip_terms.buckets.1.key: "127.0.0.1" }
+
+  - is_false: aggregations.ip_terms.buckets.1.key_as_string
+
+  - match: { aggregations.ip_terms.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "include" : [ "127.0.0.1" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 1 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "127.0.0.1" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" : [ "127.0.0.1" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 1 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "::1" }
+
+  - do:
+      catch: request
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
+---
 "IP test":
+  - skip:
+      version: " - 8.10.99"
+      reason: "Changed rest status for error in 8.11"
+
   - do:
       index:
         index: test_1

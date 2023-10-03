@@ -31,7 +31,7 @@ public final class PercentileDoubleAggregatorFunctionSupplier implements Aggrega
 
   @Override
   public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return PercentileDoubleAggregatorFunction.create(channels, driverContext, percentile);
+    return PercentileDoubleAggregatorFunction.create(driverContext, channels, percentile);
   }
 
   @Override

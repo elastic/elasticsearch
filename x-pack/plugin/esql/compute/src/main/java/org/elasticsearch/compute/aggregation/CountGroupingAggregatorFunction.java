@@ -191,12 +191,13 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-        LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int si = selected.getInt(i);
-            builder.appendLong(state.hasValue(si) ? state.get(si) : 0);
+        try (LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int si = selected.getInt(i);
+                builder.appendLong(state.hasValue(si) ? state.get(si) : 0);
+            }
+            blocks[offset] = builder.build().asBlock();
         }
-        blocks[offset] = builder.build().asBlock();
     }
 
     @Override

@@ -27,7 +27,7 @@ public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctio
 
   @Override
   public MaxIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return MaxIntAggregatorFunction.create(channels, driverContext);
+    return MaxIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

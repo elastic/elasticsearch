@@ -28,7 +28,7 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier imple
 
   @Override
   public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return MedianAbsoluteDeviationDoubleAggregatorFunction.create(channels, driverContext);
+    return MedianAbsoluteDeviationDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

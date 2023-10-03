@@ -31,7 +31,7 @@ public final class CountDistinctDoubleAggregatorFunctionSupplier implements Aggr
 
   @Override
   public CountDistinctDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return CountDistinctDoubleAggregatorFunction.create(channels, driverContext, bigArrays, precision);
+    return CountDistinctDoubleAggregatorFunction.create(driverContext, channels, bigArrays, precision);
   }
 
   @Override

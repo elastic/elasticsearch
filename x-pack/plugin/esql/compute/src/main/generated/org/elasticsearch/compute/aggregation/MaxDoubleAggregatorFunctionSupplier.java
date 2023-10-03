@@ -27,7 +27,7 @@ public final class MaxDoubleAggregatorFunctionSupplier implements AggregatorFunc
 
   @Override
   public MaxDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return MaxDoubleAggregatorFunction.create(channels, driverContext);
+    return MaxDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

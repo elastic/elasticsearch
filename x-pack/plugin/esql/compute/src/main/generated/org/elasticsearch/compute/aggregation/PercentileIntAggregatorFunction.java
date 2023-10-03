@@ -27,25 +27,25 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final QuantileStates.SingleState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
   private final double percentile;
 
-  public PercentileIntAggregatorFunction(List<Integer> channels, QuantileStates.SingleState state,
-      DriverContext driverContext, double percentile) {
+  public PercentileIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      QuantileStates.SingleState state, double percentile) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
     this.percentile = percentile;
   }
 
-  public static PercentileIntAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, double percentile) {
-    return new PercentileIntAggregatorFunction(channels, PercentileIntAggregator.initSingle(percentile), driverContext, percentile);
+  public static PercentileIntAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels, double percentile) {
+    return new PercentileIntAggregatorFunction(driverContext, channels, PercentileIntAggregator.initSingle(percentile), percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

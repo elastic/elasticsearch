@@ -28,22 +28,22 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("delta", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final SumDoubleAggregator.SumState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public SumDoubleAggregatorFunction(List<Integer> channels, SumDoubleAggregator.SumState state,
-      DriverContext driverContext) {
+  public SumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      SumDoubleAggregator.SumState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
-  public static SumDoubleAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new SumDoubleAggregatorFunction(channels, SumDoubleAggregator.initSingle(), driverContext);
+  public static SumDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumDoubleAggregatorFunction(driverContext, channels, SumDoubleAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

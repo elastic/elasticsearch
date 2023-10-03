@@ -194,9 +194,9 @@ public class AggregatorImplementer {
                 .initializer(initInterState())
                 .build()
         );
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
-        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         for (VariableElement p : init.getParameters()) {
             builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
@@ -220,15 +220,15 @@ public class AggregatorImplementer {
     private MethodSpec create() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
-        builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addParameter(LIST_INTEGER, "channels");
         for (VariableElement p : init.getParameters()) {
             builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
         }
         if (init.getParameters().isEmpty()) {
-            builder.addStatement("return new $T(channels, $L, driverContext)", implementation, callInit());
+            builder.addStatement("return new $T(driverContext, channels, $L)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channels, $L, driverContext, $L)", implementation, callInit(), initParameters());
+            builder.addStatement("return new $T(driverContext, channels, $L, $L)", implementation, callInit(), initParameters());
         }
         return builder.build();
     }
@@ -262,12 +262,12 @@ public class AggregatorImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(stateType, "state");
-        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("this.driverContext = driverContext");
         builder.addStatement("this.channels = channels");
         builder.addStatement("this.state = state");
-        builder.addStatement("this.driverContext = driverContext");
 
         for (VariableElement p : init.getParameters()) {
             builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());

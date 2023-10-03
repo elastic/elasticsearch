@@ -116,6 +116,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
+        results.forEach(Page::releaseBlocks);
     }
 
     public final void testMultivalued() {

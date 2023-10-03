@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -57,24 +58,26 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         trackGroupId(groupId);
     }
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, org.elasticsearch.compute.operator.DriverContext driverContext) {
+    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            DoubleVector.Builder builder = DoubleVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory());
+            try (DoubleVector.Builder builder = DoubleVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    builder.appendDouble(values.get(selected.getInt(i)));
+                }
+                return builder.build().asBlock();
+            }
+        }
+        try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
-                builder.appendDouble(values.get(selected.getInt(i)));
+                int group = selected.getInt(i);
+                if (hasValue(group)) {
+                    builder.appendDouble(values.get(group));
+                } else {
+                    builder.appendNull();
+                }
             }
-            return builder.build().asBlock();
+            return builder.build();
         }
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            if (hasValue(group)) {
-                builder.appendDouble(values.get(group));
-            } else {
-                builder.appendNull();
-            }
-        }
-        return builder.build();
     }
 
     private void ensureCapacity(int groupId) {
@@ -94,19 +97,22 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         org.elasticsearch.compute.operator.DriverContext driverContext
     ) {
         assert blocks.length >= offset + 2;
-        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            if (group < values.size()) {
-                valuesBuilder.appendDouble(values.get(group));
-            } else {
-                valuesBuilder.appendDouble(0); // TODO can we just use null?
+        try (
+            var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+            var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+        ) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                if (group < values.size()) {
+                    valuesBuilder.appendDouble(values.get(group));
+                } else {
+                    valuesBuilder.appendDouble(0); // TODO can we just use null?
+                }
+                hasValueBuilder.appendBoolean(hasValue(group));
             }
-            hasValueBuilder.appendBoolean(hasValue(group));
+            blocks[offset + 0] = valuesBuilder.build();
+            blocks[offset + 1] = hasValueBuilder.build();
         }
-        blocks[offset + 0] = valuesBuilder.build();
-        blocks[offset + 1] = hasValueBuilder.build();
     }
 
     @Override

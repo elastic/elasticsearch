@@ -27,22 +27,22 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("max", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final DoubleState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public MaxDoubleAggregatorFunction(List<Integer> channels, DoubleState state,
-      DriverContext driverContext) {
+  public MaxDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      DoubleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
-  public static MaxDoubleAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MaxDoubleAggregatorFunction(channels, new DoubleState(MaxDoubleAggregator.init()), driverContext);
+  public static MaxDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MaxDoubleAggregatorFunction(driverContext, channels, new DoubleState(MaxDoubleAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

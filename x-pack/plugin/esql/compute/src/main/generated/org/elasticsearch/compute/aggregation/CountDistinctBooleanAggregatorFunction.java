@@ -25,22 +25,22 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
       new IntermediateStateDesc("fbit", ElementType.BOOLEAN),
       new IntermediateStateDesc("tbit", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final CountDistinctBooleanAggregator.SingleState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public CountDistinctBooleanAggregatorFunction(List<Integer> channels,
-      CountDistinctBooleanAggregator.SingleState state, DriverContext driverContext) {
+  public CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      CountDistinctBooleanAggregator.SingleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
-  public static CountDistinctBooleanAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new CountDistinctBooleanAggregatorFunction(channels, CountDistinctBooleanAggregator.initSingle(), driverContext);
+  public static CountDistinctBooleanAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new CountDistinctBooleanAggregatorFunction(driverContext, channels, CountDistinctBooleanAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

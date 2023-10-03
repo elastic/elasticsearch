@@ -27,22 +27,22 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("min", ElementType.INT),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final IntState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public MinIntAggregatorFunction(List<Integer> channels, IntState state,
-      DriverContext driverContext) {
+  public MinIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      IntState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
-  public static MinIntAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinIntAggregatorFunction(channels, new IntState(MinIntAggregator.init()), driverContext);
+  public static MinIntAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MinIntAggregatorFunction(driverContext, channels, new IntState(MinIntAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

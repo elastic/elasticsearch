@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -22,23 +21,26 @@ public class SequenceDoubleBlockSourceOperator extends AbstractBlockSourceOperat
     static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final double[] values;
+    private final DriverContext driverContext;
 
-    public SequenceDoubleBlockSourceOperator(DoubleStream values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceDoubleBlockSourceOperator(DriverContext driverContext, DoubleStream values) {
+        this(driverContext, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceDoubleBlockSourceOperator(DoubleStream values, int maxPagePositions) {
+    public SequenceDoubleBlockSourceOperator(DriverContext driverContext, DoubleStream values, int maxPagePositions) {
         super(maxPagePositions);
         this.values = values.toArray();
+        this.driverContext = driverContext;
     }
 
-    public SequenceDoubleBlockSourceOperator(List<Double> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceDoubleBlockSourceOperator(DriverContext driverContext, List<Double> values) {
+        this(driverContext, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceDoubleBlockSourceOperator(List<Double> values, int maxPagePositions) {
+    public SequenceDoubleBlockSourceOperator(DriverContext driverContext, List<Double> values, int maxPagePositions) {
         super(maxPagePositions);
         this.values = values.stream().mapToDouble(Double::doubleValue).toArray();
+        this.driverContext = driverContext;
     }
 
     @Override
@@ -48,7 +50,7 @@ public class SequenceDoubleBlockSourceOperator extends AbstractBlockSourceOperat
             array[i] = values[positionOffset + i];
         }
         currentPosition += length;
-        return new Page(BlockFactory.getNonBreakingInstance().newDoubleArrayVector(array, array.length).asBlock());
+        return new Page(driverContext.blockFactory().newDoubleArrayVector(array, array.length).asBlock());
     }
 
     protected int remaining() {

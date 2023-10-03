@@ -29,22 +29,22 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("sum", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final LongState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public SumIntAggregatorFunction(List<Integer> channels, LongState state,
-      DriverContext driverContext) {
+  public SumIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      LongState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
-  public static SumIntAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new SumIntAggregatorFunction(channels, new LongState(SumIntAggregator.init()), driverContext);
+  public static SumIntAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumIntAggregatorFunction(driverContext, channels, new LongState(SumIntAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

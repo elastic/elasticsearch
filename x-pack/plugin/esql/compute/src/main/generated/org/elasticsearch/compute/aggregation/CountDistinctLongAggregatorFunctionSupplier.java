@@ -31,7 +31,7 @@ public final class CountDistinctLongAggregatorFunctionSupplier implements Aggreg
 
   @Override
   public CountDistinctLongAggregatorFunction aggregator(DriverContext driverContext) {
-    return CountDistinctLongAggregatorFunction.create(channels, driverContext, bigArrays, precision);
+    return CountDistinctLongAggregatorFunction.create(driverContext, channels, bigArrays, precision);
   }
 
   @Override

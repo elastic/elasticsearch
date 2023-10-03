@@ -27,7 +27,7 @@ public final class MinDoubleAggregatorFunctionSupplier implements AggregatorFunc
 
   @Override
   public MinDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return MinDoubleAggregatorFunction.create(channels, driverContext);
+    return MinDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

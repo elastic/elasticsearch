@@ -27,7 +27,7 @@ public final class MaxLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public MaxLongAggregatorFunction aggregator(DriverContext driverContext) {
-    return MaxLongAggregatorFunction.create(channels, driverContext);
+    return MaxLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

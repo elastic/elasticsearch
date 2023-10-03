@@ -27,7 +27,7 @@ public final class MinLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public MinLongAggregatorFunction aggregator(DriverContext driverContext) {
-    return MinLongAggregatorFunction.create(channels, driverContext);
+    return MinLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

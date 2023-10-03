@@ -27,22 +27,22 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunction implements Ag
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final QuantileStates.SingleState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public MedianAbsoluteDeviationDoubleAggregatorFunction(List<Integer> channels,
-      QuantileStates.SingleState state, DriverContext driverContext) {
+  public MedianAbsoluteDeviationDoubleAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels, QuantileStates.SingleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
-  public static MedianAbsoluteDeviationDoubleAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MedianAbsoluteDeviationDoubleAggregatorFunction(channels, MedianAbsoluteDeviationDoubleAggregator.initSingle(), driverContext);
+  public static MedianAbsoluteDeviationDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MedianAbsoluteDeviationDoubleAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationDoubleAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

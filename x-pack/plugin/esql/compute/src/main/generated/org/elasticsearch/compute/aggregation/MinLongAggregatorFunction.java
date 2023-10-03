@@ -27,22 +27,22 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("min", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final LongState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public MinLongAggregatorFunction(List<Integer> channels, LongState state,
-      DriverContext driverContext) {
+  public MinLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      LongState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
-  public static MinLongAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinLongAggregatorFunction(channels, new LongState(MinLongAggregator.init()), driverContext);
+  public static MinLongAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MinLongAggregatorFunction(driverContext, channels, new LongState(MinLongAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

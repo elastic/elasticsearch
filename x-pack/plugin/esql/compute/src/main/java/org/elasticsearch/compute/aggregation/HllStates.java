@@ -180,12 +180,13 @@ final class HllStates {
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int group = selected.getInt(i);
-                builder.appendBytesRef(serializeHLL(group, hll));
+            try (var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int group = selected.getInt(i);
+                    builder.appendBytesRef(serializeHLL(group, hll));
+                }
+                blocks[offset] = builder.build();
             }
-            blocks[offset] = builder.build();
         }
 
         @Override

@@ -31,7 +31,7 @@ public final class CountDistinctIntAggregatorFunctionSupplier implements Aggrega
 
   @Override
   public CountDistinctIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return CountDistinctIntAggregatorFunction.create(channels, driverContext, bigArrays, precision);
+    return CountDistinctIntAggregatorFunction.create(driverContext, channels, bigArrays, precision);
   }
 
   @Override

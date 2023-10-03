@@ -28,7 +28,7 @@ public final class MedianAbsoluteDeviationLongAggregatorFunctionSupplier impleme
 
   @Override
   public MedianAbsoluteDeviationLongAggregatorFunction aggregator(DriverContext driverContext) {
-    return MedianAbsoluteDeviationLongAggregatorFunction.create(channels, driverContext);
+    return MedianAbsoluteDeviationLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

@@ -28,28 +28,28 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("hll", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final HllStates.SingleState state;
 
   private final List<Integer> channels;
-
-  private final DriverContext driverContext;
 
   private final BigArrays bigArrays;
 
   private final int precision;
 
-  public CountDistinctLongAggregatorFunction(List<Integer> channels, HllStates.SingleState state,
-      DriverContext driverContext, BigArrays bigArrays, int precision) {
+  public CountDistinctLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      HllStates.SingleState state, BigArrays bigArrays, int precision) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
     this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
-  public static CountDistinctLongAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays, int precision) {
-    return new CountDistinctLongAggregatorFunction(channels, CountDistinctLongAggregator.initSingle(bigArrays, precision), driverContext, bigArrays, precision);
+  public static CountDistinctLongAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels, BigArrays bigArrays, int precision) {
+    return new CountDistinctLongAggregatorFunction(driverContext, channels, CountDistinctLongAggregator.initSingle(bigArrays, precision), bigArrays, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

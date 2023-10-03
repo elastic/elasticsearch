@@ -149,7 +149,7 @@ public class BlockSerializationTests extends SerializationTestCase {
         Page page = new Page(new LongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
         var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         var params = new Object[] {};
-        var function = SumLongAggregatorFunction.create(List.of(0), driverCtx);
+        var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
         function.addRawInput(page);
         Block[] blocks = new Block[function.intermediateBlockCount()];
         function.evaluateIntermediate(blocks, 0);
@@ -158,7 +158,7 @@ public class BlockSerializationTests extends SerializationTestCase {
         IntStream.range(0, blocks.length).forEach(i -> EqualsHashCodeTestUtils.checkEqualsAndHashCode(blocks[i], unused -> deserBlocks[i]));
 
         var inputChannels = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
-        var finalAggregator = SumLongAggregatorFunction.create(inputChannels, driverCtx);
+        var finalAggregator = SumLongAggregatorFunction.create(driverCtx, inputChannels);
         finalAggregator.addIntermediateInput(new Page(deserBlocks));
         Block[] finalBlocks = new Block[1];
         finalAggregator.evaluateFinal(finalBlocks, 0, driverCtx);

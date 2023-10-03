@@ -31,7 +31,7 @@ public final class PercentileIntAggregatorFunctionSupplier implements Aggregator
 
   @Override
   public PercentileIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return PercentileIntAggregatorFunction.create(channels, driverContext, percentile);
+    return PercentileIntAggregatorFunction.create(driverContext, channels, percentile);
   }
 
   @Override

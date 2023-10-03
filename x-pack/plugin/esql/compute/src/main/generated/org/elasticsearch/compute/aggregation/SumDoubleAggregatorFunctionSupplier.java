@@ -27,7 +27,7 @@ public final class SumDoubleAggregatorFunctionSupplier implements AggregatorFunc
 
   @Override
   public SumDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return SumDoubleAggregatorFunction.create(channels, driverContext);
+    return SumDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

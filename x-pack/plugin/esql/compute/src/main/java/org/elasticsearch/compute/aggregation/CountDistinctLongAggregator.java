@@ -64,12 +64,13 @@ public class CountDistinctLongAggregator {
     }
 
     public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            long count = state.cardinality(group);
-            builder.appendLong(count);
+        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                long count = state.cardinality(group);
+                builder.appendLong(count);
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 }

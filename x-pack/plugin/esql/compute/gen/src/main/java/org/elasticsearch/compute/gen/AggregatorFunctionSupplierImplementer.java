@@ -121,7 +121,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addStatement(
             "return $T.create($L)",
             aggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("channels, driverContext"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
+            Stream.concat(Stream.of("driverContext, channels"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
                 .collect(Collectors.joining(", "))
         );
 

@@ -27,7 +27,7 @@ public final class MinIntAggregatorFunctionSupplier implements AggregatorFunctio
 
   @Override
   public MinIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return MinIntAggregatorFunction.create(channels, driverContext);
+    return MinIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

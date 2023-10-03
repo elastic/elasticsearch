@@ -31,7 +31,7 @@ public final class CountDistinctBytesRefAggregatorFunctionSupplier implements Ag
 
   @Override
   public CountDistinctBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
-    return CountDistinctBytesRefAggregatorFunction.create(channels, driverContext, bigArrays, precision);
+    return CountDistinctBytesRefAggregatorFunction.create(driverContext, channels, bigArrays, precision);
   }
 
   @Override

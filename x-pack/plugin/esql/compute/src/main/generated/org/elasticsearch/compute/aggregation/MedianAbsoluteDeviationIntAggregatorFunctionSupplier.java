@@ -28,7 +28,7 @@ public final class MedianAbsoluteDeviationIntAggregatorFunctionSupplier implemen
 
   @Override
   public MedianAbsoluteDeviationIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return MedianAbsoluteDeviationIntAggregatorFunction.create(channels, driverContext);
+    return MedianAbsoluteDeviationIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

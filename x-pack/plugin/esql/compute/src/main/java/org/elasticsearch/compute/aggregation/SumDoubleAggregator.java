@@ -94,36 +94,40 @@ class SumDoubleAggregator {
         DriverContext driverContext
     ) {
         assert blocks.length >= offset + 3;
-        var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        var deltaBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        var seenBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            if (group < state.values.size()) {
-                valuesBuilder.appendDouble(state.values.get(group));
-                deltaBuilder.appendDouble(state.deltas.get(group));
-            } else {
-                valuesBuilder.appendDouble(0);
-                deltaBuilder.appendDouble(0);
+        try (
+            var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+            var deltaBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+            var seenBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+        ) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                if (group < state.values.size()) {
+                    valuesBuilder.appendDouble(state.values.get(group));
+                    deltaBuilder.appendDouble(state.deltas.get(group));
+                } else {
+                    valuesBuilder.appendDouble(0);
+                    deltaBuilder.appendDouble(0);
+                }
+                seenBuilder.appendBoolean(state.hasValue(group));
             }
-            seenBuilder.appendBoolean(state.hasValue(group));
+            blocks[offset + 0] = valuesBuilder.build();
+            blocks[offset + 1] = deltaBuilder.build();
+            blocks[offset + 2] = seenBuilder.build();
         }
-        blocks[offset + 0] = valuesBuilder.build();
-        blocks[offset + 1] = deltaBuilder.build();
-        blocks[offset + 2] = seenBuilder.build();
     }
 
     public static Block evaluateFinal(GroupingSumState state, IntVector selected, DriverContext driverContext) {
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int si = selected.getInt(i);
-            if (state.hasValue(si) && si < state.values.size()) {
-                builder.appendDouble(state.values.get(si));
-            } else {
-                builder.appendNull();
+        try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int si = selected.getInt(i);
+                if (state.hasValue(si) && si < state.values.size()) {
+                    builder.appendDouble(state.values.get(si));
+                } else {
+                    builder.appendNull();
+                }
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     static class SumState extends CompensatedSum implements AggregatorState {

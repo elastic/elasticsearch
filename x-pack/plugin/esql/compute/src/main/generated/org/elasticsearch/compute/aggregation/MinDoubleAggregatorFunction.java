@@ -27,22 +27,22 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("min", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final DoubleState state;
 
   private final List<Integer> channels;
 
-  private final DriverContext driverContext;
-
-  public MinDoubleAggregatorFunction(List<Integer> channels, DoubleState state,
-      DriverContext driverContext) {
+  public MinDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      DoubleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.driverContext = driverContext;
   }
 
-  public static MinDoubleAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinDoubleAggregatorFunction(channels, new DoubleState(MinDoubleAggregator.init()), driverContext);
+  public static MinDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MinDoubleAggregatorFunction(driverContext, channels, new DoubleState(MinDoubleAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

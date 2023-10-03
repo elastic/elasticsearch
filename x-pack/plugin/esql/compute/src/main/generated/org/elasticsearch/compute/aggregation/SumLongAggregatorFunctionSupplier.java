@@ -27,7 +27,7 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public SumLongAggregatorFunction aggregator(DriverContext driverContext) {
-    return SumLongAggregatorFunction.create(channels, driverContext);
+    return SumLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

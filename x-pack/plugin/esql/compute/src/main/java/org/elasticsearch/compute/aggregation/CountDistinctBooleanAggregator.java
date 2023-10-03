@@ -134,15 +134,18 @@ public class CountDistinctBooleanAggregator {
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 2;
-            var fbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            var tbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int group = selected.getInt(i);
-                fbitBuilder.appendBoolean(bits.get(2 * group + 0));
-                tbitBuilder.appendBoolean(bits.get(2 * group + 1));
+            try (
+                var fbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+                var tbitBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+            ) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int group = selected.getInt(i);
+                    fbitBuilder.appendBoolean(bits.get(2 * group + 0));
+                    tbitBuilder.appendBoolean(bits.get(2 * group + 1));
+                }
+                blocks[offset + 0] = fbitBuilder.build();
+                blocks[offset + 1] = tbitBuilder.build();
             }
-            blocks[offset + 0] = fbitBuilder.build();
-            blocks[offset + 1] = tbitBuilder.build();
         }
 
         @Override

@@ -28,7 +28,7 @@ public final class CountDistinctBooleanAggregatorFunctionSupplier implements Agg
 
   @Override
   public CountDistinctBooleanAggregatorFunction aggregator(DriverContext driverContext) {
-    return CountDistinctBooleanAggregatorFunction.create(channels, driverContext);
+    return CountDistinctBooleanAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

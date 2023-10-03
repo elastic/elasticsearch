@@ -109,7 +109,6 @@ public final class QuantileStates {
     }
 
     static class GroupingState implements GroupingAggregatorState {
-        private long largestGroupId = -1;
         private ObjectArray<TDigestState> digests;
         private final BigArrays bigArrays;
         private final Double percentile;

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -57,6 +58,7 @@ public class AggregateMapper {
         MedianAbsoluteDeviation.class,
         Min.class,
         Percentile.class,
+        Rate.class,
         Sum.class
     );
 

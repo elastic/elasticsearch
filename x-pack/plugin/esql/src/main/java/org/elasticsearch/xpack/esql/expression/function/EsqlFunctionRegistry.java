@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
@@ -108,6 +109,7 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "median_absolute_deviation"),
                 def(Min.class, Min::new, "min"),
                 def(Percentile.class, Percentile::new, "percentile"),
+                def(Rate.class, Rate::new, "rate"),
                 def(Sum.class, Sum::new, "sum") },
             // math
             new FunctionDefinition[] {

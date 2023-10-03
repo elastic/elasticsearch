@@ -39,7 +39,7 @@ public class DeepCopy extends UnaryExpression implements EvaluatorMapper {
             @Override
             public Block.Ref eval(Page page) {
                 try (Block.Ref ref = child.eval(page)) {
-                    return Block.Ref.floating(BlockUtils.deepCopyOf(ref.block()));
+                    return Block.Ref.floating(BlockUtils.deepCopyOf(ref.block(), ctx.blockFactory()));
                 }
             }
 

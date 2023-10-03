@@ -108,7 +108,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(processor.getInvokedCounter(), equalTo(2));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
-        assertThat(simulateDocumentBaseResult.getIngestDocument(), equalTo(ingestDocument));
+        assertIngestDocument(simulateDocumentBaseResult.getIngestDocument(), ingestDocument);
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
     }
 

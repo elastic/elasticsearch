@@ -26,7 +26,6 @@ import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -57,7 +56,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
                 sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[5]);
             }
             sourceAndMetadata.putAll((Map<String, Object>) a[6]);
-            return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>) a[7]));
+            return new WriteableIngestDocument(sourceAndMetadata, (Map<String, Object>) a[7]);
         }
     );
     static {
@@ -84,9 +83,24 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
         PARSER.declareObject(constructorArg(), INGEST_DOC_PARSER, new ParseField(DOC_FIELD));
     }
 
+    /**
+     * Builds a writeable ingest document that wraps a copy of the passed-in, non-null ingest document.
+     *
+     * @throws IllegalArgumentException if the passed-in ingest document references itself
+     */
     WriteableIngestDocument(IngestDocument ingestDocument) {
         assert ingestDocument != null;
-        this.ingestDocument = ingestDocument;
+        this.ingestDocument = new IngestDocument(ingestDocument); // internal defensive copy
+    }
+
+    /**
+     * Builds a writeable ingest document by constructing the wrapped ingest document from the passed-in maps.
+     * <p>
+     * This is intended for cases like deserialization, where we know the passed-in maps aren't self-referencing,
+     * and where a defensive copy is unnecessary.
+     */
+    private WriteableIngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
+        this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
     WriteableIngestDocument(StreamInput in) throws IOException {
@@ -130,23 +144,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
 
     public static WriteableIngestDocument fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        WriteableIngestDocument that = (WriteableIngestDocument) o;
-        return Objects.equals(ingestDocument, that.ingestDocument);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ingestDocument);
     }
 
     @Override

@@ -362,10 +362,11 @@ public class CsvTests extends ESTestCase {
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
             drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
             if (dataNodePlan != null) {
-                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
-                    new LocalLogicalOptimizerContext(configuration, new DisabledSearchStats())
+                var searchStats = new DisabledSearchStats();
+                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
+                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
+                    new LocalPhysicalOptimizerContext(configuration, searchStats)
                 );
-                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration));
 
                 var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
                 exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));

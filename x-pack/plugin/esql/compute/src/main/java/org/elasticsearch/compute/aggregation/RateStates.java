@@ -177,7 +177,7 @@ public final class RateStates {
                     continue;
                 }
                 final SingleState state = states.get(si);
-                if ( state != null) {
+                if (state != null) {
                     builder.appendDouble(state.currentDelta);
                 } else {
                     builder.appendNull();

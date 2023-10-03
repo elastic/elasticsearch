@@ -79,8 +79,9 @@ public abstract class BlockDocValuesReader {
             final SortedBinaryDocValues bytesValues = bytesVS.bytesValues(leafReaderContext);
             return new BytesValuesReader(bytesValues);
         }
-        if (CoreValuesSourceType.NUMERIC.equals(valuesSourceType) || CoreValuesSourceType.DATE.equals(valuesSourceType) ||
-            TimeSeriesValuesSourceType.COUNTER.equals(valuesSourceType)) {
+        if (CoreValuesSourceType.NUMERIC.equals(valuesSourceType)
+            || CoreValuesSourceType.DATE.equals(valuesSourceType)
+            || TimeSeriesValuesSourceType.COUNTER.equals(valuesSourceType)) {
             ValuesSource.Numeric numericVS = (ValuesSource.Numeric) valuesSource;
             if (numericVS.isFloatingPoint()) {
                 if (elementType != ElementType.DOUBLE) {

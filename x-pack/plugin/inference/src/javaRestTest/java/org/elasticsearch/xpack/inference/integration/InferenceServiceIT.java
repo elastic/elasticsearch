@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.inference.integration;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -35,16 +38,32 @@ public class InferenceServiceIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        // .setting("xpack.ml.enabled", "true")
-        // .setting("xpack.security.enabled", "true")
-        // .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.ml.enabled", "true")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .user("super-user", "x-pack-super-password")
         // .setting("xpack.security.enabled", "false")
-        // .setting("xpack.watcher.enabled", "false")
         .build();
+
+    @Override
+    protected Settings restClientSettings() {
+        return getClientSettings("super-user", "x-pack-super-password");
+    }
+
+    @Override
+    protected Settings restAdminSettings() {
+        return getClientSettings("super-user", "x-pack-super-password");
+    }
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    private Settings getClientSettings(final String username, final String password) {
+        final String token = basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testGetModel_DoesNotIncludeSecrets() throws IOException {

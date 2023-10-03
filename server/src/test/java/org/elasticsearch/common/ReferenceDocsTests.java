@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -24,13 +23,19 @@ public class ReferenceDocsTests extends ESTestCase {
 
     public void testVersionComponent() {
         // Snapshot x.y.0 versions are unreleased so link to master
-        assertEquals("master", getVersionComponent(Version.V_8_7_0, true));
+        assertEquals("master", getVersionComponent("8.11.0", true));
 
         // Snapshot x.y.z versions with z>0 mean that x.y.0 is released so have a properly versioned docs link
-        assertEquals("8.5", getVersionComponent(Version.V_8_5_1, true));
+        assertEquals("8.5", getVersionComponent("8.5.1", true));
 
         // Non-snapshot versions are to be released so have a properly versioned docs link
-        assertEquals("8.7", getVersionComponent(Version.V_8_7_0, false));
+        assertEquals("8.7", getVersionComponent("8.7.0", false));
+
+        // Non-snapshot non-semantic versions link to latest docs
+        assertEquals("current", getVersionComponent("ABCDEF", false));
+
+        // Snapshot non-semantic versions are considered unreleased so link to master
+        assertEquals("master", getVersionComponent("ABCDEF", true));
     }
 
     public void testResourceValidation() throws Exception {

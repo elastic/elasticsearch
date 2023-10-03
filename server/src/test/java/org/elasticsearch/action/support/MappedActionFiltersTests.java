@@ -65,7 +65,13 @@ public class MappedActionFiltersTests extends ESTestCase {
             }
 
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                Task task,
+                String action,
+                Request request,
+                ActionListener<Response> listener,
+                ActionFilterChain<Request, Response> chain
+            ) {
                 applyCalled.set(true);
                 chain.proceed(task, action, request, listener);
             }
@@ -100,7 +106,13 @@ public class MappedActionFiltersTests extends ESTestCase {
             }
 
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                Task task,
+                String action,
+                Request request,
+                ActionListener<Response> listener,
+                ActionFilterChain<Request, Response> chain
+            ) {
                 apply1Called.set(true);
                 chain.proceed(task, action, request, listener);
             }
@@ -117,7 +129,13 @@ public class MappedActionFiltersTests extends ESTestCase {
             }
 
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                Task task,
+                String action,
+                Request request,
+                ActionListener<Response> listener,
+                ActionFilterChain<Request, Response> chain
+            ) {
                 assertThat("filter1 should be called first", apply1Called.get(), is(true));
                 apply2Called.set(true);
                 chain.proceed(task, action, request, listener);
@@ -152,7 +170,13 @@ public class MappedActionFiltersTests extends ESTestCase {
             }
 
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+            public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                Task task,
+                String action,
+                Request request,
+                ActionListener<Response> listener,
+                ActionFilterChain<Request, Response> chain
+            ) {
                 applyCalled.set(true);
                 chain.proceed(task, action, request, listener);
             }

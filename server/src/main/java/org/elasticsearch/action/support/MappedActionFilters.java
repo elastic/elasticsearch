@@ -37,13 +37,20 @@ public class MappedActionFilters implements ActionFilter {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse>
-    void apply(Task task, String action, Request request, ActionListener<Response> listener, ActionFilterChain<Request, Response> outerChain) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+        Task task,
+        String action,
+        Request request,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> outerChain
+    ) {
         var chain = new MappedFilterChain<>(this.filtersByAction.getOrDefault(action, List.of()), outerChain);
         chain.proceed(task, action, request, listener);
     }
 
-    private static class MappedFilterChain<Request extends ActionRequest, Response extends ActionResponse> implements ActionFilterChain<Request, Response> {
+    private static class MappedFilterChain<Request extends ActionRequest, Response extends ActionResponse>
+        implements
+            ActionFilterChain<Request, Response> {
 
         final List<MappedActionFilter> filters;
         final ActionFilterChain<Request, Response> outerChain;

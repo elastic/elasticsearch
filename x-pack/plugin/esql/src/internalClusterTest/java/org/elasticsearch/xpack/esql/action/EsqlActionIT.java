@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -67,7 +66,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100127")
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     long epoch = System.currentTimeMillis();
@@ -444,43 +442,45 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testUngroupedCountAll() {
-        EsqlQueryResponse results = run("from test | stats count(*)");
-        logger.info(results);
-        Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(1, getValuesList(results).size());
-        assertEquals("count(*)", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        var values = getValuesList(results).get(0);
-        assertEquals(1, values.size());
-        assertEquals(40, (long) values.get(0));
+        try (EsqlQueryResponse results = run("from test | stats count(*)")) {
+            logger.info(results);
+            Assert.assertEquals(1, results.columns().size());
+            Assert.assertEquals(1, getValuesList(results).size());
+            assertEquals("count(*)", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
+            var values = getValuesList(results).get(0);
+            assertEquals(1, values.size());
+            assertEquals(40, (long) values.get(0));
+        }
     }
 
     public void testUngroupedCountAllWithFilter() {
-        EsqlQueryResponse results = run("from test | where data > 1 | stats count(*)");
-        logger.info(results);
-        Assert.assertEquals(1, results.columns().size());
-        Assert.assertEquals(1, getValuesList(results).size());
-        assertEquals("count(*)", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        var values = getValuesList(results).get(0);
-        assertEquals(1, values.size());
-        assertEquals(20, (long) values.get(0));
+        try (EsqlQueryResponse results = run("from test | where data > 1 | stats count(*)")) {
+            logger.info(results);
+            Assert.assertEquals(1, results.columns().size());
+            Assert.assertEquals(1, getValuesList(results).size());
+            assertEquals("count(*)", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
+            var values = getValuesList(results).get(0);
+            assertEquals(1, values.size());
+            assertEquals(20, (long) values.get(0));
+        }
     }
 
-    @AwaitsFix(bugUrl = "tracking down a 64b(long) memory leak")
     public void testGroupedCountAllWithFilter() {
-        EsqlQueryResponse results = run("from test | where data > 1 | stats count(*) by data | sort data");
-        logger.info(results);
-        Assert.assertEquals(2, results.columns().size());
-        Assert.assertEquals(1, getValuesList(results).size());
-        assertEquals("count(*)", results.columns().get(0).name());
-        assertEquals("long", results.columns().get(0).type());
-        assertEquals("data", results.columns().get(1).name());
-        assertEquals("long", results.columns().get(1).type());
-        var values = getValuesList(results).get(0);
-        assertEquals(2, values.size());
-        assertEquals(20, (long) values.get(0));
-        assertEquals(2L, (long) values.get(1));
+        try (EsqlQueryResponse results = run("from test | where data > 1 | stats count(*) by data | sort data")) {
+            logger.info(results);
+            Assert.assertEquals(2, results.columns().size());
+            Assert.assertEquals(1, getValuesList(results).size());
+            assertEquals("count(*)", results.columns().get(0).name());
+            assertEquals("long", results.columns().get(0).type());
+            assertEquals("data", results.columns().get(1).name());
+            assertEquals("long", results.columns().get(1).type());
+            var values = getValuesList(results).get(0);
+            assertEquals(2, values.size());
+            assertEquals(20, (long) values.get(0));
+            assertEquals(2L, (long) values.get(1));
+        }
     }
 
     public void testFromStatsEvalWithPragma() {

@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jose.util.JSONObjectUtils;
+import com.nimbusds.jwt.JWT;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -59,6 +62,7 @@ import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import javax.net.ssl.HostnameVerifier;
@@ -387,6 +391,25 @@ public class JwtUtil {
         public void close() {
             flush();
             closed = true;
+        }
+    }
+
+    /**
+     * @param jwt The signed JWT
+     * @return A print safe supplier to describe a JWT that redacts the signature. While the signature is not generally sensitive,
+     * we don't want to leak the entire JWT to the log to avoid a possible replay.
+     */
+    public static Supplier<String> toStringRedactSignature(JWT jwt) {
+        if (jwt instanceof JWSObject) {
+            Base64URL[] parts = jwt.getParsedParts();
+            assert parts.length == 3;
+            assert parts[0] != null;
+            assert parts[1] != null;
+            assert parts[2] != null;
+            assert Objects.equals(parts[2], ((JWSObject) jwt).getSignature());
+            return () -> parts[0] + "." + parts[1] + ".<redacted-signature>";
+        } else {
+            return jwt::getParsedString;
         }
     }
 }

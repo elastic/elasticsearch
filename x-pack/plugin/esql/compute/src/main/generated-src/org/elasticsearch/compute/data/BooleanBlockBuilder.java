@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -20,7 +22,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
     BooleanBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
         values = new boolean[initialSize];
     }
 
@@ -181,19 +183,18 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
         finish();
         BooleanBlock block;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = new ConstantBooleanVector(values[0], 1, blockFactory).asBlock();
+            block = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
             if (isDense() && singleValued()) {
-                block = new BooleanArrayVector(values, positionCount, blockFactory).asBlock();
+                block = blockFactory.newBooleanArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                block = new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                block = blockFactory.newBooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, estimatedBytes);
             }
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
+        built();
         return block;
     }
 }

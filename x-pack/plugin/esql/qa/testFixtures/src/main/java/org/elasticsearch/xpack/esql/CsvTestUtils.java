@@ -415,7 +415,7 @@ public final class CsvTestUtils {
         }
     }
 
-    static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
+    public static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
@@ -441,21 +441,23 @@ public final class CsvTestUtils {
         logger.info(sb.toString());
     }
 
-    static void logData(List<List<Object>> values, Logger logger) {
-        for (List<Object> list : values) {
-            logger.info(rowAsString(list));
+    static void logData(Iterator<Iterator<Object>> values, Logger logger) {
+        while (values.hasNext()) {
+            var val = values.next();
+            logger.info(rowAsString(val));
         }
     }
 
-    private static String rowAsString(List<Object> list) {
+    private static String rowAsString(Iterator<Object> iterator) {
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
-        for (int i = 0; i < list.size(); i++) {
+        for (int i = 0; iterator.hasNext(); i++) {
             column.setLength(0);
             if (i > 0) {
                 sb.append(" | ");
             }
-            sb.append(trimOrPad(column.append(list.get(i))));
+            var next = iterator.next();
+            sb.append(trimOrPad(column.append(next)));
         }
         return sb.toString();
     }

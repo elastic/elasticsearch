@@ -33,6 +33,8 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     /** The number of bytes currently estimated with the breaker. */
     protected long estimatedBytes;
 
+    private boolean closed = false;
+
     protected AbstractBlockBuilder(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
     }
@@ -101,13 +103,30 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         }
     }
 
+    /**
+     * Called during implementations of {@link Block.Builder#build} as a first step
+     * to check if the block is still open and to finish the last position.
+     */
     protected final void finish() {
+        if (closed) {
+            throw new IllegalStateException("already closed");
+        }
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
         if (firstValueIndexes != null) {
             setFirstValue(positionCount, valueCount);
         }
+    }
+
+    /**
+     * Called during implementations of {@link Block.Builder#build} as a last step
+     * to mark the Builder as closed and make sure that further closes don't double
+     * free memory.
+     */
+    protected final void built() {
+        closed = true;
+        estimatedBytes = 0;
     }
 
     protected abstract void growValuesArray(int newSize);
@@ -125,6 +144,20 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         growValuesArray(newSize);
     }
 
+    @Override
+    public final void close() {
+        if (closed == false) {
+            closed = true;
+            adjustBreaker(-estimatedBytes);
+            extraClose();
+        }
+    }
+
+    /**
+     * Called when first {@link #close() closed}.
+     */
+    protected void extraClose() {}
+
     static int calculateNewArraySize(int currentSize) {
         // trivially, grows array by 50%
         return currentSize + (currentSize >> 1);
@@ -133,6 +166,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     protected void adjustBreaker(long deltaBytes) {
         blockFactory.adjustBreaker(deltaBytes, false);
         estimatedBytes += deltaBytes;
+        assert estimatedBytes >= 0;
     }
 
     private void setFirstValue(int position, int value) {

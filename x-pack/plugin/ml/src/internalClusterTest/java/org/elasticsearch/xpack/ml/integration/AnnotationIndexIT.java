@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -309,7 +309,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
             IndexRequest stateDoc = new IndexRequest(".ml-state");
             stateDoc.source(Collections.singletonMap("state", "blah"));
-            IndexResponse indexResponse = client().index(stateDoc).actionGet();
+            DocWriteResponse indexResponse = client().index(stateDoc).actionGet();
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
             // Creating the .ml-state index would normally cause .ml-annotations

@@ -184,6 +184,7 @@ def commonPackageConfig(String type, String architecture) {
     configurationFile '/etc/elasticsearch/users_roles'
     from("${packagingFiles}") {
       dirMode 02750
+      setgid = true
       into('/etc')
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
@@ -194,6 +195,7 @@ def commonPackageConfig(String type, String architecture) {
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
       dirMode 02750
+      setgid = true
       fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
@@ -240,7 +242,8 @@ def commonPackageConfig(String type, String architecture) {
         createDirectoryEntry true
         user u
         permissionGroup g
-        dirMode mode
+        dirMode = mode
+        setgid = mode == 02750
       }
     }
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)

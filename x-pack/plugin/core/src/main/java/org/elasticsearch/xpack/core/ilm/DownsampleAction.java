@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -133,6 +134,7 @@ public class DownsampleAction implements LifecycleAction {
         StepKey timeSeriesIndexCheckBranchKey = new StepKey(phase, NAME, CONDITIONAL_TIME_SERIES_CHECK_KEY);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
+        StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
         StepKey cleanupDownsampleIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
         StepKey generateDownsampleIndexNameKey = new StepKey(phase, NAME, DownsamplePrepareLifeCycleStateStep.NAME);
@@ -161,8 +163,18 @@ public class DownsampleAction implements LifecycleAction {
             checkNotWriteIndex,
             waitForNoFollowerStepKey
         );
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
+            waitForNoFollowerStepKey,
+            waitTimeSeriesEndTimePassesKey,
+            client
+        );
 
+        WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitTimeSeriesEndTimePassesKey,
+            readOnlyKey,
+            Instant::now,
+            client
+        );
         // Mark source index as read-only
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateDownsampleIndexNameKey, client);
 
@@ -245,6 +257,7 @@ public class DownsampleAction implements LifecycleAction {
             isTimeSeriesIndexBranchingStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
+            waitUntilTimeSeriesEndTimeStep,
             readOnlyStep,
             cleanupDownsampleIndexStep,
             generateDownsampleIndexNameStep,

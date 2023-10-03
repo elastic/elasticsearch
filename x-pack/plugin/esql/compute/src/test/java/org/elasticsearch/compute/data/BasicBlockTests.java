@@ -553,6 +553,11 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
             Block block = Block.constantNullBlock(positionCount, blockFactory);
+            if (randomBoolean()) {
+                Block orig = block;
+                block = (new ConstantNullBlock.Builder(blockFactory)).copyFrom(block, 0, block.getPositionCount()).build();
+                orig.close();
+            }
             assertThat(positionCount, is(block.getPositionCount()));
             assertThat(block.getPositionCount(), is(positionCount));
             assertThat(block.isNull(randomPosition(positionCount)), is(true));

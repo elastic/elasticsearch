@@ -1,5 +1,0 @@
-pr: 99917
-summary: Improve transform log/audit correctness when stopped
-area: Transform
-type: enhancement
-issues: []

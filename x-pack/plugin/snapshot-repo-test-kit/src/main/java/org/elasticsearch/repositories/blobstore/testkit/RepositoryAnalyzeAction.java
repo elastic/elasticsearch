@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -48,7 +47,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -58,6 +56,7 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -1016,7 +1015,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private final String coordinatingNodeId;
         private final String coordinatingNodeName;
@@ -1109,11 +1108,6 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             out.writeCollection(blobResponses);
             out.writeVLong(listingTimeNanos);
             out.writeVLong(deleteTimeNanos);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

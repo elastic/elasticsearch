@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -242,7 +244,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
-        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
+        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
+            new PerFieldMapperCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
+        );
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
             try (DirectoryReader reader = iw.getReader()) {

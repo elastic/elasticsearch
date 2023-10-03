@@ -28,7 +28,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         StepKey nextStepKey = new StepKey(phase, randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
 
         List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
-        assertThat(steps.size(), is(action.isForceMergeIndex() ? 18 : 16));
+        assertThat(steps.size(), is(action.isForceMergeIndex() ? 19 : 17));
 
         List<StepKey> expectedSteps = action.isForceMergeIndex()
             ? expectedStepKeysWithForceMerge(phase)
@@ -54,13 +54,13 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         if (action.isForceMergeIndex()) {
             assertThat(steps.get(16).getKey(), is(expectedSteps.get(16)));
             assertThat(steps.get(17).getKey(), is(expectedSteps.get(17)));
-            CreateSnapshotStep createSnapshotStep = (CreateSnapshotStep) steps.get(8);
-            assertThat(createSnapshotStep.getNextKeyOnIncomplete(), is(expectedSteps.get(7)));
-            validateWaitForDataTierStep(phase, steps, 9, 10);
+            CreateSnapshotStep createSnapshotStep = (CreateSnapshotStep) steps.get(9);
+            assertThat(createSnapshotStep.getNextKeyOnIncomplete(), is(expectedSteps.get(8)));
+            validateWaitForDataTierStep(phase, steps, 10, 11);
         } else {
-            CreateSnapshotStep createSnapshotStep = (CreateSnapshotStep) steps.get(6);
-            assertThat(createSnapshotStep.getNextKeyOnIncomplete(), is(expectedSteps.get(5)));
-            validateWaitForDataTierStep(phase, steps, 7, 8);
+            CreateSnapshotStep createSnapshotStep = (CreateSnapshotStep) steps.get(7);
+            assertThat(createSnapshotStep.getNextKeyOnIncomplete(), is(expectedSteps.get(6)));
+            validateWaitForDataTierStep(phase, steps, 8, 9);
         }
     }
 
@@ -102,6 +102,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP),
             new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME),
             new StepKey(phase, NAME, WaitForNoFollowersStep.NAME),
+            new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME),
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_GENERATE_AND_CLEAN),
             new StepKey(phase, NAME, ForceMergeStep.NAME),
             new StepKey(phase, NAME, SegmentCountStep.NAME),
@@ -125,6 +126,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP),
             new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME),
             new StepKey(phase, NAME, WaitForNoFollowersStep.NAME),
+            new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME),
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_GENERATE_AND_CLEAN),
             new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME),
             new StepKey(phase, NAME, CleanupSnapshotStep.NAME),

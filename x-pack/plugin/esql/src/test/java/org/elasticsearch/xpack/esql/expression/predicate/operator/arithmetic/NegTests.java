@@ -110,7 +110,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertEquals(null, process(Integer.MIN_VALUE));
             assertCriticalWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: integer overflow"
+                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
             );
 
             return;
@@ -119,7 +119,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertEquals(null, process(Long.MIN_VALUE));
             assertCriticalWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: long overflow"
+                "Line -1:-1: java.lang.ArithmeticException: long overflow"
             );
 
             return;

@@ -140,7 +140,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         } else {
             valuesIt = Iterators.flatMap(pages.iterator(), page -> {
                 final int columnCount = columns.size();
-                assert page.getBlockCount() == columnCount;
+                assert page.getBlockCount() == columnCount : page.getBlockCount() + " != " + columnCount;
                 final ColumnInfo.PositionToXContent[] toXContents = new ColumnInfo.PositionToXContent[columnCount];
                 for (int column = 0; column < columnCount; column++) {
                     toXContents[column] = columns.get(column).positionToXContent(page.getBlock(column), scratch);

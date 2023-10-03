@@ -84,8 +84,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 
     public void testMultivalueDissectInput() {
@@ -98,7 +97,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
             @Override
             public void close() {}
-        }, new FirstWord("test"));
+        }, new FirstWord("test"), driverContext());
 
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
         builder.beginPositionEntry();

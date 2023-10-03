@@ -329,6 +329,9 @@ teardown:
           - { settings: { node: { external_id: "instance-000187" } }, processors: 8.0, memory: "64gb", storage: "128gb", node_version: $es_version }
 ---
 "Test settings are validated":
+  - skip:
+      version: "8.9.99 - "
+      reason: "We started skipping setting validations in 8.10"
   - do:
       cluster.state: {}
 
@@ -352,6 +355,9 @@ teardown:
   - match: { error.suppressed.0.reason: "Failed to parse value [-1000] for setting [http.tcp.keep_idle] must be >= -1" }
 ---
 "Test unknown settings are forbidden in known versions":
+  - skip:
+      version: "8.9.99 - "
+      reason: "We started skipping setting validations in 8.10"
   - do:
       cluster.state: {}
 
@@ -375,6 +381,9 @@ teardown:
   - match: { error.suppressed.0.reason: "unknown setting [unknown_setting] please check that any required plugins are installed, or check the breaking changes documentation for removed settings" }
 ---
 "Test unknown settings are allowed in future versions":
+  - skip:
+      version: "8.9.99 - "
+      reason: "We started skipping setting validations in 8.10"
   - do:
       _internal.update_desired_nodes:
         history_id: "test"
@@ -385,6 +394,9 @@ teardown:
   - match: { replaced_existing_history_id: false }
 ---
 "Test some settings can be overridden":
+  - skip:
+      version: "8.9.99 - "
+      reason: "We started skipping setting validations in 8.10"
   - do:
       cluster.state: {}
 
@@ -1152,5 +1164,27 @@ teardown:
         body:
           nodes:
             - { settings: { "node.name": "instance-000187" }, processors: 1.0, processors_range: {min: 1.0, max: 2.0}, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: x_content_parse_exception }
+---
+"Test node roles are validated":
+  - do:
+      cluster.state: {}
+
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      _internal.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.name": "instance-000187", "node.roles": "unknown,other" }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { status: 400 }
   - match: { error.type: x_content_parse_exception }

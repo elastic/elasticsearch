@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -40,7 +41,9 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        return page.appendBlock(evaluator.eval(page));
+        Block.Ref ref = evaluator.eval(page);
+        Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block());
+        return page.appendBlock(block);
     }
 
     @Override
@@ -50,7 +53,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(evaluator);
+        Releasables.closeExpectNoException(evaluator, super::close);
     }
 
     /**
@@ -65,13 +68,13 @@ public class EvalOperator extends AbstractPageMappingOperator {
         /**
          * Evaluate the expression.
          */
-        Block eval(Page page);
+        Block.Ref eval(Page page);
     }
 
     public static final ExpressionEvaluator CONSTANT_NULL = new ExpressionEvaluator() {
         @Override
-        public Block eval(Page page) {
-            return Block.constantNullBlock(page.getPositionCount());
+        public Block.Ref eval(Page page) {
+            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
         }
 
         @Override

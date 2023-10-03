@@ -1227,7 +1227,8 @@ public class MachineLearning extends Plugin
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
                 systemAuditor,
-                nodeAvailabilityZoneMapper
+                nodeAvailabilityZoneMapper,
+                client
             )
         );
 
@@ -1752,7 +1753,12 @@ public class MachineLearning extends Plugin
         // installs it if necessary
         List<String> templateNames = List.of(STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
-            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
+            allPresent = allPresent
+                && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(
+                    templateName,
+                    clusterState,
+                    MlIndexTemplateRegistry.ML_INDEX_TEMPLATE_VERSION
+                );
         }
 
         return allPresent;

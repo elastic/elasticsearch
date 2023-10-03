@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -19,11 +18,11 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
             return new KeyExtractorForBoolean.ForVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
-            return block.mvOrdering() == Block.MvOrdering.ASCENDING
+            return block.mvSortedAscending()
                 ? new KeyExtractorForBoolean.MinForAscending(encoder, nul, nonNul, block)
                 : new KeyExtractorForBoolean.MinForUnordered(encoder, nul, nonNul, block);
         }
-        return block.mvOrdering() == Block.MvOrdering.ASCENDING
+        return block.mvSortedAscending()
             ? new KeyExtractorForBoolean.MaxForAscending(encoder, nul, nonNul, block)
             : new KeyExtractorForBoolean.MaxForUnordered(encoder, nul, nonNul, block);
     }

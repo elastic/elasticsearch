@@ -11,12 +11,12 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -26,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class GetStoredScriptResponse extends ActionResponse implements StatusToXContentObject {
+public class GetStoredScriptResponse extends ActionResponse implements ToXContentObject {
 
     public static final ParseField _ID_PARSE_FIELD = new ParseField("_id");
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
@@ -84,7 +84,6 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
         return source;
     }
 
-    @Override
     public RestStatus status() {
         return source != null ? RestStatus.OK : RestStatus.NOT_FOUND;
     }

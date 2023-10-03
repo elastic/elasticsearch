@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
-import java.util.stream.IntStream;
 
 public class BytesRefBlockEqualityTests extends ESTestCase {
 
@@ -332,10 +331,14 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
     public void testSimpleBlockWithManyNulls() {
         int positions = randomIntBetween(1, 256);
         boolean grow = randomBoolean();
-        var builder = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
-        IntStream.range(0, positions).forEach(i -> builder.appendNull());
-        BytesRefBlock block1 = builder.build();
-        BytesRefBlock block2 = builder.build();
+        BytesRefBlock.Builder builder1 = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
+        BytesRefBlock.Builder builder2 = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
+        for (int p = 0; p < positions; p++) {
+            builder1.appendNull();
+            builder2.appendNull();
+        }
+        BytesRefBlock block1 = builder1.build();
+        BytesRefBlock block2 = builder2.build();
         assertEquals(positions, block1.getPositionCount());
         assertTrue(block1.mayHaveNulls());
         assertTrue(block1.isNull(0));
@@ -365,15 +368,27 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
     public void testSimpleBlockWithManyMultiValues() {
         int positions = randomIntBetween(1, 256);
         boolean grow = randomBoolean();
-        var builder = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
+        BytesRefBlock.Builder builder1 = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
+        BytesRefBlock.Builder builder2 = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
+        BytesRefBlock.Builder builder3 = BytesRefBlock.newBlockBuilder(grow ? 0 : positions);
         for (int pos = 0; pos < positions; pos++) {
-            builder.beginPositionEntry();
+            builder1.beginPositionEntry();
+            builder2.beginPositionEntry();
+            builder3.beginPositionEntry();
             int values = randomIntBetween(1, 16);
-            IntStream.range(0, values).forEach(i -> builder.appendBytesRef(new BytesRef(Integer.toHexString(randomInt()))));
+            for (int i = 0; i < values; i++) {
+                BytesRef value = new BytesRef(Integer.toHexString(randomInt()));
+                builder1.appendBytesRef(value);
+                builder2.appendBytesRef(value);
+                builder3.appendBytesRef(value);
+            }
+            builder1.endPositionEntry();
+            builder2.endPositionEntry();
+            builder3.endPositionEntry();
         }
-        BytesRefBlock block1 = builder.build();
-        BytesRefBlock block2 = builder.build();
-        BytesRefBlock block3 = builder.build();
+        BytesRefBlock block1 = builder1.build();
+        BytesRefBlock block2 = builder2.build();
+        BytesRefBlock block3 = builder3.build();
 
         assertEquals(positions, block1.getPositionCount());
         assertAllEquals(List.of(block1, block2, block3));

@@ -77,6 +77,11 @@ public final class EsqlTestUtils {
         public byte[] max(String field, DataType dataType) {
             return null;
         }
+
+        @Override
+        public boolean isSingleValue(String field) {
+            return false;
+        }
     }
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();

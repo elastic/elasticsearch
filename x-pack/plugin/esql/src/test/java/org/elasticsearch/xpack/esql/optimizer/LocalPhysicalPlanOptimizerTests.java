@@ -77,6 +77,12 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     private int allFieldRowSize;
 
     private final EsqlConfiguration config;
+    private final SearchStats IS_SV_STATS = new EsqlTestUtils.TestSearchStats() {
+        @Override
+        public boolean isSingleValue(String field) {
+            return true;
+        }
+    };
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() {
@@ -149,7 +155,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *     \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null]]], query[{"esql_single_value":{"field":"emp_no","next":
      *       {"range":{"emp_no":{"lt":10050,"boost":1.0}}}}}][count{r}#40, seen{r}#41], limit[],
      */
-    //TODO: this is suboptimal due to eval not being removed/folded
+    // TODO: this is suboptimal due to eval not being removed/folded
     public void testCountAllWithEval() {
         var plan = plan("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
@@ -190,7 +196,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *   limit[],
      */
     public void testCountFieldWithFilter() {
-        var plan = plan("from test | where emp_no > 10040 | stats c = count(emp_no)");
+        var plan = plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
         var stat = queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(QueryBuilders.existsQuery("emp_no")));
@@ -207,11 +213,12 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"lt":10050,"boost":1.0}}}}}]
      *             [_doc{f}#42], limit[], sort[] estimatedRowSize[16]
      */
+    // TODO: the eval is not yet optimized away
     public void testCountFieldWithEval() {
         var plan = plan("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(hidden_s)
-            """);
+            """, IS_SV_STATS);
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         var exg = as(agg.child(), ExchangeExec.class);
@@ -231,11 +238,11 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query) {
-        return optimizedPlan(physicalPlan(query));
+        return plan(query, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
-    private PhysicalPlan optimizedPlan(PhysicalPlan plan) {
-        return optimizedPlan(plan, EsqlTestUtils.TEST_SEARCH_STATS);
+    private PhysicalPlan plan(String query, SearchStats stats) {
+        return optimizedPlan(physicalPlan(query), stats);
     }
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
@@ -247,7 +254,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         // individually hence why here the plan is kept as is
 
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(config, new DisabledSearchStats()));
-        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(config), true);
+        var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(config, searchStats), true);
         var l = PlannerUtils.localPlan(plan, logicalTestOptimizer, physicalTestOptimizer);
 
         // System.out.println("* Localized DataNode Plan\n" + l);

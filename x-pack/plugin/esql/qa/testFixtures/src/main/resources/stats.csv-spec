@@ -644,8 +644,27 @@ c:l | l:i
 10  | null
 ;         
 
+countAllOnOrdinalField
+from employees | stats ca = count() by gender | sort gender;
+
+ca:l|gender:s
+33  |F
+57  |M
+10  |null
+;
+
+countFieldOnOrdinalField
+from employees | stats ca = count(gender) by gender | sort gender;
+
+ca:l|gender:s
+33  |F
+57  |M
+0   |null
+;
+
+
 countFieldVsAll
-from employees | stats ca = count(), cn = count(null), cf = count(emp_no) by gender | sort gender;
+from employees | stats ca = count(), cn = count(null), cf = count(gender) by gender | sort gender;
 
 ca:l|cn:l|cf:l|gender:s
 33  |33  |33  |F

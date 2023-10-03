@@ -262,8 +262,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
      * this method is supposed to be used to define if a field can be used for exact push down (eg. sort or filter).
      * "aggregatable" is the most accurate information we can have from field_caps as of now.
      * Pushing down operations on fields that are not aggregatable would result in an error.
-     * @param f
-     * @return
      */
     private static boolean isAggregatable(FieldAttribute f) {
         return f.exactAttribute().field().isAggregatable();
@@ -322,13 +320,15 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     /**
      * Looks for the case where certain stats exist right before the query and thus can be pushed down.
      */
-    private static class PushStatsToSource extends OptimizerRule<AggregateExec> {
+    private static class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        AggregateExec,
+        LocalPhysicalOptimizerContext> {
 
         @Override
-        protected PhysicalPlan rule(AggregateExec aggregateExec) {
+        protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
             PhysicalPlan plan = aggregateExec;
             if (aggregateExec.child() instanceof EsQueryExec queryExec) {
-                var tuple = pushableStats(aggregateExec);
+                var tuple = pushableStats(aggregateExec, context);
 
                 // for the moment support pushing count just for one field
                 List<Stat> stats = tuple.v2();
@@ -354,7 +354,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             return plan;
         }
 
-        private Tuple<List<Attribute>, List<Stat>> pushableStats(AggregateExec aggregate) {
+        private Tuple<List<Attribute>, List<Stat>> pushableStats(AggregateExec aggregate, LocalPhysicalOptimizerContext context) {
             AttributeMap<Stat> stats = new AttributeMap<>();
             Tuple<List<Attribute>, List<Stat>> tuple = new Tuple<>(new ArrayList<>(), new ArrayList<>());
 
@@ -375,8 +375,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                                 // check if regular field
                                 else {
                                     if (target instanceof FieldAttribute fa) {
-                                        fieldName = fa.name();
-                                        query = QueryBuilders.existsQuery(fieldName);
+                                        var fName = fa.name();
+                                        if (context.searchStats().isSingleValue(fName)) {
+                                            fieldName = fa.name();
+                                            query = QueryBuilders.existsQuery(fieldName);
+                                        }
                                     }
                                 }
                                 if (fieldName != null) {

@@ -276,14 +276,6 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3", "ds-4", "ds-5"));
             assertThat(result.getWriteDataStream(), equalTo("ds-3"));
         }
-        {
-            // Ensure that $ and / work
-            DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2", "ds-3$"), "ds-3$", null);
-            DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-4/", "ds-5"), "ds-2", null);
-            DataStreamAlias result = alias1.restore(alias2, "ds-2", "ds-3$");
-            assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3$", "ds-4/", "ds-5"));
-            assertThat(result.getWriteDataStream(), equalTo("ds-3$"));
-        }
     }
 
     public void testRestoreDataStreamWithWriteDataStreamThatDoesNotExistInOriginalAlias() {

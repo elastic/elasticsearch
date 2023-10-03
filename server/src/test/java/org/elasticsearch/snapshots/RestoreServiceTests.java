@@ -69,7 +69,7 @@ public class RestoreServiceTests extends ESTestCase {
 
     public void testUpdateDataStreamRename() {
         String dataStreamName = "data-stream-1";
-        String renamedDataStreamName = "data-stream-2$";
+        String renamedDataStreamName = "data-stream-2";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
@@ -82,7 +82,7 @@ public class RestoreServiceTests extends ESTestCase {
         Index renamedIndex = new Index(renamedBackingIndexName, "uuid2");
         when(indexMetadata.getIndex()).thenReturn(renamedIndex);
 
-        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("data-stream-1").renameReplacement("data-stream-2$");
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest().renamePattern("data-stream-1").renameReplacement("data-stream-2");
 
         DataStream renamedDataStream = RestoreService.updateDataStream(dataStream, metadata, request);
 

@@ -96,7 +96,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -694,7 +693,7 @@ public class RestoreService implements ClusterStateApplier {
     static DataStream updateDataStream(DataStream dataStream, Metadata.Builder metadata, RestoreSnapshotRequest request) {
         String dataStreamName = dataStream.getName();
         if (request.renamePattern() != null && request.renameReplacement() != null) {
-            dataStreamName = dataStreamName.replaceAll(request.renamePattern(), Matcher.quoteReplacement(request.renameReplacement()));
+            dataStreamName = dataStreamName.replaceAll(request.renamePattern(), request.renameReplacement());
         }
         List<Index> updatedIndices = dataStream.getIndices()
             .stream()
@@ -939,7 +938,7 @@ public class RestoreService implements ClusterStateApplier {
             if (partOfDataStream) {
                 index = index.substring(DataStream.BACKING_INDEX_PREFIX.length());
             }
-            renamedIndex = index.replaceAll(request.renamePattern(), Matcher.quoteReplacement(request.renameReplacement()));
+            renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
             if (partOfDataStream) {
                 renamedIndex = DataStream.BACKING_INDEX_PREFIX + renamedIndex;
             }

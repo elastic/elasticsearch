@@ -633,7 +633,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testFollowWith$InIndexName() throws Exception {
         String indexSettings = getIndexSettings(1, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate("test-leader$").setSource(indexSettings, XContentType.JSON).get());
-        followerClient().execute(PutFollowAction.INSTANCE, putFollow("test-leader$", "test-leader$")).actionGet();
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("test-leader$", "test-follower$")).actionGet();
+        ensureFollowerGreen("test-follower$");
     }
 
     public void testFollowIndexMaxOperationSizeInBytes() throws Exception {

@@ -166,23 +166,23 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
      *
      * <p> <b>When</b> {@code recoverAfterDataNodes} is configured:
      * <ol>
-     *     <li>Nothing can happen until it is reached</li>
-     *     <li>When {@code recoverAfterDataNodes} is reached, the cluster either:</li>
+     *     <li>Nothing can happen until it is reached
+     *     <li>When {@code recoverAfterDataNodes} is reached, the cluster either:
      *     <ul>
      *         <li>Recover immediately when {@code expectedDataNodes} is reached or
-     *         both {@code expectedDataNodes} and {@code recoverAfterTime} are not configured</li>
-     *         <li>Or schedule a recovery with a delay of {@code recoverAfterTime}</li>
+     *         both {@code expectedDataNodes} and {@code recoverAfterTime} are not configured
+     *         <li>Or schedule a recovery with a delay of {@code recoverAfterTime}
      *     </ul>
      *     <li>The scheduled recovery can be cancelled if {@code recoverAfterDataNodes} drops below required number
-     *     before the recovery can happen. When this happens, the process goes back to the beginning (step 1).</li>
-     *     <li>The recovery is scheduled only once (??) each time {@code recoverAfterDataNodes} crosses the required number</li>
+     *     before the recovery can happen. When this happens, the process goes back to the beginning (step 1).
+     *     <li>The recovery is scheduled only once (??) each time {@code recoverAfterDataNodes} crosses the required number
      * </ol>
      *
      * <p> <b>When</b> {@code recoverAfterDataNodes} is <b>Not</b> configured, the cluster either:
      * <ul>
      *     <li>Recover immediately when {@code expectedDataNodes} is reached or
-     *     both {@code expectedDataNodes} and {@code recoverAfterTime} are not configured</li>
-     *     <li>Or schedule a recovery with a delay of {@code recoverAfterTime}</li>
+     *     both {@code expectedDataNodes} and {@code recoverAfterTime} are not configured
+     *     <li>Or schedule a recovery with a delay of {@code recoverAfterTime}
      * </ul>
      */
     class PendingStateRecovery {

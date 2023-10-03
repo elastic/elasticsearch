@@ -103,7 +103,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         boolean seenNullGroup = false;
         SortedSet<Long> seenGroups = new TreeSet<>();
         for (Page in : input) {
-            LongBlock groups = in.getBlock(0);
+            Block groups = in.getBlock(0);
             for (int p = 0; p < in.getPositionCount(); p++) {
                 if (groups.isNull(p)) {
                     seenNullGroup = true;
@@ -112,7 +112,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 int start = groups.getFirstValueIndex(p);
                 int end = start + groups.getValueCount(p);
                 for (int g = start; g < end; g++) {
-                    seenGroups.add(groups.getLong(g));
+                    seenGroups.add(((LongBlock) groups).getLong(g));
                 }
             }
         }
@@ -138,10 +138,15 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertThat(results.get(0).getBlockCount(), equalTo(2));
         assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
 
-        LongBlock groups = results.get(0).getBlock(0);
+        Block groups = results.get(0).getBlock(0);
         Block result = results.get(0).getBlock(1);
         for (int i = 0; i < seenGroups.size(); i++) {
-            Long group = groups.isNull(i) ? null : groups.getLong(i);
+            final Long group;
+            if (groups.isNull(i)) {
+                group = null;
+            } else {
+                group = ((LongBlock) groups).getLong(i);
+            }
             assertSimpleGroup(input, result, i, group);
         }
     }
@@ -479,7 +484,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     protected static IntStream allValueOffsets(Page page, Long group) {
-        LongBlock groupBlock = page.getBlock(0);
+        Block groupBlock = page.getBlock(0);
         Block valueBlock = page.getBlock(1);
         return IntStream.range(0, page.getPositionCount()).flatMap(p -> {
             if (valueBlock.isNull(p)) {
@@ -494,7 +499,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 int groupEnd = groupStart + groupBlock.getValueCount(p);
                 boolean matched = false;
                 for (int i = groupStart; i < groupEnd; i++) {
-                    if (groupBlock.getLong(i) == group) {
+                    if (((LongBlock) groupBlock).getLong(i) == group) {
                         matched = true;
                         break;
                     }

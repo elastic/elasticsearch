@@ -3,6 +3,8 @@ setup:
       indices.create:
           index: test_1
           body:
+            settings:
+              number_of_shards: 1
             mappings:
               properties:
                 int_field:
@@ -45,6 +47,8 @@ setup:
       indices.create:
         index: test_2
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               other_field:

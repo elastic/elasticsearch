@@ -17,6 +17,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -136,7 +137,13 @@ public class DataLoader {
     }
 
     private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
-        ESRestTestCase.createIndex(client.getLowLevelClient(), indexName, null, mapping, null);
+        ESRestTestCase.createIndex(
+            client.getLowLevelClient(),
+            indexName,
+            Settings.builder().put("number_of_shards", 1).build(),
+            mapping,
+            null
+        );
     }
 
     /**

@@ -181,20 +181,15 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 Page page = op.getOutput();
-                try {
-                    if (page == null) {
-                        // No result, just move to the next iteration
-                    } else if (page.getPositionCount() == 0) {
-                        // Empty result, release any memory it holds immediately and move to the next iteration
-                        page.releaseBlocks();
-                    } else {
-                        // Non-empty result from the previous operation, move it to the next operation
-                        nextOp.addInput(page);
-                        movedPage = true;
-                    }
-                } catch (Throwable t) {
-                    releasePageBlocksWhileHandlingException(page);
-                    throw t;
+                if (page == null) {
+                    // No result, just move to the next iteration
+                } else if (page.getPositionCount() == 0) {
+                    // Empty result, release any memory it holds immediately and move to the next iteration
+                    page.releaseBlocks();
+                } else {
+                    // Non-empty result from the previous operation, move it to the next operation
+                    nextOp.addInput(page);
+                    movedPage = true;
                 }
             }
 
@@ -308,18 +303,6 @@ public class Driver implements Releasable, Describable {
                 listener.onFailure(e);
             }
         });
-    }
-
-    /**
-     * Releases all blocks in the given Page - ignoring and swallowing exceptions. This is a safety
-     * net used in failure scenarios - pages may or may not already be closed, but we need to be sure.
-     */
-    static void releasePageBlocksWhileHandlingException(Page page) {
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            try {
-                Releasables.closeWhileHandlingException(page.getBlock(i));
-            } catch (IllegalStateException ignoreAlreadyClosed) {}
-        }
     }
 
     private static SubscribableListener<Void> oneOf(List<SubscribableListener<Void>> futures) {

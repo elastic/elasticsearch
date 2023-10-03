@@ -14,7 +14,10 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -26,6 +29,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_DATA_NODES_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.NodeRoles.masterNode;
 import static org.hamcrest.CoreMatchers.not;
@@ -68,17 +72,10 @@ public class GatewayServiceTests extends ESTestCase {
 
     public void testRecoverStateUpdateTask() throws Exception {
         GatewayService service = createService(Settings.builder());
-        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(() -> {});
-        String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            settings(IndexVersion.current()).put(masterNode()).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
-        ClusterState stateWithBlock = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
-            .build();
+        final long expectedTerm = randomLongBetween(1, 42);
+        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm, () -> {});
+
+        ClusterState stateWithBlock = buildClusterState(1, expectedTerm);
 
         ClusterState recoveredState = clusterStateUpdateTask.execute(stateWithBlock);
         assertNotEquals(recoveredState, stateWithBlock);
@@ -88,4 +85,49 @@ public class GatewayServiceTests extends ESTestCase {
         assertSame(recoveredState, clusterState);
     }
 
+    public void testRecoverWillAbortIfExpectedTermDoesNotMatch() throws Exception {
+        GatewayService service = createService(Settings.builder());
+        final long expectedTerm = randomLongBetween(1, 42);
+        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm, () -> {});
+
+        ClusterState stateWithBlock = buildClusterState(1, randomLongBetween(43, 99));
+
+        ClusterState recoveredState = clusterStateUpdateTask.execute(stateWithBlock);
+        assertSame(recoveredState, stateWithBlock);
+    }
+
+    public void testRecoverWillAbortIfRequiredNumberOfDataNodesNotMet() throws Exception {
+        GatewayService service = createService(Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 5));
+        final long expectedTerm = randomLongBetween(1, 42);
+        ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm, () -> {});
+
+        ClusterState stateWithBlock = buildClusterState(randomIntBetween(1, 4), expectedTerm);
+
+        ClusterState recoveredState = clusterStateUpdateTask.execute(stateWithBlock);
+        assertSame(recoveredState, stateWithBlock);
+    }
+
+    private ClusterState buildClusterState(int numberOfNodes, long expectedTerm) {
+        assert numberOfNodes >= 1;
+        final String nodeId = randomAlphaOfLength(10);
+        DiscoveryNode masterNode = DiscoveryNode.createLocal(
+            settings(IndexVersion.current()).put(masterNode()).build(),
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            nodeId
+        );
+        final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
+            .localNodeId(nodeId)
+            .masterNodeId(nodeId)
+            .add(masterNode);
+        for (int i = 1; i < numberOfNodes; i++) {
+            discoveryNodesBuilder.add(DiscoveryNodeUtils.create("node-" + i, randomAlphaOfLength(10)));
+        }
+
+        ClusterState stateWithBlock = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder.build())
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(expectedTerm).build()).build())
+            .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
+            .build();
+        return stateWithBlock;
+    }
 }

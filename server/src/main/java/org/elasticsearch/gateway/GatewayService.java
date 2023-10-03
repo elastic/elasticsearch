@@ -11,9 +11,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -32,11 +30,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
@@ -80,7 +80,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     private final TimeValue recoverAfterTime;
     private final int recoverAfterDataNodes;
     private final int expectedDataNodes;
-    private PendingStateRecovery pendingStateRecovery = new PendingStateRecovery(0);
+    private final AtomicReference<PendingStateRecovery> currentPendingStateRecoveryRef = new AtomicReference<>();
 
     @Inject
     public GatewayService(
@@ -131,12 +131,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         final ClusterState state = event.state();
         final DiscoveryNodes nodes = state.nodes();
 
-        if (nodes.getMasterNodeId() == null) {
-            logger.debug("not recovering from gateway, no master elected yet");
-            return;
-        }
-
         if (nodes.isLocalNodeElectedMaster() == false) {
+            if (nodes.getMasterNodeId() == null) {
+                logger.debug("not recovering from gateway, no master elected yet");
+                return;
+            }
             // not our job to recover
             return;
         }
@@ -145,99 +144,76 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             return;
         }
 
-        if (recoverAfterDataNodes != -1 && nodes.getDataNodes().size() < recoverAfterDataNodes) {
-            logger.debug(
-                "not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
-                nodes.getDataNodes().size(),
-                recoverAfterDataNodes
-            );
-            return;
-        }
-
         // At this point, we know the state is not recovered and this node is qualified for state recovery
         // But we still need to check whether a previous one is running already
         final long currentTerm = state.term();
-        if (pendingStateRecovery.term < currentTerm) {
-            // Always start a new state recovery if the master term changes
-            // If there is a previous one still waiting, both will run but at most one of them will
-            // actually make changes to cluster state
-            pendingStateRecovery = new PendingStateRecovery(currentTerm);
+        final PendingStateRecovery existingPendingStateRecovery = currentPendingStateRecoveryRef.get();
+
+        // Always start a new state recovery if the master term changes
+        // If there is a previous one still waiting, both will probably run but at most one of them will
+        // actually make changes to cluster state because either:
+        // 1. The previous recovers the cluster state and the current one will be skipped
+        // 2. The previous one sees a new cluster term and skips its own execution
+        if (existingPendingStateRecovery == null || existingPendingStateRecovery.term < currentTerm) {
+            final PendingStateRecovery newPendingStateRecovery = new PendingStateRecovery(currentTerm);
+            if (currentPendingStateRecoveryRef.compareAndSet(existingPendingStateRecovery, newPendingStateRecovery)) {
+                newPendingStateRecovery.start(nodes.getDataNodes().size());
+            } else {
+                assert false : "compareAndSet should have succeeded since the cluster state processing is single threaded";
+            }
+        } else {
+            logger.debug("state recovery is in progress for term [{}]", existingPendingStateRecovery.term);
         }
-        assert pendingStateRecovery.term == currentTerm;
-        pendingStateRecovery.maybeStart(nodes.getDataNodes().size());
     }
 
     class PendingStateRecovery {
         private final long term;
-        @Nullable
-        private SubscribableListener<Void> recoveryPlanned;
 
         PendingStateRecovery(long term) {
             this.term = term;
         }
 
-        void maybeStart(int dataNodeSize) {
-            final SubscribableListener<Void> thisRecoveryPlanned;
-            synchronized (this) {
-                if (recoveryPlanned == null) {
-                    recoveryPlanned = thisRecoveryPlanned = new SubscribableListener<>();
-                } else {
-                    thisRecoveryPlanned = null;
-                }
-            }
-
-            if (thisRecoveryPlanned == null) {
-                logger.debug("state recovery is in progress for term [{}]", term);
-                return;
-            }
-            recoveryPlanned.addListener(new ActionListener<>() {
-                @Override
-                public void onResponse(Void ignore) {
-                    runRecovery();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ElasticsearchTimeoutException) {
-                        logger.info("recover_after_time [{}] elapsed. performing state recovery of term [{}]", recoverAfterTime, term);
-                        runRecovery();
-                    } else {
-                        onUnexpectedFailure(e);
-                    }
-                }
-
-                private void onUnexpectedFailure(Exception e) {
-                    logger.warn("state recovery of term [" + term + "] failed", e);
-                    resetState();
-                }
-
-                private void runRecovery() {
-                    try {
-                        submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(this::resetState));
-                    } catch (Exception e) {
-                        onUnexpectedFailure(e);
-                    }
-                }
-
-                private void resetState() {
-                    synchronized (GatewayService.this) {
-                        assert recoveryPlanned == thisRecoveryPlanned;
-                        recoveryPlanned = null;
-                    }
-                }
-            });
-
+        void start(int dataNodeSize) {
             if (recoverAfterTime == null) {
                 logger.debug("performing state recovery of term [{}], no delay time is configured", term);
-                thisRecoveryPlanned.onResponse(null);
+                runRecoveryImmediately();
             } else if (expectedDataNodes != -1 && expectedDataNodes <= dataNodeSize) {
                 logger.debug("performing state recovery of term [{}], expected data nodes [{}] is reached", term, expectedDataNodes);
-                thisRecoveryPlanned.onResponse(null);
+                runRecoveryImmediately();
             } else {
-                final String reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + dataNodeSize + "]";
-                logger.info("delaying initial state recovery for [{}] of term [{}]. {}", recoverAfterTime, term, reason);
-                thisRecoveryPlanned.addTimeout(recoverAfterTime, threadPool, threadPool.generic());
+                logger.info(
+                    "delaying initial state recovery for [{}] of term [{}]. expecting [{}] data nodes, but only have [{}]",
+                    recoverAfterTime,
+                    term,
+                    expectedDataNodes,
+                    dataNodeSize
+                );
+                threadPool.schedule(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("delayed state recovery of term [" + term + "] failed", e);
+                        resetState();
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(term, PendingStateRecovery.this::resetState));
+                    }
+                }, recoverAfterTime, threadPool.generic());
             }
+        }
+
+        void runRecoveryImmediately() {
+            try {
+                submitUnbatchedTask(TASK_SOURCE, new RecoverStateUpdateTask(term, this::resetState));
+            } catch (Exception e) {
+                logger.warn("state recovery of term [" + term + "] failed", e);
+                resetState();
+            }
+        }
+
+        void resetState() {
+            GatewayService.this.currentPendingStateRecoveryRef.compareAndSet(this, null);
         }
     }
 
@@ -245,9 +221,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     class RecoverStateUpdateTask extends ClusterStateUpdateTask {
 
+        private final long expectedTerm;
         private final Runnable runAfter;
 
-        RecoverStateUpdateTask(Runnable runAfter) {
+        RecoverStateUpdateTask(long expectedTerm, Runnable runAfter) {
+            this.expectedTerm = expectedTerm;
             this.runAfter = runAfter;
         }
 
@@ -255,6 +233,18 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         public ClusterState execute(final ClusterState currentState) {
             if (currentState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                 logger.debug("cluster is already recovered");
+                return currentState;
+            }
+            if (expectedTerm != currentState.term()) {
+                logger.debug("skip state recovery since current term [{}] != expected term [{}]", currentState.term(), expectedTerm);
+                return currentState;
+            }
+            if (recoverAfterDataNodes != -1 && currentState.nodes().getDataNodes().size() < recoverAfterDataNodes) {
+                logger.debug(
+                    "not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
+                    currentState.nodes().getDataNodes().size(),
+                    recoverAfterDataNodes
+                );
                 return currentState;
             }
             return ClusterStateUpdaters.removeStateNotRecoveredBlock(

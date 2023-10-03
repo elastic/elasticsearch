@@ -204,6 +204,13 @@ public class BlockFactory {
         return b;
     }
 
+    public IntVector newConstantIntVector(int value, int positions) {
+        adjustBreaker(ConstantIntVector.RAM_BYTES_USED, false);
+        var v = new ConstantIntVector(value, positions, this);
+        adjustBreaker(v.ramBytesUsed() - ConstantIntVector.RAM_BYTES_USED, true);
+        return v;
+    }
+
     public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
         return new LongBlockBuilder(estimatedSize, this);
     }

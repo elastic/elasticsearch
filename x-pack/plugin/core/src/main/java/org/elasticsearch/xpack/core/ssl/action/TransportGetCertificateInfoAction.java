@@ -30,7 +30,6 @@ public class TransportGetCertificateInfoAction extends HandledTransportAction<
     public TransportGetCertificateInfoAction(TransportService transportService, ActionFilters actionFilters, SSLService sslService) {
         super(
             GetCertificateInfoAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetCertificateInfoAction.Request::new,

@@ -29,7 +29,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
         ActionFilters actionFilters,
         SearchTransportService searchTransportService
     ) {
-        super(ClearScrollAction.NAME, true, transportService, actionFilters, ClearScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(ClearScrollAction.NAME, transportService, actionFilters, ClearScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
     }

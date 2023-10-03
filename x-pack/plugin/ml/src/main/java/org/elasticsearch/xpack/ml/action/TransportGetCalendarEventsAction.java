@@ -42,7 +42,6 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<
     ) {
         super(
             GetCalendarEventsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetCalendarEventsAction.Request::new,

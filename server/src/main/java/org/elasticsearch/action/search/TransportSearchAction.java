@@ -161,7 +161,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         super(
             SearchAction.NAME,
-            true,
             transportService,
             actionFilters,
             (Writeable.Reader<SearchRequest>) SearchRequest::new,

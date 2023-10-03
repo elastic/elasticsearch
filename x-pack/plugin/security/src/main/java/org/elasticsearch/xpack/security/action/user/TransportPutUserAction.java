@@ -39,7 +39,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
         NativeUsersStore usersStore,
         TransportService transportService
     ) {
-        super(PutUserAction.NAME, true, transportService, actionFilters, PutUserRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.usersStore = usersStore;
     }

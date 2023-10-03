@@ -37,7 +37,6 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
     ) {
         super(
             InvalidateApiKeyAction.NAME,
-            true,
             transportService,
             actionFilters,
             (Writeable.Reader<InvalidateApiKeyRequest>) InvalidateApiKeyRequest::new,

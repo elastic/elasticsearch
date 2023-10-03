@@ -52,14 +52,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         NativePrivilegeStore privilegeStore,
         SecurityContext context
     ) {
-        super(
-            HasPrivilegesAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            HasPrivilegesRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.securityContext = context;

@@ -65,7 +65,6 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     ) {
         super(
             SubmitAsyncSearchAction.NAME,
-            true,
             transportService,
             actionFilters,
             SubmitAsyncSearchRequest::new,

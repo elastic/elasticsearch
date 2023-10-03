@@ -22,7 +22,6 @@ public class TransportValidateDetectorAction extends HandledTransportAction<Vali
     public TransportValidateDetectorAction(TransportService transportService, ActionFilters actionFilters) {
         super(
             ValidateDetectorAction.NAME,
-            true,
             transportService,
             actionFilters,
             ValidateDetectorAction.Request::new,

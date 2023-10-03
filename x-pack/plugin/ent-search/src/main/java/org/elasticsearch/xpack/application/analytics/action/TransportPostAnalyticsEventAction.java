@@ -35,7 +35,6 @@ public class TransportPostAnalyticsEventAction extends HandledTransportAction<
     ) {
         super(
             PostAnalyticsEventAction.NAME,
-            true,
             transportService,
             actionFilters,
             PostAnalyticsEventAction.Request::new,

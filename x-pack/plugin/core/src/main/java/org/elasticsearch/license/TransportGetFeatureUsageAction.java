@@ -34,7 +34,7 @@ public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFe
 
     @Inject
     public TransportGetFeatureUsageAction(TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
-        super(TYPE.name(), true, transportService, actionFilters, GetFeatureUsageRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(TYPE.name(), transportService, actionFilters, GetFeatureUsageRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseState = licenseState;
     }
 

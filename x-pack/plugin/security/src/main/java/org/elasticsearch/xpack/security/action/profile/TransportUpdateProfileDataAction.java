@@ -27,7 +27,6 @@ public class TransportUpdateProfileDataAction extends HandledTransportAction<Upd
     public TransportUpdateProfileDataAction(TransportService transportService, ActionFilters actionFilters, ProfileService profileService) {
         super(
             UpdateProfileDataAction.NAME,
-            true,
             transportService,
             actionFilters,
             UpdateProfileDataRequest::new,

@@ -81,7 +81,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     ) {
         super(
             PreviewDatafeedAction.NAME,
-            true,
             transportService,
             actionFilters,
             PreviewDatafeedAction.Request::new,

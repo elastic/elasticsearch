@@ -33,14 +33,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
         JobManager jobManager,
         Client client
     ) {
-        super(
-            GetBucketsAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            GetBucketsAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(GetBucketsAction.NAME, transportService, actionFilters, GetBucketsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;

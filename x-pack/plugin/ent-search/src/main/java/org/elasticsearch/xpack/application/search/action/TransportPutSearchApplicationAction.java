@@ -38,7 +38,6 @@ public class TransportPutSearchApplicationAction extends HandledTransportAction<
     ) {
         super(
             PutSearchApplicationAction.NAME,
-            true,
             transportService,
             actionFilters,
             PutSearchApplicationAction.Request::new,

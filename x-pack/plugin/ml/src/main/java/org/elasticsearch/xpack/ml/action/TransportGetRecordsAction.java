@@ -33,14 +33,7 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
         JobManager jobManager,
         Client client
     ) {
-        super(
-            GetRecordsAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            GetRecordsAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(GetRecordsAction.NAME, transportService, actionFilters, GetRecordsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;

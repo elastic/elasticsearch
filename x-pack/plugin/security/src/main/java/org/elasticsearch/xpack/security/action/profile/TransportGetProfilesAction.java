@@ -27,7 +27,7 @@ public class TransportGetProfilesAction extends HandledTransportAction<GetProfil
 
     @Inject
     public TransportGetProfilesAction(TransportService transportService, ActionFilters actionFilters, ProfileService profileService) {
-        super(GetProfilesAction.NAME, true, transportService, actionFilters, GetProfilesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetProfilesAction.NAME, transportService, actionFilters, GetProfilesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.profileService = profileService;
     }
 

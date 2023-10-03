@@ -33,7 +33,6 @@ public class TransportListQueryRulesetsAction extends HandledTransportAction<
     ) {
         super(
             ListQueryRulesetsAction.NAME,
-            true,
             transportService,
             actionFilters,
             ListQueryRulesetsAction.Request::new,

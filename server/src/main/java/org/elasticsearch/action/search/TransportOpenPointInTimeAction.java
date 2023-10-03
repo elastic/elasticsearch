@@ -64,7 +64,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     ) {
         super(
             OpenPointInTimeAction.NAME,
-            true,
             transportService,
             actionFilters,
             OpenPointInTimeRequest::new,

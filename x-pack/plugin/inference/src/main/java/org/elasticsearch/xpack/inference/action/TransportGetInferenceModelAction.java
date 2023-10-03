@@ -36,7 +36,6 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     ) {
         super(
             GetInferenceModelAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetInferenceModelAction.Request::new,

@@ -186,7 +186,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
             PluginsService pluginsService,
             ThreadPool threadPool
         ) {
-            super(NAME, true, transportService, actionFilters, in -> new TestRequest(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(NAME, transportService, actionFilters, in -> new TestRequest(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             testPlugin = pluginsService.filterPlugins(TestPlugin.class).get(0);
             this.threadPool = threadPool;
         }

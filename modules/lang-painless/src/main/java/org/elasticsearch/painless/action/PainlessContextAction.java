@@ -143,14 +143,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
-            super(
-                NAME,
-                true,
-                transportService,
-                actionFilters,
-                (Writeable.Reader<Request>) Request::new,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
-            );
+            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>) Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.painlessScriptEngine = painlessScriptEngine;
         }
 

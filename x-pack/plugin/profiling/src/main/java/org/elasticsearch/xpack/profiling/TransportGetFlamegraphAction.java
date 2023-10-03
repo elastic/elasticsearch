@@ -38,14 +38,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
 
     @Inject
     public TransportGetFlamegraphAction(NodeClient nodeClient, TransportService transportService, ActionFilters actionFilters) {
-        super(
-            GetFlamegraphAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            GetStackTracesRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(GetFlamegraphAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
         this.transportService = transportService;
     }

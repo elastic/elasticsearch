@@ -59,7 +59,6 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
     ) {
         super(
             PutSamlServiceProviderAction.NAME,
-            true,
             transportService,
             actionFilters,
             PutSamlServiceProviderRequest::new,

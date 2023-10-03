@@ -53,7 +53,6 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
     ) {
         super(
             OpenIdConnectLogoutAction.NAME,
-            true,
             transportService,
             actionFilters,
             (Writeable.Reader<OpenIdConnectLogoutRequest>) OpenIdConnectLogoutRequest::new,

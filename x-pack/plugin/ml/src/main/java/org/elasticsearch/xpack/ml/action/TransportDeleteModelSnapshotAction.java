@@ -51,7 +51,6 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
     ) {
         super(
             DeleteModelSnapshotAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteModelSnapshotAction.Request::new,

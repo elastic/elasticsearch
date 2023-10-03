@@ -22,7 +22,6 @@ public class TransportValidateJobConfigAction extends HandledTransportAction<Val
     public TransportValidateJobConfigAction(TransportService transportService, ActionFilters actionFilters) {
         super(
             ValidateJobConfigAction.NAME,
-            true,
             transportService,
             actionFilters,
             ValidateJobConfigAction.Request::new,

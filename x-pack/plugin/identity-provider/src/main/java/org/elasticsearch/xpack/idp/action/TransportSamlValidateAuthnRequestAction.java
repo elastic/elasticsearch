@@ -33,7 +33,6 @@ public class TransportSamlValidateAuthnRequestAction extends HandledTransportAct
     ) {
         super(
             SamlValidateAuthnRequestAction.NAME,
-            true,
             transportService,
             actionFilters,
             SamlValidateAuthnRequestRequest::new,

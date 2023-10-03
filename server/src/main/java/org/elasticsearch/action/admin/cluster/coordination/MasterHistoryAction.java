@@ -130,7 +130,7 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, MasterHistoryService masterHistoryService) {
-            super(MasterHistoryAction.NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(MasterHistoryAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.masterHistoryService = masterHistoryService;
         }
 

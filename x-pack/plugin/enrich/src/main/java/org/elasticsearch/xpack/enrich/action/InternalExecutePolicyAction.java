@@ -117,7 +117,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
             ClusterService clusterService,
             EnrichPolicyExecutor policyExecutor
         ) {
-            super(NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
             this.transportService = transportService;
             this.policyExecutor = policyExecutor;

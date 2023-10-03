@@ -140,7 +140,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             PatternBank legacyGrokPatterns,
             PatternBank ecsV1GrokPatterns
         ) {
-            super(NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.legacyGrokPatterns = legacyGrokPatterns.bank();
             this.sortedLegacyGrokPatterns = new TreeMap<>(this.legacyGrokPatterns);
             this.ecsV1GrokPatterns = ecsV1GrokPatterns.bank();

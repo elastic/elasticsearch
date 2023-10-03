@@ -56,7 +56,7 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
         JobResultsProvider jobResultsProvider,
         Client client
     ) {
-        super(GetDatafeedsStatsAction.NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetDatafeedsStatsAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobResultsProvider = jobResultsProvider;

@@ -34,7 +34,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
         TransportService transportService,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(PutRoleAction.NAME, true, transportService, actionFilters, PutRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.rolesStore = rolesStore;
         this.xContentRegistry = xContentRegistry;
     }

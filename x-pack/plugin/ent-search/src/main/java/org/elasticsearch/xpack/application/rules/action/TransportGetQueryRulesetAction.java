@@ -31,7 +31,6 @@ public class TransportGetQueryRulesetAction extends HandledTransportAction<GetQu
     ) {
         super(
             GetQueryRulesetAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetQueryRulesetAction.Request::new,

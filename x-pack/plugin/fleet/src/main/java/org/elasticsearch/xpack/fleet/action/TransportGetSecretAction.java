@@ -26,7 +26,7 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
 
     @Inject
     public TransportGetSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetSecretAction.NAME, true, transportService, actionFilters, GetSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetSecretAction.NAME, transportService, actionFilters, GetSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, FLEET_ORIGIN);
     }
 

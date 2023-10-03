@@ -37,7 +37,6 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     ) {
         super(
             GetUserPrivilegesAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetUserPrivilegesRequest::new,

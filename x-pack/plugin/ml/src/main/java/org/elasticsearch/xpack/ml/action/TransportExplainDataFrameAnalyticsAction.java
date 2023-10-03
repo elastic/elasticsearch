@@ -84,7 +84,6 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
     ) {
         super(
             ExplainDataFrameAnalyticsAction.NAME,
-            true,
             transportService,
             actionFilters,
             ExplainDataFrameAnalyticsAction.Request::new,

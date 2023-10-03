@@ -26,7 +26,6 @@ public class TransportDeleteSynonymRuleAction extends HandledTransportAction<Del
     public TransportDeleteSynonymRuleAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             DeleteSynonymRuleAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteSynonymRuleAction.Request::new,

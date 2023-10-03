@@ -37,7 +37,6 @@ public class TransportListSearchApplicationAction extends HandledTransportAction
     ) {
         super(
             ListSearchApplicationAction.NAME,
-            true,
             transportService,
             actionFilters,
             ListSearchApplicationAction.Request::new,

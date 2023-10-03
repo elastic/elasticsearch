@@ -51,7 +51,6 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     ) {
         super(
             DeleteFilterAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteFilterAction.Request::new,

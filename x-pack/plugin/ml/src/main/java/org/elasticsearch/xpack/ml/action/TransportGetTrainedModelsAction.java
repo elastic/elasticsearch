@@ -52,7 +52,6 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
     ) {
         super(
             GetTrainedModelsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetTrainedModelsAction.Request::new,

@@ -45,7 +45,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         IndexNameExpressionResolver resolver,
         IndicesService indicesService
     ) {
-        super(MultiGetAction.NAME, true, transportService, actionFilters, MultiGetRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.client = client;
         this.indexNameExpressionResolver = resolver;

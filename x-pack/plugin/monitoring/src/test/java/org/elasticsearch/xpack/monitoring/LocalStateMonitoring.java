@@ -123,14 +123,7 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
         @Inject
         public TransportCcrStatsStubAction(TransportService transportService, ActionFilters actionFilters) {
-            super(
-                CcrStatsAction.NAME,
-                true,
-                transportService,
-                actionFilters,
-                CcrStatsAction.Request::new,
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
-            );
+            super(CcrStatsAction.NAME, transportService, actionFilters, CcrStatsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override
@@ -159,7 +152,6 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
         public TransportEnrichStatsStubAction(TransportService transportService, ActionFilters actionFilters) {
             super(
                 EnrichStatsAction.NAME,
-                true,
                 transportService,
                 actionFilters,
                 EnrichStatsAction.Request::new,

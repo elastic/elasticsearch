@@ -53,14 +53,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         ClusterService clusterService,
         PersistentTasksService persistentTasksService
     ) {
-        super(
-            CancelJobModelSnapshotUpgradeAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(CancelJobModelSnapshotUpgradeAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.jobConfigProvider = jobConfigProvider;
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;

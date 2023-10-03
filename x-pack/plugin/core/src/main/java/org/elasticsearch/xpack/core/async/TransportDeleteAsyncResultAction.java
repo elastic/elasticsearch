@@ -42,7 +42,6 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
     ) {
         super(
             DeleteAsyncResultAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteAsyncResultRequest::new,

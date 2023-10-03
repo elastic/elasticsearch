@@ -34,7 +34,7 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         ActionFilters actionFilters,
         ClusterService clusterService
     ) {
-        super(MainAction.NAME, true, transportService, actionFilters, MainRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(MainAction.NAME, transportService, actionFilters, MainRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
     }

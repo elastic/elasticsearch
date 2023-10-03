@@ -26,7 +26,7 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
 
     @Inject
     public TransportRefreshTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
-        super(RefreshTokenAction.NAME, true, transportService, actionFilters, CreateTokenRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(RefreshTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.tokenService = tokenService;
     }
 

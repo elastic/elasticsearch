@@ -52,7 +52,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         NamedXContentRegistry xContentRegistry,
         MlControllerHolder mlControllerHolder
     ) {
-        super(MlInfoAction.NAME, true, transportService, actionFilters, MlInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
 

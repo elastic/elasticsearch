@@ -42,14 +42,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
 
     @Inject
     public TransportPutFilterAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            PutFilterAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            PutFilterAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(PutFilterAction.NAME, transportService, actionFilters, PutFilterAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
     }
 

@@ -62,7 +62,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         final ClusterService clusterService,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(GetCheckpointAction.NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;

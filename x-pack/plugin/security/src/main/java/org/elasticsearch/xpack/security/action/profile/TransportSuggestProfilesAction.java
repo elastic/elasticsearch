@@ -35,7 +35,6 @@ public class TransportSuggestProfilesAction extends HandledTransportAction<Sugge
     ) {
         super(
             SuggestProfilesAction.NAME,
-            true,
             transportService,
             actionFilters,
             SuggestProfilesRequest::new,

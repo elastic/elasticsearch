@@ -37,7 +37,6 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
     ) {
         super(
             DeletePrivilegesAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeletePrivilegesRequest::new,

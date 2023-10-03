@@ -40,7 +40,6 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
     ) {
         super(
             GetCategoriesAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetCategoriesAction.Request::new,

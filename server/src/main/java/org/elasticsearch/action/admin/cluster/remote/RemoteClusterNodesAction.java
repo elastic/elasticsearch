@@ -99,7 +99,7 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(RemoteClusterNodesAction.NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(RemoteClusterNodesAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
         }
 

@@ -55,7 +55,6 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
     ) {
         super(
             KibanaEnrollmentAction.NAME,
-            true,
             transportService,
             actionFilters,
             KibanaEnrollmentRequest::new,

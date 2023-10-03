@@ -58,7 +58,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
 
     @Inject
     public TransportGetPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetPipelineAction.NAME, true, transportService, actionFilters, GetPipelineRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetPipelineAction.NAME, transportService, actionFilters, GetPipelineRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 

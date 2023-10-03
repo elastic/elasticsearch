@@ -37,7 +37,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
         final ActionFilters actionFilters,
         final IndicesService indicesService
     ) {
-        super(GetCheckpointNodeAction.NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetCheckpointNodeAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.indicesService = indicesService;
     }
 

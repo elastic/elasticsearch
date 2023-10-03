@@ -44,7 +44,6 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     ) {
         super(
             GetFieldMappingsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetFieldMappingsRequest::new,

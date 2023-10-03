@@ -37,7 +37,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
         TransportService transportService,
         ReservedRolesStore reservedRolesStore
     ) {
-        super(GetRolesAction.NAME, true, transportService, actionFilters, GetRolesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetRolesAction.NAME, transportService, actionFilters, GetRolesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
     }

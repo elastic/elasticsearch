@@ -30,14 +30,7 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
 
     @Inject
     public TransportDeletePipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            DeletePipelineAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            DeletePipelineRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(DeletePipelineAction.NAME, transportService, actionFilters, DeletePipelineRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 

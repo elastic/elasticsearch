@@ -47,7 +47,7 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         Realms realms,
         TokenService tokenService
     ) {
-        super(SamlLogoutAction.NAME, true, transportService, actionFilters, SamlLogoutRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
         this.tokenService = tokenService;
     }

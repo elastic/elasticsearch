@@ -56,7 +56,6 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
     ) {
         super(
             SamlInitiateSingleSignOnAction.NAME,
-            true,
             transportService,
             actionFilters,
             SamlInitiateSingleSignOnRequest::new,

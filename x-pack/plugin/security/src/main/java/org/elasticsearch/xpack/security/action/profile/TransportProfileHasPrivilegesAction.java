@@ -67,7 +67,6 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
     ) {
         super(
             ProfileHasPrivilegesAction.NAME,
-            true,
             transportService,
             actionFilters,
             ProfileHasPrivilegesRequest::new,

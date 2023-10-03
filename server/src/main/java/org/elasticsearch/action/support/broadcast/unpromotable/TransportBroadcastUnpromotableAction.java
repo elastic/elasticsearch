@@ -54,7 +54,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         Writeable.Reader<Request> requestReader,
         Executor executor
     ) {
-        super(actionName, true, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.shardStateAction = shardStateAction;
         this.transportService = transportService;

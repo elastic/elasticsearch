@@ -35,7 +35,6 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
     ) {
         super(
             GetRoleMappingsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetRoleMappingsRequest::new,

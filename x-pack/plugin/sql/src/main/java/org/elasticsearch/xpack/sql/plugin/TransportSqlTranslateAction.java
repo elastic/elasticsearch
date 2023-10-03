@@ -47,14 +47,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         PlanExecutor planExecutor,
         SqlLicenseChecker sqlLicenseChecker
     ) {
-        super(
-            SqlTranslateAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            SqlTranslateRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())

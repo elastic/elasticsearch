@@ -27,7 +27,6 @@ public class TransportGetScriptContextAction extends HandledTransportAction<GetS
     public TransportGetScriptContextAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService) {
         super(
             GetScriptContextAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetScriptContextRequest::new,

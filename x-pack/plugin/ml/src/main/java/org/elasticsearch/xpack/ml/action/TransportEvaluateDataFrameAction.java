@@ -56,7 +56,6 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
     ) {
         super(
             EvaluateDataFrameAction.NAME,
-            true,
             transportService,
             actionFilters,
             EvaluateDataFrameAction.Request::new,

@@ -30,7 +30,6 @@ public class TransportGetBuiltinPrivilegesAction extends HandledTransportAction<
     public TransportGetBuiltinPrivilegesAction(ActionFilters actionFilters, TransportService transportService) {
         super(
             GetBuiltinPrivilegesAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetBuiltinPrivilegesRequest::new,

@@ -49,7 +49,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     ) {
         super(
             MultiSearchAction.NAME,
-            true,
             transportService,
             actionFilters,
             (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new,
@@ -73,7 +72,6 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     ) {
         super(
             MultiSearchAction.NAME,
-            true,
             transportService,
             actionFilters,
             (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new,

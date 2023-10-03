@@ -56,7 +56,6 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
     ) {
         super(
             PostCalendarEventsAction.NAME,
-            true,
             transportService,
             actionFilters,
             PostCalendarEventsAction.Request::new,

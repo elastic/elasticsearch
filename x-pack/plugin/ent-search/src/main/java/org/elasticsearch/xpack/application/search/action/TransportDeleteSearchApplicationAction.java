@@ -37,7 +37,6 @@ public class TransportDeleteSearchApplicationAction extends HandledTransportActi
     ) {
         super(
             DeleteSearchApplicationAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteSearchApplicationAction.Request::new,

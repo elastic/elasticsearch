@@ -36,14 +36,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         SecurityContext securityContext,
         AnonymousUser anonymousUser
     ) {
-        super(
-            AuthenticateAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            AuthenticateRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = securityContext;
         this.anonymousUser = anonymousUser;
     }

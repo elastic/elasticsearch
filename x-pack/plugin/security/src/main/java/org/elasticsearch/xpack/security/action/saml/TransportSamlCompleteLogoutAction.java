@@ -36,7 +36,6 @@ public final class TransportSamlCompleteLogoutAction extends HandledTransportAct
     public TransportSamlCompleteLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
         super(
             SamlCompleteLogoutAction.NAME,
-            true,
             transportService,
             actionFilters,
             SamlCompleteLogoutRequest::new,

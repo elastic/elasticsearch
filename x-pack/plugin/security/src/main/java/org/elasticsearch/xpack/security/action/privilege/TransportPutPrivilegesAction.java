@@ -33,14 +33,7 @@ public class TransportPutPrivilegesAction extends HandledTransportAction<PutPriv
         NativePrivilegeStore privilegeStore,
         TransportService transportService
     ) {
-        super(
-            PutPrivilegesAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            PutPrivilegesRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(PutPrivilegesAction.NAME, transportService, actionFilters, PutPrivilegesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.privilegeStore = privilegeStore;
     }
 

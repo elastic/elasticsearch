@@ -31,7 +31,6 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
     public TransportFindStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
         super(
             FindStructureAction.NAME,
-            true,
             transportService,
             actionFilters,
             FindStructureAction.Request::new,

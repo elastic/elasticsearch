@@ -49,14 +49,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         Exporters exportService,
         MonitoringService monitoringService
     ) {
-        super(
-            MonitoringBulkAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            MonitoringBulkRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.exportService = exportService;

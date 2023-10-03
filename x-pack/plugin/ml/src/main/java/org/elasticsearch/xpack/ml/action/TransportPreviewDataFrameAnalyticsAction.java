@@ -65,14 +65,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         ThreadPool threadPool,
         ClusterService clusterService
     ) {
-        super(
-            PreviewDataFrameAnalyticsAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(PreviewDataFrameAnalyticsAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
         this.threadPool = threadPool;

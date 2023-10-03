@@ -32,7 +32,7 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
         PlanExecutor planExecutor,
         SqlLicenseChecker sqlLicenseChecker
     ) {
-        super(NAME, true, transportService, actionFilters, SqlClearCursorRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NAME, transportService, actionFilters, SqlClearCursorRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
     }

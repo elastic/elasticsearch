@@ -31,7 +31,6 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
     public TransportInvalidateTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
         super(
             InvalidateTokenAction.NAME,
-            true,
             transportService,
             actionFilters,
             InvalidateTokenRequest::new,

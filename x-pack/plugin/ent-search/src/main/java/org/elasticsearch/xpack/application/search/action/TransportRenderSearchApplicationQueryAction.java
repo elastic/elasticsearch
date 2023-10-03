@@ -51,7 +51,6 @@ public class TransportRenderSearchApplicationQueryAction extends HandledTranspor
     ) {
         super(
             RenderSearchApplicationQueryAction.NAME,
-            true,
             transportService,
             actionFilters,
             SearchApplicationSearchRequest::new,

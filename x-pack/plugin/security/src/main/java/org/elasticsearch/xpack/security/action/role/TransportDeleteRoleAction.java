@@ -26,7 +26,7 @@ public class TransportDeleteRoleAction extends HandledTransportAction<DeleteRole
 
     @Inject
     public TransportDeleteRoleAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
-        super(DeleteRoleAction.NAME, true, transportService, actionFilters, DeleteRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(DeleteRoleAction.NAME, transportService, actionFilters, DeleteRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.rolesStore = rolesStore;
     }
 

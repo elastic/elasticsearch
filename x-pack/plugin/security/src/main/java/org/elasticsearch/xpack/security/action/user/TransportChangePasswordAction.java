@@ -36,14 +36,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         ActionFilters actionFilters,
         NativeUsersStore nativeUsersStore
     ) {
-        super(
-            ChangePasswordAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            ChangePasswordRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(ChangePasswordAction.NAME, transportService, actionFilters, ChangePasswordRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.nativeUsersStore = nativeUsersStore;
     }

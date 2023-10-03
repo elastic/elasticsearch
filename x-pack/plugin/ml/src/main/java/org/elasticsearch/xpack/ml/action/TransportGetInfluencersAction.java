@@ -35,7 +35,6 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
     ) {
         super(
             GetInfluencersAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetInfluencersAction.Request::new,

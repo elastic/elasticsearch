@@ -58,7 +58,6 @@ public final class TransportSamlInvalidateSessionAction extends HandledTransport
     ) {
         super(
             SamlInvalidateSessionAction.NAME,
-            true,
             transportService,
             actionFilters,
             SamlInvalidateSessionRequest::new,

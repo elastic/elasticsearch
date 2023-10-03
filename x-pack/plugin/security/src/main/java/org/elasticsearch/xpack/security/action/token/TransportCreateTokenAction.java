@@ -58,7 +58,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
         AuthenticationService authenticationService,
         SecurityContext securityContext
     ) {
-        super(CreateTokenAction.NAME, true, transportService, actionFilters, CreateTokenRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(CreateTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.tokenService = tokenService;
         this.authenticationService = authenticationService;

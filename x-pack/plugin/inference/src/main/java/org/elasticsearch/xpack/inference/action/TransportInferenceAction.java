@@ -34,14 +34,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry
     ) {
-        super(
-            InferenceAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            InferenceAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
     }

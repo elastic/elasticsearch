@@ -52,14 +52,7 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
         Client client,
         ActionFilters actionFilters
     ) {
-        super(
-            NodeEnrollmentAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            NodeEnrollmentRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(NodeEnrollmentAction.NAME, transportService, actionFilters, NodeEnrollmentRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.sslService = sslService;
         this.client = client;
     }

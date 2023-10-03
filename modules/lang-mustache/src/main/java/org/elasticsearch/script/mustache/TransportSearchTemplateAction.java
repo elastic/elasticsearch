@@ -55,14 +55,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         NodeClient client,
         UsageService usageService
     ) {
-        super(
-            SearchTemplateAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            SearchTemplateRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

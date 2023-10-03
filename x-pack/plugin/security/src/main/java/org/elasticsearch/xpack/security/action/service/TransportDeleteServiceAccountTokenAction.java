@@ -33,7 +33,6 @@ public class TransportDeleteServiceAccountTokenAction extends HandledTransportAc
     ) {
         super(
             DeleteServiceAccountTokenAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteServiceAccountTokenRequest::new,

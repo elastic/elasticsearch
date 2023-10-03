@@ -83,7 +83,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         TransportService transportService,
         ReindexSslConfig sslConfig
     ) {
-        super(name, true, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);

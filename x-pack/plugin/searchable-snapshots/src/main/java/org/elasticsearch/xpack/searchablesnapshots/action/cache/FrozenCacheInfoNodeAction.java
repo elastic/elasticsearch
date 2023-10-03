@@ -53,7 +53,7 @@ public class FrozenCacheInfoNodeAction extends ActionType<FrozenCacheInfoRespons
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             response = new FrozenCacheInfoResponse(SHARED_CACHE_SIZE_SETTING.get(settings).isNonZeroSize());
         }
 

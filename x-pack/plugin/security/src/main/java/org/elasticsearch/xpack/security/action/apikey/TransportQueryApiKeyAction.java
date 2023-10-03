@@ -42,7 +42,7 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(QueryApiKeyAction.NAME, true, transportService, actionFilters, QueryApiKeyRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(QueryApiKeyAction.NAME, transportService, actionFilters, QueryApiKeyRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }

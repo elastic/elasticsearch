@@ -27,7 +27,6 @@ public class TransportSetProfileEnabledAction extends HandledTransportAction<Set
     public TransportSetProfileEnabledAction(TransportService transportService, ActionFilters actionFilters, ProfileService profileService) {
         super(
             SetProfileEnabledAction.NAME,
-            true,
             transportService,
             actionFilters,
             SetProfileEnabledRequest::new,

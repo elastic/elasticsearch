@@ -35,7 +35,7 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
         final Writeable.Reader<Request> requestReader,
         final SecurityContext context
     ) {
-        super(actionName, true, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = context;
     }
 

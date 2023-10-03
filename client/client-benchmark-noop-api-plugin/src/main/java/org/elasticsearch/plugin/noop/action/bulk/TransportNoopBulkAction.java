@@ -31,7 +31,7 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
 
     @Inject
     public TransportNoopBulkAction(TransportService transportService, ActionFilters actionFilters) {
-        super(NoopBulkAction.NAME, true, transportService, actionFilters, BulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(NoopBulkAction.NAME, transportService, actionFilters, BulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override

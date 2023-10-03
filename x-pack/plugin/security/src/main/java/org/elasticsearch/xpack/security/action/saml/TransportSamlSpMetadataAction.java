@@ -46,14 +46,7 @@ public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSp
 
     @Inject
     public TransportSamlSpMetadataAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(
-            SamlSpMetadataAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            SamlSpMetadataRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
     }
 

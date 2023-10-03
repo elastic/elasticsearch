@@ -98,14 +98,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         ActionFilters actionFilters,
         XPackLicenseState licenseState
     ) {
-        super(
-            GraphExploreAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            GraphExploreRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;

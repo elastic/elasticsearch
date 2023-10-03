@@ -33,7 +33,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
         NativeUsersStore usersStore,
         TransportService transportService
     ) {
-        super(DeleteUserAction.NAME, true, transportService, actionFilters, DeleteUserRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(DeleteUserAction.NAME, transportService, actionFilters, DeleteUserRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.usersStore = usersStore;
     }

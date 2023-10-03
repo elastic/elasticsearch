@@ -61,7 +61,6 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     ) {
         super(
             SimulatePipelineAction.NAME,
-            true,
             transportService,
             actionFilters,
             SimulatePipelineRequest::new,

@@ -26,7 +26,6 @@ public class TransportGetSynonymsSetsAction extends HandledTransportAction<GetSy
     public TransportGetSynonymsSetsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             GetSynonymsSetsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetSynonymsSetsAction.Request::new,

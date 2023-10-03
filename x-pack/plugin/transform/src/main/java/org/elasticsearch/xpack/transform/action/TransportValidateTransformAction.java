@@ -58,7 +58,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         Settings settings,
         IngestService ingestService
     ) {
-        super(ValidateTransformAction.NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.clusterService = clusterService;
         this.transportService = transportService;

@@ -24,7 +24,6 @@ public class TransportGetScriptLanguageAction extends HandledTransportAction<Get
     public TransportGetScriptLanguageAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService) {
         super(
             GetScriptLanguageAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetScriptLanguageRequest::new,

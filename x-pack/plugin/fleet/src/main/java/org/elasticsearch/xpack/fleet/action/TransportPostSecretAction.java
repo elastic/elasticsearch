@@ -27,7 +27,7 @@ public class TransportPostSecretAction extends HandledTransportAction<PostSecret
 
     @Inject
     public TransportPostSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PostSecretAction.NAME, true, transportService, actionFilters, PostSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(PostSecretAction.NAME, transportService, actionFilters, PostSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, FLEET_ORIGIN);
     }
 

@@ -31,7 +31,6 @@ public class TransportDeleteQueryRulesetAction extends HandledTransportAction<De
     ) {
         super(
             DeleteQueryRulesetAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteQueryRulesetAction.Request::new,

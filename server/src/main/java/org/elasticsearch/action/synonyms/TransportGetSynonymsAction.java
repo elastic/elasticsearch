@@ -24,14 +24,7 @@ public class TransportGetSynonymsAction extends HandledTransportAction<GetSynony
 
     @Inject
     public TransportGetSynonymsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            GetSynonymsAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            GetSynonymsAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(GetSynonymsAction.NAME, transportService, actionFilters, GetSynonymsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.synonymsManagementAPIService = new SynonymsManagementAPIService(client);
     }

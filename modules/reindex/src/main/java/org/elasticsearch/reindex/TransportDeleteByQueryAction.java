@@ -41,14 +41,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         ScriptService scriptService,
         ClusterService clusterService
     ) {
-        super(
-            DeleteByQueryAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            DeleteByQueryRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;

@@ -31,7 +31,7 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
         ActionFilters actionFilters,
         SearchTransportService searchTransportService
     ) {
-        super(RemoteInfoAction.NAME, true, transportService, actionFilters, RemoteInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(RemoteInfoAction.NAME, transportService, actionFilters, RemoteInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
 

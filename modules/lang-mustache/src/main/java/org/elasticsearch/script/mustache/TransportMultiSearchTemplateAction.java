@@ -47,7 +47,6 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     ) {
         super(
             MultiSearchTemplateAction.NAME,
-            true,
             transportService,
             actionFilters,
             MultiSearchTemplateRequest::new,

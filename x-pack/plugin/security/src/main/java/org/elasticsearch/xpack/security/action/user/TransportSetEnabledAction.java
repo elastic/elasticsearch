@@ -40,7 +40,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
         SecurityContext securityContext,
         NativeUsersStore usersStore
     ) {
-        super(SetEnabledAction.NAME, true, transportService, actionFilters, SetEnabledRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.securityContext = securityContext;
         this.usersStore = usersStore;

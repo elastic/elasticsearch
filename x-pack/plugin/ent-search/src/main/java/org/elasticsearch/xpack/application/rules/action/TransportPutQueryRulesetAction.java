@@ -31,7 +31,6 @@ public class TransportPutQueryRulesetAction extends HandledTransportAction<PutQu
     ) {
         super(
             PutQueryRulesetAction.NAME,
-            true,
             transportService,
             actionFilters,
             PutQueryRulesetAction.Request::new,

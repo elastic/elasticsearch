@@ -40,7 +40,6 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
     public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
         super(
             SamlPrepareAuthenticationAction.NAME,
-            true,
             transportService,
             actionFilters,
             SamlPrepareAuthenticationRequest::new,

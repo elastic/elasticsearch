@@ -45,7 +45,6 @@ public class TransportEstimateModelMemoryAction extends HandledTransportAction<
     public TransportEstimateModelMemoryAction(TransportService transportService, ActionFilters actionFilters) {
         super(
             EstimateModelMemoryAction.NAME,
-            true,
             transportService,
             actionFilters,
             EstimateModelMemoryAction.Request::new,

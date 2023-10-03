@@ -75,7 +75,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider
     ) {
-        super(actionName, true, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
         this.clusterService = clusterService;

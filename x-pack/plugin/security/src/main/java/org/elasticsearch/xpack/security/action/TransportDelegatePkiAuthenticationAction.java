@@ -68,7 +68,6 @@ public final class TransportDelegatePkiAuthenticationAction extends HandledTrans
     ) {
         super(
             DelegatePkiAuthenticationAction.NAME,
-            true,
             transportService,
             actionFilters,
             DelegatePkiAuthenticationRequest::new,

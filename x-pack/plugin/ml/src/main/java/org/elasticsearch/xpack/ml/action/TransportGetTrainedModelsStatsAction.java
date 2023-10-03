@@ -90,7 +90,6 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     ) {
         super(
             GetTrainedModelsStatsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetTrainedModelsStatsAction.Request::new,

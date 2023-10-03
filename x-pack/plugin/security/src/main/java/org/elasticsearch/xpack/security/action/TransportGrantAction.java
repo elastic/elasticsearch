@@ -45,7 +45,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         AuthorizationService authorizationService,
         ThreadContext threadContext
     ) {
-        super(actionName, true, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.authenticationService = authenticationService;
         this.authorizationService = authorizationService;
         this.threadContext = threadContext;

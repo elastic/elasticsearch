@@ -37,7 +37,6 @@ public class TransportCreateServiceAccountTokenAction extends HandledTransportAc
     ) {
         super(
             CreateServiceAccountTokenAction.NAME,
-            true,
             transportService,
             actionFilters,
             CreateServiceAccountTokenRequest::new,

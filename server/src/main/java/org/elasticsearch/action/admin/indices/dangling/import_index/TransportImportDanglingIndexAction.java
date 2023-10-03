@@ -52,7 +52,6 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
     ) {
         super(
             ImportDanglingIndexAction.NAME,
-            true,
             transportService,
             actionFilters,
             ImportDanglingIndexRequest::new,

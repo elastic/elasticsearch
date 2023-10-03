@@ -59,7 +59,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         Realms realms,
         ProfileService profileService
     ) {
-        super(GetUsersAction.NAME, true, transportService, actionFilters, GetUsersRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.usersStore = usersStore;
         this.reservedRealm = reservedRealm;

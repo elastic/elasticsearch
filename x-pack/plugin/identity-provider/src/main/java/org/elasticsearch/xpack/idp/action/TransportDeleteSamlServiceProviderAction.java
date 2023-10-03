@@ -39,7 +39,6 @@ public class TransportDeleteSamlServiceProviderAction extends HandledTransportAc
     ) {
         super(
             DeleteSamlServiceProviderAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteSamlServiceProviderRequest::new,

@@ -50,7 +50,6 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
     ) {
         super(
             QuerySearchApplicationAction.NAME,
-            true,
             transportService,
             actionFilters,
             SearchApplicationSearchRequest::new,

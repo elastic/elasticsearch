@@ -66,7 +66,7 @@ public abstract class TransportBroadcastReplicationAction<
         ActionType<ShardResponse> replicatedBroadcastShardAction,
         Executor executor
     ) {
-        super(name, true, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(name, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;

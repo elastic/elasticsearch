@@ -51,7 +51,6 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     ) {
         super(
             SamlAuthenticateAction.NAME,
-            true,
             transportService,
             actionFilters,
             SamlAuthenticateRequest::new,

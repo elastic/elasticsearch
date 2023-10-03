@@ -29,7 +29,6 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
     public TransportGetServiceAccountAction(TransportService transportService, ActionFilters actionFilters) {
         super(
             GetServiceAccountAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetServiceAccountRequest::new,

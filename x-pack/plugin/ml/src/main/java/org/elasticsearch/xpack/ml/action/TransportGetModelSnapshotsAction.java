@@ -44,7 +44,6 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<
     ) {
         super(
             GetModelSnapshotsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetModelSnapshotsAction.Request::new,

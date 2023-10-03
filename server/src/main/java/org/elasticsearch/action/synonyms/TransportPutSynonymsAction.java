@@ -24,14 +24,7 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
 
     @Inject
     public TransportPutSynonymsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            PutSynonymsAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            PutSynonymsAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(PutSynonymsAction.NAME, transportService, actionFilters, PutSynonymsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.synonymsManagementAPIService = new SynonymsManagementAPIService(client);
     }

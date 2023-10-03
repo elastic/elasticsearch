@@ -44,7 +44,6 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     ) {
         super(
             MultiTermVectorsAction.NAME,
-            true,
             transportService,
             actionFilters,
             MultiTermVectorsRequest::new,

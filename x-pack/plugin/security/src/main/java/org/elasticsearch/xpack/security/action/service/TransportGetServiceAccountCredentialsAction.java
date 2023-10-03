@@ -33,7 +33,6 @@ public class TransportGetServiceAccountCredentialsAction extends HandledTranspor
     ) {
         super(
             GetServiceAccountCredentialsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetServiceAccountCredentialsRequest::new,

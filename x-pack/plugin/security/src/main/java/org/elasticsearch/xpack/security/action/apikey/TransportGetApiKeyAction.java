@@ -34,7 +34,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(GetApiKeyAction.NAME, true, transportService, actionFilters, GetApiKeyRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetApiKeyAction.NAME, transportService, actionFilters, GetApiKeyRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }

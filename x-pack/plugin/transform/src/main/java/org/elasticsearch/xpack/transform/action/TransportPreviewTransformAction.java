@@ -94,7 +94,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         IngestService ingestService,
         TransformExtensionHolder transformExtensionHolder
     ) {
-        super(PreviewTransformAction.NAME, true, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;

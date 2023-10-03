@@ -42,7 +42,6 @@ public final class TransportCreateCrossClusterApiKeyAction extends HandledTransp
     ) {
         super(
             CreateCrossClusterApiKeyAction.NAME,
-            true,
             transportService,
             actionFilters,
             CreateCrossClusterApiKeyRequest::new,

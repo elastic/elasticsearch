@@ -107,14 +107,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         NodeClient nodeClient,
         IndexNameExpressionResolver resolver
     ) {
-        super(
-            GetStackTracesAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            GetStackTracesRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
         this.clusterService = clusterService;
         this.transportService = transportService;

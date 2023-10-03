@@ -28,14 +28,7 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
 
     @Inject
     public TransportDeleteSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            DeleteSecretAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            DeleteSecretRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(DeleteSecretAction.NAME, transportService, actionFilters, DeleteSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, FLEET_ORIGIN);
     }
 

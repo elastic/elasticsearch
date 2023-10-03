@@ -35,7 +35,7 @@ public abstract class ReservedStateAwareHandledTransportAction<Request extends A
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader
     ) {
-        super(actionName, true, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
     }
 

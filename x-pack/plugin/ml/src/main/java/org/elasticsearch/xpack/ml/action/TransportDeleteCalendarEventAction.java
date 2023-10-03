@@ -51,7 +51,6 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     ) {
         super(
             DeleteCalendarEventAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteCalendarEventAction.Request::new,

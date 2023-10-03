@@ -80,7 +80,6 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
     ) {
         super(
             GetOverallBucketsAction.NAME,
-            true,
             transportService,
             actionFilters,
             GetOverallBucketsAction.Request::new,

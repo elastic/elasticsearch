@@ -33,14 +33,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         ActionFilters actionFilters,
         SearchTransportService searchTransportService
     ) {
-        super(
-            SearchScrollAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            SearchScrollRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(SearchScrollAction.NAME, transportService, actionFilters, SearchScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
     }

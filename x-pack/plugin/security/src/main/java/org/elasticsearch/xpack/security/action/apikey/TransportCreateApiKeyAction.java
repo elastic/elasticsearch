@@ -43,14 +43,7 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         CompositeRolesStore rolesStore,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(
-            CreateApiKeyAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            CreateApiKeyRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(CreateApiKeyAction.NAME, transportService, actionFilters, CreateApiKeyRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.apiKeyService = apiKeyService;
         this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
         this.securityContext = context;

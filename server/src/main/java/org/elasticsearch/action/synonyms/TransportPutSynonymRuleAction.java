@@ -26,7 +26,6 @@ public class TransportPutSynonymRuleAction extends HandledTransportAction<PutSyn
     public TransportPutSynonymRuleAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
             PutSynonymRuleAction.NAME,
-            true,
             transportService,
             actionFilters,
             PutSynonymRuleAction.Request::new,

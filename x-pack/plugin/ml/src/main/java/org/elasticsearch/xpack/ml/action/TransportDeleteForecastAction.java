@@ -84,7 +84,6 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     ) {
         super(
             DeleteForecastAction.NAME,
-            true,
             transportService,
             actionFilters,
             DeleteForecastAction.Request::new,

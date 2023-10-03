@@ -40,7 +40,6 @@ public class TransportAuditMlNotificationAction extends HandledTransportAction<A
     ) {
         super(
             AuditMlNotificationAction.NAME,
-            true,
             transportService,
             actionFilters,
             AuditMlNotificationAction.Request::new,

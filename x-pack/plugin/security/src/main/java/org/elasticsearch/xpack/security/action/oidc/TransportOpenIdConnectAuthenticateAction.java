@@ -57,7 +57,6 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
     ) {
         super(
             OpenIdConnectAuthenticateAction.NAME,
-            true,
             transportService,
             actionFilters,
             (Writeable.Reader<OpenIdConnectAuthenticateRequest>) OpenIdConnectAuthenticateRequest::new,

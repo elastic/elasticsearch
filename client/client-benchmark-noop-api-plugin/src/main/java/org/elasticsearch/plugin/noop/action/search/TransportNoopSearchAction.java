@@ -33,7 +33,6 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
     public TransportNoopSearchAction(TransportService transportService, ActionFilters actionFilters) {
         super(
             NoopSearchAction.NAME,
-            true,
             transportService,
             actionFilters,
             (Writeable.Reader<SearchRequest>) SearchRequest::new,

@@ -24,7 +24,7 @@ import org.elasticsearch.transport.TransportService;
 public abstract class XPackInfoFeatureTransportAction extends HandledTransportAction<XPackInfoRequest, XPackInfoFeatureResponse> {
 
     public XPackInfoFeatureTransportAction(String name, TransportService transportService, ActionFilters actionFilters) {
-        super(name, true, transportService, actionFilters, XPackInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(name, transportService, actionFilters, XPackInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     protected abstract String name();

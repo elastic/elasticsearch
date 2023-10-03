@@ -36,7 +36,6 @@ public class TransportClosePointInTimeAction extends HandledTransportAction<Clos
     ) {
         super(
             ClosePointInTimeAction.NAME,
-            true,
             transportService,
             actionFilters,
             ClosePointInTimeRequest::new,

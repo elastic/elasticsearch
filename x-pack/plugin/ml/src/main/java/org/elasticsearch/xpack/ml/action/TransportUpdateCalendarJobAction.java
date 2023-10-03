@@ -35,7 +35,6 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
     ) {
         super(
             UpdateCalendarJobAction.NAME,
-            true,
             transportService,
             actionFilters,
             UpdateCalendarJobAction.Request::new,

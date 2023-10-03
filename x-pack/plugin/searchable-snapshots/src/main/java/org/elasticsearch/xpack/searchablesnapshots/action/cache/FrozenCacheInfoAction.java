@@ -66,7 +66,7 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, true, transportService, actionFilters, FrozenCacheInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(NAME, transportService, actionFilters, FrozenCacheInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
         }
 

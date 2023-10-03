@@ -39,7 +39,6 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
     ) {
         super(
             OpenIdConnectPrepareAuthenticationAction.NAME,
-            true,
             transportService,
             actionFilters,
             OpenIdConnectPrepareAuthenticationRequest::new,

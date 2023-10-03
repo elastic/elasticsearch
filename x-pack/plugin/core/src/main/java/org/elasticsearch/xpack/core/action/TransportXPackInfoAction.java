@@ -41,7 +41,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         LicenseService licenseService,
         NodeClient client
     ) {
-        super(XPackInfoAction.NAME, true, transportService, actionFilters, XPackInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(XPackInfoAction.NAME, transportService, actionFilters, XPackInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseService = licenseService;
         this.client = client;
         this.infoActions = infoActions();

@@ -29,14 +29,7 @@ public class TransportSamlMetadataAction extends HandledTransportAction<SamlMeta
         SamlIdentityProvider idp,
         SamlFactory factory
     ) {
-        super(
-            SamlMetadataAction.NAME,
-            true,
-            transportService,
-            actionFilters,
-            SamlMetadataRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(SamlMetadataAction.NAME, transportService, actionFilters, SamlMetadataRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.identityProvider = idp;
         this.samlFactory = factory;
     }

@@ -70,7 +70,7 @@ public abstract class AbstractTransportGetResourcesAction<
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(actionName, true, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }

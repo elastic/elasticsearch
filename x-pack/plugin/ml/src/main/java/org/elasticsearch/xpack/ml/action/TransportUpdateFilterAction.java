@@ -65,7 +65,6 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     ) {
         super(
             UpdateFilterAction.NAME,
-            true,
             transportService,
             actionFilters,
             UpdateFilterAction.Request::new,

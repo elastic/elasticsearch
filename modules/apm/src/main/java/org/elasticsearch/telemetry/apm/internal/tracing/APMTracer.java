@@ -283,7 +283,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public Releasable withScope(SpanId spanId) {
         final Context context = spans.get(spanId);
         if (context != null) {
-            var scope = context.makeCurrent();
+            var scope = AccessController.doPrivileged((PrivilegedAction<Scope>) context::makeCurrent);
             return scope::close;
         }
         return () -> {};
@@ -381,7 +381,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
             logger.trace("Finishing trace [{}]", spanId);
-            span.end();
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                span.end();
+                return null;
+            });
         }
     }
 
@@ -390,7 +393,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     @Override
     public void stopTrace() {
-        Span.current().end();
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            Span.current().end();
+            return null;
+        });
     }
 
     @Override

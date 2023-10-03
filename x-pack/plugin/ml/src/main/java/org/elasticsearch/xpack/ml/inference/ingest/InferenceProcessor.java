@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -94,7 +95,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private static final String DEFAULT_TARGET_FIELD = "ml.inference";
 
     // input field config
-    public static final String INPUT = "input";
+    public static final String INPUT_OUTPUT = "input_output";
     public static final String INPUT_FIELD = "input_field";
     public static final String OUTPUT_FIELD = "output_field";
 
@@ -154,7 +155,7 @@ public class InferenceProcessor extends AbstractProcessor {
         this.inferenceConfig = ExceptionsHelper.requireNonNull(inferenceConfig, INFERENCE_CONFIG);
 
         if (configuredWithInputsFields) {
-            this.inputs = ExceptionsHelper.requireNonNull(inputs, INPUT);
+            this.inputs = ExceptionsHelper.requireNonNull(inputs, INPUT_OUTPUT);
             this.targetField = null;
             this.fieldMap = null;
         } else {
@@ -213,7 +214,7 @@ public class InferenceProcessor extends AbstractProcessor {
         if (configuredWithInputsFields) {
             List<String> requestInputs = new ArrayList<>();
             for (var inputFields : inputs) {
-                var lookup = (String)fields.get(inputFields.inputField);
+                var lookup = (String) fields.get(inputFields.inputField);
                 if (lookup == null) {
                     lookup = ""; // need to send a non-null request to the same number of results back
                 }
@@ -249,16 +250,22 @@ public class InferenceProcessor extends AbstractProcessor {
 
         if (configuredWithInputsFields) {
             if (response.getInferenceResults().size() != inputs.size()) {
-                throw new ElasticsearchStatusException("number of results [{}] does not match the number of inputs [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR, response.getInferenceResults().size(), inputs.size());
+                throw new ElasticsearchStatusException(
+                    "number of results [{}] does not match the number of inputs [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    response.getInferenceResults().size(),
+                    inputs.size()
+                );
             }
 
-            for (int i=0; i< inputs.size(); i++) {
-                InferenceResults.writeResult(
+            for (int i = 0; i < inputs.size(); i++) {
+                InferenceResults.writeResultToField(
                     response.getInferenceResults().get(i),
                     ingestDocument,
+                    inputs.get(i).outputBasePath(),
                     inputs.get(i).outputField,
-                    response.getId() != null ? response.getId() : modelId
+                    response.getId() != null ? response.getId() : modelId,
+                    i == 0
                 );
             }
         } else {
@@ -341,7 +348,6 @@ public class InferenceProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) {
-
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException(
                     "Max number of inference processors reached, total inference processors [{}]. "
@@ -367,11 +373,11 @@ public class InferenceProcessor extends AbstractProcessor {
                 inferenceConfigUpdate = inferenceConfigUpdateFromMap(inferenceConfigMap);
             }
 
-            Map<String, Object> input = ConfigurationUtils.readOptionalMap(TYPE, tag, config, INPUT);
-            boolean configuredWithInputFields = input != null;
+            List<Map<String, Object>> inputs = ConfigurationUtils.readOptionalList(TYPE, tag, config, INPUT_OUTPUT);
+            boolean configuredWithInputFields = inputs != null;
             if (configuredWithInputFields) {
                 // new style input/output configuration
-                var parsedInputs = parseInputFields(tag, List.of(input));
+                var parsedInputs = parseInputFields(tag, inputs);
 
                 // validate incompatible settings are not present
                 String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, TARGET_FIELD);
@@ -381,7 +387,7 @@ public class InferenceProcessor extends AbstractProcessor {
                         tag,
                         TARGET_FIELD,
                         "option is incompatible with ["
-                            + INPUT
+                            + INPUT_OUTPUT
                             + "]."
                             + " Use the ["
                             + OUTPUT_FIELD
@@ -399,9 +405,9 @@ public class InferenceProcessor extends AbstractProcessor {
                             + "."
                             + InferenceConfig.RESULTS_FIELD.getPreferredName()
                             + "] setting is incompatible with using ["
-                            + INPUT
+                            + INPUT_OUTPUT
                             + "]. Prefer to use the ["
-                            + INPUT
+                            + INPUT_OUTPUT
                             + "."
                             + OUTPUT_FIELD
                             + "] option to specify where to write the inference results to."
@@ -547,7 +553,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
         List<InputConfig> parseInputFields(String tag, List<Map<String, Object>> inputs) {
             if (inputs.isEmpty()) {
-                throw newConfigurationException(TYPE, tag, INPUT, "cannot be empty at least one is required");
+                throw newConfigurationException(TYPE, tag, INPUT_OUTPUT, "cannot be empty at least one is required");
             }
             var inputNames = new HashSet<String>();
             var outputNames = new HashSet<String>();
@@ -564,10 +570,12 @@ public class InferenceProcessor extends AbstractProcessor {
                     throw duplicatedFieldNameError(OUTPUT_FIELD, outputField, tag);
                 }
 
+                var outputPaths = extractBasePathAndFinalElement(outputField);
+
                 if (input.isEmpty()) {
-                    parsedInputs.add(new InputConfig(inputField, outputField, Map.of()));
+                    parsedInputs.add(new InputConfig(inputField, outputPaths.v1(), outputPaths.v2(), Map.of()));
                 } else {
-                    parsedInputs.add(new InputConfig(inputField, outputField, new HashMap<>(input)));
+                    parsedInputs.add(new InputConfig(inputField, outputPaths.v1(), outputPaths.v2(), new HashMap<>(input)));
                 }
             }
 
@@ -578,6 +586,25 @@ public class InferenceProcessor extends AbstractProcessor {
             return newConfigurationException(TYPE, tag, property, "names must be unique but [" + fieldName + "] is repeated");
         }
 
-        public record InputConfig(String inputField, String outputField, Map<String, Object> extras) {}
+        /**
+         * {@code outputField} can be a dot '.' seperated path of elements.
+         * Extract the base path (everything before the last '.') and the final
+         * element.
+         * If {@code outputField} does not contain any dotted elements the base
+         * path is null.
+         *
+         * @param outputField The path to split
+         * @return Tuple of {@code <basePath, finalElement>}
+         */
+        static Tuple<String, String> extractBasePathAndFinalElement(String outputField) {
+            int lastIndex = outputField.lastIndexOf('.');
+            if (lastIndex < 0) {
+                return new Tuple<>(null, outputField);
+            } else {
+                return new Tuple<>(outputField.substring(0, lastIndex), outputField.substring(lastIndex + 1));
+            }
+        }
+
+        public record InputConfig(String inputField, String outputBasePath, String outputField, Map<String, Object> extras) {}
     }
 }

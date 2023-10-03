@@ -27,7 +27,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
@@ -434,6 +433,36 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         assertThat(fieldMap, hasEntry("source", "dest"));
     }
 
+    public void testCreateProcessorWithInputOutputs() {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client, clusterService, Settings.EMPTY, false);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put(InferenceProcessor.MODEL_ID, "my_model");
+
+        Map<String, Object> input1 = new HashMap<>();
+        input1.put(InferenceProcessor.INPUT_FIELD, "in1");
+        input1.put(InferenceProcessor.OUTPUT_FIELD, "out1");
+        Map<String, Object> input2 = new HashMap<>();
+        input2.put(InferenceProcessor.INPUT_FIELD, "in2");
+        input2.put(InferenceProcessor.OUTPUT_FIELD, "out2");
+
+        List<Map<String, Object>> inputOutputs = new ArrayList<>();
+        inputOutputs.add(input1);
+        inputOutputs.add(input2);
+        config.put(InferenceProcessor.INPUT_OUTPUT, inputOutputs);
+
+        var processor = processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config);
+        assertTrue(processor.isConfiguredWithInputsFields());
+        assertEquals("my_model", processor.getModelId());
+        var configuredInputs = processor.getInputs();
+        assertThat(configuredInputs, hasSize(2));
+        assertEquals(configuredInputs.get(0).inputField(), "in1");
+        assertEquals(configuredInputs.get(0).outputField(), "out1");
+        assertEquals(configuredInputs.get(1).inputField(), "in2");
+        assertEquals(configuredInputs.get(1).outputField(), "out2");
+
+    }
+
     public void testCreateProcessorWithDuplicateFields() {
         Set<Boolean> includeNodeInfoValues = new HashSet<>(Arrays.asList(true, false));
 
@@ -551,7 +580,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             {
                 put(InferenceProcessor.MODEL_ID, "my_model");
                 put(InferenceProcessor.TARGET_FIELD, "ml");
-                put(InferenceProcessor.INPUT, input);
+                put(InferenceProcessor.INPUT_OUTPUT, List.of(input));
             }
         };
 
@@ -562,7 +591,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[target_field] option is incompatible with [input]. Use the [output_field] option to specify where to write the "
+                "[target_field] option is incompatible with [input_output]. Use the [output_field] option to specify where to write the "
                     + "inference results to."
             )
         );
@@ -586,7 +615,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>() {
             {
                 put(InferenceProcessor.MODEL_ID, "my_model");
-                put(InferenceProcessor.INPUT, input);
+                put(InferenceProcessor.INPUT_OUTPUT, List.of(input));
                 put(
                     InferenceProcessor.INFERENCE_CONFIG,
                     Collections.singletonMap(
@@ -604,8 +633,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "The [inference_config.results_field] setting is incompatible with using [input]. "
-                    + "Prefer to use the [input.output_field] option to specify where to write the inference results to."
+                "The [inference_config.results_field] setting is incompatible with using [input_output]. "
+                    + "Prefer to use the [input_output.output_field] option to specify where to write the inference results to."
             )
         );
     }
@@ -642,10 +671,22 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>() {
             {
                 put(InferenceProcessor.MODEL_ID, "my_model");
-                put(InferenceProcessor.INPUT, inputMap);
+                put(InferenceProcessor.INPUT_OUTPUT, List.of(inputMap));
                 put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(inferenceConfigType, Collections.emptyMap()));
             }
         };
+        // create valid inference configs with required fields
+        if (inferenceConfigType.equals(TextSimilarityConfigUpdate.NAME)) {
+            var inferenceConfig = new HashMap<String, String>();
+            inferenceConfig.put(TextSimilarityConfig.TEXT.getPreferredName(), "text to compare");
+            config.put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(inferenceConfigType, inferenceConfig));
+        } else if (inferenceConfigType.equals(QuestionAnsweringConfigUpdate.NAME)) {
+            var inferenceConfig = new HashMap<String, String>();
+            inferenceConfig.put(QuestionAnsweringConfig.QUESTION.getPreferredName(), "why is the sky blue?");
+            config.put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(inferenceConfigType, inferenceConfig));
+        } else {
+            config.put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap(inferenceConfigType, Collections.emptyMap()));
+        }
 
         var inferenceProcessor = processorFactory.create(Collections.emptyMap(), "processor_with_inputs", null, config);
         assertEquals("my_model", inferenceProcessor.getModelId());
@@ -653,7 +694,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         var inputs = inferenceProcessor.getInputs();
         assertThat(inputs, hasSize(1));
-        assertEquals(inputs.get(0), new InferenceProcessor.Factory.InputConfig("in", "out", Map.of()));
+        assertEquals(inputs.get(0), new InferenceProcessor.Factory.InputConfig("in", null, "out", Map.of()));
 
         assertNull(inferenceProcessor.getFieldMap());
         assertNull(inferenceProcessor.getTargetField());
@@ -672,14 +713,14 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         for (int i = 0; i < numInputs; i++) {
             Map<String, Object> inputMap = new HashMap<>();
             inputMap.put(InferenceProcessor.INPUT_FIELD, "in" + i);
-            inputMap.put(InferenceProcessor.OUTPUT_FIELD, "out" + i);
+            inputMap.put(InferenceProcessor.OUTPUT_FIELD, "out." + i);
             inputs.add(inputMap);
         }
 
         var parsedInputs = processorFactory.parseInputFields("my_processor", inputs);
         assertThat(parsedInputs, hasSize(numInputs));
         for (int i = 0; i < numInputs; i++) {
-            assertEquals(new InferenceProcessor.Factory.InputConfig("in" + i, "out" + i, Map.of()), parsedInputs.get(i));
+            assertEquals(new InferenceProcessor.Factory.InputConfig("in" + i, "out", Integer.toString(i), Map.of()), parsedInputs.get(i));
         }
     }
 
@@ -719,6 +760,22 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }
     }
 
+    public void testExtractBasePathAndFinalElement() {
+        {
+            String path = "foo.bar.result";
+            var extractedPaths = InferenceProcessor.Factory.extractBasePathAndFinalElement(path);
+            assertEquals("foo.bar", extractedPaths.v1());
+            assertEquals("result", extractedPaths.v2());
+        }
+
+        {
+            String path = "result";
+            var extractedPaths = InferenceProcessor.Factory.extractBasePathAndFinalElement(path);
+            assertNull(extractedPaths.v1());
+            assertEquals("result", extractedPaths.v2());
+        }
+    }
+
     public void testParsingInputFieldsGivenNoInputs() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(
             client,
@@ -728,7 +785,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         );
 
         var e = expectThrows(ElasticsearchParseException.class, () -> processorFactory.parseInputFields("my_processor", List.of()));
-        assertThat(e.getMessage(), containsString("[input] cannot be empty at least one is required"));
+        assertThat(e.getMessage(), containsString("[input_output] cannot be empty at least one is required"));
     }
 
     private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {

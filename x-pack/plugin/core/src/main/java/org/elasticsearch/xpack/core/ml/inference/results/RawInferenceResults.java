@@ -70,6 +70,11 @@ public class RawInferenceResults implements InferenceResults {
     }
 
     @Override
+    public Map<String, Object> asMap(String outputField) {
+        throw new UnsupportedOperationException("[raw] does not support map conversion");
+    }
+
+    @Override
     public Object predictedValue() {
         return null;
     }

@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -660,7 +661,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
 
         var objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodes.get(0));
-        Map<String, BlobMetadata> translogFiles = objectStoreService.getTranslogBlobContainer().listBlobs();
+        Map<String, BlobMetadata> translogFiles = objectStoreService.getTranslogBlobContainer().listBlobs(OperationPurpose.SNAPSHOT);
 
         final String newIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -673,10 +674,10 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         IndexShard indexShard = findShard(index, 0, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
         var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
         String commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
-        assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+        assertThat(commitFile, blobContainerForCommit.blobExists(OperationPurpose.SNAPSHOT, commitFile), is(true));
         StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
-            blobContainerForCommit.listBlobs().get(commitFile).length()
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(OperationPurpose.SNAPSHOT, commitFile)),
+            blobContainerForCommit.listBlobs(OperationPurpose.SNAPSHOT).get(commitFile).length()
         );
 
         long initialRecoveryCommitStartingFile = commit.translogRecoveryStartFile();
@@ -689,10 +690,10 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         flush(newIndex);
 
         commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
-        assertThat(commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+        assertThat(commitFile, blobContainerForCommit.blobExists(OperationPurpose.SNAPSHOT, commitFile), is(true));
         commit = StatelessCompoundCommit.readFromStore(
-            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile)),
-            blobContainerForCommit.listBlobs().get(commitFile).length()
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(OperationPurpose.SNAPSHOT, commitFile)),
+            blobContainerForCommit.listBlobs(OperationPurpose.SNAPSHOT).get(commitFile).length()
         );
 
         // Recovery file has advanced because of flush
@@ -1326,8 +1327,8 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         var objectStoreService = internalCluster().getCurrentMasterNodeInstance(ObjectStoreService.class);
         var blobContainer = objectStoreService.getBlobContainer(newIndexShard.shardId());
         var blobNamesAndPrimaryTerms = new HashMap<String, Set<Long>>();
-        for (var child : blobContainer.children().entrySet()) {
-            var blobNames = child.getValue().listBlobs().keySet();
+        for (var child : blobContainer.children(OperationPurpose.SNAPSHOT).entrySet()) {
+            var blobNames = child.getValue().listBlobs(OperationPurpose.SNAPSHOT).keySet();
             blobNames.forEach(
                 blobName -> blobNamesAndPrimaryTerms.computeIfAbsent(blobName, s -> new HashSet<>()).add(Long.parseLong(child.getKey()))
             );

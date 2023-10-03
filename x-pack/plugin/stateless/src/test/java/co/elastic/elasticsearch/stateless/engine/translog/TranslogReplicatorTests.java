@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -246,7 +247,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(
             translogReplicator.getMaxUploadedFile(),
-            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs().size() - 1)
+            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs(OperationPurpose.SNAPSHOT).size() - 1)
         );
         long startRecoveryFile = translogReplicator.getMaxUploadedFile() + 1;
 
@@ -263,7 +264,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(
             translogReplicator.getMaxUploadedFile(),
-            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs().size() - 1)
+            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs(OperationPurpose.SNAPSHOT).size() - 1)
         );
 
         assertTranslogContains(
@@ -406,12 +407,12 @@ public class TranslogReplicatorTests extends ESTestCase {
                 map.put(filename, new BlobMetadata(filename, compoundFiles.get(i).length()));
             }
             return map;
-        }).when(blobContainer).listBlobs();
+        }).when(blobContainer).listBlobs(OperationPurpose.SNAPSHOT);
         doAnswer(invocation -> {
-            String filename = invocation.getArgument(0);
+            String filename = invocation.getArgument(1);
             int index = Integer.parseInt(filename);
             return compoundFiles.get(index).streamInput();
-        }).when(blobContainer).readBlob(any());
+        }).when(blobContainer).readBlob(eq(OperationPurpose.SNAPSHOT), any());
         doReturn(blobContainer).when(objectStoreService).getTranslogBlobContainer();
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
@@ -878,12 +879,12 @@ public class TranslogReplicatorTests extends ESTestCase {
                 map.put(filename, new BlobMetadata(filename, compoundFiles.get(i).length()));
             }
             return map;
-        }).when(blobContainer).listBlobs();
+        }).when(blobContainer).listBlobs(OperationPurpose.SNAPSHOT);
         doAnswer(invocation -> {
-            String filename = invocation.getArgument(0);
+            String filename = invocation.getArgument(1);
             int index = Integer.parseInt(filename);
             return compoundFiles.get(index).streamInput();
-        }).when(blobContainer).readBlob(any());
+        }).when(blobContainer).readBlob(eq(OperationPurpose.SNAPSHOT), any());
         doReturn(blobContainer).when(objectStoreService).getTranslogBlobContainer();
 
         return objectStoreService;

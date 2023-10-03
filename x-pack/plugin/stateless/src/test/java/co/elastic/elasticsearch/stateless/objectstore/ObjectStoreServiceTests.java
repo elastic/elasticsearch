@@ -33,6 +33,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -139,10 +140,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public InputStream readBlob(String blobName) throws IOException {
+                    public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                         assert StatelessCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
-                        return super.readBlob(blobName);
+                        return super.readBlob(purpose, blobName);
                     }
                 }
 
@@ -201,7 +202,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertEquals(
                 commitCount,
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId, 1)
-                    .listBlobs()
+                    .listBlobs(OperationPurpose.SNAPSHOT)
                     .keySet()
                     .stream()
                     .filter(StatelessCompoundCommit::startsWithBlobPrefix)

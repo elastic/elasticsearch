@@ -27,6 +27,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -161,7 +162,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                     final long length = input.length();
                     final String blobName = "_blob_" + fileName;
                     final InputStream inputStream = new InputStreamIndexInput(input, length);
-                    blobContainer.writeBlob(blobName, inputStream, length, randomBoolean());
+                    blobContainer.writeBlob(OperationPurpose.SNAPSHOT, blobName, inputStream, length, randomBoolean());
 
                     directory.updateCommit(
                         new StatelessCompoundCommit(

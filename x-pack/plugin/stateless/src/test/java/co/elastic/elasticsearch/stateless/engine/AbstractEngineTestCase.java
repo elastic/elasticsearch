@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -506,7 +507,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             }
 
             @Override
-            public InputStream readBlob(String blobName, long position, long length) throws IOException {
+            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                 boolean success = false;
                 store.incRef();
                 try {

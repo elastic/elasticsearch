@@ -123,12 +123,12 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
     }
 
     /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive) {
+    static IntVector range(int startInclusive, int endExclusive, BlockFactory blockFactory) {
         int[] values = new int[endExclusive - startInclusive];
         for (int i = 0; i < values.length; i++) {
             values[i] = startInclusive + i;
         }
-        return new IntArrayVector(values, values.length);
+        return blockFactory.newIntArrayVector(values, values.length);
     }
 
     /**

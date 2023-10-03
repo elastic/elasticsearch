@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,12 +44,13 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
             randomBoolean() ? Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null,
             randomFrom(TrainedModelType.values()).toString(),
             randomBoolean() ? Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false)) : null,
+            randomBoolean() ? randomAlphaOfLength(10) : null,
             randomBoolean() ? randomAlphaOfLength(10) : null
         );
     }
 
     public static ModelPackageConfig mutateModelPackageConfig(ModelPackageConfig instance) {
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
             case 0:
                 return new ModelPackageConfig.Builder(instance).setPackedModelId(randomAlphaOfLength(15)).build();
             case 1:
@@ -83,6 +85,8 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
                 ).build();
             case 11:
                 return new ModelPackageConfig.Builder(instance).setVocabularyFile(randomAlphaOfLength(15)).build();
+            case 12:
+                return new ModelPackageConfig.Builder(instance).setPlatformArchitecture(randomAlphaOfLength(15)).build();
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
@@ -110,6 +114,9 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
 
     @Override
     protected ModelPackageConfig mutateInstanceForVersion(ModelPackageConfig instance, TransportVersion version) {
+        if (version.before(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+            return new ModelPackageConfig.Builder(instance).setPlatformArchitecture(null).build();
+        }
         return instance;
     }
 

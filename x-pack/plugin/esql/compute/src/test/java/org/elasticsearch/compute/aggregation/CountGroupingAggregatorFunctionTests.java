@@ -42,6 +42,7 @@ public class CountGroupingAggregatorFunctionTests extends GroupingAggregatorFunc
             );
         }
         return new LongDoubleTupleBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
         );
     }

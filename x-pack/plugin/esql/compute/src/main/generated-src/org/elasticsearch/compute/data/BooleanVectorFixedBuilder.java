@@ -55,10 +55,14 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
             throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
         }
         nextIndex = -1;
+        BooleanVector vector;
         if (values.length == 1) {
-            return blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
+        } else {
+            vector = blockFactory.newBooleanArrayVector(values, values.length, preAdjustedBytes);
         }
-        return blockFactory.newBooleanArrayVector(values, values.length, preAdjustedBytes);
+        assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
+        return vector;
     }
 
     @Override
@@ -67,5 +71,9 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
             // If nextIndex < 0 we've already built the vector
             blockFactory.adjustBreaker(-preAdjustedBytes, false);
         }
+    }
+
+    boolean isReleased() {
+        return nextIndex < 0;
     }
 }

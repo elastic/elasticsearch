@@ -43,7 +43,7 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
                 values.add(Tuple.tuple((long) i, v));
             }
         }
-        return new LongDoubleTupleBlockSourceOperator(values);
+        return new LongDoubleTupleBlockSourceOperator(blockFactory, values);
     }
 
     @Override

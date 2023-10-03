@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -40,6 +42,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
+
+    @Override
+    protected DriverContext driverContext() {
+        return breakingDriverContext();
+    }
+
     protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
@@ -92,12 +100,14 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         int end = between(1_000, 100_000);
         List<Page> results = new ArrayList<>();
         DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), end));
+        BlockFactory blockFactory = driverContext.blockFactory();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(blockFactory, end));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
 
         try (
             Driver d = new Driver(
                 driverContext,
-                new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator())),
+                new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
                 List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -105,59 +115,63 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
     }
 
     public final void testMultivalued() {
         int end = between(1_000, 100_000);
         DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = CannedSourceOperator.collectPages(
-            new PositionMergingSourceOperator(simpleInput(driverContext.blockFactory(), end))
+            new PositionMergingSourceOperator(simpleInput(driverContext.blockFactory(), end), blockFactory)
         );
-        assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator()));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        assertSimpleOutput(origInput, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator(), driverContext));
     }
 
     public final void testMultivaluedWithNulls() {
         int end = between(1_000, 100_000);
         DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = CannedSourceOperator.collectPages(
-            new NullInsertingSourceOperator(new PositionMergingSourceOperator(simpleInput(driverContext.blockFactory(), end)))
+            new NullInsertingSourceOperator(
+                new PositionMergingSourceOperator(simpleInput(driverContext.blockFactory(), end), blockFactory),
+                blockFactory
+            )
         );
-        assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator()));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        assertSimpleOutput(origInput, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator(), driverContext));
     }
 
     public final void testEmptyInput() {
         DriverContext driverContext = driverContext();
-        List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), List.<Page>of().iterator());
+        List<Page> results = drive(
+            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
+            List.<Page>of().iterator(),
+            driverContext
+        );
 
         assertThat(results, hasSize(1));
-        assertOutputFromEmpty(results.get(0).getBlock(0));
     }
 
     public final void testEmptyInputInitialFinal() {
         DriverContext driverContext = driverContext();
-        List<Page> results = drive(
-            List.of(
-                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
-                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
-            ),
-            List.<Page>of().iterator()
+        var operators = List.of(
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
         );
-
+        List<Page> results = drive(operators, List.<Page>of().iterator(), driverContext);
         assertThat(results, hasSize(1));
-        assertOutputFromEmpty(results.get(0).getBlock(0));
     }
 
     public final void testEmptyInputInitialIntermediateFinal() {
         DriverContext driverContext = driverContext();
-        List<Page> results = drive(
-            List.of(
-                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
-                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
-                simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
-            ),
-            List.<Page>of().iterator()
+        var operators = List.of(
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
         );
+        List<Page> results = drive(operators, List.<Page>of().iterator(), driverContext);
 
         assertThat(results, hasSize(1));
         assertOutputFromEmpty(results.get(0).getBlock(0));

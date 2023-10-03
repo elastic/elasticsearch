@@ -106,6 +106,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey preActionBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_ACTION_STEP);
         StepKey checkNoWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
+        StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey forceMergeStepKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey waitForSegmentCountKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
         StepKey skipGeneratingSnapshotKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_GENERATE_AND_CLEAN);
@@ -200,6 +201,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
         );
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
             waitForNoFollowerStepKey,
+            waitTimeSeriesEndTimePassesKey,
+            client
+        );
+        WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitTimeSeriesEndTimePassesKey,
             skipGeneratingSnapshotKey,
             client
         );
@@ -321,6 +327,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         steps.add(conditionalSkipActionStep);
         steps.add(checkNoWriteIndexStep);
         steps.add(waitForNoFollowersStep);
+        steps.add(waitUntilTimeSeriesEndTimeStep);
         steps.add(skipGeneratingSnapshotStep);
         if (forceMergeIndex) {
             steps.add(forceMergeStep);

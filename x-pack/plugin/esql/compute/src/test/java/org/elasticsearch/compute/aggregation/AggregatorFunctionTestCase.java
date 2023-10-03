@@ -27,8 +27,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
+import org.elasticsearch.compute.operator.ResultPageSinkOperator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -109,14 +109,13 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
                 driverContext,
                 new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
                 List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)),
-                new PageConsumerOperator(page -> results.add(page)),
+                new ResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
         assertSimpleOutput(origInput, results);
-        results.forEach(Page::releaseBlocks);
     }
 
     public final void testMultivalued() {

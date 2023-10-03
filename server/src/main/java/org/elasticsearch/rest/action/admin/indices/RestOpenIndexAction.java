@@ -24,7 +24,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 public class RestOpenIndexAction extends BaseRestHandler {
 
     @Override

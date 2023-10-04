@@ -60,27 +60,29 @@ public final class GreaterThanIntsEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(GreaterThan.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(GreaterThan.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(GreaterThan.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(GreaterThan.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

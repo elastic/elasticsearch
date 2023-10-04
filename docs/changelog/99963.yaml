@@ -1,5 +1,5 @@
 pr: 99963
 summary: Aggs error codes part 1
 area: Aggregations
-type: tech debt
+type: bug
 issues: []

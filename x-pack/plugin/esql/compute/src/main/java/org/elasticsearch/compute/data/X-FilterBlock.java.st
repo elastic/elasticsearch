@@ -63,27 +63,28 @@ $endif$
          * we've been assigned and expanding all multivalued fields
          * into single valued fields.
          */
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(positions.length);
+        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(positions.length, blockFactory())) {
 $if(BytesRef)$
-        BytesRef scratch = new BytesRef();
+            BytesRef scratch = new BytesRef();
 $endif$
-        for (int p : positions) {
-            if (block.isNull(p)) {
-                builder.appendNull();
-                continue;
-            }
-            int start = block.getFirstValueIndex(p);
-            int end = start + block.getValueCount(p);
-            for (int i = start; i < end; i++) {
+            for (int p : positions) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = block.getFirstValueIndex(p);
+                int end = start + block.getValueCount(p);
+                for (int i = start; i < end; i++) {
 $if(BytesRef)$
-                BytesRef v = block.getBytesRef(i, scratch);
-                builder.appendBytesRef(v);
+                    BytesRef v = block.getBytesRef(i, scratch);
+                    builder.appendBytesRef(v);
 $else$
-                builder.append$Type$(block.get$Type$(i));
+                    builder.append$Type$(block.get$Type$(i));
 $endif$
+                }
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override

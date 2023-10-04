@@ -470,14 +470,12 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
         };
 
-        final BiFunction<Integer, VersionInformation, DiscoveryNode> nodeVersionFactory = (i, v) -> new DiscoveryNode(
-            "name" + i,
-            "id" + i,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-            v
-        );
+        final BiFunction<Integer, VersionInformation, DiscoveryNode> nodeVersionFactory = (i, v) -> DiscoveryNodeUtils.builder("id" + i)
+            .name("name" + i)
+            .address(buildNewFakeTransportAddress())
+            .roles(new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())))
+            .version(v)
+            .build();
 
         final IntFunction<DiscoveryNode> nodeFactory = i -> nodeVersionFactory.apply(i, VersionInformation.CURRENT);
 

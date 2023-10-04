@@ -1,0 +1,5 @@
+pr: 100066
+summary: Add test that exhibits errors on `match_only_text` highlighting
+area: Highlighting
+type: bug
+issues: []

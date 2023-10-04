@@ -1,4 +1,4 @@
-version: '3.7'
+version: "3.7"
 services:
   openldap:
     command: --copy-service --loglevel debug
@@ -37,6 +37,21 @@ services:
     links:
       - openldap:openldap
     restart: always #ensure ephemeral port mappings are properly updated
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "--http0.9",
+          "http://localhost:4443",
+          "--output",
+          "-",
+        ]
+      interval: 10s
+      timeout: 2s
+      retries: 30
+      start_period: 10s
 
   oidc-provider:
     build:

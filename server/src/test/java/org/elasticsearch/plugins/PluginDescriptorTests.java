@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -176,9 +177,13 @@ public class PluginDescriptorTests extends ESTestCase {
         });
     }
 
+    // TODO[wrb]: remove this test once es version is all the way opaque
     public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
         assertBothDescriptors(writer -> {
-            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("elasticsearch.version", "bogus"));
+            var e = expectThrows(IllegalArgumentException.class, () -> {
+                PluginDescriptor pd = writer.write("elasticsearch.version", "bogus");
+                pd.getElasticsearchVersion();
+            });
             assertThat(e.getMessage(), containsString("version needs to contain major, minor, and revision"));
         });
     }
@@ -227,7 +232,7 @@ public class PluginDescriptorTests extends ESTestCase {
             "c",
             "foo",
             "dummy",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             "dummyclass",
             null,
@@ -250,7 +255,7 @@ public class PluginDescriptorTests extends ESTestCase {
             "c",
             "foo",
             "dummy",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             "dummyclass",
             "some.module",
@@ -273,7 +278,7 @@ public class PluginDescriptorTests extends ESTestCase {
             name,
             "foo",
             "dummy",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             "dummyclass",
             null,
@@ -315,7 +320,7 @@ public class PluginDescriptorTests extends ESTestCase {
             "c",
             "foo",
             "dummy",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             "dummyclass",
             null,
@@ -330,7 +335,7 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.getName(),
             randomValueOtherThan(descriptor1.getDescription(), () -> randomAlphaOfLengthBetween(4, 12)),
             randomValueOtherThan(descriptor1.getVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
-            descriptor1.getElasticsearchVersion().previousMajor(),
+            descriptor1.getElasticsearchVersion().previousMajor().toString(),
             randomValueOtherThan(descriptor1.getJavaVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
             randomValueOtherThan(descriptor1.getClassname(), () -> randomAlphaOfLengthBetween(4, 12)),
             randomAlphaOfLength(6),
@@ -347,7 +352,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomValueOtherThan(descriptor1.getName(), () -> randomAlphaOfLengthBetween(4, 12)),
             descriptor1.getDescription(),
             descriptor1.getVersion(),
-            descriptor1.getElasticsearchVersion(),
+            descriptor1.getElasticsearchVersion().toString(),
             descriptor1.getJavaVersion(),
             descriptor1.getClassname(),
             descriptor1.getModuleName().orElse(null),

@@ -54,7 +54,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final String name;
     private final String description;
     private final String version;
-    private final Version elasticsearchVersion;
+    private final String elasticsearchVersion;
     private final String javaVersion;
     private final String classname;
     private final String moduleName;
@@ -83,7 +83,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String name,
         String description,
         String version,
-        Version elasticsearchVersion,
+        String elasticsearchVersion,
         String javaVersion,
         String classname,
         String moduleName,
@@ -117,7 +117,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        elasticsearchVersion = Version.readVersion(in);
+        // TODO[wrb]: serialization
+        elasticsearchVersion = Version.readVersion(in).toString();
         javaVersion = in.readString();
         this.classname = in.readString();
         if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
@@ -152,7 +153,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        Version.writeVersion(elasticsearchVersion, out);
+        // TODO[wrb]: serialization
+        Version.writeVersion(Version.fromString(elasticsearchVersion), out);
         out.writeString(javaVersion);
         out.writeString(classname);
         if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
@@ -229,7 +231,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String name = readNonEmptyString(propsMap, filename, "name");
         String desc = readString(propsMap, name, "description");
         String ver = readString(propsMap, name, "version");
-        Version esVer = readElasticsearchVersion(propsMap, name);
+        String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
 
         String extendedString = propsMap.remove("extended.plugins");
@@ -255,7 +257,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String name = readNonEmptyString(propsMap, filename, "name");
         String desc = readString(propsMap, name, "description");
         String ver = readString(propsMap, name, "version");
-        Version esVer = readElasticsearchVersion(propsMap, name);
+        String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
 
@@ -278,9 +280,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         return value;
     }
 
-    private static Version readElasticsearchVersion(Map<String, String> propsMap, String pluginId) {
-        String esVersionString = readNonEmptyString(propsMap, pluginId, "elasticsearch.version");
-        return Version.fromString(esVersionString);
+    private static String readElasticsearchVersion(Map<String, String> propsMap, String pluginId) {
+        return readNonEmptyString(propsMap, pluginId, "elasticsearch.version");
     }
 
     private static String readJavaVersion(Map<String, String> propsMap, String pluginId) {
@@ -364,8 +365,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      *
      * @return an Elasticsearch version
      */
+    // TODO[wrb]: oh the outside world...
     public Version getElasticsearchVersion() {
-        return elasticsearchVersion;
+        return Version.fromString(elasticsearchVersion);
     }
 
     /**

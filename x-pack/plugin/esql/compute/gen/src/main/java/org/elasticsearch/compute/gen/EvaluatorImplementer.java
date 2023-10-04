@@ -152,8 +152,8 @@ public class EvaluatorImplementer {
                 builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
             }
         });
-        builder.addStatement(
-            "$T.Builder result = $T.$L(positionCount)",
+        builder.beginControlFlow(
+            "try ($T.Builder result = $T.$L(positionCount))",
             resultDataType,
             resultDataType,
             resultDataType.simpleName().endsWith("Vector") ? "newVectorBuilder" : "newBlockBuilder"
@@ -203,6 +203,7 @@ public class EvaluatorImplementer {
         }
         builder.endControlFlow();
         builder.addStatement("return result.build()");
+        builder.endControlFlow();
         return builder.build();
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -29,7 +30,7 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
 
     @Inject
     public TransportDeletePipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeletePipelineAction.NAME, transportService, actionFilters, DeletePipelineRequest::new);
+        super(DeletePipelineAction.NAME, transportService, actionFilters, DeletePipelineRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 

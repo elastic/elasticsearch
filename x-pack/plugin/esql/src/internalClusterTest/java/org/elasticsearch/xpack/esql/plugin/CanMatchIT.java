@@ -145,6 +145,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .addAlias("employees", "sales", new MatchQueryBuilder("dept", "sales"))
         );
         // employees index
+<<<<<<< HEAD
         try (EsqlQueryResponse resp = run("from employees | stats count(emp_no)", randomPragmas())) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
         }
@@ -168,10 +169,24 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 new RangeQueryBuilder("hired").lt("2012-04-30")
             )
         ) {
+=======
+        try (var resp = run("from employees | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        }
+
+        try (var resp = run("from employees | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+>>>>>>> main
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
         }
 
         // match both employees index and engineers alias -> employees
+<<<<<<< HEAD
         try (EsqlQueryResponse resp = run("from e* | stats count(emp_no)", randomPragmas())) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
         }
@@ -187,10 +202,24 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         try (
             EsqlQueryResponse resp = run("from e* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))
         ) {
+=======
+        try (var resp = run("from e* | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        }
+
+        try (var resp = run("from e* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from e* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+>>>>>>> main
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
         }
 
         // engineers alias
+<<<<<<< HEAD
         try (EsqlQueryResponse resp = run("from engineer* | stats count(emp_no)", randomPragmas())) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
         }
@@ -214,10 +243,24 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 new RangeQueryBuilder("hired").lt("2012-04-30")
             )
         ) {
+=======
+        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        }
+
+        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(3L)));
+        }
+        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+>>>>>>> main
             assertThat(getValuesList(resp).get(0), equalTo(List.of(27.2d)));
         }
 
         // sales alias
+<<<<<<< HEAD
         try (EsqlQueryResponse resp = run("from sales | stats count(emp_no)", randomPragmas())) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(2L)));
         }
@@ -237,6 +280,19 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         try (
             EsqlQueryResponse resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))
         ) {
+=======
+        try (var resp = run("from sales | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(2L)));
+        }
+        try (var resp = run("from sales | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(27.55d)));
+        }
+
+        try (var resp = run("from sales | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(1L)));
+        }
+        try (var resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+>>>>>>> main
             assertThat(getValuesList(resp).get(0), equalTo(List.of(25.0d)));
         }
     }

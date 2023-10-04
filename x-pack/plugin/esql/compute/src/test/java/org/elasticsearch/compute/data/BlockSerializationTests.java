@@ -10,6 +10,14 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -142,9 +150,12 @@ public class BlockSerializationTests extends SerializationTestCase {
     }
 
     // TODO: more types, grouping, etc...
-    public void testAggregatorStateBlock() {  // TODO we don't have an aggregator state block any more. Do we need this?
+    public void testSimulateAggs() {
+        DriverContext driverCtx = driverContext();
         Page page = new Page(new LongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var function = SumLongAggregatorFunction.create(List.of(0));
+        var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        var params = new Object[] {};
+        var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
         function.addRawInput(page);
         Block[] blocks = new Block[function.intermediateBlockCount()];
         try {
@@ -173,5 +184,23 @@ public class BlockSerializationTests extends SerializationTestCase {
 
     static BytesRef randomBytesRef() {
         return new BytesRef(randomAlphaOfLengthBetween(0, 10));
+    }
+
+    /**
+     * A {@link BigArrays} that won't throw {@link CircuitBreakingException}.
+     * <p>
+     *     Rather than using the {@link NoneCircuitBreakerService} we use a
+     *     very large limit so tests can call {@link CircuitBreaker#getUsed()}.
+     * </p>
+     */
+    protected final BigArrays nonBreakingBigArrays() {
+        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Integer.MAX_VALUE)).withCircuitBreaking();
+    }
+
+    /**
+     * A {@link DriverContext} with a nonBreakingBigArrays.
+     */
+    protected DriverContext driverContext() { // TODO make this final and return a breaking block factory
+        return new DriverContext(nonBreakingBigArrays(), BlockFactory.getNonBreakingInstance());
     }
 }

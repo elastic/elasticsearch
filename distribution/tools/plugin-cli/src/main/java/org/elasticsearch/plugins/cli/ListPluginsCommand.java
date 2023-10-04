@@ -68,20 +68,9 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
                     + "] was built for Elasticsearch version "
                     + info.getElasticsearchVersion()
                     + " but version "
-                    + ListPluginsCommand.unqualifiedCurrentVersion()
+                    + Build.current().unqualifiedVersion()
                     + " is required"
             );
         }
-    }
-
-    /**
-     * If the version ends in -SNAPSHOT, we need to remove that suffix to build the correct URL
-     */
-    private static String unqualifiedCurrentVersion() {
-        var version = Build.current().version();
-        if (version.endsWith("-SNAPSHOT")) {
-            return version.substring(0, version.length() - "-SNAPSHOT".length());
-        }
-        return version;
     }
 }

@@ -305,7 +305,7 @@ public class InstallPluginAction implements Closeable {
 
             final String url = getElasticUrl(
                 getStagingHash(),
-                unqualifiedCurrentVersion(),
+                Build.current().unqualifiedVersion(),
                 isSnapshot(),
                 pluginId,
                 Platforms.PLATFORM_NAME
@@ -336,17 +336,6 @@ public class InstallPluginAction implements Closeable {
         }
         terminal.println(logPrefix + "Downloading " + URLDecoder.decode(pluginLocation, StandardCharsets.UTF_8));
         return downloadZip(pluginLocation, tmpDir);
-    }
-
-    /**
-     * If the version ends in -SNAPSHOT, we need to remove that suffix to build the correct URL
-     */
-    private static String unqualifiedCurrentVersion() {
-        var version = Build.current().version();
-        if (version.endsWith("-SNAPSHOT")) {
-            return version.substring(0, version.length() - "-SNAPSHOT".length());
-        }
-        return version;
     }
 
     @SuppressForbidden(reason = "Need to use PathUtils#get")

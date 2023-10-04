@@ -14,7 +14,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.plugins.cli.SyncPluginsAction.PluginChanges;
 import org.elasticsearch.test.ESTestCase;
@@ -331,7 +330,7 @@ public class SyncPluginsActionTests extends ESTestCase {
     }
 
     private void createPlugin(String name) throws IOException {
-        createPlugin(name, unqualifiedCurrentVersion());
+        createPlugin(name, Build.current().unqualifiedVersion());
     }
 
     private void createPlugin(String name, String version) throws IOException {
@@ -350,18 +349,5 @@ public class SyncPluginsActionTests extends ESTestCase {
             "classname",
             "SomeClass"
         );
-    }
-
-    /**
-     * If the version ends in -SNAPSHOT, we need to remove that suffix to build a version that PluginDescriptor can
-     * read. This should be removed when {@link PluginDescriptor#getElasticsearchVersion()} is removed and
-     * PluginDescriptor can support arbitrary strings.
-     */
-    private static String unqualifiedCurrentVersion() {
-        var version = Build.current().version();
-        if (version.endsWith("-SNAPSHOT")) {
-            return version.substring(0, version.length() - "-SNAPSHOT".length());
-        }
-        return version;
     }
 }

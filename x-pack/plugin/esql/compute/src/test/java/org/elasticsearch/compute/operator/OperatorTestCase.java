@@ -185,8 +185,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             assertTrue("unreleased result block", b.isReleased());
         }
 
+        int unreleasedInputs = 0;
         for (Block b : inputBlocks) {
-            assertTrue("unreleased input block", b.isReleased());
+            if (b.isReleased() == false) {
+                unreleasedInputs++;
+            }
+        }
+        if (unreleasedInputs > 0) {
+            throw new AssertionError("[" + unreleasedInputs + "] unreleased input blocks");
         }
     }
 

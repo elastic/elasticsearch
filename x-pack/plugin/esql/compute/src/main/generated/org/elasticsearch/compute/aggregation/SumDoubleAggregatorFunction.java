@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SumDoubleAggregator}.
@@ -27,17 +28,22 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("delta", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final SumDoubleAggregator.SumState state;
 
   private final List<Integer> channels;
 
-  public SumDoubleAggregatorFunction(List<Integer> channels, SumDoubleAggregator.SumState state) {
+  public SumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      SumDoubleAggregator.SumState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SumDoubleAggregatorFunction create(List<Integer> channels) {
-    return new SumDoubleAggregatorFunction(channels, SumDoubleAggregator.initSingle());
+  public static SumDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumDoubleAggregatorFunction(driverContext, channels, SumDoubleAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -103,12 +109,12 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1);
+      blocks[offset] = Block.constantNullBlock(1, driverContext.blockFactory());
       return;
     }
-    blocks[offset] = SumDoubleAggregator.evaluateFinal(state);
+    blocks[offset] = SumDoubleAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

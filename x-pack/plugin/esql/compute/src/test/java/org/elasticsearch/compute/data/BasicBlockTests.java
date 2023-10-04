@@ -796,8 +796,30 @@ public class BasicBlockTests extends ESTestCase {
         int minDupsPerPosition,
         int maxDupsPerPosition
     ) {
+        return randomBlock(
+            BlockFactory.getNonBreakingInstance(),
+            elementType,
+            positionCount,
+            nullAllowed,
+            minValuesPerPosition,
+            maxValuesPerPosition,
+            minDupsPerPosition,
+            maxDupsPerPosition
+        );
+    }
+
+    public static RandomBlock randomBlock(
+        BlockFactory blockFactory,
+        ElementType elementType,
+        int positionCount,
+        boolean nullAllowed,
+        int minValuesPerPosition,
+        int maxValuesPerPosition,
+        int minDupsPerPosition,
+        int maxDupsPerPosition
+    ) {
         List<List<Object>> values = new ArrayList<>();
-        var builder = elementType.newBlockBuilder(positionCount);
+        var builder = elementType.newBlockBuilder(positionCount, blockFactory);
         for (int p = 0; p < positionCount; p++) {
             int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
             if (valueCount == 0 || nullAllowed && randomBoolean()) {

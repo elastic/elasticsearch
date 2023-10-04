@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -17,21 +18,26 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 
 public class PositionMergingSourceOperator extends MappingSourceOperator {
-    public PositionMergingSourceOperator(SourceOperator delegate) {
+    final BlockFactory blockFactory;
+
+    public PositionMergingSourceOperator(SourceOperator delegate, BlockFactory blockFactory) {
         super(delegate);
+        this.blockFactory = blockFactory;
     }
 
     @Override
     protected Page map(Page page) {
         Block[] merged = new Block[page.getBlockCount()];
         for (int b = 0; b < page.getBlockCount(); b++) {
-            merged[b] = merge(b, page.getBlock(b));
+            try (var block = page.getBlock(b)) {
+                merged[b] = merge(b, block);
+            }
         }
         return new Page(merged);
     }
 
     protected Block merge(int blockIndex, Block block) {
-        Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount());
+        Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory);
         for (int p = 0; p + 1 < block.getPositionCount(); p += 2) {
             if (block.isNull(p) || block.isNull(p + 1)) {
                 builder.appendNull();

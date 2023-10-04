@@ -333,9 +333,10 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testEarlyTerminate() {
-        IntBlock block = new ConstantIntVector(1, 2).asBlock();
-        Page p1 = new Page(block);
-        Page p2 = new Page(block);
+        IntBlock block1 = new ConstantIntVector(1, 2).asBlock();
+        IntBlock block2 = new ConstantIntVector(1, 2).asBlock();
+        Page p1 = new Page(block1);
+        Page p2 = new Page(block2);
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
         ExchangeSink sink = sinkExchanger.createExchangeSink();
         sink.addPage(p1);

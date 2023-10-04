@@ -23,9 +23,12 @@ public final class Filter$Type$Vector extends AbstractFilterVector implements $T
 
     private final $Type$Vector vector;
 
+    private final $Type$Block block;
+
     Filter$Type$Vector($Type$Vector vector, int... positions) {
         super(positions, vector.blockFactory());
         this.vector = vector;
+        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
@@ -40,7 +43,7 @@ $endif$
 
     @Override
     public $Type$Block asBlock() {
-        return new $Type$VectorBlock(this);
+        return block;
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
@@ -22,13 +23,13 @@ public class CountAggregatorFunction implements AggregatorFunction {
     public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> channels) {
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator() {
+            public AggregatorFunction aggregator(DriverContext driverContext) {
                 return CountAggregatorFunction.create(channels);
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator() {
-                return CountGroupingAggregatorFunction.create(bigArrays, channels);
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+                return CountGroupingAggregatorFunction.create(driverContext, channels);
             }
 
             @Override
@@ -97,8 +98,8 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset) {
-        blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
+    public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+        blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1, driverContext.blockFactory());
     }
 
     @Override

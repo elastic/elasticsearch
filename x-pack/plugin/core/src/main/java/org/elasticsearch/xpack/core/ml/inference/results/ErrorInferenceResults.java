@@ -75,6 +75,12 @@ public class ErrorInferenceResults implements InferenceResults {
     }
 
     @Override
+    public Map<String, Object> asMap(String outputField) {
+        // errors do not have a result
+        return asMap();
+    }
+
+    @Override
     public String toString() {
         return Strings.toString(this);
     }

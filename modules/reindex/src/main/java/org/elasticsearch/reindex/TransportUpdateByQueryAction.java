@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
@@ -53,7 +54,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ScriptService scriptService,
         ClusterService clusterService
     ) {
-        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new);
+        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;

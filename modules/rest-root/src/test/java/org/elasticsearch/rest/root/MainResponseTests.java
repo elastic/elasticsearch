@@ -66,7 +66,7 @@ public class MainResponseTests extends ESTestCase {
                     build.date(),
                     build.isSnapshot(),
                     indexVersion.luceneVersion().toString(),
-                    version.minimumCompatibilityVersion().toString(),
+                    build.minWireCompatVersion(),
                     Build.minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE)
                 )
             ),

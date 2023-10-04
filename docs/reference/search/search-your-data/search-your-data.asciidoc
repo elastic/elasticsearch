@@ -40,14 +40,14 @@ The <<search-search,search API>> enables you to search and
 <<search-aggregations,aggregate>> data stored in {es} using a query language
 called the <<query-dsl,Query DSL>>.
 
-<<search-applications,Search Applications>>::
+<<search-application-overview,Search Applications>>::
 Search Applications enable you to leverage the full power of {es} and its Query
 DSL, with a simplified user experience. Create search applications based on your
 {es} indices, build queries using search templates, and easily preview your
 results directly in the Kibana Search UI.
 
 include::search-api.asciidoc[]
-include::search-applications.asciidoc[]
+include::search-application-overview.asciidoc[]
 include::knn-search.asciidoc[]
 include::semantic-search.asciidoc[]
 include::search-across-clusters.asciidoc[]

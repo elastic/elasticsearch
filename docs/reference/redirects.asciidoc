@@ -1983,22 +1983,22 @@ coming::[8.11.0]
 
 coming::[8.11.0]
 
-[role="exclude",id="search-application-overview"]
-=== Elastic Search Applications
+// [role="exclude",id="search-application-overview"]
+// === Elastic Search Applications
 
-coming::[8.11.0]
+// coming::[8.11.0]
 
-[role="exclude",id="search-application-api"]
-=== Search Applications search API and templates
+// [role="exclude",id="search-application-api"]
+// === Search Applications search API and templates
 
-coming::[8.11.0]
+// coming::[8.11.0]
 
-[role="exclude",id="search-application-client"]
-=== Search Applications client
+// [role="exclude",id="search-application-client"]
+// === Search Applications client
 
-coming::[8.11.0]
+// coming::[8.11.0]
 
-[role="exclude",id="search-application-security"]
-=== Search Applications security
+// [role="exclude",id="search-application-security"]
+// === Search Applications security
 
-coming::[8.11.0]
+// coming::[8.11.0]

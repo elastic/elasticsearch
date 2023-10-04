@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctDoubleAggregator}.
@@ -27,6 +28,8 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("hll", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final HllStates.SingleState state;
 
   private final List<Integer> channels;
@@ -35,17 +38,18 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
 
   private final int precision;
 
-  public CountDistinctDoubleAggregatorFunction(List<Integer> channels, HllStates.SingleState state,
-      BigArrays bigArrays, int precision) {
+  public CountDistinctDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      HllStates.SingleState state, BigArrays bigArrays, int precision) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
-  public static CountDistinctDoubleAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, int precision) {
-    return new CountDistinctDoubleAggregatorFunction(channels, CountDistinctDoubleAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+  public static CountDistinctDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels, BigArrays bigArrays, int precision) {
+    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, CountDistinctDoubleAggregator.initSingle(bigArrays, precision), bigArrays, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -107,8 +111,8 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

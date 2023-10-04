@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
@@ -147,10 +148,14 @@ final class MergePositionsOperator implements Operator {
             flushPositionBuilder();
         }
         fillNullUpToPosition(positionCount);
-        Block[] blocks = Arrays.stream(outputBuilders).map(Block.Builder::build).toArray(Block[]::new);
-        outputPage = new Page(blocks);
-        finished = true;
-        assert outputPage.getPositionCount() == positionCount;
+        try {
+            Block[] blocks = Arrays.stream(outputBuilders).map(Block.Builder::build).toArray(Block[]::new);
+            outputPage = new Page(blocks);
+            finished = true;
+            assert outputPage.getPositionCount() == positionCount;
+        } finally {
+            Releasables.closeExpectNoException(outputBuilders);
+        }
     }
 
     @Override

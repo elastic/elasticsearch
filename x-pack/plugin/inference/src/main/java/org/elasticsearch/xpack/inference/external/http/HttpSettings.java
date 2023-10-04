@@ -46,7 +46,7 @@ public class HttpSettings {
         Setting.Property.NodeScope
     );
 
-    public static List<? extends Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettings() {
         return List.of(
             MAX_HTTP_RESPONSE_SIZE,
             MAX_CONNECTIONS,

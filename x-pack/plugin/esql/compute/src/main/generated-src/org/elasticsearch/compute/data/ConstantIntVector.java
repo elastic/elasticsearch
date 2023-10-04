@@ -19,6 +19,8 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     private final int value;
 
+    private final IntBlock block;
+
     public ConstantIntVector(int value, int positionCount) {
         this(value, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -26,6 +28,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
     public ConstantIntVector(int value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
+        this.block = new IntVectorBlock(this);
     }
 
     @Override
@@ -35,7 +38,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     @Override
     public IntBlock asBlock() {
-        return new IntVectorBlock(this);
+        return block;
     }
 
     @Override

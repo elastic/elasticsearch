@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
@@ -36,7 +37,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
         TransportService transportService,
         ReservedRolesStore reservedRolesStore
     ) {
-        super(GetRolesAction.NAME, transportService, actionFilters, GetRolesRequest::new);
+        super(GetRolesAction.NAME, transportService, actionFilters, GetRolesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
     }

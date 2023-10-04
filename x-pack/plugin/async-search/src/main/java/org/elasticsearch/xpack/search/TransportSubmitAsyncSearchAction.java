@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -20,6 +20,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchService;
@@ -62,7 +63,13 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         TransportSearchAction searchAction,
         BigArrays bigArrays
     ) {
-        super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
+        super(
+            SubmitAsyncSearchAction.NAME,
+            transportService,
+            actionFilters,
+            SubmitAsyncSearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.clusterService = clusterService;
         this.nodeClient = nodeClient;
         this.requestToAggReduceContextBuilder = (task, request) -> searchService.aggReduceContextBuilder(
@@ -102,7 +109,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                             AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
                             store.createResponse(docId, searchTask.getOriginHeaders(), initialResp, new ActionListener<>() {
                                 @Override
-                                public void onResponse(IndexResponse r) {
+                                public void onResponse(DocWriteResponse r) {
                                     if (searchResponse.isRunning()) {
                                         try {
                                             // store the final response on completion unless the submit is cancelled

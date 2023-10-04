@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -97,6 +99,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 ),
                 IndexResolution.invalid(randomAlphaOfLength(5))
             );
+
+        } else if (argClass == Stat.class) {
+            // record field
+            return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == Integer.class) {
             return randomInt();
         }

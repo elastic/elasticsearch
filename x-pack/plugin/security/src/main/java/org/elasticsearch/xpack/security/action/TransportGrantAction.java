@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -44,7 +45,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         AuthorizationService authorizationService,
         ThreadContext threadContext
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.authenticationService = authenticationService;
         this.authorizationService = authorizationService;
         this.threadContext = threadContext;

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -146,24 +147,27 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion, MlConfigVersion mlConfigVersion) {
-        return new DiscoveryNode(
-            "_node_name" + i,
-            "_node_id" + i,
-            new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
-            isMlNode
-                ? Map.of(
-                    "ml.machine_memory",
-                    String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
-                    "ml.max_jvm_size",
-                    String.valueOf(ByteSizeValue.ofMb(400).getBytes()),
-                    MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
-                    mlConfigVersion.toString()
-                )
-                : Map.of(),
-            isMlNode
-                ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
-                : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            VersionInformation.inferVersions(nodeVersion)
-        );
+        return DiscoveryNodeUtils.builder("_node_id" + i)
+            .name("_node_name" + i)
+            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i))
+            .attributes(
+                isMlNode
+                    ? Map.of(
+                        "ml.machine_memory",
+                        String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
+                        "ml.max_jvm_size",
+                        String.valueOf(ByteSizeValue.ofMb(400).getBytes()),
+                        MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+                        mlConfigVersion.toString()
+                    )
+                    : Map.of()
+            )
+            .roles(
+                isMlNode
+                    ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
+                    : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
+            )
+            .version(VersionInformation.inferVersions(nodeVersion))
+            .build();
     }
 }

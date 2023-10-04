@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -40,15 +41,16 @@ public class ElserMlNodeService implements InferenceService {
         boolean throwOnUnknownFields,
         String modelId,
         TaskType taskType,
-        Map<String, Object> settings
+        Map<String, Object> settings,
+        Map<String, Object> secrets
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, Model.SERVICE_SETTINGS);
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.SERVICE_SETTINGS);
         var serviceSettings = serviceSettingsFromMap(serviceSettingsMap);
 
         Map<String, Object> taskSettingsMap;
         // task settings are optional
-        if (settings.containsKey(Model.TASK_SETTINGS)) {
-            taskSettingsMap = removeFromMapOrThrowIfNull(settings, Model.TASK_SETTINGS);
+        if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+            taskSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.TASK_SETTINGS);
         } else {
             taskSettingsMap = Map.of();
         }
@@ -71,31 +73,40 @@ public class ElserMlNodeService implements InferenceService {
     }
 
     @Override
-    public ElserMlNodeModel parseConfigStrict(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parseConfig(true, modelId, taskType, config);
+    public ElserMlNodeModel parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        return parseConfig(true, modelId, taskType, config, config);
     }
 
     @Override
-    public ElserMlNodeModel parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parseConfig(false, modelId, taskType, config);
+    public ElserMlNodeModel parsePersistedConfig(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> secrets
+    ) {
+        return parseConfig(false, modelId, taskType, config, secrets);
     }
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElserMlNodeModel == false) {
-            listener.onFailure(new IllegalStateException("Error starting model, [" + model.getModelId() + "] is not an elser model"));
+            listener.onFailure(
+                new IllegalStateException("Error starting model, [" + model.getConfigurations().getModelId() + "] is not an elser model")
+            );
             return;
         }
 
-        if (model.getTaskType() != TaskType.SPARSE_EMBEDDING) {
-            listener.onFailure(new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getTaskType(), NAME)));
+        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
+            listener.onFailure(
+                new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME))
+            );
             return;
         }
 
         var elserModel = (ElserMlNodeModel) model;
         var serviceSettings = elserModel.getServiceSettings();
 
-        var startRequest = new StartTrainedModelDeploymentAction.Request(ELSER_V1_MODEL, model.getModelId());
+        var startRequest = new StartTrainedModelDeploymentAction.Request(ELSER_V1_MODEL, model.getConfigurations().getModelId());
         startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
         startRequest.setWaitForState(STARTED);
@@ -111,15 +122,18 @@ public class ElserMlNodeService implements InferenceService {
     public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
         // No task settings to override with requestTaskSettings
 
-        if (model.getTaskType() != TaskType.SPARSE_EMBEDDING) {
+        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
             listener.onFailure(
-                new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(model.getTaskType(), NAME), RestStatus.BAD_REQUEST)
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),
+                    RestStatus.BAD_REQUEST
+                )
             );
             return;
         }
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
-            model.getModelId(),
+            model.getConfigurations().getModelId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             List.of(input),
             TimeValue.timeValueSeconds(10)  // TODO get timeout from request

@@ -85,6 +85,13 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      */
     public NodesInfoRequest addMetrics(String... metrics) {
         SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
+        return addMetrics(metricsSet);
+    }
+
+    /**
+     * Add multiple metrics
+     */
+    public NodesInfoRequest addMetrics(Set<String> metricsSet) {
         if (NodesInfoMetrics.Metric.allMetrics().containsAll(metricsSet) == false) {
             metricsSet.removeAll(NodesInfoMetrics.Metric.allMetrics());
             String plural = metricsSet.size() == 1 ? "" : "s";

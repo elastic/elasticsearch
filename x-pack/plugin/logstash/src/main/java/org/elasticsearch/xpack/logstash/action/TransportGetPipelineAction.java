@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -57,7 +58,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
 
     @Inject
     public TransportGetPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(GetPipelineAction.NAME, transportService, actionFilters, GetPipelineRequest::new);
+        super(GetPipelineAction.NAME, transportService, actionFilters, GetPipelineRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 

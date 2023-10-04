@@ -38,6 +38,7 @@ public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends Groupi
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongBytesRefTupleBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), new BytesRef(String.valueOf(between(1, 10000)))))
         );
     }

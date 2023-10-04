@@ -17,8 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -63,14 +61,11 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
-
-    public static final Setting<SecureString> ENCRYPTION_KEY_SETTING = SecureSetting.secureString("xpack.inference.encryption_key", null);
 
     private final Settings settings;
     private HttpClient httpClient;
@@ -131,9 +126,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public List<Setting<?>> getSettings() {
-        var pluginSettings = List.of(ENCRYPTION_KEY_SETTING);
 
-        return Stream.concat(pluginSettings.stream(), HttpSettings.getSettings().stream()).toList();
+        return HttpSettings.getSettings();
     }
 
     @Override
@@ -148,6 +142,17 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
                 .setSettings(InferenceIndex.settings())
                 .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
+                .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
+                .setDescription("Contains inference service secrets")
+                .setMappings(InferenceSecretsIndex.mappings())
+                .setSettings(InferenceSecretsIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .setNetNew()
                 .build()
         );
     }

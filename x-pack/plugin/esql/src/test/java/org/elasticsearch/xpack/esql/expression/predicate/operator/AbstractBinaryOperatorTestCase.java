@@ -104,7 +104,7 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
                 if (result == null) {
                     assertCriticalWarnings(
                         "Line -1:-1: evaluation of [" + op + "] failed, treating result as null. Only first 20 failures recorded.",
-                        "java.lang.ArithmeticException: " + commonType(lhsType, rhsType).typeName() + " overflow"
+                        "Line -1:-1: java.lang.ArithmeticException: " + commonType(lhsType, rhsType).typeName() + " overflow"
                     );
                 } else {
                     // The type's currently only used for distinguishing between LONG and UNSIGNED_LONG. UL requires both operands be of

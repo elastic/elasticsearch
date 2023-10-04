@@ -39,11 +39,16 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
 
     @Override
     protected Settings restClientSettings() {
-        Settings.Builder builder = Settings.builder();
-        if (System.getProperty("tests.rest.client_path_prefix") != null) {
-            builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
+        // If this test is running in a test frameowrk that handles its own authorization, we don't want to overwrite it.
+        if (super.restClientSettings().keySet().contains(ThreadContext.PREFIX + ".Authorization")) {
+            return super.restClientSettings();
+        } else {
+            Settings.Builder builder = Settings.builder();
+            if (System.getProperty("tests.rest.client_path_prefix") != null) {
+                builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
+            }
+            return builder.put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
         }
-        return builder.put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
     public void testCompatibleMappingUpgrade() throws Exception {

@@ -20,7 +20,7 @@ public enum ElementType {
     /**
      * Blocks containing only null values.
      */
-    NULL((estimatedSize, blockFactory) -> new ConstantNullBlock.Builder()),
+    NULL((estimatedSize, blockFactory) -> new ConstantNullBlock.Builder(blockFactory)),
 
     BYTES_REF(BytesRefBlock::newBlockBuilder),
 

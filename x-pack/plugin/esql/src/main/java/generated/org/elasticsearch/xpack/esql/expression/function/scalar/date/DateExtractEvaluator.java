@@ -49,12 +49,12 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   public Block.Ref eval(Page page) {
     try (Block.Ref valueRef = value.eval(page)) {
       if (valueRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       LongBlock valueBlock = (LongBlock) valueRef.block();
       try (Block.Ref chronoFieldRef = chronoField.eval(page)) {
         if (chronoFieldRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoFieldRef.block();
         LongVector valueVector = valueBlock.asVector();
@@ -71,40 +71,42 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock, BytesRefBlock chronoFieldBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef chronoFieldScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef chronoFieldScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (chronoFieldBlock.isNull(p) || chronoFieldBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoFieldBlock.getBytesRef(chronoFieldBlock.getFirstValueIndex(p), chronoFieldScratch), zone));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (chronoFieldBlock.isNull(p) || chronoFieldBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendLong(DateExtract.process(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), chronoFieldBlock.getBytesRef(chronoFieldBlock.getFirstValueIndex(p), chronoFieldScratch), zone));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, LongVector valueVector,
       BytesRefVector chronoFieldVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef chronoFieldScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(DateExtract.process(valueVector.getLong(p), chronoFieldVector.getBytesRef(p, chronoFieldScratch), zone));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef chronoFieldScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(DateExtract.process(valueVector.getLong(p), chronoFieldVector.getBytesRef(p, chronoFieldScratch), zone));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

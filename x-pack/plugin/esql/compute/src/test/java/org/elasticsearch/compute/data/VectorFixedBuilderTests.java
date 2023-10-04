@@ -96,19 +96,21 @@ public class VectorFixedBuilderTests extends ESTestCase {
     public void testCranky() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
         BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
-        try {
-            Vector.Builder builder = vectorBuilder(10, blockFactory);
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
-            fill(builder, random.block().asVector());
-            try (Vector built = builder.build()) {
-                assertThat(built, equalTo(random.block().asVector()));
+        for (int i = 0; i < 100; i++) {
+            try {
+                Vector.Builder builder = vectorBuilder(10, blockFactory);
+                BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+                fill(builder, random.block().asVector());
+                try (Vector built = builder.build()) {
+                    assertThat(built, equalTo(random.block().asVector()));
+                }
+                // If we made it this far cranky didn't fail us!
+            } catch (CircuitBreakingException e) {
+                logger.info("cranky", e);
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
             }
-            // If we made it this far cranky didn't fail us!
-        } catch (CircuitBreakingException e) {
-            logger.info("cranky", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
-        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     private Vector.Builder vectorBuilder(int size, BlockFactory blockFactory) {

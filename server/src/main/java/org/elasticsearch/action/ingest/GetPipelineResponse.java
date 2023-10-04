@@ -13,9 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -29,9 +29,9 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public class GetPipelineResponse extends ActionResponse implements StatusToXContentObject {
+public class GetPipelineResponse extends ActionResponse implements ToXContentObject {
 
-    private List<PipelineConfiguration> pipelines;
+    private final List<PipelineConfiguration> pipelines;
     private final boolean summary;
 
     public GetPipelineResponse(StreamInput in) throws IOException {
@@ -76,7 +76,6 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         return summary;
     }
 
-    @Override
     public RestStatus status() {
         return isFound() ? RestStatus.OK : RestStatus.NOT_FOUND;
     }

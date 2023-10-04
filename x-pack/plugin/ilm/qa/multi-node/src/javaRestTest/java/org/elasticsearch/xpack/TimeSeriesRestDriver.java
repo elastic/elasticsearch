@@ -60,6 +60,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -482,6 +483,24 @@ public final class TimeSeriesRestDriver {
         }, 30, TimeUnit.SECONDS);
         logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<String> getBackingIndices(RestClient client, String dataStreamName) throws IOException {
+        Response getDataStream = client.performRequest(new Request("GET", "_data_stream/" + dataStreamName));
+        Map<String, Object> responseMap;
+        try (InputStream is = getDataStream.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
+        assertThat(dataStreams.size(), is(1));
+        Map<String, Object> dataStream = dataStreams.get(0);
+        assertThat(dataStream.get("name"), is(dataStreamName));
+        List<String> indices = ((List<Map<String, Object>>) dataStream.get("indices")).stream()
+            .map(indexMap -> (String) indexMap.get("index_name"))
+            .toList();
+        return indices;
     }
 
     private static void executeDummyClusterStateUpdate(RestClient client) throws IOException {

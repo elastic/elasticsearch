@@ -231,17 +231,14 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Map<String, String> attrs = new HashMap<>(node.getAttributes());
                 attrs.put("new", "new");
                 final TransportAddress nodeAddress = node.getAddress();
-                node = new DiscoveryNode(
-                    node.getName(),
-                    node.getId(),
-                    node.getEphemeralId(),
-                    nodeAddress.address().getHostString(),
-                    nodeAddress.getAddress(),
-                    nodeAddress,
-                    attrs,
-                    node.getRoles(),
-                    node.getVersionInformation()
-                );
+                node = DiscoveryNodeUtils.builder(node.getId())
+                    .name(node.getName())
+                    .ephemeralId(node.getEphemeralId())
+                    .address(nodeAddress)
+                    .attributes(attrs)
+                    .roles(node.getRoles())
+                    .version(node.getVersionInformation())
+                    .build();
             }
             nodesB.add(node);
         }
@@ -473,14 +470,12 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
         };
 
-        final BiFunction<Integer, VersionInformation, DiscoveryNode> nodeVersionFactory = (i, v) -> new DiscoveryNode(
-            "name" + i,
-            "id" + i,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-            v
-        );
+        final BiFunction<Integer, VersionInformation, DiscoveryNode> nodeVersionFactory = (i, v) -> DiscoveryNodeUtils.builder("id" + i)
+            .name("name" + i)
+            .address(buildNewFakeTransportAddress())
+            .roles(new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())))
+            .version(v)
+            .build();
 
         final IntFunction<DiscoveryNode> nodeFactory = i -> nodeVersionFactory.apply(i, VersionInformation.CURRENT);
 

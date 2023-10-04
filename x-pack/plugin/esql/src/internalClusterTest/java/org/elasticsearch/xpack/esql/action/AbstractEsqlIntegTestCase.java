@@ -43,7 +43,6 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    @After
     public void ensureBlocksReleased() {
         for (String node : internalCluster().getNodeNames()) {
             CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);

@@ -87,6 +87,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1521,7 +1522,19 @@ public final class NodeEnvironment implements Closeable {
     static String getBestDowngradeVersion(String previousNodeVersion) {
         // this method should only be called in the context of an upgrade to 8.x
         assert Build.current().version().startsWith("9.") == false;
-        return Pattern.matches("^7\\.17\\.\\d+$", previousNodeVersion) ? previousNodeVersion : "7.17.0";
+        Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+$");
+        Matcher matcher = pattern.matcher(previousNodeVersion);
+        if (matcher.matches()) {
+            try {
+                int minorVersion = Integer.parseInt(matcher.group(1));
+                if (minorVersion >= 17) {
+                    return previousNodeVersion;
+                }
+            } catch (NumberFormatException e) {
+                // continue and return default
+            }
+        }
+        return "7.17.0";
     }
 
 }

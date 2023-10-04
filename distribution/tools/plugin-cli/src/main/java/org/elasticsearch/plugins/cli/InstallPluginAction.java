@@ -23,7 +23,6 @@ import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
@@ -304,7 +303,13 @@ public class InstallPluginAction implements Closeable {
                 // else carry on to regular download
             }
 
-            final String url = getElasticUrl(getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
+            final String url = getElasticUrl(
+                getStagingHash(),
+                unqualifiedCurrentVersion(),
+                isSnapshot(),
+                pluginId,
+                Platforms.PLATFORM_NAME
+            );
             terminal.println(logPrefix + "Downloading " + pluginId + " from elastic");
             return downloadAndValidate(url, tmpDir, true);
         }
@@ -333,6 +338,17 @@ public class InstallPluginAction implements Closeable {
         return downloadZip(pluginLocation, tmpDir);
     }
 
+    /**
+     * If the version ends in -SNAPSHOT, we need to remove that suffix to build the correct URL
+     */
+    private static String unqualifiedCurrentVersion() {
+        var version = Build.current().version();
+        if (version.endsWith("-SNAPSHOT")) {
+            return version.substring(0, version.length() - "-SNAPSHOT".length());
+        }
+        return version;
+    }
+
     @SuppressForbidden(reason = "Need to use PathUtils#get")
     private Path getPluginArchivePath(String pluginId, String pluginArchiveDir) throws UserException {
         final Path path = PathUtils.get(pluginArchiveDir);
@@ -342,7 +358,7 @@ public class InstallPluginAction implements Closeable {
         if (Files.isDirectory(path) == false) {
             throw new UserException(ExitCodes.CONFIG, "Location in ES_PLUGIN_ARCHIVE_DIR is not a directory");
         }
-        return PathUtils.get(pluginArchiveDir, pluginId + "-" + Version.CURRENT + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip");
+        return PathUtils.get(pluginArchiveDir, pluginId + "-" + Build.current() + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip");
     }
 
     // pkg private so tests can override
@@ -359,7 +375,7 @@ public class InstallPluginAction implements Closeable {
      */
     private String getElasticUrl(
         final String stagingHash,
-        final Version version,
+        final String version,
         final boolean isSnapshot,
         final String pluginId,
         final String platform
@@ -394,7 +410,7 @@ public class InstallPluginAction implements Closeable {
         return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.current().qualifiedVersion());
     }
 
-    private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
+    private String nonReleaseUrl(final String hostname, final String version, final String stagingHash, final String pluginId) {
         return String.format(
             Locale.ROOT,
             "https://%s.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s",

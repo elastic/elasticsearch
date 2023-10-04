@@ -10,7 +10,7 @@ package org.elasticsearch.plugins.cli;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
@@ -61,14 +61,14 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
         PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
-        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+        if (info.getElasticsearchVersion().toString().equals(Build.current().version()) == false) {
             terminal.errorPrintln(
                 "WARNING: plugin ["
                     + info.getName()
                     + "] was built for Elasticsearch version "
                     + info.getElasticsearchVersion()
                     + " but version "
-                    + Version.CURRENT
+                    + Build.current().version()
                     + " is required"
             );
         }

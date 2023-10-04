@@ -114,7 +114,6 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     }
 
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {
-        boolean tryOldVersion = false;
         try (
             StreamInput streamInput = new InputStreamStreamInput(
                 translogBlobContainer.readBlob(OperationPurpose.SNAPSHOT, blobMetadata.name())
@@ -122,29 +121,11 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         ) {
             CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
             return getOperationIterator(blobMetadata.name(), streamInput, translogHeader);
-        } catch (CompoundTranslogHeader.NoVersionCodecException e) {
-            tryOldVersion = true;
         } catch (NoSuchFileException e) {
             // Skip this file in case it is not relevant for this shard. We will fail when reading the next translog file if there is a hole
             // in the generations
             blobsMissed.add(blobMetadata);
             return Collections.emptyIterator();
-        } catch (IOException e) {
-            throw new TranslogCorruptedException(blobMetadata.name(), "error while reading translog file from object store", e);
-        }
-
-        assert tryOldVersion;
-        return readBlobTranslogOperationsOld(blobMetadata);
-    }
-
-    private Iterator<Translog.Operation> readBlobTranslogOperationsOld(BlobMetadata blobMetadata) {
-        try (
-            StreamInput streamInput = new InputStreamStreamInput(
-                translogBlobContainer.readBlob(OperationPurpose.SNAPSHOT, blobMetadata.name())
-            )
-        ) {
-            CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStoreOld(blobMetadata.name(), streamInput);
-            return getOperationIterator(blobMetadata.name(), streamInput, translogHeader);
         } catch (IOException e) {
             throw new TranslogCorruptedException(blobMetadata.name(), "error while reading translog file from object store", e);
         }

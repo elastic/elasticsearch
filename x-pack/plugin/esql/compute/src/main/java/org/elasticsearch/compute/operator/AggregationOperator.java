@@ -96,16 +96,25 @@ public class AggregationOperator implements Operator {
             return;
         }
         finished = true;
-        int[] aggBlockCounts = aggregators.stream().mapToInt(Aggregator::evaluateBlockCount).toArray();
-        // TODO: look into allocating the blocks lazily
-        Block[] blocks = new Block[Arrays.stream(aggBlockCounts).sum()];
-        int offset = 0;
-        for (int i = 0; i < aggregators.size(); i++) {
-            var aggregator = aggregators.get(i);
-            aggregator.evaluate(blocks, offset, driverContext);
-            offset += aggBlockCounts[i];
+        Block[] blocks = null;
+        boolean success = false;
+        try {
+            int[] aggBlockCounts = aggregators.stream().mapToInt(Aggregator::evaluateBlockCount).toArray();
+            // TODO: look into allocating the blocks lazily
+            blocks = new Block[Arrays.stream(aggBlockCounts).sum()];
+            int offset = 0;
+            for (int i = 0; i < aggregators.size(); i++) {
+                var aggregator = aggregators.get(i);
+                aggregator.evaluate(blocks, offset, driverContext);
+                offset += aggBlockCounts[i];
+            }
+            output = new Page(blocks);
+            success = true;
+        } finally {
+            if (success == false && blocks != null) {
+                Releasables.closeExpectNoException(blocks);
+            }
         }
-        output = new Page(blocks);
     }
 
     @Override

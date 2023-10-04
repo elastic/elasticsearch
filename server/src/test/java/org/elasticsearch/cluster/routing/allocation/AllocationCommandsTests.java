@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -62,7 +63,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -853,28 +853,18 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes");
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node1",
-            "node1",
-            "node1",
-            "test1",
-            "test1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            null
-        );
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node2",
-            "node2",
-            "node2",
-            "test2",
-            "test2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-            null
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1")
+            .name("node1")
+            .ephemeralId("node1")
+            .address("test1", "test1", buildNewFakeTransportAddress())
+            .roles(MASTER_DATA_ROLES)
+            .build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2")
+            .name("node2")
+            .ephemeralId("node2")
+            .address("test2", "test2", buildNewFakeTransportAddress())
+            .roles(new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))))
+            .build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
 
@@ -921,28 +911,18 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes");
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node1",
-            "node1",
-            "node1",
-            "test1",
-            "test1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            null
-        );
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node2",
-            "node2",
-            "node2",
-            "test2",
-            "test2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-            null
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1")
+            .name("node1")
+            .ephemeralId("node1")
+            .address("test1", "test1", buildNewFakeTransportAddress())
+            .roles(MASTER_DATA_ROLES)
+            .build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2")
+            .name("node2")
+            .ephemeralId("node2")
+            .address("test2", "test2", buildNewFakeTransportAddress())
+            .roles(new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))))
+            .build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
         logger.info("start primary shard");

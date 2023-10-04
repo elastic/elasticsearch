@@ -35,7 +35,7 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
       BytesRefVector valVector = valBlock.asVector();
@@ -47,7 +47,7 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefBlock valBlock) {
-    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
@@ -61,7 +61,7 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, BytesRefVector valVector) {
-    try (IntVector.Builder result = IntVector.newVectorBuilder(positionCount)) {
+    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendInt(Length.process(valVector.getBytesRef(p, valScratch)));

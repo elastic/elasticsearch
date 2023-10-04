@@ -144,6 +144,10 @@ public class TimeSeriesIndexSearcher {
                 bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null, null, null));
             }
         }
+        if (leafWalkers.size() == 1) {
+            leafWalkers.get(0).collectAllValidDocs(null);
+            return;
+        }
 
         PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
             @Override
@@ -161,6 +165,10 @@ public class TimeSeriesIndexSearcher {
         // we refill it with walkers positioned on the next TSID. Within the queue
         // walkers are ordered by timestamp.
         while (populateQueue(leafWalkers, queue)) {
+            if (queue.size() == 1) {
+                LeafWalker leafWalker = queue.pop();
+                leafWalker.collectAllValidDocs(leafWalker.getTsid());
+            }
             do {
                 if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                     checkCancelled();
@@ -262,6 +270,23 @@ public class TimeSeriesIndexSearcher {
             assert tsids.docID() == docId;
             assert timestamps.docID() == docId;
             collector.collect(docId);
+        }
+
+        void collectAllValidDocs(BytesRef tsid) throws IOException {
+            // Collect either all docs for a given tsid or all docs in the leaf.
+            assert docId == 0 || tsid != null;
+            do {
+                if (isInvalidDoc(docId)) {
+                    continue;
+                }
+                // Check if the current tsid matches the passed one (if not null).
+                if (tsid != null && tsid.compareTo(getTsid()) != 0) {
+                    timestamp = timestamps.nextValue();
+                    return;
+                }
+                collector.collect(docId);
+                docId = iterator.nextDoc();
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS);
         }
 
         int nextDoc() throws IOException {

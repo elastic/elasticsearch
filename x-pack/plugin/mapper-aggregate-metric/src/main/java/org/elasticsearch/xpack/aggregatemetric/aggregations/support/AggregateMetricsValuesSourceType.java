@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.aggregatemetric.aggregations.support;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -36,7 +36,7 @@ public enum AggregateMetricsValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            throw new AggregationExecutionException("Value source of type [" + this.value() + "] is not supported by scripts");
+            throw AggregationErrors.valuesSourceDoesNotSupportScritps(this.value());
         }
 
         @Override

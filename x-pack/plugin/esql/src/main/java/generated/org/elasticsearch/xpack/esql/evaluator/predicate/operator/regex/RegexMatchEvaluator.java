@@ -52,25 +52,27 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    BytesRef inputScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (inputBlock.isNull(p) || inputBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+      BytesRef inputScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (inputBlock.isNull(p) || inputBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(RegexMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), pattern));
       }
-      result.appendBoolean(RegexMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), pattern));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    BytesRef inputScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(RegexMatch.process(inputVector.getBytesRef(p, inputScratch), pattern));
+    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+      BytesRef inputScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(RegexMatch.process(inputVector.getBytesRef(p, inputScratch), pattern));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

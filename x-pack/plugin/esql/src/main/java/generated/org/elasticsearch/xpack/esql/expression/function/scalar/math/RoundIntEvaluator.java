@@ -60,27 +60,29 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntBlock eval(int positionCount, IntBlock valBlock, LongBlock decimalsBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendInt(Round.process(valBlock.getInt(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
       }
-      if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendInt(Round.process(valBlock.getInt(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public IntVector eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendInt(Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+    try (IntVector.Builder result = IntVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendInt(Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

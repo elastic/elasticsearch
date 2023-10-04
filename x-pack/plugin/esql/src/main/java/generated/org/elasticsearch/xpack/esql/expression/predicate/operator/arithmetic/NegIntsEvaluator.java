@@ -51,33 +51,35 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public IntBlock eval(int positionCount, IntBlock vBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendInt(Neg.processInts(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendInt(Neg.processInts(vBlock.getInt(vBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public IntBlock eval(int positionCount, IntVector vVector) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendInt(Neg.processInts(vVector.getInt(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendInt(Neg.processInts(vVector.getInt(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

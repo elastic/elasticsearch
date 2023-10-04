@@ -64,37 +64,39 @@ public final class DivIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public IntBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendInt(Div.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendInt(Div.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public IntBlock eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendInt(Div.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendInt(Div.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

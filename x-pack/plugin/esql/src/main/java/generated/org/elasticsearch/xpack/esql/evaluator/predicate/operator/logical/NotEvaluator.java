@@ -44,23 +44,25 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock vBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(Not.process(vBlock.getBoolean(vBlock.getFirstValueIndex(p))));
       }
-      result.appendBoolean(Not.process(vBlock.getBoolean(vBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BooleanVector vVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(Not.process(vVector.getBoolean(p)));
+    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(Not.process(vVector.getBoolean(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

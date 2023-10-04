@@ -102,6 +102,7 @@ Use the following import statement:
 ----
 import SearchApplicationClient from '@elastic/search-application-client';
 ----
+// NOTCONSOLE
 
 Configure the client with your deployment details to start making search requests.
 You can generate an API key on the *Connect* page in the Kibana UI.
@@ -121,6 +122,7 @@ const request = Client(
   }
 )
 ----
+// NOTCONSOLE
 
 Once configured you'll be able to make search requests to your search application using the https://github.com/elastic/search-application-client#api-reference[client API], like this:
 
@@ -130,6 +132,7 @@ const results = await request()
   .query('star wars')
   .search()
 ----
+// NOTCONSOLE
 
 [discrete]
 [[search-application-client-client-configuration-import-cdn]]
@@ -237,6 +240,7 @@ const results = await request()
   .addParameter('search_fields', ['title', 'description'])
   .search()
 ----
+// NOTCONSOLE
 
 [discrete]
 [[search-application-client-client-template-example]]
@@ -498,6 +502,7 @@ For example:
   ]
 }
 ----
+// NOTCONSOLE
 
 [discrete]
 [[search-application-client-client-features-highlight-helpers]]
@@ -520,6 +525,7 @@ const ResultsList = ({ hits } ) => {
   ))
 }
 ----
+// NOTCONSOLE
 
 [discrete]
 [[search-application-client-client-features-pagination]]
@@ -545,6 +551,7 @@ const results = await request()
  .setFrom(20)
  .search()
 ----
+// NOTCONSOLE
 
 [discrete]
 [[search-application-client-client-features-sorting]]
@@ -563,6 +570,7 @@ const results = await request()
  .setSort([{ year: 'asc' }, '_score'])
  .search()
 ----
+// NOTCONSOLE
 
 [discrete]
 [[search-application-client-client-features-filter]]
@@ -599,6 +607,7 @@ const results = await request()
   })
   .search()
 ----
+// NOTCONSOLE
 
 [discrete]
 [[search-application-client-client-features-facets]]
@@ -635,6 +644,7 @@ const request = Client(
   }
 )
 ----
+// NOTCONSOLE
 
 [NOTE]
 ====
@@ -662,6 +672,7 @@ const results = await request()
   })
   .search()
 ----
+// NOTCONSOLE
 
 You can access the facets in the results:
 
@@ -794,3 +805,4 @@ You can access the facets in the results:
   ]
 }
 ----
+// NOTCONSOLE

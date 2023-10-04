@@ -490,10 +490,20 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .nodes(
                     DiscoveryNodes.builder()
                         .add(
-                            DiscoveryNodeUtils.builder("node1").applySettings(Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9200)).build()
+                            DiscoveryNodeUtils.builder("node1")
+                                .applySettings(
+                                    Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()
+                                )
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                                .build()
                         )
                         .add(
-                            DiscoveryNodeUtils.builder("node2").applySettings(Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9201)).build()
+                            DiscoveryNodeUtils.builder("node2")
+                                .applySettings(
+                                    Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()
+                                )
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                                .build()
                         )
                 )
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
@@ -561,10 +571,20 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
                 .nodes(
                     DiscoveryNodes.builder()
                         .add(
-                            DiscoveryNodeUtils.builder("node1").applySettings(Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9200)).build()
+                            DiscoveryNodeUtils.builder("node1")
+                                .applySettings(
+                                    Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()
+                                )
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                                .build()
                         )
                         .add(
-                            DiscoveryNodeUtils.builder("node2").applySettings(Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9201)).build()
+                            DiscoveryNodeUtils.builder("node2")
+                                .applySettings(
+                                    Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()
+                                )
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                                .build()
                         )
                 )
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
@@ -603,10 +623,20 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNodeUtils.builder("node1").applySettings(Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9200)).build()
+                        DiscoveryNodeUtils.builder("node1")
+                            .applySettings(
+                                Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build()
+                            )
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNodeUtils.builder("node2").applySettings(Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9201)).build()
+                        DiscoveryNodeUtils.builder("node2")
+                            .applySettings(
+                                Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build()
+                            )
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
             )
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())

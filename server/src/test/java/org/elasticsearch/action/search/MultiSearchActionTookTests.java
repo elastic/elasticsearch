@@ -123,7 +123,10 @@ public class MultiSearchActionTookTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).applySettings(settings).address(boundAddress.publishAddress()).build(),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             Collections.emptySet()
         );

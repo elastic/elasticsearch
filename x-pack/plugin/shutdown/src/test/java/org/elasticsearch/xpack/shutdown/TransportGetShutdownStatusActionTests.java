@@ -563,17 +563,22 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID).applySettings(Settings.builder()
-                            .put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID)
-                            .build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9200)).build()
+                        DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNodeUtils.builder(LIVE_NODE_ID).applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9201)).build()
+                        DiscoveryNodeUtils.builder(LIVE_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
                     .add(
-                        DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID).applySettings(Settings.builder()
-                            .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
-                            .build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9202)).build()
+                        DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9202))
+                            .build()
                     )
             )
             .routingTable(routingTable.build())
@@ -736,14 +741,23 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         Map<String, IndexMetadata> indicesTable = indices.stream().collect(toMap(imd -> imd.getIndex().getName(), Function.identity()));
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(
-                DiscoveryNodeUtils.builder(LIVE_NODE_ID).applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9201)).build()
+                DiscoveryNodeUtils.builder(LIVE_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                    .build()
             )
             .add(
-                DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID).applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9202)).build()
+                DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9202))
+                    .build()
             );
         if (shuttingDownNodeAlreadyLeft == false) {
             discoveryNodesBuilder.add(
-                DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID).applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9200)).build()
+                DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                    .build()
             );
         }
 

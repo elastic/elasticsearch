@@ -77,7 +77,10 @@ public class TransportMultiGetActionTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNodeUtils.builder(randomBase64UUID()).applySettings(Settings.builder().put("node.name", "node1").build()).address(boundAddress.publishAddress()).build(),
+            boundAddress -> DiscoveryNodeUtils.builder(randomBase64UUID())
+                .applySettings(Settings.builder().put("node.name", "node1").build())
+                .address(boundAddress.publishAddress())
+                .build(),
             null,
             emptySet()
         );

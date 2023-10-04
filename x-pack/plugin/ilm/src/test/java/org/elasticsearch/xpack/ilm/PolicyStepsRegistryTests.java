@@ -220,7 +220,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId).applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9300)).build();
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
@@ -298,7 +301,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId).applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9300)).build();
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
@@ -378,7 +384,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId).applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9300)).build();
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())

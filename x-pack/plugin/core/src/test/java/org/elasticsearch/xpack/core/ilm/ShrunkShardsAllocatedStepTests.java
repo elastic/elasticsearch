@@ -78,7 +78,10 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         Index shrinkIndex = shrunkIndexMetadata.getIndex();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId).applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9300)).build();
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
         for (int i = 0; i < shrinkNumberOfShards; i++) {
@@ -118,7 +121,10 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         Index shrinkIndex = shrunkIndexMetadata.getIndex();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId).applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9300)).build();
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
         for (int i = 0; i < shrinkNumberOfShards; i++) {
@@ -150,7 +156,10 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .build();
 
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId).applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9300)).build();
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())

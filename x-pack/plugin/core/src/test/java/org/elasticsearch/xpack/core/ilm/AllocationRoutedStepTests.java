@@ -162,10 +162,16 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNodeUtils.builder("node1").applySettings(nodeSettingsBuilder.build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9200)).build()
+                        DiscoveryNodeUtils.builder("node1")
+                            .applySettings(nodeSettingsBuilder.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNodeUtils.builder("node2").applySettings(nodeSettingsBuilder.build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9201)).build()
+                        DiscoveryNodeUtils.builder("node2")
+                            .applySettings(nodeSettingsBuilder.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
             )
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
@@ -524,10 +530,16 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNodeUtils.builder("node1").applySettings(node1Settings.build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9200)).build()
+                        DiscoveryNodeUtils.builder("node1")
+                            .applySettings(node1Settings.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNodeUtils.builder("node2").applySettings(node2Settings.build()).address(new TransportAddress(TransportAddress.META_ADDRESS, 9201)).build()
+                        DiscoveryNodeUtils.builder("node2")
+                            .applySettings(node2Settings.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
             )
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())

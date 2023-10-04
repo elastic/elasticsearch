@@ -131,8 +131,7 @@ public class DiscoveryNodeUtils {
         }
 
         public Builder applySettings(Settings settings) {
-            return name(Node.NODE_NAME_SETTING.get(settings))
-                .attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
+            return name(Node.NODE_NAME_SETTING.get(settings)).attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
                 .roles(DiscoveryNode.getRolesFromSettings(settings))
                 .externalId(Node.NODE_EXTERNAL_ID_SETTING.get(settings));
         }

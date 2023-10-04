@@ -98,7 +98,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         nodeId = randomAlphaOfLength(10);
         ExecutorService executorService = mock(ExecutorService.class);
         clusterService = mock(ClusterService.class);
-        masterNode = DiscoveryNodeUtils.builder(nodeId).applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9300)).build();
+        masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         now = randomNonNegativeLong();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
 
@@ -590,10 +593,16 @@ public class IndexLifecycleServiceTests extends ESTestCase {
                         .masterNodeId(nodeId)
                         .add(masterNode)
                         .add(
-                            DiscoveryNodeUtils.builder("regular_node").applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9301)).build()
+                            DiscoveryNodeUtils.builder("regular_node")
+                                .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9301))
+                                .build()
                         )
                         .add(
-                            DiscoveryNodeUtils.builder("shutdown_node").applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build())).address(new TransportAddress(TransportAddress.META_ADDRESS, 9302)).build()
+                            DiscoveryNodeUtils.builder("shutdown_node")
+                                .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+                                .address(new TransportAddress(TransportAddress.META_ADDRESS, 9302))
+                                .build()
                         )
                         .build()
                 )

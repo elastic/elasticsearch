@@ -210,7 +210,10 @@ public class MockTransportService extends TransportService {
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            (boundAddress) -> DiscoveryNodeUtils.builder(settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())).applySettings(settings).address(boundAddress.publishAddress()).build(),
+            (boundAddress) -> DiscoveryNodeUtils.builder(settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID()))
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             clusterSettings,
             createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
         );

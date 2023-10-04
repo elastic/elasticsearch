@@ -23,7 +23,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
@@ -56,7 +55,7 @@ final class EmptyDirectory extends FilterDirectory {
                 Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID,
                 "-1",
                 Engine.ES_VERSION,
-                Version.CURRENT.toString()
+                IndexVersion.current().toString()
             ),
             false
         );

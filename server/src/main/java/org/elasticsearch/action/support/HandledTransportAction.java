@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.Executor;
@@ -22,19 +21,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     Request,
     Response> {
 
-    /**
-     * @deprecated always specify an executor
-     */
-    @Deprecated(forRemoval = true)
-    protected HandledTransportAction(
-        String actionName,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader
-    ) {
-        this(actionName, true, transportService, actionFilters, requestReader);
-    }
-
     protected HandledTransportAction(
         String actionName,
         TransportService transportService,
@@ -43,20 +29,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         Executor executor
     ) {
         this(actionName, true, transportService, actionFilters, requestReader, executor);
-    }
-
-    /**
-     * @deprecated always specify an executor
-     */
-    @Deprecated(forRemoval = true)
-    protected HandledTransportAction(
-        String actionName,
-        boolean canTripCircuitBreaker,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader
-    ) {
-        this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     protected HandledTransportAction(

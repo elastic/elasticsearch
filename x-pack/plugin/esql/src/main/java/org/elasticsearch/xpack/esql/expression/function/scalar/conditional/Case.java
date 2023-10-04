@@ -162,6 +162,7 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
             .toList();
         var elseValueEval = toEvaluator.apply(elseValue);
         return dvrCtx -> new CaseEvaluator(
+            dvrCtx,
             LocalExecutionPlanner.toElementType(dataType()),
             conditionsEval.stream().map(x -> x.apply(dvrCtx)).toList(),
             elseValueEval.get(dvrCtx)
@@ -184,9 +185,12 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         }
     }
 
-    private record CaseEvaluator(ElementType resultType, List<ConditionEvaluator> conditions, EvalOperator.ExpressionEvaluator elseVal)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    private record CaseEvaluator(
+        DriverContext driverContext,
+        ElementType resultType,
+        List<ConditionEvaluator> conditions,
+        EvalOperator.ExpressionEvaluator elseVal
+    ) implements EvalOperator.ExpressionEvaluator {
         @Override
         public Block.Ref eval(Page page) {
             /*
@@ -199,40 +203,46 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
              * a time - but it's not at all fast.
              */
             int positionCount = page.getPositionCount();
-            Block.Builder result = resultType.newBlockBuilder(positionCount);
-            position: for (int p = 0; p < positionCount; p++) {
-                int[] positions = new int[] { p };
-                Page limited = new Page(
-                    IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
-                );
-                for (ConditionEvaluator condition : conditions) {
-                    try (Block.Ref conditionRef = condition.condition.eval(limited)) {
-                        if (conditionRef.block().areAllValuesNull()) {
-                            continue;
-                        }
-                        BooleanBlock b = (BooleanBlock) conditionRef.block();
-                        if (b.isNull(0)) {
-                            continue;
-                        }
-                        if (false == b.getBoolean(b.getFirstValueIndex(0))) {
-                            continue;
-                        }
-                        try (Block.Ref valueRef = condition.value.eval(limited)) {
-                            result.copyFrom(valueRef.block(), 0, 1);
-                            continue position;
+            try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+                position: for (int p = 0; p < positionCount; p++) {
+                    int[] positions = new int[] { p };
+                    Page limited = new Page(
+                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                    );
+                    for (ConditionEvaluator condition : conditions) {
+                        try (Block.Ref conditionRef = condition.condition.eval(limited)) {
+                            if (conditionRef.block().areAllValuesNull()) {
+                                continue;
+                            }
+                            BooleanBlock b = (BooleanBlock) conditionRef.block();
+                            if (b.isNull(0)) {
+                                continue;
+                            }
+                            if (false == b.getBoolean(b.getFirstValueIndex(0))) {
+                                continue;
+                            }
+                            try (Block.Ref valueRef = condition.value.eval(limited)) {
+                                result.copyFrom(valueRef.block(), 0, 1);
+                                continue position;
+                            }
                         }
                     }
+                    try (Block.Ref elseRef = elseVal.eval(limited)) {
+                        result.copyFrom(elseRef.block(), 0, 1);
+                    }
                 }
-                try (Block.Ref elseRef = elseVal.eval(limited)) {
-                    result.copyFrom(elseRef.block(), 0, 1);
-                }
+                return Block.Ref.floating(result.build());
             }
-            return Block.Ref.floating(result.build());
         }
 
         @Override
         public void close() {
             Releasables.closeExpectNoException(() -> Releasables.close(conditions), elseVal);
+        }
+
+        @Override
+        public String toString() {
+            return "CaseEvaluator[resultType=" + resultType + ", conditions=" + conditions + ", elseVal=" + elseVal + ']';
         }
     }
 }

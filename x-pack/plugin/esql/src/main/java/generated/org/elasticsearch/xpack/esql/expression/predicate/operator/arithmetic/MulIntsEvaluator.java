@@ -42,12 +42,12 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       IntBlock lhsBlock = (IntBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         IntBlock rhsBlock = (IntBlock) rhsRef.block();
         IntVector lhsVector = lhsBlock.asVector();
@@ -64,7 +64,7 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public IntBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
-    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -86,7 +86,7 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public IntBlock eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendInt(Mul.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));

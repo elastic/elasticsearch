@@ -178,13 +178,13 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                             endDoc = leaf.docBase + leaf.reader().maxDoc();
                         } while (scoreDoc.doc >= endDoc);
                         LeafFieldData fd = context.factorField.load(leaf);
-                        if (!(fd instanceof LeafNumericFieldData)) {
+                        if (false == (fd instanceof LeafNumericFieldData)) {
                             throw new IllegalArgumentException("[" + context.factorField.getFieldName() + "] is not a number");
                         }
                         data = ((LeafNumericFieldData) fd).getDoubleValues();
                     }
                     assert data != null;
-                    if (!data.advanceExact(scoreDoc.doc - leaf.docBase)) {
+                    if (false == data.advanceExact(topDocs.scoreDocs[i].doc - leaf.docBase)) {
                         throw new IllegalArgumentException("document [" + scoreDoc.doc
                             + "] does not have the field [" + context.factorField.getFieldName() + "]");
                     }

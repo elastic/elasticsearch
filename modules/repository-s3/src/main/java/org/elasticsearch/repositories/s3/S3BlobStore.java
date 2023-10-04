@@ -30,12 +30,12 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -45,7 +45,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -246,6 +245,11 @@ class S3BlobStore implements BlobStore {
         return statsCollectors.statsMap();
     }
 
+    // Package private for testing
+    StatsCollectors getStatsCollectors() {
+        return statsCollectors;
+    }
+
     public CannedAccessControlList getCannedACL() {
         return cannedACL;
     }
@@ -302,42 +306,38 @@ class S3BlobStore implements BlobStore {
 
         private final String key;
 
+        String getKey() {
+            return key;
+        }
+
         Operation(String key) {
             this.key = key;
         }
     }
 
-    class StatsCollectors {
-        final Map<String, IgnoreNoResponseMetricsCollector> collectors;
+    record StatsKey(Operation operation, OperationPurpose purpose) {}
 
-        StatsCollectors() {
-            this.collectors = new ConcurrentHashMap<>(
-                Stream.of(
-                    Operation.GET_OBJECT,
-                    Operation.LIST_OBJECTS,
-                    Operation.PUT_OBJECT,
-                    Operation.PUT_MULTIPART_OBJECT,
-                    Operation.DELETE_OBJECTS,
-                    Operation.ABORT_MULTIPART_OBJECT
-                ).collect(Collectors.toUnmodifiableMap(ops -> ops.key, this::buildMetricCollector))
-            );
-        }
+    class StatsCollectors {
+        final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
+
+        StatsCollectors() {}
 
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-            final String statsKey;
-            if (purpose == OperationPurpose.SNAPSHOT) {
-                statsKey = operation.key;
-            } else {
-                statsKey = operation.key + "/" + purpose.getKey();
-                if (false == collectors.containsKey(statsKey)) {
-                    collectors.putIfAbsent(statsKey, buildMetricCollector(operation));
-                }
+            final StatsKey statsKey = new StatsKey(operation, purpose);
+            if (false == collectors.containsKey(statsKey)) {
+                collectors.putIfAbsent(statsKey, buildMetricCollector(operation));
             }
             return collectors.get(statsKey);
         }
 
         Map<String, Long> statsMap() {
-            return Maps.transformValues(collectors, v -> v.counter.get());
+            final Map<String, Long> stats = Arrays.stream(Operation.values()).collect(Collectors.toMap(e -> e.key, e -> 0L));
+            collectors.forEach((statsKey, v) -> {
+                final String key = statsKey.operation.key;
+                assert stats.containsKey(key);
+                stats.put(key, stats.get(key) + v.counter.get());
+            });
+            return Map.copyOf(stats);
         }
 
         IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {

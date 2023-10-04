@@ -60,20 +60,25 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
@@ -213,9 +218,19 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final BlobStore blobStore = repository.blobStore();
+        assertThat(blobStore, instanceOf(BlobStoreWrapper.class));
+        final BlobStore delegateBlobStore = ((BlobStoreWrapper) blobStore).delegate();
+        assertThat(delegateBlobStore, instanceOf(S3BlobStore.class));
+        final S3BlobStore.StatsCollectors statsCollectors = ((S3BlobStore) delegateBlobStore).getStatsCollectors();
 
         // Initial stats are collected with the default operation purpose
+        final Set<String> allOperations = EnumSet.allOf(S3BlobStore.Operation.class)
+            .stream()
+            .map(S3BlobStore.Operation::getKey)
+            .collect(Collectors.toUnmodifiableSet());
+        statsCollectors.collectors.keySet().forEach(statsKey -> assertThat(statsKey.purpose(), is(OperationPurpose.SNAPSHOT)));
         final Map<String, Long> initialStats = blobStore.stats();
+        assertThat(initialStats.keySet(), equalTo(allOperations));
 
         // Collect more stats with an operation purpose other than the default
         final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT, () -> randomFrom(OperationPurpose.values()));
@@ -228,26 +243,16 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
         blobContainer.delete(purpose);
 
-        final Map<String, Long> newStats = blobStore.stats();
-        final Map<String, Long> netNewStats = newStats.entrySet().stream().filter(entry -> {
-            if (initialStats.containsKey(entry.getKey())) {
-                assertThat(entry.getValue(), equalTo(initialStats.get(entry.getKey())));
-                return false;
-            } else {
-                return true;
-            }
-        }).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
-
+        // Internal stats collection is fine-grained and records different purposes
         assertThat(
-            netNewStats.keySet(),
-            containsInAnyOrder(
-                "PutObject/" + purpose.getKey(),
-                "ListObjects/" + purpose.getKey(),
-                "GetObject/" + purpose.getKey(),
-                "DeleteObjects/" + purpose.getKey()
-            )
+            statsCollectors.collectors.keySet().stream().filter(k -> k.purpose() != OperationPurpose.SNAPSHOT).toList(),
+            not(empty())
         );
-        assertThat(netNewStats.values(), everyItem(greaterThan(0L)));
+        // The stats report aggregates over different purposes
+        final Map<String, Long> newStats = blobStore.stats();
+        assertThat(newStats.keySet(), equalTo(allOperations));
+        assertThat(newStats, not(equalTo(initialStats)));
+        newStats.forEach((k, v) -> assertThat(newStats.get(k), greaterThanOrEqualTo(initialStats.get(k))));
     }
 
     public void testEnforcedCooldownPeriod() throws IOException {

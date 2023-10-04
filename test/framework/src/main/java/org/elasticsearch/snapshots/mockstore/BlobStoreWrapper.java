@@ -44,7 +44,7 @@ public class BlobStoreWrapper implements BlobStore {
         return delegate.stats();
     }
 
-    protected BlobStore delegate() {
+    public BlobStore delegate() {
         return delegate;
     }
 

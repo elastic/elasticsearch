@@ -78,7 +78,7 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
         return dvrCtx -> {
             BytesRef out = new BytesRef();
             UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
-            return new LeftEvaluator(out, cp, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
+            return new LeftEvaluator(source, out, cp, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
         };
     }
 

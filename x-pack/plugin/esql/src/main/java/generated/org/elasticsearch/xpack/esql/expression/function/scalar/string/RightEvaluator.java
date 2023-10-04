@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -17,12 +18,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Right}.
  * This class is generated. Do not edit it.
  */
 public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final BytesRef out;
 
   private final UnicodeUtil.UTF8CodePoint cp;
@@ -33,9 +38,10 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final DriverContext driverContext;
 
-  public RightEvaluator(BytesRef out, UnicodeUtil.UTF8CodePoint cp,
+  public RightEvaluator(Source source, BytesRef out, UnicodeUtil.UTF8CodePoint cp,
       EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length,
       DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.out = out;
     this.cp = cp;
     this.str = str;
@@ -72,11 +78,21 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
     BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
     BytesRef strScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+      if (strBlock.isNull(p)) {
         result.appendNull();
         continue position;
       }
-      if (lengthBlock.isNull(p) || lengthBlock.getValueCount(p) != 1) {
+      if (strBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+        result.appendNull();
+        continue position;
+      }
+      if (lengthBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (lengthBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

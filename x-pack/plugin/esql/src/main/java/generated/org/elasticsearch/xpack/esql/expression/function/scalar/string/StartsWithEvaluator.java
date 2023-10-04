@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -16,20 +17,25 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StartsWith}.
  * This class is generated. Do not edit it.
  */
 public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final EvalOperator.ExpressionEvaluator prefix;
 
   private final DriverContext driverContext;
 
-  public StartsWithEvaluator(EvalOperator.ExpressionEvaluator str,
+  public StartsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator prefix, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.str = str;
     this.prefix = prefix;
     this.driverContext = driverContext;
@@ -65,11 +71,21 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
     BytesRef strScratch = new BytesRef();
     BytesRef prefixScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+      if (strBlock.isNull(p)) {
         result.appendNull();
         continue position;
       }
-      if (prefixBlock.isNull(p) || prefixBlock.getValueCount(p) != 1) {
+      if (strBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+        result.appendNull();
+        continue position;
+      }
+      if (prefixBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (prefixBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

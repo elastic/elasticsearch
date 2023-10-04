@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
@@ -17,20 +18,25 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Concat}.
  * This class is generated. Do not edit it.
  */
 public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final BreakingBytesRefBuilder scratch;
 
   private final EvalOperator.ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
-  public ConcatEvaluator(BreakingBytesRefBuilder scratch, EvalOperator.ExpressionEvaluator[] values,
-      DriverContext driverContext) {
+  public ConcatEvaluator(Source source, BreakingBytesRefBuilder scratch,
+      EvalOperator.ExpressionEvaluator[] values, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.scratch = scratch;
     this.values = values;
     this.driverContext = driverContext;
@@ -69,7 +75,12 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
     }
     position: for (int p = 0; p < positionCount; p++) {
       for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
+        if (valuesBlocks[i].isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valuesBlocks[i].getValueCount(p) != 1) {
+          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           result.appendNull();
           continue position;
         }

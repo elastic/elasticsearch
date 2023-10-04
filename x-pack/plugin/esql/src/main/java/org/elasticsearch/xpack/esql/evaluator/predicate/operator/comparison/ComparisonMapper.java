@@ -13,6 +13,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
+import org.elasticsearch.xpack.esql.expression.function.QuadFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -75,18 +76,18 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
     ) {
     };
 
-    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints;
-    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs;
-    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles;
-    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords;
-    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> bools;
+    private final QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints;
+    private final QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs;
+    private final QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles;
+    private final QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords;
+    private final QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> bools;
 
     private ComparisonMapper(
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> bools
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints,
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs,
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles,
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords,
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> bools
     ) {
         this.ints = ints;
         this.longs = longs;
@@ -96,16 +97,16 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
     }
 
     ComparisonMapper(
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints,
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs,
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles,
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords
     ) {
         this.ints = ints;
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs, dvrCtx) -> { throw EsqlIllegalArgumentException.illegalDataType(DataTypes.BOOLEAN); };
+        this.bools = (src, lhs, rhs, dvrCtx) -> { throw EsqlIllegalArgumentException.illegalDataType(DataTypes.BOOLEAN); };
     }
 
     @Override
@@ -130,13 +131,13 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         var leftEval = toEvaluator(bc.left(), layout);
         var rightEval = toEvaluator(bc.right(), layout);
         if (leftType == DataTypes.KEYWORD || leftType == DataTypes.TEXT || leftType == DataTypes.IP || leftType == DataTypes.VERSION) {
-            return dvrCtx -> keywords.apply(leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
+            return dvrCtx -> keywords.apply(bc.source(), leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
         }
         if (leftType == DataTypes.BOOLEAN) {
-            return dvrCtx -> bools.apply(leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
+            return dvrCtx -> bools.apply(bc.source(), leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
         }
         if (leftType == DataTypes.DATETIME) {
-            return dvrCtx -> longs.apply(leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
+            return dvrCtx -> longs.apply(bc.source(), leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
     }
@@ -145,25 +146,10 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
         BinaryOperator<?, ?, ?, ?> op,
         Layout layout,
         DataType required,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> buildEvaluator
+        QuadFunction<Source, ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> buildEvaluator
     ) {
-        var lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
-        var rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
-        return dvrCtx -> buildEvaluator.apply(lhs.get(dvrCtx), rhs.get(dvrCtx), dvrCtx);
-    }
-
-    public static ExpressionEvaluator.Factory castToEvaluatorWithSource(
-        BinaryOperator<?, ?, ?, ?> op,
-        Layout layout,
-        DataType required,
-        TriFunction<
-            Source,
-            EvalOperator.ExpressionEvaluator,
-            EvalOperator.ExpressionEvaluator,
-            EvalOperator.ExpressionEvaluator> buildEvaluator
-    ) {
-        var lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
-        var rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
-        return dvrCtx -> buildEvaluator.apply(op.source(), lhs.get(dvrCtx), rhs.get(dvrCtx));
+        var lhs = Cast.cast(op.source(), op.left().dataType(), required, toEvaluator(op.left(), layout));
+        var rhs = Cast.cast(op.source(), op.right().dataType(), required, toEvaluator(op.right(), layout));
+        return dvrCtx -> buildEvaluator.apply(op.source(), lhs.get(dvrCtx), rhs.get(dvrCtx), dvrCtx);
     }
 }

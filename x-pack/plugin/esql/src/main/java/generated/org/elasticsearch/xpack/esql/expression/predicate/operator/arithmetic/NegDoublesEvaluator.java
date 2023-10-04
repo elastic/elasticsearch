@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -13,17 +14,23 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Neg}.
  * This class is generated. Do not edit it.
  */
 public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator v;
 
   private final DriverContext driverContext;
 
-  public NegDoublesEvaluator(EvalOperator.ExpressionEvaluator v, DriverContext driverContext) {
+  public NegDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
+      DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
   }
@@ -46,7 +53,12 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleBlock eval(int positionCount, DoubleBlock vBlock) {
     DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+      if (vBlock.isNull(p)) {
+        result.appendNull();
+        continue position;
+      }
+      if (vBlock.getValueCount(p) != 1) {
+        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
         result.appendNull();
         continue position;
       }

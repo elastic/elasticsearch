@@ -135,9 +135,15 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
         var strSupplier = toEvaluator.apply(str);
         var startSupplier = toEvaluator.apply(start);
         if (length == null) {
-            return dvrCtx -> new SubstringNoLengthEvaluator(strSupplier.get(dvrCtx), startSupplier.get(dvrCtx), dvrCtx);
+            return dvrCtx -> new SubstringNoLengthEvaluator(source(), strSupplier.get(dvrCtx), startSupplier.get(dvrCtx), dvrCtx);
         }
         var lengthSupplier = toEvaluator.apply(length);
-        return dvrCtx -> new SubstringEvaluator(strSupplier.get(dvrCtx), startSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
+        return dvrCtx -> new SubstringEvaluator(
+            source(),
+            strSupplier.get(dvrCtx),
+            startSupplier.get(dvrCtx),
+            lengthSupplier.get(dvrCtx),
+            dvrCtx
+        );
     }
 }

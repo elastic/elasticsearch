@@ -118,12 +118,12 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         var str = toEvaluator.apply(left());
         if (right().foldable() == false) {
             var delim = toEvaluator.apply(right());
-            return dvrCtx -> new SplitVariableEvaluator(str.get(dvrCtx), delim.get(dvrCtx), new BytesRef(), dvrCtx);
+            return dvrCtx -> new SplitVariableEvaluator(source(), str.get(dvrCtx), delim.get(dvrCtx), new BytesRef(), dvrCtx);
         }
         BytesRef delim = (BytesRef) right().fold();
         if (delim.length != 1) {
             throw new QlIllegalArgumentException("for now delimiter must be a single byte");
         }
-        return dvrCtx -> new SplitSingleByteEvaluator(str.get(dvrCtx), delim.bytes[delim.offset], new BytesRef(), dvrCtx);
+        return dvrCtx -> new SplitSingleByteEvaluator(source(), str.get(dvrCtx), delim.bytes[delim.offset], new BytesRef(), dvrCtx);
     }
 }

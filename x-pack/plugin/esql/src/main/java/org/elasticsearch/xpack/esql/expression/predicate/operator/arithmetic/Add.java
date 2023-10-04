@@ -35,7 +35,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddIntsEvaluator::new,
             AddLongsEvaluator::new,
             AddUnsignedLongsEvaluator::new,
-            (s, l, r, dvrCtx) -> new AddDoublesEvaluator(l, r, dvrCtx),
+            (s, l, r, dvrCtx) -> new AddDoublesEvaluator(source, l, r, dvrCtx),
             AddDatetimesEvaluator::new
         );
     }

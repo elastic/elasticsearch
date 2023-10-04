@@ -46,7 +46,7 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
             return dvrCtx -> new SqrtLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return dvrCtx -> new SqrtUnsignedLongEvaluator(field.get(dvrCtx), dvrCtx);
+            return dvrCtx -> new SqrtUnsignedLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
 
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);

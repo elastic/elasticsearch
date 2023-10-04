@@ -174,22 +174,22 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
         if (dataType == DataTypes.DOUBLE) {
             return dvrCtx -> new PowDoubleEvaluator(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
+                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
+                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
                 dvrCtx
             );
         } else if (dataType == DataTypes.LONG) {
             return dvrCtx -> new PowLongEvaluator(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
+                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
+                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
                 dvrCtx
             );
         } else {
             return dvrCtx -> new PowIntEvaluator(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
+                cast(source(), base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
+                cast(source(), exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
                 dvrCtx
             );
         }

@@ -82,7 +82,7 @@ public class Right extends ScalarFunction implements EvaluatorMapper {
         return dvrCtx -> {
             BytesRef out = new BytesRef();
             UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
-            return new RightEvaluator(out, cp, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
+            return new RightEvaluator(source, out, cp, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
         };
     }
 

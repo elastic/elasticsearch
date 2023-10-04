@@ -92,6 +92,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             return future.actionGet(2, TimeUnit.MINUTES);
         } catch (Exception e) {
             assertTrue("request must be failed or completed after clearing disruption", future.isDone());
+            ensureBlocksReleased();
             logger.info("--> failed to execute esql query with disruption; retrying...", e);
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         }

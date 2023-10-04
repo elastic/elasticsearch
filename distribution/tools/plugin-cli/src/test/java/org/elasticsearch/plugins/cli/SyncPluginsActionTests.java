@@ -8,15 +8,17 @@
 package org.elasticsearch.plugins.cli;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.plugins.cli.SyncPluginsAction.PluginChanges;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -129,7 +131,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * since we can't automatically upgrade it.
      */
     public void test_getPluginChanges_withPluginToUpgrade_returnsNoChanges() throws Exception {
-        createPlugin("my-plugin", Version.CURRENT.previousMajor());
+        createPlugin("my-plugin", VersionUtils.getPreviousVersion().toString());
         config.setPlugins(List.of(new InstallablePlugin("my-plugin")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
@@ -142,7 +144,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * but needs to be upgraded, then we calculate that the plugin needs to be upgraded.
      */
     public void test_getPluginChanges_withOfficialPluginToUpgrade_returnsPluginToUpgrade() throws Exception {
-        createPlugin("analysis-icu", Version.CURRENT.previousMajor());
+        createPlugin("analysis-icu", VersionUtils.getPreviousVersion().toString());
         config.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
 
         final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
@@ -329,10 +331,10 @@ public class SyncPluginsActionTests extends ESTestCase {
     }
 
     private void createPlugin(String name) throws IOException {
-        createPlugin(name, Version.CURRENT);
+        createPlugin(name, unqualifiedCurrentVersion());
     }
 
-    private void createPlugin(String name, Version version) throws IOException {
+    private void createPlugin(String name, String version) throws IOException {
         PluginTestUtil.writePluginProperties(
             env.pluginsFile().resolve(name),
             "description",
@@ -342,11 +344,24 @@ public class SyncPluginsActionTests extends ESTestCase {
             "version",
             "1.0",
             "elasticsearch.version",
-            version.toString(),
+            version,
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
             "SomeClass"
         );
+    }
+
+    /**
+     * If the version ends in -SNAPSHOT, we need to remove that suffix to build a version that PluginDescriptor can
+     * read. This should be removed when {@link PluginDescriptor#getElasticsearchVersion()} is removed and
+     * PluginDescriptor can support arbitrary strings.
+     */
+    private static String unqualifiedCurrentVersion() {
+        var version = Build.current().version();
+        if (version.endsWith("-SNAPSHOT")) {
+            return version.substring(0, version.length() - "-SNAPSHOT".length());
+        }
+        return version;
     }
 }

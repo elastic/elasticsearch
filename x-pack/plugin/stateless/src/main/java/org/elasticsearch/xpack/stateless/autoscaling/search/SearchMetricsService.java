@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -117,22 +118,25 @@ public class SearchMetricsService implements ClusterStateListener {
         }
         if (event.metadataChanged() || initialized == false) {
             var state = event.state();
-            indices.keySet().removeIf(index -> state.metadata().hasIndex(index) == false);
-            shardMetrics.keySet().removeIf(shardId -> state.metadata().hasIndex(shardId.getIndex()) == false);
+            indices.keySet().removeIf(index -> state.metadata().hasIndex(index) == false || hasZeroReplicas(index, state));
+            shardMetrics.keySet()
+                .removeIf(shardId -> state.metadata().hasIndex(shardId.getIndex()) == false || hasZeroReplicas(shardId.getIndex(), state));
 
             Function<ShardId, ShardMetrics> newShardMetricFactory = initialized
                 ? newIndexShardMetricFactory()
                 : shardId -> new ShardMetrics();
 
             for (IndexMetadata metadata : state.metadata().indices().values()) {
-                // using min_replicas when auto-expand is used to not prevent possible scale downs
-                var shardCopies = metadata.getAutoExpandReplicas() != null && metadata.getAutoExpandReplicas().enabled()
-                    ? metadata.getAutoExpandReplicas().minReplicas()
-                    : metadata.getNumberOfReplicas();
+                int shardCopies = getNumberOfReplicas(metadata);
+                if (shardCopies == 0) {
+                    continue;
+                }
+
                 indices.put(metadata.getIndex(), new IndexShardsSettings(metadata.getNumberOfShards(), shardCopies));
                 for (int i = 0; i < metadata.getNumberOfShards(); i++) {
                     shardMetrics.computeIfAbsent(new ShardId(metadata.getIndex(), i), newShardMetricFactory);
                 }
+
             }
         }
         if (event.nodesChanged() || initialized == false) {
@@ -235,6 +239,17 @@ public class SearchMetricsService implements ClusterStateListener {
     }
 
     private record IndexShardsSettings(int shards, int replicas) {}
+
+    private static boolean hasZeroReplicas(Index index, ClusterState state) {
+        return getNumberOfReplicas(state.metadata().index(index)) == 0;
+    }
+
+    private static int getNumberOfReplicas(IndexMetadata metadata) {
+        return metadata.getAutoExpandReplicas() != null && metadata.getAutoExpandReplicas().enabled()
+            // For indices with auto-expand we expect that at least 1 replica can be allocated
+            ? Math.max(metadata.getAutoExpandReplicas().minReplicas(), 1)
+            : metadata.getNumberOfReplicas();
+    }
 
     // visible for testing
     ConcurrentMap<Index, IndexShardsSettings> getIndices() {

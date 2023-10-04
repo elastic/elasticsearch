@@ -22,13 +22,16 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
 
@@ -125,6 +128,96 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(metrics.getStorageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
             assertThat(metrics.getStorageMetrics().totalDataSizeInBytes(), greaterThan(0L));
         });
+    }
+
+    public void testIndicesWithZeroReplicasAreNotTakenIntoAccount() throws Exception {
+        var masterNode = startMasterNode();
+        startMasterNode();
+        startIndexNode();
+        startSearchNode(Settings.builder().put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        indexDocumentsWithTimestamp(
+            indexName,
+            randomIntBetween(1, 100),
+            boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
+            now
+        );
+        refresh(indexName);
+        assertBusy(() -> {
+            var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+            var metrics = searchMetricsService.getSearchTierMetrics();
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(0, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().quality(), is(equalTo(MetricQuality.EXACT)));
+        });
+
+        internalCluster().stopNode(masterNode);
+
+        assertBusy(() -> {
+            var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+            var metrics = searchMetricsService.getSearchTierMetrics();
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(0, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().quality(), is(equalTo(MetricQuality.EXACT)));
+        });
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+
+        assertBusy(() -> {
+            var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+            var metrics = searchMetricsService.getSearchTierMetrics();
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().quality(), is(equalTo(MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
+            assertThat(metrics.getStorageMetrics().totalDataSizeInBytes(), greaterThan(0L));
+        });
+    }
+
+    public void testIndicesWithUpdatedReplicasAreTakenIntoAccount() throws Exception {
+        startMasterNode();
+        startIndexNode();
+        startSearchNode(Settings.builder().put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).build());
+
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        indexDocumentsWithTimestamp(
+            indexName,
+            randomIntBetween(1, 100),
+            boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
+            now
+        );
+        refresh(indexName);
+        assertBusy(() -> {
+            var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+            var metrics = searchMetricsService.getSearchTierMetrics();
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(1, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().quality(), is(equalTo(MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().totalInteractiveDataSizeInBytes(), greaterThan(0L));
+            assertThat(metrics.getStorageMetrics().totalDataSizeInBytes(), greaterThan(0L));
+        });
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0), indexName);
+
+        assertBusy(() -> {
+            var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
+            var metrics = searchMetricsService.getSearchTierMetrics();
+            assertThat(metrics.getMaxShardCopies(), equalTo(new MaxShardCopies(0, MetricQuality.EXACT)));
+            assertThat(metrics.getStorageMetrics().quality(), is(equalTo(MetricQuality.EXACT)));
+        });
+    }
+
+    private String startMasterNode() {
+        return internalCluster().startMasterOnlyNode(
+            nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
     }
 
     private void indexDocumentsWithTimestamp(String indexName, int numDocs, long minTimestamp, long maxTimestamp) {

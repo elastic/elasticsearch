@@ -58,27 +58,29 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock rhsBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(NotEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(NotEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

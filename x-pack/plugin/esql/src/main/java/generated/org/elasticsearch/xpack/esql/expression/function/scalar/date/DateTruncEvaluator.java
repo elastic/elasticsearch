@@ -49,23 +49,25 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendLong(DateTrunc.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), rounding));
       }
-      result.appendLong(DateTrunc.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), rounding));
+      return result.build();
     }
-    return result.build();
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding));
+    try (LongVector.Builder result = LongVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

@@ -69,29 +69,31 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock lengthBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (lengthBlock.isNull(p) || lengthBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBytesRef(Left.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
       }
-      if (lengthBlock.isNull(p) || lengthBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBytesRef(Left.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector lengthVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(Left.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
+    try (BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(Left.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

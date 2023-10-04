@@ -927,8 +927,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | limit 5
             """));
 
-        System.out.println(optimized);
-
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
         var exchange = asRemoteExchange(topN.child());

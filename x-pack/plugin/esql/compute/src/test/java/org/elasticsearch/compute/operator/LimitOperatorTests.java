@@ -9,14 +9,18 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
@@ -84,5 +88,63 @@ public class LimitOperatorTests extends OperatorTestCase {
         assertTrue(op.needsInput());
         op.finish();
         assertFalse(op.needsInput());
+    }
+
+    public void testBlockBiggerThanRemaining() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        for (int i = 0; i < 100; i++) {
+            try (var op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+                assertTrue(op.needsInput());
+                Page p = new Page(randomBlock(blockFactory, 200));  // test doesn't close because operator returns a view
+                op.addInput(p);
+                assertFalse(op.needsInput());
+                Page result = op.getOutput();
+                try {
+                    assertThat(result.getPositionCount(), equalTo(100));
+                } finally {
+                    result.releaseBlocks();
+                }
+                assertFalse(op.needsInput());
+                assertTrue(op.isFinished());
+            }
+        }
+    }
+
+    public void testBlockPreciselyRemaining() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        for (int i = 0; i < 100; i++) {
+            try (var op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+                assertTrue(op.needsInput());
+                Page p = new Page(randomBlock(blockFactory, 100));  // test doesn't close because operator returns same page
+                op.addInput(p);
+                assertFalse(op.needsInput());
+                Page result = op.getOutput();
+                try {
+                    assertThat(result, sameInstance(p));
+                } finally {
+                    result.releaseBlocks();
+                }
+                assertFalse(op.needsInput());
+                assertTrue(op.isFinished());
+            }
+        }
+    }
+
+    Block randomBlock(BlockFactory blockFactory, int size) {
+        if (randomBoolean()) {
+            return blockFactory.newConstantNullBlock(size);
+        }
+        return BasicBlockTests.randomBlock(blockFactory, randomElement(), size, false, 1, 1, 0, 0).block();
+    }
+
+    static ElementType randomElement() {
+        List<ElementType> l = new ArrayList<>();
+        for (ElementType elementType : ElementType.values()) {
+            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+                continue;
+            }
+            l.add(elementType);
+        }
+        return randomFrom(l);
     }
 }

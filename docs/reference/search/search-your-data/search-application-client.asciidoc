@@ -98,7 +98,7 @@ Find this information on the *Connect* page in the Kibana UI.
 
 Use the following import statement:
 
-[source, javascript]
+[source, js]
 ----
 import SearchApplicationClient from '@elastic/search-application-client';
 ----
@@ -108,7 +108,7 @@ You can generate an API key on the *Connect* page in the Kibana UI.
 Go to *Search > Search Applications >* <MY_SEARCH_APPLICATION> *> Connect*.
 You'll find the following information prepopulated to initialize the client:
 
-[source, javascript]
+[source, js]
 ----
 import Client from '@elastic/search-application-client'
 
@@ -124,7 +124,7 @@ const request = Client(
 
 Once configured you'll be able to make search requests to your search application using the https://github.com/elastic/search-application-client#api-reference[client API], like this:
 
-[source, javascript]
+[source, js]
 ----
 const results = await request()
   .query('star wars')
@@ -230,7 +230,7 @@ Use `addParameter` to inject actual values into your template parameters.
 
 For example, pass in values for `search_fields` like this:
 
-[source, javascript]
+[source, js]
 ----
 const results = await request()
   .query('star wars') // requires the template to use query parameter
@@ -506,7 +506,7 @@ For example:
 When displaying the fields in the frontend, you will need to first determine if the field has a highlight.
 To simplify this, we provide a helper.
 
-[source, javascript]
+[source, js]
 ----
 import Client, { Highlight } from '@elastic/search-application-client'
 
@@ -531,7 +531,7 @@ The `size` and `from` parameters allow you to control the page and number of hit
 
 We can do this using the client with the `setSize` and `setFrom` methods.
 
-[source, javascript]
+[source, js]
 ----
 // page 1
 const results = await request()
@@ -557,7 +557,7 @@ Refer to our <<search-application-client-client-template-example,example templat
 By default, the results will be sorted in order of score.
 If you need to sort on a field other than the score, use the `setSort` method with an array of objects.
 
-[source, javascript]
+[source, js]
 ----
 const results = await request()
  .setSort([{ year: 'asc' }, '_score'])
@@ -587,7 +587,7 @@ If you need to use a particular clause, you can update the template schema.
 
 Below is an example of using `setFilter`.
 
-[source, javascript]
+[source, js]
 ----
 // return only "star wars" movies that are rated PG
 const results = await request()
@@ -608,7 +608,7 @@ The client supports the ability to configure facets with your results.
 Specify facets in the client initialization call.
 For example, say we want to add facets for actors, directors and IMDB rating.
 
-[source, javascript]
+[source, js]
 ----
 const request = Client(
   'my-example-app', // search application name
@@ -651,7 +651,7 @@ In the following example, we only want to return movies:
 * Directed by George Lucas _or_ Ridley Scott
 * With an IMBD rating greater than 7.5
 
-[source, javascript]
+[source, js]
 ----
 const results = await request()
   .addFacetFilter('actors', 'Harrison Ford')

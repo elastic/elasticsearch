@@ -1,2 +1,0 @@
-[[search-applications]]
-== Search Applications

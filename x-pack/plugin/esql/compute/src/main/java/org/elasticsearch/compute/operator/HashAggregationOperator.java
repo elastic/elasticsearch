@@ -63,6 +63,8 @@ public class HashAggregationOperator implements Operator {
 
     private final List<GroupingAggregator> aggregators;
 
+    private final DriverContext driverContext;
+
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
         List<GroupingAggregator.Factory> aggregators,
@@ -70,6 +72,7 @@ public class HashAggregationOperator implements Operator {
         DriverContext driverContext
     ) {
         this.aggregators = new ArrayList<>(aggregators.size());
+        this.driverContext = driverContext;
         boolean success = false;
         try {
             this.blockHash = blockHash.get();
@@ -150,7 +153,7 @@ public class HashAggregationOperator implements Operator {
             int offset = keys.length;
             for (int i = 0; i < aggregators.size(); i++) {
                 var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected);
+                aggregator.evaluate(blocks, offset, selected, driverContext);
                 offset += aggBlockCounts[i];
             }
             output = new Page(blocks);

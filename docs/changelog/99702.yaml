@@ -1,0 +1,6 @@
+pr: 99702
+summary: Making classname optional in Transport protocol
+area: Infra/Plugins
+type: bug
+issues:
+ - 98584

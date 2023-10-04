@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -51,7 +52,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         NamedXContentRegistry xContentRegistry,
         MlControllerHolder mlControllerHolder
     ) {
-        super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new);
+        super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
 

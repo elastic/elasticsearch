@@ -279,7 +279,7 @@ public class OrdinalsGroupingOperator implements Operator {
                 try (IntVector selected = IntVector.range(0, blocks[0].getPositionCount(), driverContext.blockFactory())) {
                     int offset = 1;
                     for (int i = 0; i < aggregators.size(); i++) {
-                        aggregators.get(i).evaluate(blocks, offset, selected);
+                        aggregators.get(i).evaluate(blocks, offset, selected, driverContext);
                         offset += aggBlockCounts[i];
                     }
                 }

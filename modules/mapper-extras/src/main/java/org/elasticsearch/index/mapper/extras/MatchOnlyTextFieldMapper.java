@@ -211,9 +211,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     };
                 };
             }
-            ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
-            SourceProvider sourceProvider = searchExecutionContext.lookup();
             return context -> {
+                ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
+                SourceProvider sourceProvider = searchExecutionContext.lookup();
                 valueFetcher.setNextReader(context);
                 return docID -> {
                     try {

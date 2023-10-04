@@ -34,7 +34,7 @@ public class ETests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
-                "LiteralsEvaluator[block=2.718281828459045]",
+                "LiteralsEvaluator[lit=2.718281828459045]",
                 DataTypes.DOUBLE,
                 equalTo(Math.E)
             );

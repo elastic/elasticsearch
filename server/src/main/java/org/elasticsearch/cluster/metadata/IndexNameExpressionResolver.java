@@ -1417,12 +1417,15 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        @SuppressWarnings("fallthrough")
         static String resolveExpression(String expression, LongSupplier getTime) {
             if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
                 return expression;
             }
+            return doResolveExpression(expression, getTime);
+        }
 
+        @SuppressWarnings("fallthrough")
+        private static String doResolveExpression(String expression, LongSupplier getTime) {
             boolean escape = false;
             boolean inDateFormat = false;
             boolean inPlaceHolder = false;
@@ -1636,14 +1639,26 @@ public class IndexNameExpressionResolver {
         }
 
         private static void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, List<String> indexExpressions) {
-            if (options.ignoreUnavailable() == false) {
-                List<String> crossClusterIndices = indexExpressions.stream().filter(index -> index.contains(":")).toList();
-                if (crossClusterIndices.size() > 0) {
-                    throw new IllegalArgumentException(
-                        "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
-                    );
+            if (options.ignoreUnavailable()) {
+                return;
+            }
+            for (String index : indexExpressions) {
+                if (index.contains(":")) {
+                    failOnRemoteIndicesNotIgnoringUnavailable(indexExpressions);
                 }
             }
+        }
+
+        private static void failOnRemoteIndicesNotIgnoringUnavailable(List<String> indexExpressions) {
+            List<String> crossClusterIndices = new ArrayList<>();
+            for (String index : indexExpressions) {
+                if (index.contains(":")) {
+                    crossClusterIndices.add(index);
+                }
+            }
+            throw new IllegalArgumentException(
+                "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
+            );
         }
     }
 

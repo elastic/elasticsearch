@@ -481,17 +481,18 @@ public class TopNOperatorTests extends OperatorTestCase {
             elementTypes.add(e);
             encoders.add(e == BYTES_REF ? UTF8 : DEFAULT_UNSORTABLE);
             List<Object> eTop = new ArrayList<>();
-            Block.Builder builder = e.newBlockBuilder(size);
-            for (int i = 0; i < size; i++) {
-                Object value = randomValue(e);
-                append(builder, value);
-                if (i >= size - topCount) {
-                    eTop.add(value);
+            try (Block.Builder builder = e.newBlockBuilder(size, driverContext().blockFactory())) {
+                for (int i = 0; i < size; i++) {
+                    Object value = randomValue(e);
+                    append(builder, value);
+                    if (i >= size - topCount) {
+                        eTop.add(value);
+                    }
                 }
+                Collections.reverse(eTop);
+                blocks.add(builder.build());
+                expectedTop.add(eTop);
             }
-            Collections.reverse(eTop);
-            blocks.add(builder.build());
-            expectedTop.add(eTop);
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
@@ -552,35 +553,36 @@ public class TopNOperatorTests extends OperatorTestCase {
             elementTypes.add(e);
             encoders.add(e == BYTES_REF ? UTF8 : DEFAULT_SORTABLE);
             List<Object> eTop = new ArrayList<>();
-            Block.Builder builder = e.newBlockBuilder(rows);
-            for (int i = 0; i < rows; i++) {
-                if (e != ElementType.DOC && e != ElementType.NULL && randomBoolean()) {
-                    // generate a multi-value block
-                    int mvCount = randomIntBetween(5, 10);
-                    List<Object> eTopList = new ArrayList<>(mvCount);
-                    builder.beginPositionEntry();
-                    for (int j = 0; j < mvCount; j++) {
+            try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
+                for (int i = 0; i < rows; i++) {
+                    if (e != ElementType.DOC && e != ElementType.NULL && randomBoolean()) {
+                        // generate a multi-value block
+                        int mvCount = randomIntBetween(5, 10);
+                        List<Object> eTopList = new ArrayList<>(mvCount);
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < mvCount; j++) {
+                            Object value = randomValue(e);
+                            append(builder, value);
+                            if (i >= rows - topCount) {
+                                eTopList.add(value);
+                            }
+                        }
+                        builder.endPositionEntry();
+                        if (i >= rows - topCount) {
+                            eTop.add(eTopList);
+                        }
+                    } else {
                         Object value = randomValue(e);
                         append(builder, value);
                         if (i >= rows - topCount) {
-                            eTopList.add(value);
+                            eTop.add(value);
                         }
                     }
-                    builder.endPositionEntry();
-                    if (i >= rows - topCount) {
-                        eTop.add(eTopList);
-                    }
-                } else {
-                    Object value = randomValue(e);
-                    append(builder, value);
-                    if (i >= rows - topCount) {
-                        eTop.add(value);
-                    }
                 }
+                Collections.reverse(eTop);
+                blocks.add(builder.build());
+                expectedTop.add(eTop);
             }
-            Collections.reverse(eTop);
-            blocks.add(builder.build());
-            expectedTop.add(eTop);
         }
 
         List<List<Object>> actualTop = new ArrayList<>();
@@ -936,66 +938,68 @@ public class TopNOperatorTests extends OperatorTestCase {
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
-            Block.Builder builder = e.newBlockBuilder(rows);
-            List<Object> previousValue = null;
-            Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
-            if (e == BYTES_REF) {
-                if (rarely()) {
-                    if (randomBoolean()) {
-                        // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
-                        randomValueSupplier = (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                        // use the right BytesRef encoder (don't touch the bytes)
-                        encoders.add(TopNEncoder.IP);
+            try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
+                List<Object> previousValue = null;
+                Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
+                if (e == BYTES_REF) {
+                    if (rarely()) {
+                        if (randomBoolean()) {
+                            // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
+                            randomValueSupplier = (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            // use the right BytesRef encoder (don't touch the bytes)
+                            encoders.add(TopNEncoder.IP);
+                        } else {
+                            // create a valid Version
+                            randomValueSupplier = (blockType) -> randomVersion().toBytesRef();
+                            // use the right BytesRef encoder (don't touch the bytes)
+                            encoders.add(TopNEncoder.VERSION);
+                        }
                     } else {
-                        // create a valid Version
-                        randomValueSupplier = (blockType) -> randomVersion().toBytesRef();
-                        // use the right BytesRef encoder (don't touch the bytes)
-                        encoders.add(TopNEncoder.VERSION);
+                        encoders.add(UTF8);
                     }
                 } else {
-                    encoders.add(UTF8);
+                    encoders.add(DEFAULT_SORTABLE);
                 }
-            } else {
-                encoders.add(DEFAULT_SORTABLE);
-            }
 
-            for (int i = 0; i < rows; i++) {
-                List<Object> values = new ArrayList<>();
-                // let's make things a bit more real for this TopN sorting: have some "equal" values in different rows for the same block
-                if (rarely() && previousValue != null) {
-                    values = previousValue;
-                } else {
-                    if (e != ElementType.NULL && randomBoolean()) {
-                        // generate a multi-value block
-                        int mvCount = randomIntBetween(5, 10);
-                        for (int j = 0; j < mvCount; j++) {
+                for (int i = 0; i < rows; i++) {
+                    List<Object> values = new ArrayList<>();
+                    // let's make things a bit more real for this TopN sorting: have some "equal" values in different rows for the same
+                    // block
+                    if (rarely() && previousValue != null) {
+                        values = previousValue;
+                    } else {
+                        if (e != ElementType.NULL && randomBoolean()) {
+                            // generate a multi-value block
+                            int mvCount = randomIntBetween(5, 10);
+                            for (int j = 0; j < mvCount; j++) {
+                                Object value = randomValueSupplier.apply(e);
+                                values.add(value);
+                            }
+                        } else {// null or single-valued value
                             Object value = randomValueSupplier.apply(e);
                             values.add(value);
                         }
-                    } else {// null or single-valued value
-                        Object value = randomValueSupplier.apply(e);
-                        values.add(value);
+
+                        if (usually() && randomBoolean()) {
+                            // let's remember the "previous" value, maybe we'll use it again in a different row
+                            previousValue = values;
+                        }
                     }
 
-                    if (usually() && randomBoolean()) {
-                        // let's remember the "previous" value, maybe we'll use it again in a different row
-                        previousValue = values;
+                    if (values.size() == 1) {
+                        append(builder, values.get(0));
+                    } else {
+                        builder.beginPositionEntry();
+                        for (Object o : values) {
+                            append(builder, o);
+                        }
+                        builder.endPositionEntry();
                     }
+
+                    expectedValues.get(i).add(values);
                 }
-
-                if (values.size() == 1) {
-                    append(builder, values.get(0));
-                } else {
-                    builder.beginPositionEntry();
-                    for (Object o : values) {
-                        append(builder, o);
-                    }
-                    builder.endPositionEntry();
-                }
-
-                expectedValues.get(i).add(values);
+                blocks.add(builder.build());
             }
-            blocks.add(builder.build());
         }
 
         // simulate the LogicalPlanOptimizer.PruneRedundantSortClauses by eliminating duplicate sorting columns (same column, same asc/desc,
@@ -1016,7 +1020,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 uniqueOrders.stream().toList(),
                 rows
             ),
-            List.of(new Page(blocks.toArray(Block[]::new))).iterator()
+            List.of(new Page(blocks.toArray(Block[]::new))).iterator(),
+            driverContext
         );
         for (Page p : results) {
             readAsRows(actualValues, p);
@@ -1035,51 +1040,52 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testIPSortingSingleValue() throws UnknownHostException {
         List<String> ips = List.of("123.4.245.23", "104.244.253.29", "1.198.3.93", "32.183.93.40", "104.30.244.2", "104.244.4.1");
-        Block.Builder builder = BYTES_REF.newBlockBuilder(ips.size());
-        boolean asc = randomBoolean();
+        try (Block.Builder builder = BYTES_REF.newBlockBuilder(ips.size(), driverContext().blockFactory())) {
+            boolean asc = randomBoolean();
 
-        for (String ip : ips) {
-            append(builder, new BytesRef(InetAddressPoint.encode(InetAddress.getByName(ip))));
+            for (String ip : ips) {
+                append(builder, new BytesRef(InetAddressPoint.encode(InetAddress.getByName(ip))));
+            }
+
+            DriverContext driverContext = driverContext();
+            List<List<Object>> actual = new ArrayList<>();
+            try (
+                Driver driver = new Driver(
+                    driverContext,
+                    new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
+                    List.of(
+                        new TopNOperator(
+                            driverContext.blockFactory(),
+                            nonBreakingBigArrays().breakerService().getBreaker("request"),
+                            ips.size(),
+                            List.of(BYTES_REF),
+                            List.of(TopNEncoder.IP),
+                            List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
+                            randomPageSize()
+                        )
+                    ),
+                    new PageConsumerOperator(p -> readInto(actual, p)),
+                    () -> {}
+                )
+            ) {
+                runDriver(driver);
+            }
+
+            assertThat(actual.size(), equalTo(1));
+            List<String> actualDecodedIps = actual.get(0)
+                .stream()
+                .map(row -> InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) row).bytes))
+                .map(NetworkAddress::format)
+                .collect(Collectors.toCollection(ArrayList::new));
+            assertThat(
+                actualDecodedIps,
+                equalTo(
+                    asc
+                        ? List.of("1.198.3.93", "32.183.93.40", "104.30.244.2", "104.244.4.1", "104.244.253.29", "123.4.245.23")
+                        : List.of("123.4.245.23", "104.244.253.29", "104.244.4.1", "104.30.244.2", "32.183.93.40", "1.198.3.93")
+                )
+            );
         }
-
-        DriverContext driverContext = driverContext();
-        List<List<Object>> actual = new ArrayList<>();
-        try (
-            Driver driver = new Driver(
-                driverContext,
-                new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
-                List.of(
-                    new TopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        ips.size(),
-                        List.of(BYTES_REF),
-                        List.of(TopNEncoder.IP),
-                        List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                        randomPageSize()
-                    )
-                ),
-                new PageConsumerOperator(p -> readInto(actual, p)),
-                () -> {}
-            )
-        ) {
-            runDriver(driver);
-        }
-
-        assertThat(actual.size(), equalTo(1));
-        List<String> actualDecodedIps = actual.get(0)
-            .stream()
-            .map(row -> InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) row).bytes))
-            .map(NetworkAddress::format)
-            .collect(Collectors.toCollection(ArrayList::new));
-        assertThat(
-            actualDecodedIps,
-            equalTo(
-                asc
-                    ? List.of("1.198.3.93", "32.183.93.40", "104.30.244.2", "104.244.4.1", "104.244.253.29", "123.4.245.23")
-                    : List.of("123.4.245.23", "104.244.253.29", "104.244.4.1", "104.30.244.2", "32.183.93.40", "1.198.3.93")
-            )
-        );
     }
 
     public void testIPSortingUnorderedMultiValues() throws UnknownHostException {
@@ -1152,69 +1158,70 @@ public class TopNOperatorTests extends OperatorTestCase {
         Block.MvOrdering blockOrdering,
         List<List<String>> expectedDecodedIps
     ) throws UnknownHostException {
-        Block.Builder builder = BYTES_REF.newBlockBuilder(ips.size());
-        builder.mvOrdering(blockOrdering);
-        boolean nullsFirst = randomBoolean();
+        try (Block.Builder builder = BYTES_REF.newBlockBuilder(ips.size(), driverContext().blockFactory())) {
+            builder.mvOrdering(blockOrdering);
+            boolean nullsFirst = randomBoolean();
 
-        for (List<String> mvIp : ips) {
-            if (mvIp == null) {
-                builder.appendNull();
-            } else {
-                builder.beginPositionEntry();
-                for (String ip : mvIp) {
-                    append(builder, new BytesRef(InetAddressPoint.encode(InetAddress.getByName(ip))));
+            for (List<String> mvIp : ips) {
+                if (mvIp == null) {
+                    builder.appendNull();
+                } else {
+                    builder.beginPositionEntry();
+                    for (String ip : mvIp) {
+                        append(builder, new BytesRef(InetAddressPoint.encode(InetAddress.getByName(ip))));
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
-        }
 
-        List<List<Object>> actual = new ArrayList<>();
-        DriverContext driverContext = driverContext();
-        try (
-            Driver driver = new Driver(
-                driverContext,
-                new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
-                List.of(
-                    new TopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        ips.size(),
-                        List.of(BYTES_REF),
-                        List.of(TopNEncoder.IP),
-                        List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
-                        randomPageSize()
-                    )
-                ),
-                new PageConsumerOperator(p -> readInto(actual, p)),
-                () -> {}
-            )
-        ) {
-            runDriver(driver);
-        }
+            List<List<Object>> actual = new ArrayList<>();
+            DriverContext driverContext = driverContext();
+            try (
+                Driver driver = new Driver(
+                    driverContext,
+                    new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
+                    List.of(
+                        new TopNOperator(
+                            driverContext.blockFactory(),
+                            nonBreakingBigArrays().breakerService().getBreaker("request"),
+                            ips.size(),
+                            List.of(BYTES_REF),
+                            List.of(TopNEncoder.IP),
+                            List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
+                            randomPageSize()
+                        )
+                    ),
+                    new PageConsumerOperator(p -> readInto(actual, p)),
+                    () -> {}
+                )
+            ) {
+                runDriver(driver);
+            }
 
-        assertThat(actual.size(), equalTo(1));
-        List<List<String>> actualDecodedIps = actual.get(0).stream().map(row -> {
-            if (row == null) {
-                return null;
-            } else if (row instanceof List<?> list) {
-                return list.stream()
-                    .map(v -> InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) v).bytes))
-                    .map(NetworkAddress::format)
-                    .collect(Collectors.toCollection(ArrayList::new));
+            assertThat(actual.size(), equalTo(1));
+            List<List<String>> actualDecodedIps = actual.get(0).stream().map(row -> {
+                if (row == null) {
+                    return null;
+                } else if (row instanceof List<?> list) {
+                    return list.stream()
+                        .map(v -> InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) v).bytes))
+                        .map(NetworkAddress::format)
+                        .collect(Collectors.toCollection(ArrayList::new));
+                } else {
+                    return List.of(NetworkAddress.format(InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) row).bytes)));
+                }
+            }).collect(Collectors.toCollection(ArrayList::new));
+
+            if (nullsFirst) {
+                expectedDecodedIps.add(0, null);
+                expectedDecodedIps.add(0, null);
             } else {
-                return List.of(NetworkAddress.format(InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) row).bytes)));
+                expectedDecodedIps.add(null);
+                expectedDecodedIps.add(null);
             }
-        }).collect(Collectors.toCollection(ArrayList::new));
 
-        if (nullsFirst) {
-            expectedDecodedIps.add(0, null);
-            expectedDecodedIps.add(0, null);
-        } else {
-            expectedDecodedIps.add(null);
-            expectedDecodedIps.add(null);
+            assertThat(actualDecodedIps, equalTo(expectedDecodedIps));
         }
-
-        assertThat(actualDecodedIps, equalTo(expectedDecodedIps));
     }
 
     /**
@@ -1241,16 +1248,19 @@ public class TopNOperatorTests extends OperatorTestCase {
         String text1 = new String(new char[] { 'a', 'b', '\0', 'c' });
         String text2 = new String(new char[] { 'a', 'b' });
 
-        Block.Builder builderText = BYTES_REF.newBlockBuilder(2);
-        Block.Builder builderInt = INT.newBlockBuilder(2);
-        append(builderText, new BytesRef(text1));
-        append(builderText, new BytesRef(text2));
-        append(builderInt, 100);
-        append(builderInt, 100);
-
         List<Block> blocks = new ArrayList<>(2);
-        blocks.add(builderText.build());
-        blocks.add(builderInt.build());
+        try (
+            Block.Builder builderText = BYTES_REF.newBlockBuilder(2, driverContext().blockFactory());
+            Block.Builder builderInt = INT.newBlockBuilder(2, driverContext().blockFactory())
+        ) {
+            append(builderText, new BytesRef(text1));
+            append(builderText, new BytesRef(text2));
+            append(builderInt, 100);
+            append(builderInt, 100);
+
+            blocks.add(builderText.build());
+            blocks.add(builderInt.build());
+        }
 
         List<List<Object>> actual = new ArrayList<>();
         DriverContext driverContext = driverContext();

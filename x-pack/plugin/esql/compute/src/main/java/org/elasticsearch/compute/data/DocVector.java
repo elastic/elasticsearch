@@ -46,6 +46,8 @@ public class DocVector extends AbstractVector implements Vector {
      */
     private int[] shardSegmentDocMapBackwards;
 
+    final DocBlock block;
+
     public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
         super(shards.getPositionCount(), null);
         this.shards = shards;
@@ -62,6 +64,7 @@ public class DocVector extends AbstractVector implements Vector {
                 "invalid position count [" + shards.getPositionCount() + " != " + docs.getPositionCount() + "]"
             );
         }
+        block = new DocBlock(this);
     }
 
     public IntVector shards() {
@@ -168,7 +171,7 @@ public class DocVector extends AbstractVector implements Vector {
 
     @Override
     public DocBlock asBlock() {
-        return new DocBlock(this);
+        return block;
     }
 
     @Override
@@ -218,6 +221,6 @@ public class DocVector extends AbstractVector implements Vector {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(shards, segments, docs);
+        Releasables.closeExpectNoException(shards.asBlock(), segments.asBlock(), docs.asBlock()); // Ugh! we always close blocks
     }
 }

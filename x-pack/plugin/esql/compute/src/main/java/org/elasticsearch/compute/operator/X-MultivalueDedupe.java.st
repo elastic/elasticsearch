@@ -75,46 +75,48 @@ $endif$
         if (block.mvDeduplicated()) {
             return ref;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-$if(BytesRef)$
-                case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$else$
-                case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
-                default -> {
-                    /*
-                     * It's better to copyMissing when there are few unique values
-                     * and better to copy and sort when there are many unique values.
-                     * The more duplicate values there are the more comparatively worse
-                     * copyAndSort is. But we don't know how many unique values there
-                     * because our job is to find them. So we use the count of values
-                     * as a proxy that is fast to test. It's not always going to be
-                     * optimal but it has the nice property of being quite quick on
-                     * short lists and not n^2 levels of terrible on long ones.
-                     *
-                     * It'd also be possible to make a truly hybrid mechanism that
-                     * switches from copyMissing to copyUnique once it collects enough
-                     * unique values. The trouble is that the switch is expensive and
-                     * makes kind of a "hole" in the performance of that mechanism where
-                     * you may as well have just gone with either of the two other
-                     * strategies. So we just don't try it for now.
-                     */
-                    if (count < ALWAYS_COPY_MISSING) {
-                        copyMissing(first, count);
-                        writeUniquedWork(builder);
-                    } else {
-                        copyAndSort(first, count);
-                        writeSortedWork(builder);
+        try (ref) {
+            $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+    $if(BytesRef)$
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+    $else$
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
+    $endif$
+                    default -> {
+                        /*
+                         * It's better to copyMissing when there are few unique values
+                         * and better to copy and sort when there are many unique values.
+                         * The more duplicate values there are the more comparatively worse
+                         * copyAndSort is. But we don't know how many unique values there
+                         * because our job is to find them. So we use the count of values
+                         * as a proxy that is fast to test. It's not always going to be
+                         * optimal but it has the nice property of being quite quick on
+                         * short lists and not n^2 levels of terrible on long ones.
+                         *
+                         * It'd also be possible to make a truly hybrid mechanism that
+                         * switches from copyMissing to copyUnique once it collects enough
+                         * unique values. The trouble is that the switch is expensive and
+                         * makes kind of a "hole" in the performance of that mechanism where
+                         * you may as well have just gone with either of the two other
+                         * strategies. So we just don't try it for now.
+                         */
+                        if (count < ALWAYS_COPY_MISSING) {
+                            copyMissing(first, count);
+                            writeUniquedWork(builder);
+                        } else {
+                            copyAndSort(first, count);
+                            writeSortedWork(builder);
+                        }
                     }
                 }
             }
+            return Block.Ref.floating(builder.build());
         }
-        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -127,24 +129,26 @@ $endif$
         if (block.mvDeduplicated()) {
             return ref;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-$if(BytesRef)$
-                case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$else$
-                case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
-                default -> {
-                    copyAndSort(first, count);
-                    writeSortedWork(builder);
+        try (ref) {
+            $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+    $if(BytesRef)$
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+    $else$
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
+    $endif$
+                    default -> {
+                        copyAndSort(first, count);
+                        writeSortedWork(builder);
+                    }
                 }
             }
+            return Block.Ref.floating(builder.build());
         }
-        return Block.Ref.floating(builder.build());
     }
 
     /**
@@ -159,24 +163,26 @@ $endif$
         if (block.mvDeduplicated()) {
             return ref;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-$if(BytesRef)$
-                case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$else$
-                case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
-                default -> {
-                    copyMissing(first, count);
-                    writeUniquedWork(builder);
+        try (ref) {
+            $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+    $if(BytesRef)$
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+    $else$
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
+    $endif$
+                    default -> {
+                        copyMissing(first, count);
+                        writeUniquedWork(builder);
+                    }
                 }
             }
+            return Block.Ref.floating(builder.build());
         }
-        return Block.Ref.floating(builder.build());
     }
 
     /**

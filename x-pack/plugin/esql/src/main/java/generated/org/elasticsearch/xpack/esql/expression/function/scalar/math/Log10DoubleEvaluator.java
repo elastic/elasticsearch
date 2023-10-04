@@ -51,33 +51,35 @@ public final class Log10DoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendDouble(Log10.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendDouble(Log10.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendDouble(Log10.process(valVector.getDouble(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendDouble(Log10.process(valVector.getDouble(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

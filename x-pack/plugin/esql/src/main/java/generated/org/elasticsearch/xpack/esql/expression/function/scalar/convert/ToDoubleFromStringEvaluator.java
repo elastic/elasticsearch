@@ -68,34 +68,35 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    BytesRef scratchPad = new BytesRef();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = block.getValueCount(p);
-      int start = block.getFirstValueIndex(p);
-      int end = start + valueCount;
-      boolean positionOpened = false;
-      boolean valuesAppended = false;
-      for (int i = start; i < end; i++) {
-        try {
-          double value = evalValue(block, i, scratchPad);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+    try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef scratchPad = new BytesRef();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
+          try {
+            double value = evalValue(block, i, scratchPad);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendDouble(value);
+            valuesAppended = true;
+          } catch (Exception e) {
+            registerException(e);
           }
-          builder.appendDouble(value);
-          valuesAppended = true;
-        } catch (Exception e) {
-          registerException(e);
+        }
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
         }
       }
-      if (valuesAppended == false) {
-        builder.appendNull();
-      } else if (positionOpened) {
-        builder.endPositionEntry();
-      }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static double evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {

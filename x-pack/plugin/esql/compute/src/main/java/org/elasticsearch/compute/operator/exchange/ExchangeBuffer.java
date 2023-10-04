@@ -114,8 +114,9 @@ final class ExchangeBuffer {
     void finish(boolean drainingPages) {
         noMoreInputs = true;
         if (drainingPages) {
-            while (pollPage() != null) {
-
+            Page p;
+            while ((p = pollPage()) != null) {
+                p.releaseBlocks();
             }
         }
         notifyNotEmpty();

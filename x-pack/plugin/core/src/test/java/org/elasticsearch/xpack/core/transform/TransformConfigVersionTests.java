@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -121,34 +122,31 @@ public class TransformConfigVersionTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
-                    "_node_name1",
-                    "_node_id1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr1,
-                    ROLES_WITH_TRANSFORM,
-                    VersionInformation.inferVersions(Version.fromString("7.2.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id1")
+                    .name("_node_name1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr1)
+                    .roles(ROLES_WITH_TRANSFORM)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.2.0")))
+                    .build()
             )
             .add(
-                new DiscoveryNode(
-                    "_node_name2",
-                    "_node_id2",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    nodeAttr2,
-                    ROLES_WITH_TRANSFORM,
-                    VersionInformation.inferVersions(Version.fromString("7.1.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id2")
+                    .name("_node_name2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .attributes(nodeAttr2)
+                    .roles(ROLES_WITH_TRANSFORM)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.1.0")))
+                    .build()
             )
             .add(
-                new DiscoveryNode(
-                    "_node_name3",
-                    "_node_id3",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                    nodeAttr3,
-                    ROLES_WITH_TRANSFORM,
-                    VersionInformation.inferVersions(Version.fromString("7.0.0"))
-                )
+                DiscoveryNodeUtils.builder("_node_id3")
+                    .name("_node_name3")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9302))
+                    .attributes(nodeAttr3)
+                    .roles(ROLES_WITH_TRANSFORM)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.0.0")))
+                    .build()
             )
             .build();
 
@@ -157,25 +155,22 @@ public class TransformConfigVersionTests extends ESTestCase {
     }
 
     public void testGetTransformConfigVersionForNode() {
-        DiscoveryNode node = new DiscoveryNode(
-            "_node_name4",
-            "_node_id4",
-            new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
-            Collections.emptyMap(),
-            ROLES_WITH_TRANSFORM,
-            VersionInformation.inferVersions(Version.fromString("8.7.0"))
-        );
+        DiscoveryNode node = DiscoveryNodeUtils.builder("_node_id4")
+            .name("_node_name4")
+            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9303))
+            .roles(ROLES_WITH_TRANSFORM)
+            .version(VersionInformation.inferVersions(Version.fromString("8.7.0")))
+            .build();
         TransformConfigVersion transformConfigVersion = TransformConfigVersion.getTransformConfigVersionForNode(node);
         assertEquals(TransformConfigVersion.V_8_7_0, transformConfigVersion);
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "_node_name5",
-            "_node_id5",
-            new TransportAddress(InetAddress.getLoopbackAddress(), 9304),
-            Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.V_8_5_0.toString()),
-            ROLES_WITH_TRANSFORM,
-            VersionInformation.inferVersions(Version.fromString("8.7.0"))
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("_node_id5")
+            .name("_node_name5")
+            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9304))
+            .attributes(Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.V_8_5_0.toString()))
+            .roles(ROLES_WITH_TRANSFORM)
+            .version(VersionInformation.inferVersions(Version.fromString("8.7.0")))
+            .build();
         TransformConfigVersion TransformConfigVersion1 = TransformConfigVersion.getTransformConfigVersionForNode(node1);
         assertEquals(TransformConfigVersion.fromVersion(Version.V_8_5_0), TransformConfigVersion1);
     }

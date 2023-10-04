@@ -102,7 +102,8 @@ public class FilterOperatorTests extends OperatorTestCase {
         );
         List<Page> results = drive(
             new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)).get(context),
-            input.iterator()
+            input.iterator(),
+            context
         );
         List<Boolean> found = new ArrayList<>();
         for (var page : results) {
@@ -122,5 +123,12 @@ public class FilterOperatorTests extends OperatorTestCase {
     @Override
     protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
         return breakingDriverContext();
+    }
+
+    // TODO: remove this once possible
+    // https://github.com/elastic/elasticsearch/issues/99826
+    @Override
+    protected boolean canLeak() {
+        return true;
     }
 }

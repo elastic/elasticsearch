@@ -99,8 +99,7 @@ Anneke Preusig        | Anneke       | Preusig
 ;
 
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-dissectStats-Ignore
+dissectStats
 from employees | eval x = concat(gender, " foobar") | dissect x "%{a} %{b}" | stats n = max(emp_no) by a | keep a, n | sort a asc;
 
 a:keyword  | n:integer

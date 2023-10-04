@@ -40,7 +40,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
         valuesRefs[i] = values[i].eval(page);
         Block block = valuesRefs[i].block();
         if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         valuesBlocks[i] = (LongBlock) block;
       }
@@ -56,36 +56,38 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongBlock eval(int positionCount, LongBlock[] valuesBlocks) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    long[] valuesValues = new long[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
-          result.appendNull();
-          continue position;
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      long[] valuesValues = new long[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
+            result.appendNull();
+            continue position;
+          }
         }
+        // unpack valuesBlocks into valuesValues
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          int o = valuesBlocks[i].getFirstValueIndex(p);
+          valuesValues[i] = valuesBlocks[i].getLong(o);
+        }
+        result.appendLong(Least.process(valuesValues));
       }
-      // unpack valuesBlocks into valuesValues
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getLong(o);
-      }
-      result.appendLong(Least.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    long[] valuesValues = new long[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack valuesVectors into valuesValues
-      for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getLong(p);
+    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      long[] valuesValues = new long[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack valuesVectors into valuesValues
+        for (int i = 0; i < valuesVectors.length; i++) {
+          valuesValues[i] = valuesVectors[i].getLong(p);
+        }
+        result.appendLong(Least.process(valuesValues));
       }
-      result.appendLong(Least.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

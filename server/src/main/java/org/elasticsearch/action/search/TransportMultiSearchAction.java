@@ -47,7 +47,13 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         ActionFilters actionFilters,
         NodeClient client
     ) {
-        super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
+        super(
+            MultiSearchAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = EsExecutors.allocatedProcessors(settings);
@@ -64,7 +70,13 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         LongSupplier relativeTimeProvider,
         NodeClient client
     ) {
-        super(MultiSearchAction.NAME, transportService, actionFilters, (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new);
+        super(
+            MultiSearchAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<MultiSearchRequest>) MultiSearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocatedProcessors = allocatedProcessors;

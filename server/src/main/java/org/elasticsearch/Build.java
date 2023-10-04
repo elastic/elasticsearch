@@ -121,7 +121,7 @@ public record Build(
     }
 
     public static String minimumCompatString(IndexVersion minimumCompatible) {
-        if (minimumCompatible.before(IndexVersion.V_8_11_0)) {
+        if (minimumCompatible.before(IndexVersion.V_8_500_000)) {
             // use Version for compatibility
             return Version.fromId(minimumCompatible.id()).toString();
         } else {

@@ -300,6 +300,10 @@ setup:
 
 ---
 "Test Mixed Input Params":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/99826"
+
   - do:
       esql.query:
         body:

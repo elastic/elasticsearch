@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -84,14 +83,12 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             transport,
             threadPool,
             transportInterceptor,
-            (boundAddress) -> new DiscoveryNode(
-                nodeNameAndId,
-                nodeNameAndId,
-                boundAddress.publishAddress(),
-                emptyMap(),
-                emptySet(),
-                nodeVersion
-            ),
+            (boundAddress) -> DiscoveryNodeUtils.builder(nodeNameAndId)
+                .name(nodeNameAndId)
+                .address(boundAddress.publishAddress())
+                .roles(emptySet())
+                .version(nodeVersion)
+                .build(),
             null,
             Collections.emptySet()
         );

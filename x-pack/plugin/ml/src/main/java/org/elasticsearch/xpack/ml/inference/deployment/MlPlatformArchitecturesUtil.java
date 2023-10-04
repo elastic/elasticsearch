@@ -76,11 +76,8 @@ public class MlPlatformArchitecturesUtil {
         String modelID = configToReturn.getModelId();
         String modelPlatformArchitecture = configToReturn.getPlatformArchitecture();
 
-        String modifiedPlatformArchitecture = (modelPlatformArchitecture == null && modelID.contains("linux-x86_64"))
-            ? "linux-x86_64"
-            : null;
         ActionListener<Set<String>> architecturesListener = ActionListener.wrap((architectures) -> {
-            verifyMlNodesAndModelArchitectures(architectures, modifiedPlatformArchitecture, modelID);
+            verifyMlNodesAndModelArchitectures(architectures, modelPlatformArchitecture, modelID);
             successOrFailureListener.onResponse(configToReturn);
         }, successOrFailureListener::onFailure);
 

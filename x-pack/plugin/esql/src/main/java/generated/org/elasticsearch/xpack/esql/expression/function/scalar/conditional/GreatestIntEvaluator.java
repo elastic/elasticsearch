@@ -40,7 +40,7 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
         valuesRefs[i] = values[i].eval(page);
         Block block = valuesRefs[i].block();
         if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         valuesBlocks[i] = (IntBlock) block;
       }
@@ -56,36 +56,38 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public IntBlock eval(int positionCount, IntBlock[] valuesBlocks) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    int[] valuesValues = new int[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
-          result.appendNull();
-          continue position;
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      int[] valuesValues = new int[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
+            result.appendNull();
+            continue position;
+          }
         }
+        // unpack valuesBlocks into valuesValues
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          int o = valuesBlocks[i].getFirstValueIndex(p);
+          valuesValues[i] = valuesBlocks[i].getInt(o);
+        }
+        result.appendInt(Greatest.process(valuesValues));
       }
-      // unpack valuesBlocks into valuesValues
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getInt(o);
-      }
-      result.appendInt(Greatest.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
-    int[] valuesValues = new int[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack valuesVectors into valuesValues
-      for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getInt(p);
+    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      int[] valuesValues = new int[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack valuesVectors into valuesValues
+        for (int i = 0; i < valuesVectors.length; i++) {
+          valuesValues[i] = valuesVectors[i].getInt(p);
+        }
+        result.appendInt(Greatest.process(valuesValues));
       }
-      result.appendInt(Greatest.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

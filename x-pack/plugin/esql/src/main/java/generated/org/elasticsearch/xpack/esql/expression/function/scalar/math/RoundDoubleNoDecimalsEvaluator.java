@@ -33,7 +33,7 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       DoubleBlock valBlock = (DoubleBlock) valRef.block();
       DoubleVector valVector = valBlock.asVector();
@@ -45,23 +45,25 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Round.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
       }
-      result.appendDouble(Round.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Round.process(valVector.getDouble(p)));
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Round.process(valVector.getDouble(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

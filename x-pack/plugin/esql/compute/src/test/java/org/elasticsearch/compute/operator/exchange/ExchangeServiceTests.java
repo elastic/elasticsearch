@@ -398,18 +398,25 @@ public class ExchangeServiceTests extends ESTestCase {
             ) throws Exception {
                 FilterTransportChannel filterChannel = new FilterTransportChannel(channel) {
                     @Override
-                    public void sendResponse(TransportResponse response) throws IOException {
-                        ExchangeResponse exchangeResponse = (ExchangeResponse) response;
-                        Page page = exchangeResponse.takePage();
+                    public void sendResponse(TransportResponse transportResponse) throws IOException {
+                        ExchangeResponse origResp = (ExchangeResponse) transportResponse;
+                        Page page = origResp.takePage();
                         if (page != null) {
                             IntBlock block = page.getBlock(0);
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getInt(i) == disconnectOnSeqNo) {
+                                    page.releaseBlocks();
                                     throw new IOException("page is too large");
                                 }
                             }
                         }
-                        super.sendResponse(response);
+                        ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
+                        origResp.decRef();
+                        while (origResp.hasReferences()) {
+                            newResp.incRef();
+                            origResp.decRef();
+                        }
+                        super.sendResponse(newResp);
                     }
                 };
                 handler.messageReceived(request, filterChannel, task);

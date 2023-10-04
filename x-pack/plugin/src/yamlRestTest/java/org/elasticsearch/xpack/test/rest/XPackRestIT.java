@@ -22,6 +22,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .name("yamlRestTest")
         .setting("xpack.ml.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
@@ -45,7 +46,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .feature(FeatureFlag.INFERENCE_RESCORER)
         .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
         .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-        .configFile("servie_tokens", Resource.fromClasspath("service_tokens"))
+        .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
         .build();
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {

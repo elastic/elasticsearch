@@ -26,6 +26,7 @@ public class SumDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongDoubleTupleBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, end).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomDouble()))
         );
     }

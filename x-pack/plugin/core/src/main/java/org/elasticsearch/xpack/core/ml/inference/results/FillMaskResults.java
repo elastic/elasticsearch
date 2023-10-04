@@ -56,6 +56,13 @@ public class FillMaskResults extends NlpClassificationInferenceResults {
     }
 
     @Override
+    public Map<String, Object> asMap(String outputField) {
+        var map = super.asMap(outputField);
+        map.put(outputField + "_sequence", predictedSequence);
+        return map;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

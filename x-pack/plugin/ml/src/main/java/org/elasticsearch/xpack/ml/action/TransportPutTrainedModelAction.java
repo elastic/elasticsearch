@@ -561,6 +561,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     ) throws IOException {
         trainedModelConfig.setDescription(resolvedModelPackageConfig.getDescription());
         trainedModelConfig.setModelType(TrainedModelType.fromString(resolvedModelPackageConfig.getModelType()));
+        trainedModelConfig.setPlatformArchitecture(resolvedModelPackageConfig.getPlatformArchitecture());
         trainedModelConfig.setMetadata(resolvedModelPackageConfig.getMetadata());
         trainedModelConfig.setInferenceConfig(
             parseInferenceConfigFromModelPackage(

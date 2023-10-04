@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureIm
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -56,7 +57,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
     public void testMutateDocumentWithClassification() {
         String targetField = "ml.my_processor";
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -89,7 +90,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentClassificationTopNClasses() {
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, null, null);
         ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, null, PredictionFieldType.STRING);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -126,7 +127,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentClassificationFeatureInfluence() {
         ClassificationConfig classificationConfig = new ClassificationConfig(2, null, null, 2, PredictionFieldType.STRING);
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, null, null, 2, null);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -180,7 +181,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentClassificationTopNClassesWithSpecificField() {
         ClassificationConfig classificationConfig = new ClassificationConfig(2, "result", "tops", null, PredictionFieldType.STRING);
         ClassificationConfigUpdate classificationConfigUpdate = new ClassificationConfigUpdate(2, "result", "tops", null, null);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -217,7 +218,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentRegression() {
         RegressionConfig regressionConfig = new RegressionConfig("foo");
         RegressionConfigUpdate regressionConfigUpdate = new RegressionConfigUpdate("foo", null);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -244,7 +245,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentRegressionWithTopFeatures() {
         RegressionConfig regressionConfig = new RegressionConfig("foo", 2);
         RegressionConfigUpdate regressionConfigUpdate = new RegressionConfigUpdate("foo", 2);
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -280,7 +281,7 @@ public class InferenceProcessorTests extends ESTestCase {
         String modelId = "model";
         Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
 
-        InferenceProcessor processor = new InferenceProcessor(
+        InferenceProcessor processor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -320,7 +321,7 @@ public class InferenceProcessorTests extends ESTestCase {
         fieldMapping.put("categorical", "new_categorical");
         fieldMapping.put("_ingest._value", "metafield");
 
-        InferenceProcessor processor = new InferenceProcessor(
+        InferenceProcessor processor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -362,7 +363,7 @@ public class InferenceProcessorTests extends ESTestCase {
         fieldMapping.put("value2", "new_value2");
         fieldMapping.put("categorical.bar", "new_categorical");
 
-        InferenceProcessor processor = new InferenceProcessor(
+        InferenceProcessor processor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -390,7 +391,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
     public void testHandleResponseLicenseChanged() {
         String targetField = "regression_value";
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -440,7 +441,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
     public void testMutateDocumentWithWarningResult() {
         String targetField = "regression_value";
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -468,7 +469,7 @@ public class InferenceProcessorTests extends ESTestCase {
     public void testMutateDocumentWithModelIdResult() {
         String modelAlias = "special_model";
         String modelId = "regression-123";
-        InferenceProcessor inferenceProcessor = new InferenceProcessor(
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromTargetFieldConfiguration(
             client,
             auditor,
             "my_processor",
@@ -490,5 +491,77 @@ public class InferenceProcessorTests extends ESTestCase {
 
         assertThat(document.getFieldValue("ml.my_processor.foo", Double.class), equalTo(0.7));
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo(modelId));
+    }
+
+    public void testMutateDocumentWithInputFields() {
+        String modelId = "regression-123";
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("body", null, "body_result", Map.of()));
+        inputs.add(new InferenceProcessor.Factory.InputConfig("content", null, "content_result", Map.of()));
+
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+            client,
+            auditor,
+            "my_processor_tag",
+            "description",
+            modelId,
+            new RegressionConfigUpdate("foo", null),
+            inputs
+        );
+
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+
+        InferModelAction.Response response = new InferModelAction.Response(
+            List.of(new RegressionInferenceResults(0.7, "ignore"), new RegressionInferenceResults(1.0, "ignore")),
+            modelId,
+            true
+        );
+        inferenceProcessor.mutateDocument(response, document);
+
+        assertThat(document.getFieldValue("body_result", Double.class), equalTo(0.7));
+        assertThat(document.getFieldValue("content_result", Double.class), equalTo(1.0));
+    }
+
+    public void testMutateDocumentWithInputFieldsNested() {
+        String modelId = "elser";
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("body", "ml.results", "body_tokens", Map.of()));
+        inputs.add(new InferenceProcessor.Factory.InputConfig("content", "ml.results", "content_tokens", Map.of()));
+
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+            client,
+            auditor,
+            "my_processor_tag",
+            "description",
+            modelId,
+            new RegressionConfigUpdate("foo", null),
+            inputs
+        );
+
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+
+        var teResult1 = TextExpansionResultsTests.createRandomResults();
+        var teResult2 = TextExpansionResultsTests.createRandomResults();
+        InferModelAction.Response response = new InferModelAction.Response(List.of(teResult1, teResult2), modelId, true);
+        inferenceProcessor.mutateDocument(response, document);
+
+        var bodyTokens = document.getFieldValue("ml.results.body_tokens", HashMap.class);
+        assertEquals(teResult1.getWeightedTokens().size(), bodyTokens.entrySet().size());
+        if (teResult1.getWeightedTokens().isEmpty() == false) {
+            assertEquals(
+                (float) bodyTokens.get(teResult1.getWeightedTokens().get(0).token()),
+                teResult1.getWeightedTokens().get(0).weight(),
+                0.001
+            );
+        }
+        var contentTokens = document.getFieldValue("ml.results.content_tokens", HashMap.class);
+        assertEquals(teResult2.getWeightedTokens().size(), contentTokens.entrySet().size());
+        if (teResult2.getWeightedTokens().isEmpty() == false) {
+            assertEquals(
+                (float) contentTokens.get(teResult2.getWeightedTokens().get(0).token()),
+                teResult2.getWeightedTokens().get(0).weight(),
+                0.001
+            );
+        }
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
@@ -40,7 +41,8 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
             OpenIdConnectPrepareAuthenticationAction.NAME,
             transportService,
             actionFilters,
-            OpenIdConnectPrepareAuthenticationRequest::new
+            OpenIdConnectPrepareAuthenticationRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.realms = realms;
     }

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -28,6 +29,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME;
 
@@ -201,11 +203,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 try {
                     res = ((Comparable) thisTerms.get(i)).compareTo(otherTerms.get(i));
                 } catch (ClassCastException ex) {
-                    throw new AggregationExecutionException(
-                        "Merging/Reducing the multi_term aggregations failed when computing "
-                            + "the aggregation because one of the field you gave in the aggregation query existed as two different "
-                            + "types in two different indices"
-                    );
+                    throw AggregationErrors.reduceTypeMissmatch("MultiTerms", Optional.empty());
                 }
                 if (res != 0) {
                     return res;
@@ -466,14 +464,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 }
             }
             if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {
-                throw new AggregationExecutionException(
-                    "Merging/Reducing the multi_term aggregations failed when computing the aggregation "
-                        + name
-                        + " because the field in the position "
-                        + (i + 1)
-                        + " in the aggregation has two different types in two "
-                        + " different indices"
-                );
+                throw AggregationErrors.reduceTypeMissmatch(name, Optional.of(i + 1));
             }
             // Promotion to double is required if at least 2 of these 3 conditions are true.
             if ((hasDouble ? 1 : 0) + (hasUnsignedLong ? 1 : 0) + (hasLong ? 1 : 0) > 1) {

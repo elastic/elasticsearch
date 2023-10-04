@@ -20,12 +20,9 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToIPFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  private final DriverContext driverContext;
-
   public ToIPFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
       DriverContext driverContext) {
-    super(field, source);
-    this.driverContext = driverContext;
+    super(driverContext, field, source);
   }
 
   @Override

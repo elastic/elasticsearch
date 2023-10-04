@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 
 import java.util.Arrays;
@@ -41,12 +42,12 @@ public class MultivalueDedupeInt {
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public Block.Ref dedupeToBlockAdaptive() {
+    public Block.Ref dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             return ref;
         }
         try (ref) {
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+            IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount(), blockFactory);
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -91,12 +92,12 @@ public class MultivalueDedupeInt {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public Block.Ref dedupeToBlockUsingCopyAndSort() {
+    public Block.Ref dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             return ref;
         }
         try (ref) {
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+            IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount(), blockFactory);
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -121,12 +122,12 @@ public class MultivalueDedupeInt {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public Block.Ref dedupeToBlockUsingCopyMissing() {
+    public Block.Ref dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             return ref;
         }
         try (ref) {
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
+            IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount(), blockFactory);
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);

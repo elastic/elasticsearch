@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -45,7 +46,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return dvrCtx -> new Evaluator(fieldEval.get(dvrCtx));
+        return dvrCtx -> new Evaluator(dvrCtx, fieldEval.get(dvrCtx));
     }
 
     @Override
@@ -59,8 +60,11 @@ public class MvCount extends AbstractMultivalueFunction {
     }
 
     private static class Evaluator extends AbstractEvaluator {
-        protected Evaluator(EvalOperator.ExpressionEvaluator field) {
+        private final DriverContext driverContext;
+
+        protected Evaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
             super(field);
+            this.driverContext = driverContext;
         }
 
         @Override
@@ -70,7 +74,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
         @Override
         protected Block.Ref evalNullable(Block.Ref ref) {
-            try (ref; IntBlock.Builder builder = IntBlock.newBlockBuilder(ref.block().getPositionCount())) {
+            try (ref; IntBlock.Builder builder = IntBlock.newBlockBuilder(ref.block().getPositionCount(), driverContext.blockFactory())) {
                 for (int p = 0; p < ref.block().getPositionCount(); p++) {
                     int valueCount = ref.block().getValueCount(p);
                     if (valueCount == 0) {
@@ -89,7 +93,7 @@ public class MvCount extends AbstractMultivalueFunction {
                 ref;
                 IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(
                     ref.block().getPositionCount(),
-                    BlockFactory.getNonBreakingInstance()
+                    driverContext.blockFactory()
                 )
             ) {
                 for (int p = 0; p < ref.block().getPositionCount(); p++) {
@@ -107,7 +111,7 @@ public class MvCount extends AbstractMultivalueFunction {
         @Override
         protected Block.Ref evalSingleValuedNotNullable(Block.Ref ref) {
             try (ref) {
-                return Block.Ref.floating(new ConstantIntVector(1, ref.block().getPositionCount()).asBlock());
+                return Block.Ref.floating(driverContext.blockFactory().newConstantIntBlockWith(1, ref.block().getPositionCount()));
             }
         }
     }

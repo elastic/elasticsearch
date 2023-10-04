@@ -115,6 +115,9 @@ public class AggregationOperator implements Operator {
 
     @Override
     public void close() {
+        if (output != null) {
+            Releasables.closeExpectNoException(() -> output.releaseBlocks());
+        }
         Releasables.close(aggregators);
     }
 

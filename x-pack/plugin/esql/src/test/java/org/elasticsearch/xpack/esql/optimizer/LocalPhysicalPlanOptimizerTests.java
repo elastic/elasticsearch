@@ -204,7 +204,8 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
      * Expects a single {@link EsQueryExec} containing the filter, like the following:
      * LimitExec[500[INTEGER]]
      * \_ExchangeExec[[],false]
-     *   \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"range":{"byte":{"gt":2147483647,"boost":1.0}}}}}][_doc{f}#18], limit[500], sort[] estimatedRowSize[4]
+     *   \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"range":{"byte":{"gt":2147483647,"boost":1.0}}}}}]
+     *          [_doc{f}#18], limit[500], sort[] estimatedRowSize[4]
      */
     public void testFilterPushdownForSupportedImplicitCast() {
         String sign = randomBoolean() ? "" : "-";

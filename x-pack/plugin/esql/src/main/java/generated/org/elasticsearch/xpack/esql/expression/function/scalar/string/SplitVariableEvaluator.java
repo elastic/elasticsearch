@@ -40,12 +40,12 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
       if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref delimRef = delim.eval(page)) {
         if (delimRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         BytesRefBlock delimBlock = (BytesRefBlock) delimRef.block();
         BytesRefVector strVector = strBlock.asVector();
@@ -62,7 +62,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock delimBlock) {
-    try (BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount)) {
+    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -82,7 +82,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector,
       BytesRefVector delimVector) {
-    try (BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount)) {
+    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {

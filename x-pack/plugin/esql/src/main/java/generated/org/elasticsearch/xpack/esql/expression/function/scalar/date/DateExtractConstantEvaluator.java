@@ -41,7 +41,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   public Block.Ref eval(Page page) {
     try (Block.Ref valueRef = value.eval(page)) {
       if (valueRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       LongBlock valueBlock = (LongBlock) valueRef.block();
       LongVector valueVector = valueBlock.asVector();
@@ -53,7 +53,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
-    try (LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -66,7 +66,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   }
 
   public LongVector eval(int positionCount, LongVector valueVector) {
-    try (LongVector.Builder result = LongVector.newVectorBuilder(positionCount)) {
+    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(DateExtract.process(valueVector.getLong(p), chronoField, zone));
       }

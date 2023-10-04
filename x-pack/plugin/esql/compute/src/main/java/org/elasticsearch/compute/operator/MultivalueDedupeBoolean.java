@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -43,12 +44,12 @@ public class MultivalueDedupeBoolean {
     /**
      * Dedupe values using an adaptive algorithm based on the size of the input list.
      */
-    public Block.Ref dedupeToBlock() {
+    public Block.Ref dedupeToBlock(BlockFactory blockFactory) {
         if (false == block.mayHaveMultivaluedFields()) {
             return ref;
         }
         try (ref) {
-            BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount());
+            BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount(), blockFactory);
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);

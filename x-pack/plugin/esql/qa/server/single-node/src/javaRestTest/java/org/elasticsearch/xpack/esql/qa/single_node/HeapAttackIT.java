@@ -104,6 +104,7 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * This groups on about 200 columns which is a lot but has never caused us trouble.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testGroupOnSomeLongs() throws IOException {
         initManyLongs();
         Map<?, ?> map = XContentHelper.convertToMap(
@@ -203,6 +204,7 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * Hits a circuit breaker by building many moderately long strings.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testHugeManyConcat() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyConcat(2000));

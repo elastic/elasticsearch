@@ -19,6 +19,7 @@ import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
 import com.amazonaws.util.TimingInfo;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -370,7 +372,7 @@ class S3BlobStore implements BlobStore {
     private static final TimeValue RETRY_STATS_WINDOW = TimeValue.timeValueMinutes(5);
 
     private static class AwsApiRetryStats {
-        private final LongAdder totalRequests = new LongAdder();
+        private final LongAdder requests = new LongAdder();
         private final LongAdder retries = new LongAdder();
         private final LongAdder throttles = new LongAdder();
     }
@@ -380,21 +382,26 @@ class S3BlobStore implements BlobStore {
     private void maybeLogRetryStats() {
         var stats = awsApiRetryStats;
         awsApiRetryStats = new AwsApiRetryStats();
-        if (stats.retries.sum() > 0 || stats.throttles.sum() > 0 || logger.isDebugEnabled()) {
-            logger.warn(
+        long requests = stats.requests.sum();
+        long retries = stats.retries.sum();
+        long throttles = stats.throttles.sum();
+        boolean retried = retries > 0 || throttles > 0;
+        if (retried || logger.isDebugEnabled()) {
+            var message = new ESLogMessage(
                 "Recorded {} requests including {} retries and {} throttles within {}",
-                stats.totalRequests.sum(),
-                stats.retries.sum(),
-                stats.throttles.sum(),
+                requests,
+                retries,
+                throttles,
                 RETRY_STATS_WINDOW
-            );
+            ).withFields(Map.of("requests", requests, "retries", retries, "throttles", throttles));
+            logger.log(retried ? Level.WARN : Level.DEBUG, message);
         }
     }
 
     private void recordRetryStats(Request<?> request) {
         var stats = awsApiRetryStats;
         var info = request.getAWSRequestMetrics().getTimingInfo();
-        stats.totalRequests.add(getCounter(info, AWSRequestMetrics.Field.RequestCount));
+        stats.requests.add(getCounter(info, AWSRequestMetrics.Field.RequestCount));
         stats.retries.add(getCounter(info, AWSRequestMetrics.Field.Exception));
         stats.throttles.add(getCounter(info, AWSRequestMetrics.Field.ThrottleException));
     }

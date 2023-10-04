@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -17,6 +18,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
@@ -77,6 +81,24 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
 
         // The response is randomly generated, the input can be anything
         inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, randomAlphaOfLength(10));
+    }
+
+    public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
+        String modelId = "test-mock";
+        putMockService(modelId, TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
+
+        assertThat(readModel.getServiceSettings(), instanceOf(TestInferenceServicePlugin.TestServiceSettings.class));
+
+        var serviceSettings = (TestInferenceServicePlugin.TestServiceSettings) readModel.getServiceSettings();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {
+              "model" : "my_model"
+            }"""));
     }
 
     public void testGetUnparsedModelMap_ForTestServiceModel_ReturnsSecretsPopulated() {

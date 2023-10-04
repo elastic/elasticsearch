@@ -302,6 +302,9 @@ public final class SourceConfirmedTextQuery extends Query {
                 if (fi == null) {
                     return null;
                 }
+                // Some highlighters will already have reindexed the source with positions and offsets,
+                // so rather than doing it again we check to see if this data is available on the
+                // current context and if so delegate directly to the inner query
                 if (fi.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) > 0) {
                     Weight innerWeight = in.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
                     return innerWeight.matches(context, doc);

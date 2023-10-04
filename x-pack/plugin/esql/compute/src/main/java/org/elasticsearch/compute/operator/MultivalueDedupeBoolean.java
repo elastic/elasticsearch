@@ -47,20 +47,22 @@ public class MultivalueDedupeBoolean {
         if (false == block.mayHaveMultivaluedFields()) {
             return ref;
         }
-        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-                case 1 -> builder.appendBoolean(block.getBoolean(first));
-                default -> {
-                    readValues(first, count);
-                    writeValues(builder);
+        try (ref) {
+            BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount());
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendBoolean(block.getBoolean(first));
+                    default -> {
+                        readValues(first, count);
+                        writeValues(builder);
+                    }
                 }
             }
+            return Block.Ref.floating(builder.build());
         }
-        return Block.Ref.floating(builder.build());
     }
 
     /**

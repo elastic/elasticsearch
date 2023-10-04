@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -21,36 +23,33 @@ public class SequenceDoubleBlockSourceOperator extends AbstractBlockSourceOperat
     static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
     private final double[] values;
-    private final DriverContext driverContext;
 
-    public SequenceDoubleBlockSourceOperator(DriverContext driverContext, DoubleStream values) {
-        this(driverContext, values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceDoubleBlockSourceOperator(BlockFactory blockFactory, DoubleStream values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceDoubleBlockSourceOperator(DriverContext driverContext, DoubleStream values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceDoubleBlockSourceOperator(BlockFactory blockFactory, DoubleStream values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.toArray();
-        this.driverContext = driverContext;
     }
 
-    public SequenceDoubleBlockSourceOperator(DriverContext driverContext, List<Double> values) {
-        this(driverContext, values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceDoubleBlockSourceOperator(BlockFactory blockFactory, List<Double> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceDoubleBlockSourceOperator(DriverContext driverContext, List<Double> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceDoubleBlockSourceOperator(BlockFactory blockFactory, List<Double> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.stream().mapToDouble(Double::doubleValue).toArray();
-        this.driverContext = driverContext;
     }
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        final double[] array = new double[length];
+        DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(length, blockFactory);
         for (int i = 0; i < length; i++) {
-            array[i] = values[positionOffset + i];
+            builder.appendDouble(values[positionOffset + i]);
         }
         currentPosition += length;
-        return new Page(driverContext.blockFactory().newDoubleArrayVector(array, array.length).asBlock());
+        return new Page(builder.build().asBlock());
     }
 
     protected int remaining() {

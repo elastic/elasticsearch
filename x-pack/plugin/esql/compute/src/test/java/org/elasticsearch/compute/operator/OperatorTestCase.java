@@ -189,6 +189,22 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     }
 
+    // Tests that finish then close without calling getOutput to retrieve a potential last page, releases all memory
+    public void testSimpleFinishClose() {
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
+        assert input.size() == 1 : input.size();
+        // eventually, when driverContext always returns a tracking factory, we can enable this assertion
+        // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
+        Page page = input.get(0);
+        try (var operator = simple(driverContext.bigArrays()).get(driverContext)) {
+            assert operator.needsInput();
+            operator.addInput(page);
+            operator.finish();
+        }
+        assertThat(driverContext.blockFactory().breaker().getUsed(), equalTo(0L));
+    }
+
     protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {
         return drive(List.of(operator), input, driverContext);
     }
@@ -198,7 +214,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         boolean success = false;
         try (
             Driver d = new Driver(
-                driverContext(),
+                driverContext,
                 new CannedSourceOperator(input),
                 operators,
                 new ResultPageSinkOperator(results::add),

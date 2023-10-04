@@ -30,10 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceDoubleBlockSourceOperator(
-            driverContext(),
-            LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble())
-        );
+        return new SequenceDoubleBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
     }
 
     @Override
@@ -58,8 +55,8 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         try (
             Driver d = new Driver(
                 driverContext,
-                new SequenceDoubleBlockSourceOperator(driverContext, DoubleStream.of(Double.MAX_VALUE - 1, 2)),
-                List.of(simple(driverContext.bigArrays()).get(driverContext)),
+                new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(Double.MAX_VALUE - 1, 2)),
+                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
                 new ResultPageSinkOperator(results::add),
                 () -> {}
             )
@@ -77,7 +74,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
             Driver d = new Driver(
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(
-                    driverContext,
+                    driverContext.blockFactory(),
                     DoubleStream.of(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7)
                 ),
                 List.of(simple(nonBreakingBigArrays()).get(driverContext)),
@@ -105,7 +102,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         try (
             Driver d = new Driver(
                 driverContext,
-                new SequenceDoubleBlockSourceOperator(driverContext, DoubleStream.of(values)),
+                new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(values)),
                 List.of(simple(nonBreakingBigArrays()).get(driverContext)),
                 new ResultPageSinkOperator(results::add),
                 () -> {}
@@ -127,7 +124,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         try (
             Driver d = new Driver(
                 driverContext,
-                new SequenceDoubleBlockSourceOperator(driverContext, DoubleStream.of(largeValues)),
+                new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(largeValues)),
                 List.of(simple(nonBreakingBigArrays()).get(driverContext)),
                 new ResultPageSinkOperator(results::add),
                 () -> {}
@@ -146,7 +143,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         try (
             Driver d = new Driver(
                 driverContext,
-                new SequenceDoubleBlockSourceOperator(driverContext, DoubleStream.of(largeValues)),
+                new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(largeValues)),
                 List.of(simple(nonBreakingBigArrays()).get(driverContext)),
                 new ResultPageSinkOperator(results::add),
                 () -> {}

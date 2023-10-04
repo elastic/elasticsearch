@@ -638,4 +638,17 @@ public abstract class BatchEncoder implements Accountable {
             }
         }
     }
+
+    protected static final class DirectNulls extends DirectEncoder {
+        DirectNulls(Block block) {
+            super(block);
+            assert block.areAllValuesNull() : block;
+        }
+
+        @Override
+        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+            assert false : "all positions all nulls";
+            throw new IllegalStateException("all positions all nulls");
+        }
+    }
 }

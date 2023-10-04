@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.ScriptService;
@@ -47,7 +48,13 @@ public class TransportQuerySearchApplicationAction extends HandledTransportActio
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(QuerySearchApplicationAction.NAME, transportService, actionFilters, SearchApplicationSearchRequest::new);
+        super(
+            QuerySearchApplicationAction.NAME,
+            transportService,
+            actionFilters,
+            SearchApplicationSearchRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry);
         this.systemIndexService = new SearchApplicationIndexService(client, clusterService, namedWriteableRegistry, bigArrays);

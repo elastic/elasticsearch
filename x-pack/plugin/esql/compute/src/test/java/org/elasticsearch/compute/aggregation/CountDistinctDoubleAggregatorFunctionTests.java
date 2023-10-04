@@ -25,10 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class CountDistinctDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceDoubleBlockSourceOperator(
-            driverContext(),
-            LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble())
-        );
+        return new SequenceDoubleBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
     }
 
     @Override

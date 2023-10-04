@@ -876,8 +876,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 // found projection, turn enable flag on
                 if (p instanceof Aggregate || p instanceof Project) {
                     enabled.set(true);
-                }
-                if (enabled.get() && p instanceof Eval eval) {
+                } else if (enabled.get() && p instanceof Eval eval) {
                     p = rule(eval);
                 }
 

@@ -47,23 +47,25 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
   }
 
   public LongBlock eval(int positionCount, IntBlock vBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendLong(Cast.castIntToUnsignedLong(vBlock.getInt(vBlock.getFirstValueIndex(p))));
       }
-      result.appendLong(Cast.castIntToUnsignedLong(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public LongVector eval(int positionCount, IntVector vVector) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(Cast.castIntToUnsignedLong(vVector.getInt(p)));
+    try (LongVector.Builder result = LongVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(Cast.castIntToUnsignedLong(vVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

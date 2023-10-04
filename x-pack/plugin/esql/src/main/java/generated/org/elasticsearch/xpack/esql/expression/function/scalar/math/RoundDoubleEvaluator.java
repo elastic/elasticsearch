@@ -60,27 +60,29 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock, LongBlock decimalsBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Round.process(valBlock.getDouble(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
       }
-      if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendDouble(Round.process(valBlock.getDouble(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector valVector, LongVector decimalsVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Round.process(valVector.getDouble(p), decimalsVector.getLong(p)));
+    try (DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Round.process(valVector.getDouble(p), decimalsVector.getLong(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

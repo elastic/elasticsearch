@@ -47,23 +47,25 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   }
 
   public DoubleBlock eval(int positionCount, LongBlock vBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Cast.castUnsignedLongToDouble(vBlock.getLong(vBlock.getFirstValueIndex(p))));
       }
-      result.appendDouble(Cast.castUnsignedLongToDouble(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, LongVector vVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Cast.castUnsignedLongToDouble(vVector.getLong(p)));
+    try (DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Cast.castUnsignedLongToDouble(vVector.getLong(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

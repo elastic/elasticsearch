@@ -168,8 +168,8 @@ public class ConvertEvaluatorImplementer {
         builder.addStatement("$T block = ($T) b", blockType, blockType);
         builder.addStatement("int positionCount = block.getPositionCount()");
         TypeName resultBlockType = blockType(resultType);
-        builder.addStatement(
-            "$T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory())",
+        builder.beginControlFlow(
+            "try ($T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory()))",
             resultBlockType,
             resultBlockType
         );
@@ -222,6 +222,7 @@ public class ConvertEvaluatorImplementer {
         builder.endControlFlow();
 
         builder.addStatement("return builder.build()");
+        builder.endControlFlow();
 
         return builder.build();
     }

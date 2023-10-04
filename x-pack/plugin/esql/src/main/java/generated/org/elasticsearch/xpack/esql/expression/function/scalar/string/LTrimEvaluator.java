@@ -45,25 +45,27 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount)) {
+      BytesRef valScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBytesRef(LTrim.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
       }
-      result.appendBytesRef(LTrim.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector valVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(LTrim.process(valVector.getBytesRef(p, valScratch)));
+    try (BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount)) {
+      BytesRef valScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(LTrim.process(valVector.getBytesRef(p, valScratch)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

@@ -220,6 +220,7 @@ image::images/data-streams/time-bound-indices.svg[align="center"]
 
 TIP: Some {ilm-init} actions mark the source index as read-only, or expect the index
 to not be actively written anymore in order to provide good performance. These actions are:
+- <<ilm-delete>>
 - <<ilm-downsample>>
 - <<ilm-forcemerge>>
 - <<ilm-readonly>>

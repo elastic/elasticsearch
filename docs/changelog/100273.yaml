@@ -1,0 +1,5 @@
+pr: 100273
+summary: Propagate cancellation in `GetHealthAction`
+area: Health
+type: bug
+issues: []

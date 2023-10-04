@@ -69,7 +69,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public Block filter(int... positions) {
-        close();
+        Releasables.closeExpectNoException(this);
         return new ConstantNullBlock(positions.length);
     }
 

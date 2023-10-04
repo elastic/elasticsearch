@@ -29,7 +29,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
     ) throws IOException {
         super(name, context, parent, subFactories, metadata);
         if (subFactories.isInSortOrderExecutionRequired()) {
-            throw new AggregationExecutionException("Time series aggregations cannot be used inside global aggregation.");
+            throw new IllegalArgumentException("Time series aggregations cannot be used inside global aggregation.");
         }
     }
 
@@ -37,7 +37,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         if (parent != null) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "Aggregation ["
                     + parent.name()
                     + "] cannot have a global "

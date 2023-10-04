@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -97,11 +98,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             )
             .build();
 
-        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(
-            Settings.EMPTY,
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            "test"
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test", new TransportAddress(TransportAddress.META_ADDRESS, 9300));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         boolean clusterIssueFound = randomBoolean();

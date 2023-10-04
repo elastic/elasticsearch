@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -209,11 +210,7 @@ public class MockTransportService extends TransportService {
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            (boundAddress) -> DiscoveryNode.createLocal(
-                settings,
-                boundAddress.publishAddress(),
-                settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())
-            ),
+            (boundAddress) -> DiscoveryNodeUtils.builder(settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())).applySettings(settings).address(boundAddress.publishAddress()).build(),
             clusterSettings,
             createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
         );

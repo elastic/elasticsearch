@@ -149,53 +149,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
     }
 
-    public final void testSimpleDoesNotLeak() {
-        DriverContext inputFactoryContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
-
-        List<Block> inputBlocks = new ArrayList<>();
-        for (Page p : input) {
-            for (int i = 0; i < p.getBlockCount(); i++) {
-                inputBlocks.add(p.getBlock(i));
-            }
-        }
-
-        BlockFactory nonBreakingBlockFactory = BlockFactory.getNonBreakingInstance();
-        BigArrays bigArrays = new MockBigArrays(
-            PageCacheRecycler.NON_RECYCLING_INSTANCE,
-            nonBreakingBlockFactory.bigArrays().breakerService()
-        ).withCircuitBreaking();
-        DriverContext driverContext = new DriverContext(bigArrays, nonBreakingBlockFactory);
-
-        Operator operator = simple(bigArrays).get(driverContext);
-        List<Page> result = drive(operator, input.iterator(), driverContext);
-
-        List<Block> resultBlocks = new ArrayList<>();
-        for (Page p : result) {
-            for (int i = 0; i < p.getBlockCount(); i++) {
-                resultBlocks.add(p.getBlock(i));
-            }
-        }
-
-        for (Page p : result) {
-            p.releaseBlocks();
-        }
-
-        for (Block b : resultBlocks) {
-            assertTrue("unreleased result block", b.isReleased());
-        }
-
-        int unreleasedInputs = 0;
-        for (Block b : inputBlocks) {
-            if (b.isReleased() == false) {
-                unreleasedInputs++;
-            }
-        }
-        if (unreleasedInputs > 0) {
-            throw new AssertionError("[" + unreleasedInputs + "] unreleased input blocks");
-        }
-    }
-
     /**
      * Run the {@code operators} once per page in the {@code input}.
      */
@@ -227,6 +180,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     protected final void assertSimple(DriverContext context, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), size));
+
+        List<Block> inputBlocks = new ArrayList<>();
+        for (Page p : input) {
+            for (int i = 0; i < p.getBlockCount(); i++) {
+                inputBlocks.add(p.getBlock(i));
+            }
+        }
+
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
@@ -235,6 +196,25 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         assertSimpleOutput(origInput, results);
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
 
+        List<Block> resultBlocks = new ArrayList<>();
+        // Release all result blocks. After this, all input blocks should be released as well, otherwise we have a leak.
+        for (Page p : results) {
+            for (int i = 0; i < p.getBlockCount(); i++) {
+                resultBlocks.add(p.getBlock(i));
+            }
+
+            p.releaseBlocks();
+        }
+
+        int unreleasedInputs = 0;
+        for (Block b : inputBlocks) {
+            if (b.isReleased() == false) {
+                unreleasedInputs++;
+            }
+        }
+        if (unreleasedInputs > 0) {
+            throw new AssertionError("[" + unreleasedInputs + "] unreleased input blocks");
+        }
     }
 
     // Tests that finish then close without calling getOutput to retrieve a potential last page, releases all memory

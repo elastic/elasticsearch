@@ -69,6 +69,7 @@ public class DiscoveryNodeUtils {
         private Version version;
         private IndexVersion minIndexVersion;
         private IndexVersion maxIndexVersion;
+        private Set<String> features;
         private String externalId;
 
         private Builder(String id) {
@@ -125,6 +126,11 @@ public class DiscoveryNodeUtils {
             return this;
         }
 
+        public Builder features(Set<String> features) {
+            this.features = Objects.requireNonNull(features);
+            return this;
+        }
+
         public Builder externalId(String externalId) {
             this.externalId = externalId;
             return this;
@@ -154,7 +160,11 @@ public class DiscoveryNodeUtils {
                 versionInfo = new VersionInformation(version, minIndexVersion, maxIndexVersion);
             }
 
-            return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);
+            if (features == null) {
+
+            }
+
+            return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, features, externalId);
         }
     }
 }

@@ -157,22 +157,32 @@ public class OperationRouting {
         return shard.activeInitializingShardsRandomIt();
     }
 
-    private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
-
     private static Set<IndexShardRoutingTable> computeTargetedShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing
     ) {
-        routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
-        final Set<IndexShardRoutingTable> set = new HashSet<>();
         // we use set here and not list since we might get duplicates
+        final Set<IndexShardRoutingTable> set = new HashSet<>();
+        if (routing == null || routing.isEmpty()) {
+            collectTargetShardsNoRouting(clusterState, concreteIndices, set);
+        } else {
+            collectTargetShardsWithRouting(clusterState, concreteIndices, routing, set);
+        }
+        return set;
+    }
+
+    private static void collectTargetShardsWithRouting(
+        ClusterState clusterState,
+        String[] concreteIndices,
+        Map<String, Set<String>> routing,
+        Set<IndexShardRoutingTable> set
+    ) {
         for (String index : concreteIndices) {
             final IndexRoutingTable indexRoutingTable = indexRoutingTable(clusterState, index);
-            final IndexMetadata indexMetadata = indexMetadata(clusterState, index);
             final Set<String> indexSearchRouting = routing.get(index);
             if (indexSearchRouting != null) {
-                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
                 for (String r : indexSearchRouting) {
                     indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
                 }
@@ -182,7 +192,15 @@ public class OperationRouting {
                 }
             }
         }
-        return set;
+    }
+
+    private static void collectTargetShardsNoRouting(ClusterState clusterState, String[] concreteIndices, Set<IndexShardRoutingTable> set) {
+        for (String index : concreteIndices) {
+            final IndexRoutingTable indexRoutingTable = indexRoutingTable(clusterState, index);
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                set.add(indexRoutingTable.shard(i));
+            }
+        }
     }
 
     private ShardIterator preferenceActiveShardIterator(

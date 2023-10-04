@@ -6,18 +6,18 @@
 
 When building a frontend application for search use cases, there are two main approaches to returning search results:
 
-. The client (user's browser) makes API requests to the application backend, which in turn makes a request to Elasticsearch.
-The Elasticsearch cluster is not exposed to the end user.
-. *The client (user's browser) makes API requests directly to the search service - in this case the Elasticsearch cluster is reachable to the client.*
+. The client (user's browser) makes API requests to the application backend, which in turn makes a request to {es}.
+The {es} cluster is not exposed to the end user.
+. *The client (user's browser) makes API requests directly to the search service - in this case the {es} cluster is reachable to the client.*
 
 This guide describes best practices when taking the second approach.
 Specifically, we will explain how to use search applications with frontend apps that make direct requests to the <<search-application-search,Search Application Search API>>.
 
 This approach has a few advantages:
 
-* No need to maintain a passthrough query system between frontend applications and Elasticsearch
-* Direct requests to Elasticsearch result in faster response times
-* Query configuration is managed in one place: your search application configuration in Elasticsearch
+* No need to maintain a passthrough query system between frontend applications and {es}
+* Direct requests to {es} result in faster response times
+* Query configuration is managed in one place: your search application configuration in {es}
 
 We will cover:
 
@@ -27,14 +27,14 @@ We will cover:
 
 [discrete]
 [[search-application-security-key-restrictions]]
-==== Using Elasticsearch API keys with role restrictions
+==== Using {es} API keys with role restrictions
 
-When frontend applications can make direct API requests to Elasticsearch, it's important to limit the operations they can perform.
+When frontend applications can make direct API requests to {es}, it's important to limit the operations they can perform.
 In our case, frontend applications should only be able to call the Search Application *Search API*.
-To ensure this, we will create Elasticsearch API keys with <<role-restriction,role restrictions>>.
+To ensure this, we will create {es} API keys with <<role-restriction,role restrictions>>.
 A role restriction is used to specify under what conditions a role should be effective.
 
-The following Elasticsearch API key has access to the `website-product-search` search application, only through the Search Application Search API:
+The following {es} API key has access to the `website-product-search` search application, only through the Search Application Search API:
 
 [source,console]
 ----
@@ -59,13 +59,13 @@ POST /_security/api_key
 ----
 // TEST[skip:TODO]
 
-<1> `indices.name` must be the name(s) of the Search Application(s), not the underlying Elasticsearch indices.
+<1> `indices.name` must be the name(s) of the Search Application(s), not the underlying {es} indices.
 <2> `restriction.workflows` must be set to the concrete value `search_application_query`.
 
 [IMPORTANT]
 ====
 It is crucial to specify the workflow restriction.
-Without this the Elasticsearch API key can directly call `_search` and issue arbitrary Elasticsearch queries.
+Without this the {es} API key can directly call `_search` and issue arbitrary {es} queries.
 This is insecure when dealing with untrusted clients.
 ====
 
@@ -103,13 +103,13 @@ curl -XPOST "http://localhost:9200/_application/search_application/website-produ
 
 [TIP]
 ====
-If `expiration` is not present, by default Elasticsearch API keys never expire.
+If `expiration` is not present, by default {es} API keys never expire.
 The API key can be invalidated using the <<security-api-invalidate-api-key,invalidate API key API>>.
 ====
 
 [TIP]
 ====
-Elasticsearch API keys with role restrictions can also use field and document level security.
+{es} API keys with role restrictions can also use field and document level security.
 This further limits how frontend applications query a search application.
 ====
 
@@ -189,21 +189,21 @@ Using that definition, the Search Application Search API performs the following 
 [[search-application-security-cors]]
 ==== Working with CORS
 
-Using this approach means that your user's browser will make requests to the Elasticsearch API directly.
-Elasticsearch supports https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS[Cross-Origin Resource Sharing (CORS)^], but this feature is disabled by default.
+Using this approach means that your user's browser will make requests to the {es} API directly.
+{es} supports https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS[Cross-Origin Resource Sharing (CORS)^], but this feature is disabled by default.
 Therefore the browser will block these requests.
 
 There are two workarounds for this:
 
-* <<search-application-security-cors-elasticsearch, Enable CORS on Elasticsearch>>
+* <<search-application-security-cors-elasticsearch, Enable CORS on {es}>>
 * <<search-application-security-cors-proxy-request, Proxy the request through a server that supports CORS>>
 
 [discrete]
 [[search-application-security-cors-elasticsearch]]
-===== Enable CORS on Elasticsearch
+===== Enable CORS on {es}
 
 This is the simplest option.
-Enable CORS on Elasticsearch by adding the following to your `elasticsearch.yml` file:
+Enable CORS on {es} by adding the following to your `elasticsearch.yml` file:
 
 [source,yaml]
 ----
@@ -215,10 +215,10 @@ http.cors.allow-methods: OPTIONS, POST
 http.cors.allow-headers: X-Requested-With, X-Auth-Token, Content-Type, Content-Length, Authorization, Access-Control-Allow-Headers, Accept
 ----
 
-On Elastic Cloud, you can do this by {cloud}/ec-add-user-settings.html#ec-add-user-settings[editing your Elasticsearch user settings].
+On Elastic Cloud, you can do this by {cloud}/ec-add-user-settings.html#ec-add-user-settings[editing your {es} user settings].
 
 . From your deployment menu, go to the *Edit* page.
-. In the *Elasticsearch* section, select *Manage user settings and extensions*.
+. In the *{es}* section, select *Manage user settings and extensions*.
 . Update the user settings with the configuration above.
 . Select *Save changes*.
 
@@ -226,7 +226,7 @@ On Elastic Cloud, you can do this by {cloud}/ec-add-user-settings.html#ec-add-us
 [[search-application-security-cors-proxy-request]]
 ===== Proxy the request through a server that supports CORS
 
-If you are unable to enable CORS on Elasticsearch, you can proxy the request through a server that supports CORS.
+If you are unable to enable CORS on {es}, you can proxy the request through a server that supports CORS.
 This is more complicated, but is a viable option.
 
 [discrete]

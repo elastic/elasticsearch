@@ -6,7 +6,7 @@
 ++++
 
 Your <<search-application-overview,search applications>> use <<search-template,search templates>> to perform searches.
-Templates help reduce complexity by exposing only template parameters, while using the full power of Elasticsearch's query DSL to formulate queries.
+Templates help reduce complexity by exposing only template parameters, while using the full power of {es}'s query DSL to formulate queries.
 Templates may be set when creating or updating a search application, and can be customized.
 This template can be edited or updated at any time using the <<put-search-application,Put Search Application API>> API call.
 
@@ -119,7 +119,7 @@ You can search this using the <<search-search,search API>>.
 
 [NOTE]
 ====
-You should use the Search Applications management APIs to update your application and _not_ directly use Elasticsearch APIs such as the alias API.
+You should use the Search Applications management APIs to update your application and _not_ directly use {es} APIs such as the alias API.
 For example, use <<put-search-application, PUT Search Application>> with the `indices` parameter.
 This will automatically keep the associated alias up to date and ensure that indices are added to the search application correctly.
 ====

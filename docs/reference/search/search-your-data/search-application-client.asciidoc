@@ -27,7 +27,7 @@ This guide assumes you want to build a web app with the following search feature
 * Control over the presentation of results, such as inclusion/exclusion of fields and highlighting of matching terms
 * UI controls such as facets, filters, sorts, pagination
 
-You can think of the search application as the "server side" that persists changes to Elasticsearch.
+You can think of the search application as the "server side" that persists changes to {es}.
 Your web app acts as the "client side" that queries the search application.
 You'll be making edits to both your search application and your web app to complete the implementation.
 
@@ -40,7 +40,7 @@ To follow this guide, you'll need:
 * An *Elastic deployment*, that satisfies the <<search-application-overview-prerequisites, prerequisites>> for running a search application.
 ** If you don't have an Elastic deployment, start a free trial on https://cloud.elastic.co[Elastic Cloud^].
 * A *search application*.
-** Create and manage search applications in the <<search-application-overview-get-started-ui, Kibana UI>> or using the <<put-search-application, API>>.
+** Create and manage search applications in the <<search-application-overview-get-started-ui, {kib} UI>> or using the <<put-search-application, API>>.
 * A *web app* to query your search application, using https://github.com/elastic/search-application-client#installation[Search Application client].
 
 [discrete]
@@ -90,7 +90,7 @@ You'll need the following information to initialize the client:
 * The *URL endpoint* for your search application
 * The *API key* for your search application
 
-Find this information on the *Connect* page in the Kibana UI.
+Find this information on the *Connect* page in the {kib} UI.
 
 [discrete]
 [[search-application-client-client-configuration-import-js]]
@@ -105,7 +105,7 @@ import SearchApplicationClient from '@elastic/search-application-client';
 // NOTCONSOLE
 
 Configure the client with your deployment details to start making search requests.
-You can generate an API key on the *Connect* page in the Kibana UI.
+You can generate an API key on the *Connect* page in the {kib} UI.
 Go to *Search > Search Applications >* <MY_SEARCH_APPLICATION> *> Connect*.
 You'll find the following information prepopulated to initialize the client:
 
@@ -148,7 +148,7 @@ Alternatively, if you're using a CDN, you can import the client using the follow
 ----
 
 Configure the client with your deployment details to start making search requests.
-You can generate an API key on the *Connect* page in the Kibana UI.
+You can generate an API key on the *Connect* page in the {kib} UI.
 Go to *Search > Search Applications >* <MY_SEARCH_APPLICATION> *> Connect*.
 You'll find the following information prepopulated to initialize the client:
 
@@ -187,7 +187,7 @@ You'll use the Search Application APIs to create and manage your search template
 
 [TIP]
 ====
-When working with the Search Application APIs to manage templates, we provide the API examples using {kibana-ref}/console-kibana.html[Kibana Console^] syntax.
+When working with the Search Application APIs to manage templates, we provide the API examples using {kibana-ref}/console-kibana.html[{kib} Console^] syntax.
 ====
 
 Here's an example template:
@@ -249,7 +249,7 @@ const results = await request()
 We recommend getting started with the https://github.com/elastic/search-application-client#boilerplate-template[boilerplate template^] provided in the client repository.
 https://github.com/elastic/search-application-client/blob/main/bin/boilerplate_template.js[View this script^] to see how this is used.
 The `dictionary` parameter is used to pass in a JSON schema definition that describes structure and validation rules for the request object.
-This schema is important, because it restricts the use of certain features in the Elasticsearch query.
+This schema is important, because it restricts the use of certain features in the {es} query.
 https://github.com/elastic/search-application-client/blob/main/bin/request_schema.json[View the schema^].
 
 Each search functionality in this guide requires a feature included in this template.
@@ -648,7 +648,7 @@ const request = Client(
 
 [NOTE]
 ====
-In Elasticsearch, the `keyword` type is used for fields that need to be searchable in their exact, unmodified form.
+In {es}, the `keyword` type is used for fields that need to be searchable in their exact, unmodified form.
 This means these queries are case-sensitive.
 We use this type for facets because facets require aggregating and filtering data based on exact values or terms.
 ====

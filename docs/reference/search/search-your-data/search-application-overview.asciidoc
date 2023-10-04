@@ -5,8 +5,8 @@
 <titleabbrev>Search Applications</titleabbrev>
 ++++
 
-_Search Applications_ enable users to build search-powered applications that leverage the full power of Elasticsearch and its Query DSL, with a simplified user experience.
-Create search applications based on your Elasticsearch indices, build queries using search templates, and easily preview your results directly in the Kibana Search UI.
+_Search Applications_ enable users to build search-powered applications that leverage the full power of {es} and its Query DSL, with a simplified user experience.
+Create search applications based on your {es} indices, build queries using search templates, and easily preview your results directly in the {kib} Search UI.
 
 You can also interact with your search applications using the <<search-application-apis>>.
 Search Applications are designed to simplify building unified search experiences across a range of enterprise search use cases, using the Elastic platform.
@@ -15,8 +15,8 @@ Search Applications are designed to simplify building unified search experiences
 ****
 Documentation for the Search Applications feature lives in two places:
 
-* The documentation in this section covers the basics of Search Applications, information about working with Search Applications in the Kibana UI, and use case examples.
-* The <<search-application-apis,Elasticsearch API documentation>> contains the API references for working with Search Applications programmatically.
+* The documentation in this section covers the basics of Search Applications, information about working with Search Applications in the {kib} UI, and use case examples.
+* The <<search-application-apis,{es} API documentation>> contains the API references for working with Search Applications programmatically.
 Jump there if you're only interested in the APIs.
 ****
 
@@ -38,7 +38,7 @@ This feature is available to all *Elastic Cloud* deployments.
 This feature is also available to *self-managed* deployments when Elastic subscription requirements are satisfied.
 View the requirements for this feature under the *Elastic Search* section of the https://www.elastic.co/subscriptions[Elastic Stack subscriptions^] page.
 
-Your deployment must include the Elasticsearch and Kibana services.
+Your deployment must include the {es} and {kib} services.
 
 Managing search applications requires the `manage_search_application` cluster privilege, and also requires the `manage` <<privileges-list-indices,index privilege>> on all indices associated with the search application.
 
@@ -46,9 +46,9 @@ Managing search applications requires the `manage_search_application` cluster pr
 [[search-application-overview-summary]]
 === Overview
 
-The Elasticsearch <<query-dsl,Query DSL>> is powerful and flexible, but it comes with a steep learning curve.
+The {es} <<query-dsl,Query DSL>> is powerful and flexible, but it comes with a steep learning curve.
 Complex queries are verbose and hard to understand for non-experts.
-We've designed search applications to be easier to search over, but with the flexibility of working with an Elasticsearch index.
+We've designed search applications to be easier to search over, but with the flexibility of working with an {es} index.
 
 Search Applications use <<search-template,search templates>> to simplify the process of building queries.
 Templates are defined when creating a search application, and can be customized according to your needs.
@@ -62,15 +62,15 @@ Read <<search-application-api>> for the details.
 [[search-application-overview-get-started-ui]]
 ==== Option 1: Get started in the UI
 
-You can create build, and manage your search applications directly in the Kibana UI under *Search*.
-Make sure you have at least one Elasticsearch index to work with on your deployment.
+You can create build, and manage your search applications directly in the {kib} UI under *Search*.
+Make sure you have at least one {es} index to work with on your deployment.
 The indices underlying your search application are searched together, similar to how an <<aliases,alias>> searches over multiple indices.
 
-To create a new search application in Kibana:
+To create a new search application in {kib}:
 
 . Go to *Search > Search Applications*.
 . Select *Create*.
-. Select the Elasticsearch indices you want to use for your search application.
+. Select the {es} indices you want to use for your search application.
 . Name your search application.
 . Select *Create*.
 
@@ -80,7 +80,7 @@ Your search application should now be available in the list of search applicatio
 // image::../../images/search-applications/search-applications-create.png[Create search application screen]
 
 Once created, you can explore the documents in your search application under *Search > Search Applications >* _your-search-application_ > *Docs Explorer*.
-From there, you can expand a matching Elasticsearch document to see its full contents.
+From there, you can expand a matching {es} document to see its full contents.
 
 //[.screenshot]
 // image::../../images/search-applications/search-applications-docs-explorer.png[Docs explorer screen with search results]
@@ -89,7 +89,7 @@ From there, you can expand a matching Elasticsearch document to see its full con
 [[search-application-overview-get-started-api]]
 ==== Option 2: Get started with the API
 
-Use the Elasticsearch <<put-search-application,Put Search Application API>> to create a search application.
+Use the {es} <<put-search-application,Put Search Application API>> to create a search application.
 
 
 The following example creates a search application named `my_search_application` that searches over the `my_search_index1` and `my_search_index2` indices, along with defining a simple search template (Refer to <<search-application-api-default-template>>).

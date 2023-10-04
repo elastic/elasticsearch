@@ -117,8 +117,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        // TODO[wrb]: serialization
-        elasticsearchVersion = Version.readVersion(in).toString();
+        if (in.getTransportVersion().before(TransportVersions.PLUGIN_DESCRIPTOR_STRING_VERSION)) {
+            elasticsearchVersion = Version.readVersion(in).toString();
+        } else {
+            elasticsearchVersion = in.readString();
+        }
         javaVersion = in.readString();
         this.classname = in.readString();
         if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
@@ -153,8 +156,18 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        // TODO[wrb]: serialization
-        Version.writeVersion(Version.fromString(elasticsearchVersion), out);
+        if (out.getTransportVersion().before(TransportVersions.PLUGIN_DESCRIPTOR_STRING_VERSION)) {
+            // TODO[wrb]: should we send a placeholder if we don't have a semantic version?
+            try {
+                Version v = Version.fromString(elasticsearchVersion);
+                Version.writeVersion(v, out);
+            } catch (IllegalArgumentException e) {
+                // can't parse current version, so send placeholder
+                Version.writeVersion(Version.fromString("8.12.0"), out);
+            }
+        } else {
+            out.writeString(elasticsearchVersion);
+        }
         out.writeString(javaVersion);
         out.writeString(classname);
         if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {

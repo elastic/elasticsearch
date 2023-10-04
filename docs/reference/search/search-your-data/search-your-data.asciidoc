@@ -14,26 +14,26 @@ Depending on your data, you can use a query to get answers to questions like:
 
 {es} supports several search methods:
 
-<<search-for-exact-values,Search for exact values>>::
-Search for exact values or ranges for numbers, dates, IPs, or strings.
+Search for exact values::
+Search for <<term-level-queries,exact values or ranges>> of numbers, dates, IPs,
+or strings.
 
-<<full-text-search,Full-text search>>::
-Search unstructured textual data to find documents that best match search
-terms.
+Full-text search::
+Use <<full-text-queries,full text queries>> search <<analysis,unstructured
+textual data>> to find documents that best match search terms.
 
-<<semantic-search,Semantic search>>::
-Find data based on the intent and contextual meaning of a search query, instead
-of a match on query terms (lexical search).
+Semantic search::
+<<semantic-search,Semantic search>> helps you find data based on the intent and
+contextual meaning of a search query, instead of a match on query terms.
 
-<<knn-search,Vector search>>::
-Store vectors, numeric representations of data, in {es} and use approximate
-nearest neighbor (ANN) or k-nearest neighbor (kNN) algorithms to find vectors
-that are similar.
+Vector search:: Store vectors in {es} and use <<knn-search,approximate nearest
+neighbor (ANN) or k-nearest neighbor (kNN) search>> to find vectors that are
+similar.
 
 [discrete]
 === Run a search
 
-To run a search request, you can use the search API or search applications.
+To run a search request, you can use the search API or Search Applications.
 
 <<search-your-data,Search API>>::
 The <<search-search,search API>> enables you to search and
@@ -48,8 +48,7 @@ results directly in the Kibana Search UI.
 
 include::search-api.asciidoc[]
 include::search-applications.asciidoc[]
-include::search-for-exact-values.asciidoc[]
-include::full-text-search.asciidoc[]
 include::knn-search.asciidoc[]
 include::semantic-search.asciidoc[]
 include::search-across-clusters.asciidoc[]
+include::search-with-synonyms.asciidoc[]

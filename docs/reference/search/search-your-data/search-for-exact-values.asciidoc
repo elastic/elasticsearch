@@ -1,2 +1,0 @@
-[[search-for-exact-values]]
-== Search for exact values

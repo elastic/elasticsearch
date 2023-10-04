@@ -275,7 +275,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                 && XContentMapValues.extractValue("properties.balance.type", imd.mapping().sourceAsMap()) != null) {
                 try {
                     logger.info("--> block ClusterService from exposing new mapping version");
-                    latch.await();
+                    safeAwait(latch);
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }

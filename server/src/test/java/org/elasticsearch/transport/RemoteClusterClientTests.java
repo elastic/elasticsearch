@@ -236,11 +236,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             ) {
                 CountDownLatch latch = new CountDownLatch(1);
                 service.addConnectBehavior(remoteTransport, (transport, discoveryNode, profile, listener) -> {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(latch);
                     listener.onFailure(new ConnectTransportException(discoveryNode, "simulated"));
                 });
                 service.start();

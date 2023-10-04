@@ -3993,11 +3993,7 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
                 @Override
                 protected void commitIndexWriter(final IndexWriter writer, final Translog translog) throws IOException {
-                    try {
-                        readyToCompleteFlushLatch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(readyToCompleteFlushLatch);
                     super.commitIndexWriter(writer, translog);
                 }
             });
@@ -4278,22 +4274,18 @@ public class IndexShardTests extends IndexShardTestCase {
                 ActionListener<Void> listener
             ) {
                 readyToCloseLatch.countDown();
-                try {
-                    closeDoneLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(closeDoneLatch);
                 super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, listener);
             }
         });
 
         Thread closeShardThread = new Thread(() -> {
             try {
-                readyToCloseLatch.await();
+                safeAwait(readyToCloseLatch);
                 shard.close("testing", false);
                 // in integration tests, this is done as a listener on IndexService.
                 MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
-            } catch (InterruptedException | IOException e) {
+            } catch (IOException e) {
                 throw new AssertionError(e);
             } finally {
                 closeDoneLatch.countDown();
@@ -4317,7 +4309,7 @@ public class IndexShardTests extends IndexShardTestCase {
             TimeValue.timeValueMinutes(1L)
         );
 
-        engineResetLatch.await();
+        safeAwait(engineResetLatch);
 
         closeShardThread.join();
 
@@ -4352,7 +4344,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         Thread snapshotThread = new Thread(() -> {
             try {
-                readyToSnapshotLatch.await();
+                safeAwait(readyToSnapshotLatch);
                 shard.snapshotStoreMetadata();
                 try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(randomBoolean())) {
                     shard.store().getMetadata(indexCommitRef.getIndexCommit());
@@ -4360,7 +4352,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 try (Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {
                     shard.store().getMetadata(indexCommitRef.getIndexCommit());
                 }
-            } catch (InterruptedException | IOException e) {
+            } catch (IOException e) {
                 throw new AssertionError(e);
             } finally {
                 snapshotDoneLatch.countDown();
@@ -4611,13 +4603,9 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch warmerBlocking = new CountDownLatch(1);
         IndexShard shard = newShard(true, Settings.EMPTY, config -> {
             Engine.Warmer warmer = reader -> {
-                try {
-                    warmerStarted.countDown();
-                    warmerBlocking.await();
-                    config.getWarmer().warm(reader);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                warmerStarted.countDown();
+                safeAwait(warmerBlocking);
+                config.getWarmer().warm(reader);
             };
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),

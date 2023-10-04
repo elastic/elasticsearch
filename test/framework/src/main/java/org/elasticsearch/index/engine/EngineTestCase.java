@@ -1173,11 +1173,7 @@ public abstract class EngineTestCase extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startGun);
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < ops.size()) {
                     try {

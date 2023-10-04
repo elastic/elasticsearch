@@ -49,11 +49,7 @@ public class GroupedActionListenerTests extends ESTestCase {
         CyclicBarrier barrier = new CyclicBarrier(numThreads);
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
                 int c;
                 while ((c = count.incrementAndGet()) <= groupSize) {
                     listener.onResponse(c - 1);

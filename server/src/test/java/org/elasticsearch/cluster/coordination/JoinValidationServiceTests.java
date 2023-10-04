@@ -186,11 +186,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 final var seed = randomLong();
                 threads[i] = new Thread(() -> {
                     final var random = new Random(seed);
-                    try {
-                        startBarrier.await(10, TimeUnit.SECONDS);
-                    } catch (Exception e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(startBarrier);
 
                     while (keepGoing.get()) {
                         Thread.yield();

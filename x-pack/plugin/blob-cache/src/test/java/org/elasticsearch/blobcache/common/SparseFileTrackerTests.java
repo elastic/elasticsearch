@@ -373,12 +373,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final Set<AtomicBoolean> listenersCalled = newConcurrentSet();
         for (int threadIndex = 0; threadIndex < threads.length; threadIndex++) {
             threads[threadIndex] = new Thread(() -> {
-                try {
-                    startLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-
+                safeAwait(startLatch);
                 while (countDown.tryAcquire()) {
                     waitForRandomRange(fileContents, sparseFileTracker, listenersCalled::add, gap -> processGap(fileContents, gap));
                 }

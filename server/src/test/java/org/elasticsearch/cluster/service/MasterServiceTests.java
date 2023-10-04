@@ -593,12 +593,8 @@ public class MasterServiceTests extends ESTestCase {
                 final var task = new ExpectSuccessTask();
                 executor.executor().addExpectedTaskCount(1);
                 submitThreads[i] = new Thread(() -> {
-                    try {
-                        assertTrue(submissionLatch.await(10, TimeUnit.SECONDS));
-                        executor.queue().submitTask(Thread.currentThread().getName(), task, null);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(submissionLatch);
+                    executor.queue().submitTask(Thread.currentThread().getName(), task, null);
                 }, "submit-thread-" + i);
             }
 

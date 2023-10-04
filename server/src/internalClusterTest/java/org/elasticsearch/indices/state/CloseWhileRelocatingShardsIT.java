@@ -196,9 +196,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             for (final String indexToClose : indices) {
                 final Thread thread = new Thread(() -> {
                     try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+                        safeAwait(latch);
                     } finally {
                         release.countDown();
                     }

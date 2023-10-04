@@ -194,12 +194,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
-                try {
-                    blockRecovery.await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(e);
-                }
+                safeAwait(blockRecovery);
             }
             connection.sendRequest(requestId, action, request, options);
         });

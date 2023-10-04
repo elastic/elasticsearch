@@ -538,11 +538,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         } catch (final Exception e) {
                             throw new AssertionError(e);
                         }
-                        try {
-                            phaseTwoStartLatch.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(phaseTwoStartLatch);
                         super.indexTranslogOperations(
                             operations,
                             totalTranslogOps,
@@ -898,11 +894,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         if (latch != null) {
                             latch.countDown();
                         }
-                        try {
-                            block.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(block);
                     }
                     return super.addDocument(doc);
                 }

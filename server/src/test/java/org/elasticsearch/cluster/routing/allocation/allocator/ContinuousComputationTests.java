@@ -65,11 +65,7 @@ public class ContinuousComputationTests extends ESTestCase {
             final int threadIndex = i;
             valuePerThread[threadIndex] = randomInt();
             threads[threadIndex] = new Thread(() -> {
-                try {
-                    assertTrue(startLatch.await(10, TimeUnit.SECONDS));
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startLatch);
                 for (int j = 1000; j >= 0; j--) {
                     computation.onNewInput(valuePerThread[threadIndex] = valuePerThread[threadIndex] + j);
                 }
@@ -90,13 +86,7 @@ public class ContinuousComputationTests extends ESTestCase {
 
     public void testSkipsObsoleteValues() throws Exception {
         final var barrier = new CyclicBarrier(2);
-        final Runnable await = () -> {
-            try {
-                barrier.await(10, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        final Runnable await = () -> safeAwait(barrier);
 
         final var initialInput = new Object();
         final var becomesStaleInput = new Object();

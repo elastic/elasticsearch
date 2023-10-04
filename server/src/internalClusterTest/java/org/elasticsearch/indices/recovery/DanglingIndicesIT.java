@@ -276,12 +276,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final Thread[] importThreads = new Thread[2];
         for (int i = 0; i < importThreads.length; i++) {
             importThreads[i] = new Thread(() -> {
-                try {
-                    startLatch.await(10, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-
+                safeAwait(startLatch);
                 while (isImporting.get()) {
                     try {
                         clusterAdmin().importDanglingIndex(new ImportDanglingIndexRequest(danglingIndexUUID, true)).get();

@@ -95,7 +95,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         assertNoRunningTasks(taskRunner);
     }
 
-    public void testEnqueueSpawnsNewTasksUpToMax() throws Exception {
+    public void testEnqueueSpawnsNewTasksUpToMax() {
         int maxTasks = randomIntBetween(1, maxThreads);
         final int enqueued = maxTasks - 1; // So that it is possible to run at least one more task
         final int newTasks = randomIntBetween(1, 10);
@@ -113,9 +113,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
             @Override
             public void onResponse(Releasable releasable) {
                 try {
-                    taskBlocker.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
+                    safeAwait(taskBlocker);
                 } finally {
                     executedCountDown.countDown();
                     releasable.close();
@@ -138,7 +136,7 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         }
         taskBlocker.countDown();
         /// Eventually all tasks are executed
-        assertTrue(executedCountDown.await(10, TimeUnit.SECONDS));
+        safeAwait(executedCountDown);
         assertTrue(queue.isEmpty());
         assertNoRunningTasks(taskRunner);
     }

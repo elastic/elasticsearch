@@ -23,7 +23,6 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
 
     public static final ParseField NAME = new ParseField("classification");
 
-    public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
     public static final ParseField TOP_CLASSES_RESULTS_FIELD = new ParseField("top_classes_results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");

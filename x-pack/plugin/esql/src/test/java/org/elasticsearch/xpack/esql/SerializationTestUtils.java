@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.io.IOException;
@@ -48,6 +49,10 @@ public class SerializationTestUtils {
     }
 
     public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer) {
+        return serializeDeserialize(orig, serializer, deserializer, EsqlTestUtils.TEST_CFG);
+    }
+
+    public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer, EsqlConfiguration config) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, planNameRegistry);
             serializer.write(planStreamOutput, orig);
@@ -55,7 +60,7 @@ public class SerializationTestUtils {
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 writableRegistry()
             );
-            PlanStreamInput planStreamInput = new PlanStreamInput(in, planNameRegistry, writableRegistry(), EsqlTestUtils.TEST_CFG);
+            PlanStreamInput planStreamInput = new PlanStreamInput(in, planNameRegistry, writableRegistry(), config);
             return deserializer.read(planStreamInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

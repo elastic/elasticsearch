@@ -121,7 +121,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 Weight weight = scorer.weight();
                 var leafReaderContext = scorer.leafReaderContext();
                 // see org.apache.lucene.search.TotalHitCountCollector
-                int leafCount = weight == null ? -1 : weight.count(leafReaderContext);
+                int leafCount = weight.count(leafReaderContext);
                 if (leafCount != -1) {
                     // make sure to NOT multi count as the count _shortcut_ (which is segment wide)
                     // handle doc partitioning where the same leaf can be seen multiple times
@@ -132,10 +132,11 @@ public class LuceneCountOperator extends LuceneOperator {
                         var count = Math.min(leafCount, remainingDocs);
                         totalHits += count;
                         remainingDocs -= count;
-                        scorer.markAsDone();
                     }
+                    scorer.markAsDone();
                 } else {
                     // could not apply shortcut, trigger the search
+                    // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
                     scorer.scoreNextRange(leafCollector, leafReaderContext.reader().getLiveDocs(), remainingDocs);
                 }
             }

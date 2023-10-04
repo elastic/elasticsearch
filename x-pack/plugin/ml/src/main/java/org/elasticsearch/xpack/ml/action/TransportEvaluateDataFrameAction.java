@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -53,7 +54,13 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<
         Client client,
         ClusterService clusterService
     ) {
-        super(EvaluateDataFrameAction.NAME, transportService, actionFilters, EvaluateDataFrameAction.Request::new);
+        super(
+            EvaluateDataFrameAction.NAME,
+            transportService,
+            actionFilters,
+            EvaluateDataFrameAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.client = client;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)

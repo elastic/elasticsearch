@@ -13,7 +13,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBooleanEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBytesRefEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinDoubleEvaluator;
@@ -42,7 +42,11 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Least extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
-    public Least(Source source, @Named("first") Expression first, @Named("rest") List<Expression> rest) {
+    public Least(
+        Source source,
+        @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
+        @Param(name = "rest", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) List<Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 

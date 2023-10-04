@@ -100,13 +100,15 @@ public class MvCount extends AbstractMultivalueFunction {
         }
 
         @Override
-        protected Block.Ref evalSingleValuedNullable(Block.Ref fieldVal) {
-            return evalNullable(fieldVal);
+        protected Block.Ref evalSingleValuedNullable(Block.Ref ref) {
+            return evalNullable(ref);
         }
 
         @Override
-        protected Block.Ref evalSingleValuedNotNullable(Block.Ref fieldVal) {
-            return Block.Ref.floating(new ConstantIntVector(1, fieldVal.block().getPositionCount()).asBlock());
+        protected Block.Ref evalSingleValuedNotNullable(Block.Ref ref) {
+            try (ref) {
+                return Block.Ref.floating(new ConstantIntVector(1, ref.block().getPositionCount()).asBlock());
+            }
         }
     }
 }

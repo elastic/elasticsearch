@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctBytesRefAggregator}.
@@ -29,13 +30,14 @@ public final class CountDistinctBytesRefAggregatorFunctionSupplier implements Ag
   }
 
   @Override
-  public CountDistinctBytesRefAggregatorFunction aggregator() {
-    return CountDistinctBytesRefAggregatorFunction.create(channels, bigArrays, precision);
+  public CountDistinctBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
+    return CountDistinctBytesRefAggregatorFunction.create(driverContext, channels, bigArrays, precision);
   }
 
   @Override
-  public CountDistinctBytesRefGroupingAggregatorFunction groupingAggregator() {
-    return CountDistinctBytesRefGroupingAggregatorFunction.create(channels, bigArrays, precision);
+  public CountDistinctBytesRefGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext) {
+    return CountDistinctBytesRefGroupingAggregatorFunction.create(channels, driverContext, bigArrays, precision);
   }
 
   @Override

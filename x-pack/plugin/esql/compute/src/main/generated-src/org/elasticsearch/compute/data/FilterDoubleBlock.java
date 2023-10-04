@@ -55,19 +55,20 @@ final class FilterDoubleBlock extends AbstractFilterBlock implements DoubleBlock
          * we've been assigned and expanding all multivalued fields
          * into single valued fields.
          */
-        DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions.length);
-        for (int p : positions) {
-            if (block.isNull(p)) {
-                builder.appendNull();
-                continue;
+        try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positions.length, blockFactory())) {
+            for (int p : positions) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = block.getFirstValueIndex(p);
+                int end = start + block.getValueCount(p);
+                for (int i = start; i < end; i++) {
+                    builder.appendDouble(block.getDouble(i));
+                }
             }
-            int start = block.getFirstValueIndex(p);
-            int end = start + block.getValueCount(p);
-            for (int i = start; i < end; i++) {
-                builder.appendDouble(block.getDouble(i));
-            }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override

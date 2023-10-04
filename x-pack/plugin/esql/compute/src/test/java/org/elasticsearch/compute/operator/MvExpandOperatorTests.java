@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class MvExpandOperatorTests extends OperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
-        return new AbstractBlockSourceOperator(8 * 1024) {
+        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
             private int idx;
 
             @Override
@@ -132,5 +132,12 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         MvExpandOperator.Status status = (MvExpandOperator.Status) op.status();
         assertThat(status.pagesProcessed(), equalTo(1));
         assertThat(status.noops(), equalTo(0));
+    }
+
+    // TODO: remove this once possible
+    // https://github.com/elastic/elasticsearch/issues/99826
+    @Override
+    protected boolean canLeak() {
+        return true;
     }
 }

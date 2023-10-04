@@ -1,0 +1,5 @@
+pr: 100253
+summary: Propagate cancellation in `DataTiersUsageTransportAction`
+area: Data streams
+type: bug
+issues: []

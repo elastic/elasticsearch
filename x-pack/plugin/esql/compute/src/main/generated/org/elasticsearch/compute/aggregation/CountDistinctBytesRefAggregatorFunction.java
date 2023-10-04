@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctBytesRefAggregator}.
@@ -25,6 +26,8 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("hll", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final HllStates.SingleState state;
 
   private final List<Integer> channels;
@@ -33,17 +36,18 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
   private final int precision;
 
-  public CountDistinctBytesRefAggregatorFunction(List<Integer> channels,
-      HllStates.SingleState state, BigArrays bigArrays, int precision) {
+  public CountDistinctBytesRefAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels, HllStates.SingleState state, BigArrays bigArrays, int precision) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
-  public static CountDistinctBytesRefAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, int precision) {
-    return new CountDistinctBytesRefAggregatorFunction(channels, CountDistinctBytesRefAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+  public static CountDistinctBytesRefAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels, BigArrays bigArrays, int precision) {
+    return new CountDistinctBytesRefAggregatorFunction(driverContext, channels, CountDistinctBytesRefAggregator.initSingle(bigArrays, precision), bigArrays, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -107,8 +111,8 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = CountDistinctBytesRefAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = CountDistinctBytesRefAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

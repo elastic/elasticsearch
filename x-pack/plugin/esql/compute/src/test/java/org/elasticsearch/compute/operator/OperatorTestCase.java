@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
@@ -179,6 +180,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     protected final void assertSimple(DriverContext context, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), size));
+
+        List<Block> inputBlocks = new ArrayList<>();
+        for (Page p : input) {
+            for (int i = 0; i < p.getBlockCount(); i++) {
+                inputBlocks.add(p.getBlock(i));
+            }
+        }
+
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
@@ -187,6 +196,41 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         assertSimpleOutput(origInput, results);
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
 
+        List<Block> resultBlocks = new ArrayList<>();
+        // Release all result blocks. After this, all input blocks should be released as well, otherwise we have a leak.
+        for (Page p : results) {
+            for (int i = 0; i < p.getBlockCount(); i++) {
+                resultBlocks.add(p.getBlock(i));
+            }
+
+            p.releaseBlocks();
+        }
+
+        int unreleasedInputs = 0;
+        for (Block b : inputBlocks) {
+            if (b.isReleased() == false) {
+                unreleasedInputs++;
+            }
+        }
+        if ((canLeak() == false) && unreleasedInputs > 0) {
+            throw new AssertionError("[" + unreleasedInputs + "] unreleased input blocks");
+        }
+    }
+
+    // Tests that finish then close without calling getOutput to retrieve a potential last page, releases all memory
+    public void testSimpleFinishClose() {
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
+        assert input.size() == 1 : input.size();
+        // eventually, when driverContext always returns a tracking factory, we can enable this assertion
+        // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
+        Page page = input.get(0);
+        try (var operator = simple(driverContext.bigArrays()).get(driverContext)) {
+            assert operator.needsInput();
+            operator.addInput(page);
+            operator.finish();
+        }
+        assertThat(driverContext.blockFactory().breaker().getUsed(), equalTo(0L));
     }
 
     protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {
@@ -198,7 +242,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         boolean success = false;
         try (
             Driver d = new Driver(
-                driverContext(),
+                driverContext,
                 new CannedSourceOperator(input),
                 operators,
                 new ResultPageSinkOperator(results::add),
@@ -259,6 +303,12 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         } finally {
             terminate(threadPool);
         }
+    }
+
+    // TODO: Remove this once all operators do not leak anymore
+    // https://github.com/elastic/elasticsearch/issues/99826
+    protected boolean canLeak() {
+        return false;
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

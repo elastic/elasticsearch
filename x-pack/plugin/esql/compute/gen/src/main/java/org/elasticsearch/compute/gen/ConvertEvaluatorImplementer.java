@@ -72,8 +72,6 @@ public class ConvertEvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.superclass(ABSTRACT_CONVERT_FUNCTION_EVALUATOR);
 
-        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
-
         builder.addMethod(ctor());
         builder.addMethod(name());
         builder.addMethod(evalVector());
@@ -88,8 +86,7 @@ public class ConvertEvaluatorImplementer {
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
         builder.addParameter(SOURCE, "source");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        builder.addStatement("super($N, $N)", "field", "source");
-        builder.addStatement("this.driverContext = driverContext");
+        builder.addStatement("super(driverContext, field, source)");
         return builder.build();
     }
 
@@ -168,8 +165,8 @@ public class ConvertEvaluatorImplementer {
         builder.addStatement("$T block = ($T) b", blockType, blockType);
         builder.addStatement("int positionCount = block.getPositionCount()");
         TypeName resultBlockType = blockType(resultType);
-        builder.addStatement(
-            "$T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory())",
+        builder.beginControlFlow(
+            "try ($T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory()))",
             resultBlockType,
             resultBlockType
         );
@@ -222,6 +219,7 @@ public class ConvertEvaluatorImplementer {
         builder.endControlFlow();
 
         builder.addStatement("return builder.build()");
+        builder.endControlFlow();
 
         return builder.build();
     }

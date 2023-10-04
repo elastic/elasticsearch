@@ -36,12 +36,12 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       BooleanBlock lhsBlock = (BooleanBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         BooleanBlock rhsBlock = (BooleanBlock) rhsRef.block();
         BooleanVector lhsVector = lhsBlock.asVector();
@@ -58,27 +58,29 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock rhsBlock) {
-    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBoolean(NotEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
       }
-      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBoolean(NotEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
-    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBoolean(NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBoolean(NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

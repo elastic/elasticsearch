@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -30,7 +31,7 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
         ActionFilters actionFilters,
         SearchTransportService searchTransportService
     ) {
-        super(RemoteInfoAction.NAME, transportService, actionFilters, RemoteInfoRequest::new);
+        super(RemoteInfoAction.NAME, transportService, actionFilters, RemoteInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
 

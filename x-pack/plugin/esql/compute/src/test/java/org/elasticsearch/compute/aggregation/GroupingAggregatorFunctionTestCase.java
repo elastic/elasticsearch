@@ -57,7 +57,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator()) {
+        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator(driverContext())) {
             return agg.intermediateBlockCount();
         }
     }
@@ -103,7 +103,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         boolean seenNullGroup = false;
         SortedSet<Long> seenGroups = new TreeSet<>();
         for (Page in : input) {
-            LongBlock groups = in.getBlock(0);
+            Block groups = in.getBlock(0);
             for (int p = 0; p < in.getPositionCount(); p++) {
                 if (groups.isNull(p)) {
                     seenNullGroup = true;
@@ -112,7 +112,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 int start = groups.getFirstValueIndex(p);
                 int end = start + groups.getValueCount(p);
                 for (int g = start; g < end; g++) {
-                    seenGroups.add(groups.getLong(g));
+                    seenGroups.add(((LongBlock) groups).getLong(g));
                 }
             }
         }
@@ -138,10 +138,15 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertThat(results.get(0).getBlockCount(), equalTo(2));
         assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
 
-        LongBlock groups = results.get(0).getBlock(0);
+        Block groups = results.get(0).getBlock(0);
         Block result = results.get(0).getBlock(1);
         for (int i = 0; i < seenGroups.size(); i++) {
-            Long group = groups.isNull(i) ? null : groups.getLong(i);
+            final Long group;
+            if (groups.isNull(i)) {
+                group = null;
+            } else {
+                group = ((LongBlock) groups).getLong(i);
+            }
             assertSimpleGroup(input, result, i, group);
         }
     }
@@ -172,6 +177,32 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(50, 60);
         List<Page> input = CannedSourceOperator.collectPages(nullGroups(simpleInput(blockFactory, end), blockFactory));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> results = drive(
+            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
+            input.iterator(),
+            driverContext
+        );
+        assertSimpleOutput(origInput, results);
+    }
+
+    public void testAllKeyNulls() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        List<Page> input = new ArrayList<>();
+        for (Page p : CannedSourceOperator.collectPages(simpleInput(blockFactory, between(11, 20)))) {
+            if (randomBoolean()) {
+                input.add(p);
+            } else {
+                Block[] blocks = new Block[p.getBlockCount()];
+                blocks[0] = Block.constantNullBlock(p.getPositionCount(), blockFactory);
+                for (int i = 1; i < blocks.length; i++) {
+                    blocks[i] = p.getBlock(i);
+                }
+                p.getBlock(0).close();
+                input.add(new Page(blocks));
+            }
+        }
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         List<Page> results = drive(
             simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
@@ -453,7 +484,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     protected static IntStream allValueOffsets(Page page, Long group) {
-        LongBlock groupBlock = page.getBlock(0);
+        Block groupBlock = page.getBlock(0);
         Block valueBlock = page.getBlock(1);
         return IntStream.range(0, page.getPositionCount()).flatMap(p -> {
             if (valueBlock.isNull(p)) {
@@ -468,7 +499,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                 int groupEnd = groupStart + groupBlock.getValueCount(p);
                 boolean matched = false;
                 for (int i = groupStart; i < groupEnd; i++) {
-                    if (groupBlock.getLong(i) == group) {
+                    if (((LongBlock) groupBlock).getLong(i) == group) {
                         matched = true;
                         break;
                     }
@@ -518,14 +549,14 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     private AggregatorFunctionSupplier chunkGroups(int emitChunkSize, AggregatorFunctionSupplier supplier) {
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator() {
-                return supplier.aggregator();
+            public AggregatorFunction aggregator(DriverContext driverContext) {
+                return supplier.aggregator(driverContext);
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator() {
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
                 return new GroupingAggregatorFunction() {
-                    GroupingAggregatorFunction delegate = supplier.groupingAggregator();
+                    GroupingAggregatorFunction delegate = supplier.groupingAggregator(driverContext);
                     BitArray seenGroupIds = new BitArray(0, nonBreakingBigArrays());
 
                     @Override
@@ -609,8 +640,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-                        delegate.evaluateFinal(blocks, offset, selected);
+                    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext1) {
+                        delegate.evaluateFinal(blocks, offset, selected, driverContext);
                     }
 
                     @Override

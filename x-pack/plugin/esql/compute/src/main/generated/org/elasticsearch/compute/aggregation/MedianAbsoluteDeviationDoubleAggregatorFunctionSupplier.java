@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationDoubleAggregator}.
@@ -26,13 +27,14 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier imple
   }
 
   @Override
-  public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator() {
-    return MedianAbsoluteDeviationDoubleAggregatorFunction.create(channels);
+  public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+    return MedianAbsoluteDeviationDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator() {
-    return MedianAbsoluteDeviationDoubleGroupingAggregatorFunction.create(channels, bigArrays);
+  public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext) {
+    return MedianAbsoluteDeviationDoubleGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
   }
 
   @Override

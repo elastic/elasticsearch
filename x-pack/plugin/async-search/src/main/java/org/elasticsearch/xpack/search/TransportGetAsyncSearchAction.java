@@ -43,7 +43,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
-        super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new);
+        super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool, bigArrays);
     }

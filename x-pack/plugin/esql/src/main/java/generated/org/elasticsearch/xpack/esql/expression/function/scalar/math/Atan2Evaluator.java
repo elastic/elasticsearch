@@ -36,12 +36,12 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   public Block.Ref eval(Page page) {
     try (Block.Ref yRef = y.eval(page)) {
       if (yRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       DoubleBlock yBlock = (DoubleBlock) yRef.block();
       try (Block.Ref xRef = x.eval(page)) {
         if (xRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         DoubleBlock xBlock = (DoubleBlock) xRef.block();
         DoubleVector yVector = yBlock.asVector();
@@ -58,27 +58,29 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (yBlock.isNull(p) || yBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (yBlock.isNull(p) || yBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (xBlock.isNull(p) || xBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Atan2.process(yBlock.getDouble(yBlock.getFirstValueIndex(p)), xBlock.getDouble(xBlock.getFirstValueIndex(p))));
       }
-      if (xBlock.isNull(p) || xBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendDouble(Atan2.process(yBlock.getDouble(yBlock.getFirstValueIndex(p)), xBlock.getDouble(xBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

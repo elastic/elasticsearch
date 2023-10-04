@@ -1,5 +1,5 @@
 pr: 100236
-summary: Respect operation purpose for s3 stats collection
+summary: Record operation purpose for s3 stats collection
 area: Distributed
 type: enhancement
 issues: []

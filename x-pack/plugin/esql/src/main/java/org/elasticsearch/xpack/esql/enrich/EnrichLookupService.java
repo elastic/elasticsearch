@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValueSources;
@@ -294,7 +295,8 @@ public class EnrichLookupService {
             this.shardId = new ShardId(in);
             this.matchType = in.readString();
             this.matchField = in.readString();
-            this.inputPage = new Page(in);
+            // TODO real BlockFactory
+            this.inputPage = new Page(new BlockStreamInput(in, BlockFactory.getNonBreakingInstance()));
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
             this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
         }
@@ -364,7 +366,8 @@ public class EnrichLookupService {
         }
 
         LookupResponse(StreamInput in) throws IOException {
-            this.page = new Page(in);
+            // TODO real BlockFactory
+            this.page = new Page(new BlockStreamInput(in, BlockFactory.getNonBreakingInstance()));
         }
 
         @Override

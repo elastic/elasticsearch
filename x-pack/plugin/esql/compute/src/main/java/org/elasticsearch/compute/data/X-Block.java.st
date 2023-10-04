@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * Block that stores $type$ values.
@@ -58,17 +57,15 @@ $endif$
         return "$Type$Block";
     }
 
-    static NamedWriteableRegistry.Entry namedWriteableEntry(Supplier<BlockFactory> blockFactory) {
-        return new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", in -> readFrom(blockFactory.get(), in));
-    }
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::readFrom);
 
-    private static $Type$Block readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
+    private static $Type$Block readFrom(StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return $Type$Vector.readFrom(blockFactory, in).asBlock();
+            return $Type$Vector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(positions)) {
+        try ($Type$Block.Builder builder = ((BlockStreamInput) in).blockFactory().new$Type$BlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();

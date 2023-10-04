@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * Block that stores boolean values.
@@ -42,17 +41,15 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         return "BooleanBlock";
     }
 
-    static NamedWriteableRegistry.Entry namedWriteableEntry(Supplier<BlockFactory> blockFactory) {
-        return new NamedWriteableRegistry.Entry(Block.class, "BooleanBlock", in -> readFrom(blockFactory.get(), in));
-    }
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BooleanBlock", BooleanBlock::readFrom);
 
-    private static BooleanBlock readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
+    private static BooleanBlock readFrom(StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return BooleanVector.readFrom(blockFactory, in).asBlock();
+            return BooleanVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(positions)) {
+        try (BooleanBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newBooleanBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();

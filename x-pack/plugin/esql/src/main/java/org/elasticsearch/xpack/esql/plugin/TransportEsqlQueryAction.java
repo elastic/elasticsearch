@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.concurrent.Executor;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
@@ -63,7 +61,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        EsqlPlugin.BlockFactoryHolder blockFactoryHolder
+        BlockFactory blockFactory
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -72,7 +70,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        var blockFactory = createBlockFactory(bigArrays);
         this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.computeService = new ComputeService(
@@ -85,20 +82,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactory
         );
         this.settings = settings;
-        /*
-         * This hacks the block factory into a shared place where
-         * it can be used for deserialization. We'd prefer a less
-         * strange way to do it, but Plugin doesn't give us access
-         * to BigArrays, which we need to build the BlockFactory
-         * up front.
-         */
-        blockFactoryHolder.blockFactory = blockFactory;
-    }
-
-    static BlockFactory createBlockFactory(BigArrays bigArrays) {
-        CircuitBreaker circuitBreaker = bigArrays.breakerService().getBreaker("request");
-        Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
-        return new BlockFactory(circuitBreaker, bigArrays);
     }
 
     @Override

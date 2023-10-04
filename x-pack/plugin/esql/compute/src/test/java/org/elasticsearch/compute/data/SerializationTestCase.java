@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -30,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class SerializationTestCase extends ESTestCase {
     BigArrays bigArrays;
     private BlockFactory blockFactory;
-    NamedWriteableRegistry registry = new NamedWriteableRegistry(Block.getNamedWriteables(() -> blockFactory));
+    NamedWriteableRegistry registry = new NamedWriteableRegistry(Block.getNamedWriteables());
 
     @Before
     public final void newBlockFactory() {
@@ -48,17 +47,22 @@ public abstract class SerializationTestCase extends ESTestCase {
     Page serializeDeserializePage(Page origPage) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             origPage.writeTo(out);
-            StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-            return new Page(in);
+            return new Page(blockStreamInput(out));
         }
+    }
+
+    BlockStreamInput blockStreamInput(BytesStreamOutput out) {
+        return new BlockStreamInput(
+            new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry),
+            blockFactory
+        );
     }
 
     @SuppressWarnings("unchecked")
     <T extends Block> T serializeDeserializeBlock(T origBlock) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeNamedWriteable(origBlock);
-            StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-            return (T) in.readNamedWriteable(Block.class);
+            return (T) blockStreamInput(out).readNamedWriteable(Block.class);
         }
     }
 

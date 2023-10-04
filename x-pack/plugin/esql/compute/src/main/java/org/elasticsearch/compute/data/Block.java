@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
@@ -252,13 +251,13 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
         }
     }
 
-    static List<NamedWriteableRegistry.Entry> getNamedWriteables(Supplier<BlockFactory> blockFactory) {
+    static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            IntBlock.namedWriteableEntry(blockFactory),
-            LongBlock.namedWriteableEntry(blockFactory),
-            DoubleBlock.namedWriteableEntry(blockFactory),
-            BytesRefBlock.namedWriteableEntry(blockFactory),
-            BooleanBlock.namedWriteableEntry(blockFactory),
+            IntBlock.ENTRY,
+            LongBlock.ENTRY,
+            DoubleBlock.ENTRY,
+            BytesRefBlock.ENTRY,
+            BooleanBlock.ENTRY,
             ConstantNullBlock.ENTRY
         );
     }

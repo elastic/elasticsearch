@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * Block that stores double values.
@@ -42,17 +41,15 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         return "DoubleBlock";
     }
 
-    static NamedWriteableRegistry.Entry namedWriteableEntry(Supplier<BlockFactory> blockFactory) {
-        return new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", in -> readFrom(blockFactory.get(), in));
-    }
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", DoubleBlock::readFrom);
 
-    private static DoubleBlock readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
+    private static DoubleBlock readFrom(StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return DoubleVector.readFrom(blockFactory, in).asBlock();
+            return DoubleVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(positions)) {
+        try (DoubleBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newDoubleBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.lookup;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -53,7 +52,6 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
 public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
 
     public void testSimple() {

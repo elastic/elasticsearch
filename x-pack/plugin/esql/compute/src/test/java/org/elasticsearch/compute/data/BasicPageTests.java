@@ -8,12 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -190,13 +186,10 @@ public class BasicPageTests extends SerializationTestCase {
         );
         try {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPages, page -> {
-                BytesStreamOutput out = new BytesStreamOutput();
-                out.writeCollection(origPages);
-                StreamInput in = new NamedWriteableAwareStreamInput(
-                    ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
-                    registry
-                );
-                return in.readCollectionAsList(Page::new);
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    out.writeCollection(origPages);
+                    return blockStreamInput(out).readCollectionAsList(Page::new);
+                }
             }, null, pages -> Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks)));
         } finally {
             Releasables.close(() -> Iterators.map(origPages.iterator(), p -> p::releaseBlocks));

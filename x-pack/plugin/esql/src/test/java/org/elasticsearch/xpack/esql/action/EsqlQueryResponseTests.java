@@ -60,7 +60,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Block.getNamedWriteables(() -> blockFactory));
+        return new NamedWriteableRegistry(Block.getNamedWriteables());
     }
 
     @Override
@@ -161,7 +161,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Override
     protected Writeable.Reader<EsqlQueryResponse> instanceReader() {
-        return EsqlQueryResponse::new;
+        return EsqlQueryResponse.reader(blockFactory);
     }
 
     @Override

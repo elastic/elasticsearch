@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * Block that stores long values.
@@ -42,17 +41,15 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
         return "LongBlock";
     }
 
-    static NamedWriteableRegistry.Entry namedWriteableEntry(Supplier<BlockFactory> blockFactory) {
-        return new NamedWriteableRegistry.Entry(Block.class, "LongBlock", in -> readFrom(blockFactory.get(), in));
-    }
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::readFrom);
 
-    private static LongBlock readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
+    private static LongBlock readFrom(StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return LongVector.readFrom(blockFactory, in).asBlock();
+            return LongVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
+        try (LongBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newLongBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();

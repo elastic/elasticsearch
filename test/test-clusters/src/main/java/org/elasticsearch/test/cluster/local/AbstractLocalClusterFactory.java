@@ -74,7 +74,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
     private final DistributionResolver distributionResolver;
 
-
     public AbstractLocalClusterFactory(DistributionResolver distributionResolver) {
         this.distributionResolver = distributionResolver;
     }

@@ -61,29 +61,31 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock startBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (startBlock.isNull(p) || startBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBytesRef(Substring.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
       }
-      if (startBlock.isNull(p) || startBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBytesRef(Substring.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector startVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(Substring.process(strVector.getBytesRef(p, strScratch), startVector.getInt(p)));
+    try (BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(Substring.process(strVector.getBytesRef(p, strScratch), startVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

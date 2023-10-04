@@ -56,33 +56,35 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (datetimeBlock.isNull(p) || datetimeBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (datetimeBlock.isNull(p) || datetimeBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(Add.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), temporalAmount));
+        } catch (ArithmeticException | DateTimeException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendLong(Add.processDatetimes(datetimeBlock.getLong(datetimeBlock.getFirstValueIndex(p)), temporalAmount));
-      } catch (ArithmeticException | DateTimeException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, LongVector datetimeVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(Add.processDatetimes(datetimeVector.getLong(p), temporalAmount));
-      } catch (ArithmeticException | DateTimeException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try (LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(Add.processDatetimes(datetimeVector.getLong(p), temporalAmount));
+        } catch (ArithmeticException | DateTimeException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

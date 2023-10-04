@@ -52,25 +52,27 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delim, scratch);
       }
-      Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delim, scratch);
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      Split.process(result, strVector.getBytesRef(p, strScratch), delim, scratch);
+    try (BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        Split.process(result, strVector.getBytesRef(p, strScratch), delim, scratch);
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

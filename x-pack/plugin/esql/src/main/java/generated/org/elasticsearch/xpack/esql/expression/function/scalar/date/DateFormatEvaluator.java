@@ -65,30 +65,32 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock, BytesRefBlock formatterBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef formatterScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount)) {
+      BytesRef formatterScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), locale));
       }
-      if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), locale));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, LongVector valVector,
       BytesRefVector formatterVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    BytesRef formatterScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));
+    try (BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount)) {
+      BytesRef formatterScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

@@ -44,23 +44,25 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
       }
-      result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public IntVector eval(int positionCount, IntVector fieldValVector) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendInt(Abs.process(fieldValVector.getInt(p)));
+    try (IntVector.Builder result = IntVector.newVectorBuilder(positionCount)) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendInt(Abs.process(fieldValVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

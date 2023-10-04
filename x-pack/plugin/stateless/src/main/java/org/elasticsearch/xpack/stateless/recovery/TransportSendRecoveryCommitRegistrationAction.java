@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -60,7 +61,7 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
         IndicesService indicesService,
         ActionFilters actionFilters
     ) {
-        super(NAME, transportService, actionFilters, RegisterCommitRequest::new);
+        super(NAME, transportService, actionFilters, RegisterCommitRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indicesService = indicesService;

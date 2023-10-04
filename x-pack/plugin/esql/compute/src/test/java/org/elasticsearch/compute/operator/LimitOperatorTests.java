@@ -20,6 +20,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
+    protected DriverContext driverContext() {
+        return breakingDriverContext();
+    }
+
+    @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         return new LimitOperator.Factory(100);
     }

@@ -244,6 +244,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         if (ids.contains(transformTask.getTransformId())) {
             if (request.isForce()) {
                 try {
+                    // If force==true, we skip all the additional steps and only deregister and complete persistent task via shutdown call.
+                    // This way we ensure that the persistent task is removed ASAP (as opposed to being removed in one of the listeners).
                     transformTask.shutdown();
                     listener.onResponse(new Response(true));
                 } catch (ElasticsearchException ex) {

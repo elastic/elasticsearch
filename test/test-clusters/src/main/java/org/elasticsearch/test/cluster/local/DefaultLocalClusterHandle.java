@@ -30,11 +30,14 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class DefaultLocalClusterHandle implements LocalClusterHandle {
+    public static final AtomicInteger NEXT_DEBUG_PORT = new AtomicInteger(5007);
+
     private static final Logger LOGGER = LogManager.getLogger(DefaultLocalClusterHandle.class);
     private static final Duration CLUSTER_UP_TIMEOUT = Duration.ofSeconds(30);
 
@@ -96,6 +99,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     @Override
     public void close() {
         stop(true);
+        NEXT_DEBUG_PORT.getAndUpdate(i -> i - nodes.size());
 
         executor.shutdownNow();
         try {

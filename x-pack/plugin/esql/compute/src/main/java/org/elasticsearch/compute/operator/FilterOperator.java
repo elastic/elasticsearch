@@ -61,6 +61,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
             }
 
             if (rowCount == 0) {
+                page.releaseBlocks();
                 return null;
             }
             if (rowCount == page.getPositionCount()) {
@@ -84,6 +85,6 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(evaluator);
+        Releasables.closeExpectNoException(evaluator, super::close);
     }
 }

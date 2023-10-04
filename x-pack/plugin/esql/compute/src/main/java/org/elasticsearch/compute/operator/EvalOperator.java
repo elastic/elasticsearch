@@ -8,12 +8,11 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-
-import java.util.stream.IntStream;
 
 /**
  * Evaluates a tree of functions for every position in the block, resulting in a
@@ -25,7 +24,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get(driverContext));
+            return new EvalOperator(driverContext.blockFactory(), evaluator.get(driverContext));
         }
 
         @Override
@@ -35,16 +34,18 @@ public class EvalOperator extends AbstractPageMappingOperator {
         }
     }
 
+    private final BlockFactory blockFactory;
     private final ExpressionEvaluator evaluator;
 
-    public EvalOperator(ExpressionEvaluator evaluator) {
+    public EvalOperator(BlockFactory blockFactory, ExpressionEvaluator evaluator) {
+        this.blockFactory = blockFactory;
         this.evaluator = evaluator;
     }
 
     @Override
     protected Page process(Page page) {
         Block.Ref ref = evaluator.eval(page);
-        Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block());
+        Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block(), blockFactory);
         return page.appendBlock(block);
     }
 
@@ -55,17 +56,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(evaluator);
-    }
-
-    /** Returns a copy of the give block, if the block appears in the page. */
-    // TODO: this is a catch all, can be removed when we validate that evaluators always return copies
-    // for now it just looks like Attributes returns a reference?
-    static Block maybeCopyBlock(Page page, Block block) {
-        if (IntStream.range(0, page.getBlockCount()).mapToObj(page::getBlock).anyMatch(b -> b == block)) {
-            return BlockUtils.deepCopyOf(block);
-        }
-        return block;
+        Releasables.closeExpectNoException(evaluator, super::close);
     }
 
     /**

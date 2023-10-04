@@ -129,6 +129,9 @@ public final class MultivalueDedupe {
      * things like hashing many fields together.
      */
     public static BatchEncoder batchEncoder(Block.Ref ref, int batchSize, boolean allowDirectEncoder) {
+        if (ref.block().areAllValuesNull()) {
+            return new BatchEncoder.DirectNulls(ref.block());
+        }
         var elementType = ref.block().elementType();
         if (allowDirectEncoder && ref.block().mvDeduplicated()) {
             var block = ref.block();

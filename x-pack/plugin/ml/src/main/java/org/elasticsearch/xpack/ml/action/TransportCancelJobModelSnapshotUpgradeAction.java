@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -52,7 +53,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         ClusterService clusterService,
         PersistentTasksService persistentTasksService
     ) {
-        super(CancelJobModelSnapshotUpgradeAction.NAME, transportService, actionFilters, Request::new);
+        super(CancelJobModelSnapshotUpgradeAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.jobConfigProvider = jobConfigProvider;
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;

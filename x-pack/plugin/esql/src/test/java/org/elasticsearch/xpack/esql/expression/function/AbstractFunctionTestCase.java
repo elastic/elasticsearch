@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -52,6 +51,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -119,6 +119,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true));
     }
 
+    protected static Expression deepCopyOfField(String name, DataType type) {
+        return new DeepCopy(Source.EMPTY, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true)));
+    }
+
     /**
      * Build the expression being tested, for the given source and list of arguments.  Test classes need to implement this
      * to have something to test.
@@ -130,6 +134,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsFields());
+    }
+
+    protected final Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
+        return build(testCase.getSource(), testCase.getDataAsDeepCopiedFields());
     }
 
     protected final Expression buildLiteralExpression(TestCaseSupplier.TestCase testCase) {
@@ -148,7 +156,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(BlockUtils.fromListRow(values));
+        return new Page(BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), values));
     }
 
     /**
@@ -171,14 +179,25 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluate() {
+        testEvaluate(false);
+    }
+
+    public final void testEvaluateFloating() {
+        testEvaluate(true);
+    }
+
+    private void testEvaluate(boolean readFloating) {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTrue("expected unresolved", expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
+            if (readFloating == false) {
+                // The hack that creates floating fields changes the error message so don't assert it
+                assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
+            }
             return;
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
@@ -205,7 +224,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
         try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
-            Block[] orig = BlockUtils.fromListRow(simpleData);
+            Block[] orig = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), simpleData);
             for (int i = 0; i < orig.length; i++) {
                 List<Object> data = new ArrayList<>();
                 Block[] blocks = new Block[orig.length];
@@ -292,6 +311,45 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertSerialization(buildFieldExpression(testCase));
     }
 
+    @AfterClass
+    public static void testFunctionInfo() {
+        FunctionDefinition definition = definition();
+        if (definition == null) {
+            LogManager.getLogger(getTestClass()).info("Skipping function info checks because the function isn't registered");
+            return;
+        }
+        EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
+        List<EsqlFunctionRegistry.ArgSignature> args = description.args();
+
+        List<Set<String>> typesFromSignature = new ArrayList<>();
+        Set<String> returnFromSignature = new HashSet<>();
+        for (int i = 0; i < args.size(); i++) {
+            typesFromSignature.add(new HashSet<>());
+        }
+        for (Map.Entry<List<DataType>, DataType> entry : signatures.entrySet()) {
+            List<DataType> types = entry.getKey();
+            for (int i = 0; i < args.size() && i < types.size(); i++) {
+                typesFromSignature.get(i).add(types.get(i).esType());
+            }
+            returnFromSignature.add(entry.getValue().esType());
+        }
+
+        for (int i = 0; i < args.size(); i++) {
+            Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toSet());
+            if (annotationTypes.equals(Set.of("?"))) {
+                continue; // TODO remove this eventually, so that all the functions will have to provide singature info
+            }
+            Set<String> signatureTypes = typesFromSignature.get(i);
+            assertEquals(annotationTypes, signatureTypes);
+        }
+
+        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toSet());
+        if (returnTypes.equals(Set.of("?")) == false) { // TODO remove this eventually, so that all the functions will have to provide
+                                                        // singature info
+            assertEquals(returnTypes, returnFromSignature);
+        }
+    }
+
     /**
      * Adds cases with {@code null} and asserts that the result is {@code null}.
      * <p>
@@ -363,7 +421,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                             }).toList();
                             return new TestCaseSupplier.TestCase(
                                 data,
-                                "LiteralsEvaluator[block=null]",
+                                "LiteralsEvaluator[lit=null]",
                                 entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType,
                                 nullValue(),
                                 null,
@@ -573,16 +631,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
 
-        List<String> definedSignature = ShowFunctions.signature(definition);
+        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
         StringBuilder header = new StringBuilder();
-        for (String arg : definedSignature) {
+        for (String arg : args) {
             header.append(arg).append(" | ");
         }
         header.append("result");
 
         List<String> table = new ArrayList<>();
         for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) {
-            if (sig.getKey().size() != definedSignature.size()) {
+            if (sig.getKey().size() != args.size()) {
                 continue;
             }
             StringBuilder b = new StringBuilder();
@@ -635,7 +693,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * A {@link DriverContext} with a BigArrays that does not circuit break.
      */
-    protected DriverContext driverContext() {
+    protected final DriverContext driverContext() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);

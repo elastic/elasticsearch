@@ -40,7 +40,7 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
         valuesRefs[i] = values[i].eval(page);
         Block block = valuesRefs[i].block();
         if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         valuesBlocks[i] = (DoubleBlock) block;
       }
@@ -56,7 +56,7 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -77,7 +77,7 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    try (DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount)) {
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

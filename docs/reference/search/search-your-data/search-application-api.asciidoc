@@ -40,7 +40,7 @@ You can check your query parameters against the current template using the <<sea
 
 The default template is very minimal:
 
-[source,json]
+[source,js]
 ----
 {
   "template": {

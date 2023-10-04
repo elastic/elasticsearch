@@ -71,7 +71,7 @@ This is insecure when dealing with untrusted clients.
 
 The response will look like this:
 
-[source,json]
+[source,js]
 ----
 {
   "id": "v1CCJYkBvb5Pg9T-_JgO",

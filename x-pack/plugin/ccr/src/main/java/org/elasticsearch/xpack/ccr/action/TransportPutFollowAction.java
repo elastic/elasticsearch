@@ -52,6 +52,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
@@ -186,7 +187,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         )
             .indicesOptions(request.indicesOptions())
             .renamePattern("^(.*)$")
-            .renameReplacement(request.getFollowerIndex())
+            .renameReplacement(Matcher.quoteReplacement(request.getFollowerIndex()))
             .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings)
             .quiet(true);

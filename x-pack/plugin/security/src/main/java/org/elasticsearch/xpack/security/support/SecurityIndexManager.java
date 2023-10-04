@@ -308,7 +308,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         if (allPrimaryShards == false || searchShards == false) {
             logger.debug(
-                "Index [{}] is not fully available." + " all primary shards available [{}], search shards available, [{}]",
+                "Index [{}] is not fully available. all primary shards available [{}], search shards available, [{}]",
                 aliasName,
                 allPrimaryShards,
                 searchShards

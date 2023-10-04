@@ -1791,8 +1791,8 @@ public final class TokenService {
         final SecurityIndexManager frozenTokensIndex = securityTokensIndex.defensiveCopy();
         if (frozenTokensIndex.indexExists()) {
             // an existing tokens index always contains tokens (if available and version allows)
-            if (false == frozenTokensIndex.isAvailable(PRIMARY_SHARDS)) {
-                listener.onFailure(frozenTokensIndex.getUnavailableReason(PRIMARY_SHARDS));
+            if (false == frozenTokensIndex.isAvailable(SEARCH_SHARDS)) {
+                listener.onFailure(frozenTokensIndex.getUnavailableReason(SEARCH_SHARDS));
                 return;
             }
             if (false == frozenTokensIndex.isIndexUpToDate()) {
@@ -1814,8 +1814,8 @@ public final class TokenService {
             if (false == frozenTokensIndex.indexExists()
                 || frozenTokensIndex.getCreationTime()
                     .isAfter(clock.instant().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
-                if (false == frozenMainIndex.isAvailable(PRIMARY_SHARDS)) {
-                    listener.onFailure(frozenMainIndex.getUnavailableReason(PRIMARY_SHARDS));
+                if (false == frozenMainIndex.isAvailable(SEARCH_SHARDS)) {
+                    listener.onFailure(frozenMainIndex.getUnavailableReason(SEARCH_SHARDS));
                     return;
                 }
                 if (false == frozenMainIndex.isIndexUpToDate()) {

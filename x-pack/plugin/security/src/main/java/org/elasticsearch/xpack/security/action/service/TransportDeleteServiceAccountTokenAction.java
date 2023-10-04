@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
@@ -30,7 +31,13 @@ public class TransportDeleteServiceAccountTokenAction extends HandledTransportAc
         ActionFilters actionFilters,
         ServiceAccountService serviceAccountService
     ) {
-        super(DeleteServiceAccountTokenAction.NAME, transportService, actionFilters, DeleteServiceAccountTokenRequest::new);
+        super(
+            DeleteServiceAccountTokenAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteServiceAccountTokenRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.serviceAccountService = serviceAccountService;
     }
 

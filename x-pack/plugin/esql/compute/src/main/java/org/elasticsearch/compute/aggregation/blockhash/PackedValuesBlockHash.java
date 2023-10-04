@@ -20,8 +20,10 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BatchEncoder;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 import java.util.List;
@@ -57,7 +59,8 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final Group[] groups;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> specs, BigArrays bigArrays, int emitBatchSize) {
+    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> specs, DriverContext driverContext, int emitBatchSize) {
+        super(driverContext);
         this.groups = specs.stream().map(Group::new).toArray(Group[]::new);
         this.emitBatchSize = emitBatchSize;
         this.bytesRefHash = new BytesRefHash(1, bigArrays);
@@ -193,7 +196,7 @@ final class PackedValuesBlockHash extends BlockHash {
         for (int g = 0; g < builders.length; g++) {
             ElementType elementType = groups[g].spec.elementType();
             decoders[g] = BatchEncoder.decoder(elementType);
-            builders[g] = elementType.newBlockBuilder(size);
+            builders[g] = elementType.newBlockBuilder(size, blockFactory);
         }
 
         BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
@@ -227,6 +230,7 @@ final class PackedValuesBlockHash extends BlockHash {
         for (int g = 0; g < keyBlocks.length; g++) {
             keyBlocks[g] = builders[g].build();
         }
+        Releasables.closeExpectNoException(builders);
         return keyBlocks;
     }
 
@@ -245,7 +249,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()));
+        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()), blockFactory);
     }
 
     @Override

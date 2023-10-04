@@ -130,21 +130,6 @@ public record Build(
         }
     }
 
-    /**
-     * Check whether a node version is compatible with the current minimum transport version.
-     * @param version A version identifier as a string
-     * @throws IllegalArgumentException if version is not a valid transport version identifier
-     * @return true if the version is compatible, false otherwise
-     */
-    public static boolean isNodeVersionWireCompatible(String version) {
-        try {
-            Version esVersion = Version.fromString(version);
-            return esVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Cannot parse [" + version + "] as a transport version identifier", e);
-        }
-    }
-
     public static Build current() {
         return CurrentHolder.CURRENT;
     }

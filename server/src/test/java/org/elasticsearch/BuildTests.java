@@ -14,8 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -121,20 +119,4 @@ public class BuildTests extends ESTestCase {
         assertThat(e, hasToString(containsString("unexpected distribution type [" + displayName + "]; your distribution is broken")));
     }
 
-    public void testIsNodeVersionWireCompatible() {
-        String nodeVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
-        assertTrue(Build.isNodeVersionWireCompatible(nodeVersion));
-        nodeVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
-        assertFalse(Build.isNodeVersionWireCompatible(nodeVersion));
-
-        String transportVersion = TransportVersionUtils.randomCompatibleVersion(random()).toString();
-        IllegalArgumentException e1 = expectThrows(
-            IllegalArgumentException.class,
-            () -> Build.isNodeVersionWireCompatible(transportVersion)
-        );
-        assertThat(e1.getMessage(), equalTo("Cannot parse [" + transportVersion + "] as a transport version identifier"));
-
-        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> Build.isNodeVersionWireCompatible("x.y.z"));
-        assertThat(e2.getMessage(), equalTo("Cannot parse [x.y.z] as a transport version identifier"));
-    }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -336,7 +337,49 @@ public class RestEsqlTestCase extends ESRestTestCase {
             ResponseException.class,
             () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]").build())
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("illegal data type [byte]"));
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("EVAL does not support type [byte] in expression [?]")
+        );
+    }
+
+    public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
+        List<String> dateMathOverflowExpressions = List.of(
+            "2147483647 day + 1 day",
+            "306783378 week + 1 week",
+            "2147483647 month + 1 month",
+            "2147483647 year + 1 year",
+            // We cannot easily force an overflow using just milliseconds, since these are divided by 1000 and then the resulting seconds
+            // are stored in a long. But combining with seconds works.
+            "9223372036854775807 second + 1000 millisecond",
+            "9223372036854775807 second + 1 second",
+            "153722867280912930 minute + 1 minute",
+            "2562047788015215 hour + 1 hour"
+
+        );
+
+        for (String overflowExp : dateMathOverflowExpressions) {
+            assertExceptionForDateMath(overflowExp, "overflow");
+        }
+
+    }
+
+    public void testErrorMessageForLiteralDateMathOverflowOnNegation() throws IOException {
+        assertExceptionForDateMath("-(-2147483647 year - 1 year)", "overflow");
+        assertExceptionForDateMath("-(-9223372036854775807 second - 1 second)", "Exceeds capacity of Duration");
+    }
+
+    private static void assertExceptionForDateMath(String dateMathString, String errorSubstring) throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = now() + (" + dateMathString + ")").build())
+        );
+
+        String responseMessage = EntityUtils.toString(re.getResponse().getEntity());
+        // the error in the response message might be chopped up by newlines, but finding "overflow" should suffice.
+        assertThat(responseMessage, containsString(errorSubstring));
+
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testErrorMessageForArrayValuesInParams() throws IOException {
@@ -513,5 +556,11 @@ public class RestEsqlTestCase extends ESRestTestCase {
     @Override
     protected boolean preserveClusterUponCompletion() {
         return true;
+    }
+
+    @Before
+    @After
+    public void assertRequestBreakerEmpty() throws Exception {
+        EsqlSpecTestCase.assertRequestBreakerEmpty();
     }
 }

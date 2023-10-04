@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
@@ -27,34 +29,39 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final Locale locale;
 
+  private final DriverContext driverContext;
+
   public DateFormatEvaluator(EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter, Locale locale) {
+      EvalOperator.ExpressionEvaluator formatter, Locale locale, DriverContext driverContext) {
     this.val = val;
     this.formatter = formatter;
     this.locale = locale;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      LongBlock valBlock = (LongBlock) valRef.block();
+      try (Block.Ref formatterRef = formatter.eval(page)) {
+        if (formatterRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
+        LongVector valVector = valBlock.asVector();
+        if (valVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+        }
+        BytesRefVector formatterVector = formatterBlock.asVector();
+        if (formatterVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), valVector, formatterVector).asBlock());
+      }
     }
-    LongBlock valBlock = (LongBlock) valUncastBlock;
-    Block formatterUncastBlock = formatter.eval(page);
-    if (formatterUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock formatterBlock = (BytesRefBlock) formatterUncastBlock;
-    LongVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatterBlock);
-    }
-    BytesRefVector formatterVector = formatterBlock.asVector();
-    if (formatterVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatterBlock);
-    }
-    return eval(page.getPositionCount(), valVector, formatterVector).asBlock();
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock, BytesRefBlock formatterBlock) {
@@ -87,5 +94,10 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "DateFormatEvaluator[" + "val=" + val + ", formatter=" + formatter + ", locale=" + locale + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val, formatter);
   }
 }

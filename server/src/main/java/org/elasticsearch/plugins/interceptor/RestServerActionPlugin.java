@@ -15,7 +15,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.function.UnaryOperator;

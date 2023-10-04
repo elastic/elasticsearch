@@ -172,6 +172,8 @@ public class Verifier {
                 }
             } else if (p instanceof Row row) {
                 failures.addAll(validateRow(row));
+            } else if (p instanceof Eval eval) {
+                failures.addAll(validateEval(eval));
             }
 
             p.forEachExpression(BinaryOperator.class, bo -> {
@@ -231,6 +233,19 @@ public class Verifier {
         row.fields().forEach(a -> {
             if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
                 failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+            }
+        });
+        return failures;
+    }
+
+    private static Collection<Failure> validateEval(Eval eval) {
+        List<Failure> failures = new ArrayList<>(eval.fields().size());
+        eval.fields().forEach(field -> {
+            DataType dataType = field.dataType();
+            if (EsqlDataTypes.isRepresentable(dataType) == false) {
+                failures.add(
+                    fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
+                );
             }
         });
         return failures;

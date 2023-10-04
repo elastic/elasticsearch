@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -21,7 +23,6 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -38,10 +39,11 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper {
 
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(
+    private static final Map<
+        DataType,
+        TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>> EVALUATORS = Map.of(
             KEYWORD,
-            (fieldEval, source) -> fieldEval,
+            (fieldEval, source, driverContext) -> fieldEval,
             BOOLEAN,
             ToStringFromBooleanEvaluator::new,
             DATETIME,
@@ -55,7 +57,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
             INTEGER,
             ToStringFromIntEvaluator::new,
             TEXT,
-            (fieldEval, source) -> fieldEval,
+            (fieldEval, source, driverContext) -> fieldEval,
             VERSION,
             ToStringFromVersionEvaluator::new,
             UNSIGNED_LONG,
@@ -67,7 +69,9 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     }
 
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    protected
+        Map<DataType, TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>>
+        evaluators() {
         return EVALUATORS;
     }
 

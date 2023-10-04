@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiClient;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequestEntity;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
@@ -39,7 +39,7 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
         this.taskSettings = taskSettings;
     }
 
-    public void execute(ActionListener<InferenceResult> listener) {
+    public void execute(ActionListener<InferenceResults> listener) {
         try {
             OpenAiAccount account = new OpenAiAccount(serviceSettings.apiKey());
             OpenAiEmbeddingsRequestEntity entity = new OpenAiEmbeddingsRequestEntity(input, taskSettings.model(), taskSettings.user());

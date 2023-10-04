@@ -11,9 +11,9 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
@@ -80,8 +80,7 @@ public record OpenAiEmbeddingsTaskSettings(String model, String user) implements
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO change this
-        return TransportVersions.V_8_500_072;
+        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
     }
 
     @Override

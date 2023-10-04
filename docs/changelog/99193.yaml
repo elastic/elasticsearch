@@ -1,0 +1,5 @@
+pr: 99193
+summary: Wait for cluster state in recovery
+area: Recovery
+type: enhancement
+issues: []

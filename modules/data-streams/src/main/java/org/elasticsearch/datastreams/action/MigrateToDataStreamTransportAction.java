@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataMigrateToDataStreamService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +48,7 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
             actionFilters,
             MigrateToDataStreamAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMigrateToDataStreamService = new MetadataMigrateToDataStreamService(
             threadPool,

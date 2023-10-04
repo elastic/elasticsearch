@@ -32,6 +32,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     private final NodeClient client;
     private final List<XPackInfoFeatureAction> infoActions;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportXPackInfoAction(
         TransportService transportService,

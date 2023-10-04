@@ -183,7 +183,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
                         // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
                         .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
-                        .build(MapperBuilderContext.root(false));
+                        .build(MapperBuilderContext.root(false, false));
                     extractPath(routingPaths, mapper);
                 }
             }

@@ -72,7 +72,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             actionFilters,
             NodesRequest::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.frozenCacheService = frozenCacheService;
         this.licenseState = licenseState;

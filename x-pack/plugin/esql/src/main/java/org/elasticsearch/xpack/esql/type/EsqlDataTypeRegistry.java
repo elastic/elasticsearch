@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
@@ -14,6 +15,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Collection;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 
@@ -29,8 +32,12 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
     }
 
     @Override
-    public DataType fromEs(String typeName) {
-        return EsqlDataTypes.fromEs(typeName);
+    public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
+        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
+            // Counter fields will be a counter type, for now they are unsupported
+            return DataTypes.UNSUPPORTED;
+        }
+        return EsqlDataTypes.fromName(typeName);
     }
 
     @Override
@@ -57,6 +64,12 @@ public class EsqlDataTypeRegistry implements DataTypeRegistry {
     public DataType commonType(DataType left, DataType right) {
         if (isDateTime(left) && isTemporalAmount(right) || isTemporalAmount(left) && isDateTime(right)) {
             return DataTypes.DATETIME;
+        }
+        if (left == TIME_DURATION && right == TIME_DURATION) {
+            return TIME_DURATION;
+        }
+        if (left == DATE_PERIOD && right == DATE_PERIOD) {
+            return DATE_PERIOD;
         }
         return DataTypeConverter.commonType(left, right);
     }

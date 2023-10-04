@@ -11,22 +11,23 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 // TODO figure out the format for the response
-public record OpenAiEmbeddingsResponseEntity(Embedding[] embeddings) implements InferenceResult {
+public record OpenAiEmbeddingsResponseEntity(Embedding[] embeddings) implements InferenceResults {
     private static final String NAME = "openai_embeddings_response_entity";
     private static final String EMBEDDINGS_FIELD = "embeddings";
 
@@ -114,13 +115,30 @@ public record OpenAiEmbeddingsResponseEntity(Embedding[] embeddings) implements 
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        // TODO change this
-        return TransportVersions.V_8_500_072;
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeArray(embeddings);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeArray(embeddings);
+    public String getResultsField() {
+        return EMBEDDINGS_FIELD;
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(EMBEDDINGS_FIELD, embeddings);
+
+        return map;
+    }
+
+    @Override
+    public Object predictedValue() {
+        throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

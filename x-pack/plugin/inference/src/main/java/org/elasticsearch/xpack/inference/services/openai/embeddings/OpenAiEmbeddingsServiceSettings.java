@@ -12,9 +12,9 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
@@ -54,7 +54,6 @@ public record OpenAiEmbeddingsServiceSettings(SecureString apiKey) implements Se
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        // TODO encrypt here
         builder.field(API_TOKEN, apiKey.toString());
         builder.endObject();
         return builder;
@@ -67,13 +66,11 @@ public record OpenAiEmbeddingsServiceSettings(SecureString apiKey) implements Se
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO change this
-        return TransportVersions.V_8_500_072;
+        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO do we need to encrypt here?
         out.writeSecureString(apiKey);
     }
 }

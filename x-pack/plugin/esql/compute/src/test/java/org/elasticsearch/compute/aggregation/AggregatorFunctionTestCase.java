@@ -91,8 +91,8 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     public final void testIgnoresNulls() {
         int end = between(1_000, 100_000);
         List<Page> results = new ArrayList<>();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(end));
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), end));
 
         try (
             Driver d = new Driver(
@@ -110,22 +110,24 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     public final void testMultivalued() {
         int end = between(1_000, 100_000);
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(new PositionMergingSourceOperator(simpleInput(end)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(
+            new PositionMergingSourceOperator(simpleInput(driverContext.blockFactory(), end))
+        );
         assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator()));
     }
 
     public final void testMultivaluedWithNulls() {
         int end = between(1_000, 100_000);
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(
-            new NullInsertingSourceOperator(new PositionMergingSourceOperator(simpleInput(end)))
+            new NullInsertingSourceOperator(new PositionMergingSourceOperator(simpleInput(driverContext.blockFactory(), end)))
         );
         assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator()));
     }
 
     public final void testEmptyInput() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> results = drive(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext), List.<Page>of().iterator());
 
         assertThat(results, hasSize(1));
@@ -133,7 +135,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     public final void testEmptyInputInitialFinal() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> results = drive(
             List.of(
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
@@ -147,7 +149,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     public final void testEmptyInputInitialIntermediateFinal() {
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         List<Page> results = drive(
             List.of(
                 simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),

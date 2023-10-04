@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.external.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
+import org.elasticsearch.inference.InferenceResults;
 
 public interface ExecutableAction {
-    void execute(ActionListener<InferenceResult> listener);
+    void execute(ActionListener<InferenceResults> listener);
 }

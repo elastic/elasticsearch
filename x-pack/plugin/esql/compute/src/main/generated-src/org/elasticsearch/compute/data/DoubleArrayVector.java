@@ -17,12 +17,16 @@ import java.util.Arrays;
  */
 public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
 
     private final double[] values;
 
     public DoubleArrayVector(double[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
     }
 
@@ -77,4 +81,5 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
 }

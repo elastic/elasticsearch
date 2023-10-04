@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.TaskType;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 
 public class OpenAiEmbeddingsModel extends Model {
     public OpenAiEmbeddingsModel(

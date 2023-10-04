@@ -195,6 +195,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         private final List<byte[]> bytesList;
 
+        @SuppressWarnings("this-escape")
         public CustomBinaryDocValuesField(String name, byte[] bytes) {
             super(name);
             bytesList = new ArrayList<>();

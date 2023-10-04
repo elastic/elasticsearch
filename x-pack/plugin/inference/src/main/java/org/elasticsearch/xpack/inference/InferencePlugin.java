@@ -29,16 +29,17 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -53,21 +54,18 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsService;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -89,16 +87,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(DeleteInferenceModelAction.INSTANCE, TransportDeleteInferenceModelAction.class)
         );
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return InferenceNamedWriteablesProvider.getNamedWriteables();
-    }
-
-    @Override
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Collections.emptyList();
     }
 
     @Override
@@ -132,18 +120,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
         httpClient = new HttpClient(settings, threadPool);
         ModelRegistry modelRegistry = new ModelRegistry(client);
-        // TODO we'll need to initialize the crypto and http client probably
-        ServiceRegistry serviceRegistry = new ServiceRegistry(
-            new ElserMlNodeService(client),
-            new OpenAiEmbeddingsService(threadPool, httpClient)
-        );
-        return List.of(modelRegistry, serviceRegistry);
+        return List.of(modelRegistry, httpClient);
     }
 
     @Override
@@ -197,5 +180,14 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     @Override
     public void close() {
         IOUtils.closeWhileHandlingException(httpClient);
+    }
+
+    public List<Factory> getInferenceServiceFactories() {
+        return List.of(ElserMlNodeService::new);
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getInferenceServiceNamedWriteables() {
+        return InferenceNamedWriteablesProvider.getNamedWriteables();
     }
 }

@@ -185,7 +185,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                 client().bulk(bulkRequest);
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();
-                List<Integer> counts = new ArrayList<>();
+                List<Long> counts = new ArrayList<>();
                 Collection<Centroid> centroids = histogram.centroids();
                 for (Centroid centroid : centroids) {
                     values.add(centroid.mean());
@@ -196,7 +196,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                     .startObject("inner")
                     .startObject("data")
                     .field("values", values.toArray(new Double[values.size()]))
-                    .field("counts", counts.toArray(new Integer[counts.size()]))
+                    .field("counts", counts.toArray(new Long[counts.size()]))
                     .endObject()
                     .endObject()
                     .endObject();

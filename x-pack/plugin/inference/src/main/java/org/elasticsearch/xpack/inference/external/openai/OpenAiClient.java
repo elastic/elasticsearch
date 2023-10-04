@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.inference.external.openai;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
 
 import java.io.IOException;
 
@@ -31,7 +31,7 @@ public class OpenAiClient {
         this.httpClient = httpClient;
     }
 
-    public void send(OpenAiEmbeddingsRequest request, ActionListener<InferenceResult> listener) throws IOException {
+    public void send(OpenAiEmbeddingsRequest request, ActionListener<InferenceResults> listener) throws IOException {
         ActionListener<HttpResult> responseListener = ActionListener.wrap(response -> {
             try {
                 listener.onResponse(OpenAiEmbeddingsResponseEntity.fromResponse(mapper, response));

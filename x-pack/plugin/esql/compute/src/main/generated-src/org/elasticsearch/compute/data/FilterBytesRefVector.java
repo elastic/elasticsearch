@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter vector for BytesRefVectors.
@@ -21,7 +22,7 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
     private final BytesRefVector vector;
 
     FilterBytesRefVector(BytesRefVector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
     }
 
@@ -88,5 +89,15 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
             }
             sb.append(getBytesRef(i, new BytesRef()));
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.Model;
-import org.elasticsearch.xpack.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiEmbeddingsAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
-import org.elasticsearch.xpack.inference.services.InferenceService;
 import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.util.Map;
@@ -72,7 +72,7 @@ public class OpenAiEmbeddingsService implements InferenceService {
     }
 
     @Override
-    public void infer(Model model, String input, Map<String, Object> requestTaskSettings, ActionListener<InferenceResult> listener) {
+    public void infer(Model model, String input, Map<String, Object> requestTaskSettings, ActionListener<InferenceResults> listener) {
         if (model.getTaskType() != TaskType.TEXT_EMBEDDING) {
             listener.onFailure(
                 new ElasticsearchStatusException(

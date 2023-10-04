@@ -10,7 +10,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Div}.
@@ -21,33 +23,38 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final EvalOperator.ExpressionEvaluator rhs;
 
+  private final DriverContext driverContext;
+
   public DivDoublesEvaluator(EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs) {
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
     this.lhs = lhs;
     this.rhs = rhs;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block lhsUncastBlock = lhs.eval(page);
-    if (lhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref lhsRef = lhs.eval(page)) {
+      if (lhsRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+      }
+      DoubleBlock lhsBlock = (DoubleBlock) lhsRef.block();
+      try (Block.Ref rhsRef = rhs.eval(page)) {
+        if (rhsRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        }
+        DoubleBlock rhsBlock = (DoubleBlock) rhsRef.block();
+        DoubleVector lhsVector = lhsBlock.asVector();
+        if (lhsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+        }
+        DoubleVector rhsVector = rhsBlock.asVector();
+        if (rhsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector).asBlock());
+      }
     }
-    DoubleBlock lhsBlock = (DoubleBlock) lhsUncastBlock;
-    Block rhsUncastBlock = rhs.eval(page);
-    if (rhsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    DoubleBlock rhsBlock = (DoubleBlock) rhsUncastBlock;
-    DoubleVector lhsVector = lhsBlock.asVector();
-    if (lhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    DoubleVector rhsVector = rhsBlock.asVector();
-    if (rhsVector == null) {
-      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
-    }
-    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
@@ -77,5 +84,10 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public String toString() {
     return "DivDoublesEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(lhs, rhs);
   }
 }

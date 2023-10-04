@@ -38,6 +38,7 @@ public class CustomRoleMappingRealm extends Realm implements CachingRealm {
     private final Cache<String, User> cache;
     private final UserRoleMapper roleMapper;
 
+    @SuppressWarnings("this-escape")
     public CustomRoleMappingRealm(RealmConfig config, UserRoleMapper roleMapper) {
         super(config);
         this.cache = CacheBuilder.<String, User>builder().build();

@@ -184,7 +184,7 @@ setup:
 ---
 "Multi weight field not allowed (old)":
   - skip:
-      version: " 8.11.0 - "
+      version: " 8.12.0 - "
       reason: "Changed status code"
       features: close_to
   - do:
@@ -201,7 +201,7 @@ setup:
 ---
 "Multi weight field not allowed":
   - skip:
-      version: " - 8.10.99"
+      version: " - 8.11.99"
       reason: "Changed status code"
       features: close_to
   - do:

@@ -167,10 +167,10 @@ public class BlockSerializationTests extends SerializationTestCase {
                     .forEach(i -> EqualsHashCodeTestUtils.checkEqualsAndHashCode(blocks[i], unused -> deserBlocks[i]));
 
                 var inputChannels = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size()).boxed().toList();
-                var finalAggregator = SumLongAggregatorFunction.create(inputChannels);
+                var finalAggregator = SumLongAggregatorFunction.create(driverCtx, inputChannels);
                 finalAggregator.addIntermediateInput(new Page(deserBlocks));
                 Block[] finalBlocks = new Block[1];
-                finalAggregator.evaluateFinal(finalBlocks, 0);
+                finalAggregator.evaluateFinal(finalBlocks, 0, driverCtx);
                 try (var finalBlock = (LongBlock) finalBlocks[0]) {
                     assertThat(finalBlock.getLong(0), is(55L));
                 }

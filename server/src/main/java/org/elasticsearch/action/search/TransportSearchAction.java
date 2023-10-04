@@ -1496,22 +1496,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             } else {
                 Exception exception = e;
+                boolean failImmediately = false;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
-                    exception = wrapRemoteClusterFailure(clusterAlias, true, e);
-                }
-                // TODO support minimize_roundtrips=false
-                boolean failImmediately = (skipUnavailable == false
-                    && clusters.isCcsMinimizeRoundtrips()
-                    && clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false);
-                if (failImmediately) {
-                    Throwable cancellationException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
-                    if (cancellationException != null) {
-                        // don't use the force fail path if the search task is being cancelled - let it cancel naturally
-                        failImmediately = false;
-                    } else {
-                        // since we are failing fast, check what other clusters lack connectivity and mark those as failed as well
-                        // so that the end user has an idea of what clusters to exclude upon a retry of a failed CCS query
-                        proactivelyMarkOtherClusterSearchesAsFailed(clusters, remoteClusterService.getRemoteConnectionInfos());
+                    // TODO support minimize_roundtrips=false
+                    failImmediately = clusters.isCcsMinimizeRoundtrips();
+                    exception = wrapRemoteClusterFailure(clusterAlias, failImmediately, e);
+                    if (failImmediately) {
+                        Throwable cancellationException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+                        if (cancellationException != null) {
+                            // don't use the force fail path if the search task is being cancelled - let it cancel naturally
+                            failImmediately = false;
+                        } else {
+                            // since we are failing fast, check what other clusters lack connectivity and mark those as failed as well
+                            // so that the end user has an idea of what clusters to exclude upon a retry of a failed CCS query
+                            proactivelyMarkOtherClusterSearchesAsFailed(clusters, remoteClusterService.getRemoteConnectionInfos());
+                        }
                     }
                 }
                 if (exceptions.compareAndSet(null, exception) == false) {
@@ -1538,12 +1537,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                     originalListener.onResponse(response);
                 } else {
+                    /// MP TODO --- start -- remove this section after ad-hoc testing
                     Throwable unwrap = ExceptionsHelper.unwrap(exceptions.get(), TaskCancelledException.class);
                     logger.warn(
                         "JJJ maybeFinish onFailure->Fatal Exception for cluster '{}'; TaskCancelledException?: {}",
                         clusterAlias,
                         (unwrap != null)
                     );
+                    /// MP TODO --- end
                     originalListener.onFailure(exceptions.get());
                 }
             }

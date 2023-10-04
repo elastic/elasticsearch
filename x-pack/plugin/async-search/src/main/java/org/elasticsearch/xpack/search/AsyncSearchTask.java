@@ -506,14 +506,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                     new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc),
                     failImmediately
                 );
-            if (failImmediately) {  /// MP TODO try doing failImmediately && isCancelled() == false instead?
-                if (isCancelled() == false) {
-                    logger.warn(">>> JJJ AsyncSearchTask calling cancelTask");
-                    cancelTask(() -> {}, "fatal error has occurred in a cross-cluster search - cancelling the search");
-                    /// MP TODO ---- start
-                    logger.warn("JJJ: BINGO!!   =========== ++++++++++++++ CANCELLED CANCELLED +++++");
-                    /// MP TODO ---- end
-                }
+            if (failImmediately && isCancelled() == false) {
+                cancelTask(() -> {}, "fatal error has occurred in a cross-cluster search - cancelling the search");
+                logger.warn("JJJ: BINGO!! =========== ++++++++++++++ CANCELLED CANCELLED +++++");
             }
             executeInitListeners();
             executeCompletionListeners();

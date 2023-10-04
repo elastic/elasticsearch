@@ -40,7 +40,7 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
         valuesRefs[i] = values[i].eval(page);
         Block block = valuesRefs[i].block();
         if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         valuesBlocks[i] = (IntBlock) block;
       }
@@ -56,7 +56,7 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public IntBlock eval(int positionCount, IntBlock[] valuesBlocks) {
-    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -77,7 +77,7 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try (IntVector.Builder result = IntVector.newVectorBuilder(positionCount)) {
+    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

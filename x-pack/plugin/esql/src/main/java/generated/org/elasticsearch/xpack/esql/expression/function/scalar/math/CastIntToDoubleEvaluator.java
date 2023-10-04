@@ -34,7 +34,7 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
       if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       IntBlock vBlock = (IntBlock) vRef.block();
       IntVector vVector = vBlock.asVector();
@@ -46,7 +46,7 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   }
 
   public DoubleBlock eval(int positionCount, IntBlock vBlock) {
-    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -59,7 +59,7 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   }
 
   public DoubleVector eval(int positionCount, IntVector vVector) {
-    try (DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount)) {
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Cast.castIntToDouble(vVector.getInt(p)));
       }

@@ -87,6 +87,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -526,8 +527,7 @@ public final class NodeEnvironment implements Closeable {
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
 
-            String version = metadata.previousNodeVersion().toString();
-            String bestDowngradeVersion = Build.isNodeVersionWireCompatible(version) ? version : Build.current().minWireCompatVersion();
+            String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion().toString());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
@@ -1508,4 +1508,20 @@ public final class NodeEnvironment implements Closeable {
             }
         }
     }
+
+    /**
+     * Get a useful version string to direct a user's downgrade operation
+     *
+     * <p>If a user is trying to install 8.0 but has incompatible indices, the user should
+     * downgrade to 7.17.x. We return 7.17.0, unless the user is trying to upgrade from
+     * a 7.17.x release, in which case we return the last installed version.
+     * @return Version to downgrade to
+     */
+    // visible for testing
+    static String getBestDowngradeVersion(String previousNodeVersion) {
+        // this method should only be called in the context of an upgrade to 8.x
+        assert Build.current().version().startsWith("9.") == false;
+        return Pattern.matches("^7\\.17\\.\\d+$", previousNodeVersion) ? previousNodeVersion : "7.17.0";
+    }
+
 }

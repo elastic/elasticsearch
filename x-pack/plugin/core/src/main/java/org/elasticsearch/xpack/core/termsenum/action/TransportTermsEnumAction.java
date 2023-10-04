@@ -118,7 +118,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new);
+        super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.clusterService = clusterService;
         this.searchService = searchService;

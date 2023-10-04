@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.logstash.Logstash;
@@ -26,7 +27,7 @@ public class TransportPutPipelineAction extends HandledTransportAction<PutPipeli
 
     @Inject
     public TransportPutPipelineAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PutPipelineAction.NAME, transportService, actionFilters, PutPipelineRequest::new);
+        super(PutPipelineAction.NAME, transportService, actionFilters, PutPipelineRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, LOGSTASH_MANAGEMENT_ORIGIN);
     }
 

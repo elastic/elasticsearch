@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -79,7 +80,11 @@ public abstract class AbstractPageMappingOperator implements Operator {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        if (prev != null) {
+            Releasables.closeExpectNoException(() -> prev.releaseBlocks());
+        }
+    }
 
     public static class Status implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -61,7 +62,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         final ClusterService clusterService,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new);
+        super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;

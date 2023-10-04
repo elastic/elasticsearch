@@ -439,6 +439,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99941")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -1622,6 +1623,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100222")
     public void testWaitForClusterStateToBeAppliedOnSourceNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         final var primaryNode = internalCluster().startDataOnlyNode();

@@ -17,12 +17,64 @@ ingested in the pipeline.
 |======
 | Name                                  | Required  | Default                        | Description
 | `model_id` .                          | yes       | -                              | (String) The ID or alias for the trained model, or the ID of the deployment.
+| `input_output`                        | no        | (List) Input fields for inference and output (destination) fields for the inference results. This options is incompatible with the `target_field` and `field_map` options.
 | `target_field`                        | no        | `ml.inference.<processor_tag>` | (String) Field added to incoming documents to contain results objects.
 | `field_map`                           | no        | If defined the model's default field map | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.
 | `inference_config`                    | no        | The default settings defined in the model  | (Object) Contains the inference type and its options.
 include::common-options.asciidoc[]
 |======
 
+[discrete]
+[[inference-input-output-example]]
+==== Configuring input and output fields
+Select the `content` field for inference and write the result to `content_embedding`.
+
+[source,js]
+--------------------------------------------------
+{
+  "inference": {
+    "model_id": "model_deployment_for_inference",
+    "input_output": [
+        {
+            "input_field": "content",
+            "output_field": "content_embedding"
+        }
+    ]
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+==== Configuring multiple inputs
+The `content` and `title` fields will be read from the incoming document
+and sent to the model for the inference. The inference output is written
+to `content_embedding` and `title_embedding` respectively.
+[source,js]
+--------------------------------------------------
+{
+  "inference": {
+    "model_id": "model_deployment_for_inference",
+    "input_output": [
+        {
+            "input_field": "content",
+            "output_field": "content_embedding"
+        },
+        {
+            "input_field": "title",
+            "output_field": "title_embedding"
+        }
+    ]
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Selecting the input fields with `input_output` is incompatible with
+the `target_field` and `field_map` options.
+
+Data frame analytics models must use the `target_field` to specify the
+root location results are written to and optionally a `field_map` to map
+field names in the input document to the model input fields.
 
 [source,js]
 --------------------------------------------------

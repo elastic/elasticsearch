@@ -768,6 +768,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return data.stream().map(t -> AbstractFunctionTestCase.field(t.name(), t.type())).collect(Collectors.toList());
         }
 
+        public List<Expression> getDataAsDeepCopiedFields() {
+            return data.stream().map(t -> AbstractFunctionTestCase.deepCopyOfField(t.name(), t.type())).collect(Collectors.toList());
+        }
+
         public List<Expression> getDataAsLiterals() {
             return data.stream().map(t -> new Literal(Source.synthetic(t.name()), t.data(), t.type())).collect(Collectors.toList());
         }

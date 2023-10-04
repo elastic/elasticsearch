@@ -196,4 +196,23 @@ public class IndexVersionTests extends ESTestCase {
             assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
         }
     }
+
+    public void testLuceneVersionOnUnknownVersions() {
+        // between two known versions, should use the lucene version of the previous version
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion();
+        IndexVersion currentVersion = IndexVersion.current();
+        int intermediateVersionId = previousVersion.id() + randomInt(currentVersion.id() - previousVersion.id() - 1);
+        IndexVersion intermediateVersion = IndexVersion.fromId(intermediateVersionId);
+        // the version is either the previous version or between the previous version and the current version excluded, so it is assumed to
+        // use the same Lucene version as the previous version
+        assertThat(intermediateVersion.luceneVersion(), equalTo(previousVersion.luceneVersion()));
+
+        // too old version, major should be the oldest supported lucene version minus 1
+        IndexVersion oldVersion = IndexVersion.fromId(5020199);
+        assertThat(oldVersion.luceneVersion().major, equalTo(IndexVersionUtils.getFirstVersion().luceneVersion().major - 1));
+
+        // future version, should be the same version as today
+        IndexVersion futureVersion = IndexVersion.fromId(currentVersion.id() + 100);
+        assertThat(futureVersion.luceneVersion(), equalTo(currentVersion.luceneVersion()));
+    }
 }

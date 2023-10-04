@@ -34,6 +34,7 @@ public class ExpressionSet<E extends Expression> implements Set<E> {
         super();
     }
 
+    @SuppressWarnings("this-escape")
     public ExpressionSet(Collection<? extends E> c) {
         addAll(c);
     }

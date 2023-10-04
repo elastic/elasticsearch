@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+
 import java.util.Arrays;
 
 /**
@@ -17,8 +20,11 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
 
     private boolean[] values;
 
-    BooleanBlockBuilder(int estimatedSize) {
-        values = new boolean[Math.max(estimatedSize, 2)];
+    BooleanBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        values = new boolean[initialSize];
     }
 
     @Override
@@ -29,6 +35,11 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Byte.BYTES;
     }
 
     @Override
@@ -170,18 +181,33 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
 
     @Override
     public BooleanBlock build() {
-        finish();
-        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            return new ConstantBooleanVector(values[0], 1).asBlock();
-        } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
-            }
-            if (isDense() && singleValued()) {
-                return new BooleanArrayVector(values, positionCount).asBlock();
+        try {
+            finish();
+            BooleanBlock theBlock;
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes);
             } else {
-                return new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                    values = Arrays.copyOf(values, valueCount);
+                }
+                if (isDense() && singleValued()) {
+                    theBlock = blockFactory.newBooleanArrayVector(values, positionCount, estimatedBytes).asBlock();
+                } else {
+                    theBlock = blockFactory.newBooleanArrayBlock(
+                        values,
+                        positionCount,
+                        firstValueIndexes,
+                        nullsMask,
+                        mvOrdering,
+                        estimatedBytes
+                    );
+                }
             }
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
         }
     }
 }

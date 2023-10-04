@@ -434,7 +434,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             super(in);
             this.id = in.readInt();
             this.node = new DiscoveryNode(in);
-            this.subRequests = in.readList(TestRequest::new);
+            this.subRequests = in.readCollectionAsList(TestRequest::new);
             this.timeout = in.readBoolean();
         }
 
@@ -512,7 +512,13 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         @Inject
         public TransportTestAction(TransportService transportService, NodeClient client, ActionFilters actionFilters) {
-            super(ACTION.name(), transportService, actionFilters, TestRequest::new, ThreadPool.Names.GENERIC);
+            super(
+                ACTION.name(),
+                transportService,
+                actionFilters,
+                TestRequest::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
+            );
             this.transportService = transportService;
             this.client = client;
         }

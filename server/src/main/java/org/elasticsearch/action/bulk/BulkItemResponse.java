@@ -10,7 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
@@ -30,6 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -44,14 +44,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
-public class BulkItemResponse implements Writeable, StatusToXContentObject {
+public class BulkItemResponse implements Writeable, ToXContentObject {
 
     private static final String _INDEX = "_index";
     private static final String _ID = "_id";
     private static final String STATUS = "status";
     private static final String ERROR = "error";
 
-    @Override
     public RestStatus status() {
         return failure == null ? response.status() : failure.getStatus();
     }
@@ -237,7 +236,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
          */
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 in.readString();
                 // can't make an assertion about type names here because too many tests still set their own
                 // types bypassing various checks
@@ -253,7 +252,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
             }
             out.writeOptionalString(id);

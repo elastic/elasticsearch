@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsString;
@@ -600,7 +600,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         IndexRequest request = new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .source("host.name", "localhost", "host.id", 111, "time", 100, "time.max", 1000);
-        IndexResponse indexResponse = client().index(request).actionGet();
+        DocWriteResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
@@ -645,7 +645,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 "foo.metrics.time.max",
                 1000
             );
-        IndexResponse indexResponse = client().index(request).actionGet();
+        DocWriteResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
@@ -661,5 +661,33 @@ public class DynamicMappingIT extends ESIntegTestCase {
             assertNotNull(properties.get("time"));
             assertNotNull(properties.get("time.max"));
         });
+    }
+
+    public void testKnnSubObject() throws Exception {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("""
+            {
+              "properties": {
+                "obj": {
+                  "type": "object",
+                  "dynamic": "true"
+                },
+                "mapped_obj": {
+                  "type": "object",
+                  "dynamic": "true",
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector"
+                    }
+                  }
+                }
+              }
+            }""").get());
+
+        client().index(new IndexRequest("test").source("mapped_obj.vector", Randomness.get().doubles(3, 0.0, 5.0).toArray())).get();
+
+        client().index(
+            new IndexRequest("test").source("obj.vector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+        ).get();
+
     }
 }

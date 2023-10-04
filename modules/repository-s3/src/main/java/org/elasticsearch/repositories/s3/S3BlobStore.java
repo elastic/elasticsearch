@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -39,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -71,6 +73,7 @@ class S3BlobStore implements BlobStore {
     private final RepositoryMetadata repositoryMetadata;
 
     private final ThreadPool threadPool;
+    private final Executor snapshotExecutor;
 
     private final Stats stats = new Stats();
 
@@ -101,6 +104,7 @@ class S3BlobStore implements BlobStore {
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
+        this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
@@ -143,6 +147,10 @@ class S3BlobStore implements BlobStore {
                 stats.abortCount.addAndGet(getRequestCount(request));
             }
         };
+    }
+
+    public Executor getSnapshotExecutor() {
+        return snapshotExecutor;
     }
 
     public TimeValue getCompareAndExchangeTimeToLive() {
@@ -207,7 +215,11 @@ class S3BlobStore implements BlobStore {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        if (blobNames.hasNext() == false) {
+            return;
+        }
+
         final List<String> partition = new ArrayList<>();
         try (AmazonS3Reference clientReference = clientReference()) {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
@@ -216,12 +228,12 @@ class S3BlobStore implements BlobStore {
                 blobNames.forEachRemaining(key -> {
                     partition.add(key);
                     if (partition.size() == MAX_BULK_DELETES) {
-                        deletePartition(clientReference, partition, aex);
+                        deletePartition(purpose, clientReference, partition, aex);
                         partition.clear();
                     }
                 });
                 if (partition.isEmpty() == false) {
-                    deletePartition(clientReference, partition, aex);
+                    deletePartition(purpose, clientReference, partition, aex);
                 }
             });
             if (aex.get() != null) {
@@ -232,9 +244,14 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private void deletePartition(AmazonS3Reference clientReference, List<String> partition, AtomicReference<Exception> aex) {
+    private void deletePartition(
+        OperationPurpose purpose,
+        AmazonS3Reference clientReference,
+        List<String> partition,
+        AtomicReference<Exception> aex
+    ) {
         try {
-            clientReference.client().deleteObjects(bulkDelete(this, partition));
+            clientReference.client().deleteObjects(bulkDelete(purpose, this, partition));
         } catch (MultiObjectDeleteException e) {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
@@ -253,7 +270,7 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs) {
+    private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {
         return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
             .withQuiet(true)
             .withRequestMetricCollector(blobStore.deleteMetricCollector);

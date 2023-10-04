@@ -62,7 +62,7 @@ ROW str1 = "5.20128E11", str2 = "foo"
 // end::to_double-str[]
 ;
 warning:Line 2:72: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: For input string: \"foo\"
+warning:Line 2:72: java.lang.NumberFormatException: For input string: \"foo\"
 
 // tag::to_double-str-result[]
 str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
@@ -212,7 +212,7 @@ autoBucket
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
-| SORT hire_date
+| SORT hire_date, height
 | KEEP hire_date, height, bh
 ;
 
@@ -225,8 +225,8 @@ hire_date:date           | height:double | bh:double
 1985-10-14T00:00:00.000Z | 1.77          | 1.75
 1985-10-20T00:00:00.000Z | 1.94          | 1.9000000000000001
 1985-11-19T00:00:00.000Z | 1.8           | 1.8
-1985-11-20T00:00:00.000Z | 1.99          | 1.9500000000000002
 1985-11-20T00:00:00.000Z | 1.93          | 1.9000000000000001
+1985-11-20T00:00:00.000Z | 1.99          | 1.9500000000000002
 1985-11-21T00:00:00.000Z | 2.08          | 2.0500000000000003
 ;
 
@@ -269,13 +269,15 @@ a:double | acos:double
 // end::acos-result[]
 ;
 
-acosNan
+acosNull
 ROW a=12.0
 | EVAL acos=ACOS(a)
 ;
+warning:Line 2:13: evaluation of [ACOS(a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:13: java.lang.ArithmeticException: Acos input out of range
 
 a:double | acos:double
-      12 | NaN
+      12 | null
 ;
 
 sin
@@ -317,13 +319,15 @@ a:double | asin:double
 // end::asin-result[]
 ;
 
-asinNan
+asinNull
 ROW a=12.0
 | EVAL asin=ASIN(a)
 ;
+warning:Line 2:13: evaluation of [ASIN(a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:13: java.lang.ArithmeticException: Asin input out of range
 
 a:double | asin:double
-      12 | NaN
+      12 | null
 ;
 
 tan

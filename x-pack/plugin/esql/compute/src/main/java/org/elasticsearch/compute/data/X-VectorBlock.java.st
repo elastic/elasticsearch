@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a $Type$Vector.
@@ -20,7 +21,7 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
     private final $Type$Vector vector;
 
     $Type$VectorBlock($Type$Vector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -55,6 +56,11 @@ $endif$
     }
 
     @Override
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Block that) {
             return $Type$Block.equals(this, that);
@@ -70,5 +76,14 @@ $endif$
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

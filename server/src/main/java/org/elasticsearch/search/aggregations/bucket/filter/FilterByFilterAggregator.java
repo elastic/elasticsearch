@@ -134,7 +134,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
          * Build the the adapter or {@code null} if the this isn't a valid rewrite.
          */
         public final T build() throws IOException {
-            if (false == valid) {
+            if (false == valid || aggCtx.enableRewriteToFilterByFilter() == false) {
                 return null;
             }
             class AdapterBuild implements CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> {
@@ -233,7 +233,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert scoreMode().needsScores() == false;
-        if (QueryToFilterAdapter.MatchesNoDocs(filters())) {
+        if (QueryToFilterAdapter.matchesNoDocs(filters())) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         Bits live = aggCtx.getLeafReaderContext().reader().getLiveDocs();

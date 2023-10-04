@@ -58,6 +58,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         // used internally to expand the queried id expression
         private List<String> expandedIds;
 
+        @SuppressWarnings("this-escape")
         public Request(String id, @Nullable TimeValue timeout) {
             setTimeout(timeout);
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
@@ -71,7 +72,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            expandedIds = in.readImmutableList(StreamInput::readString);
+            expandedIds = in.readCollectionAsImmutableList(StreamInput::readString);
             pageParams = new PageParams(in);
             allowNoMatch = in.readBoolean();
         }

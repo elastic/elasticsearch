@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -291,10 +292,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
+        @SuppressWarnings("this-escape")
         public Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
             this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info"));
         }
 
+        @SuppressWarnings("this-escape")
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
             this.countingPageCacheRecycler = new CountingPageCacheRecycler();
@@ -974,6 +977,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClearableRecycler clearableRecycler;
             private List<Runnable> blackholedRegisterOperations = new ArrayList<>();
 
+            @SuppressWarnings("this-escape")
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
                     nodeIndex,
@@ -1162,7 +1166,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     coordinationServices.getReconfigurator(),
                     coordinationServices.getLeaderHeartbeatService(),
-                    coordinationServices.getPreVoteCollectorFactory()
+                    coordinationServices.getPreVoteCollectorFactory(),
+                    CompatibilityVersionsUtils.staticCurrent()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,

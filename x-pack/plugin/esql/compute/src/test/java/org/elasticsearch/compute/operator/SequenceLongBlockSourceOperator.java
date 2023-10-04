@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.LongArrayVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -23,21 +23,21 @@ public class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator
 
     private final long[] values;
 
-    public SequenceLongBlockSourceOperator(LongStream values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceLongBlockSourceOperator(BlockFactory blockFactory, LongStream values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceLongBlockSourceOperator(LongStream values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceLongBlockSourceOperator(BlockFactory blockFactory, LongStream values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.toArray();
     }
 
-    public SequenceLongBlockSourceOperator(List<Long> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceLongBlockSourceOperator(BlockFactory blockFactory, List<Long> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceLongBlockSourceOperator(List<Long> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceLongBlockSourceOperator(BlockFactory blockFactory, List<Long> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.stream().mapToLong(Long::longValue).toArray();
     }
 
@@ -48,7 +48,7 @@ public class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator
             array[i] = values[positionOffset + i];
         }
         currentPosition += length;
-        return new Page(new LongArrayVector(array, array.length).asBlock());
+        return new Page(blockFactory.newLongArrayVector(array, array.length).asBlock());
     }
 
     protected int remaining() {

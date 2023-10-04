@@ -26,16 +26,17 @@ these functions:
 * <<esql-date_parse>>
 * <<esql-date_trunc>>
 * <<esql-e>>
+* <<esql-ends_with>>
 * <<esql-floor>>
 * <<esql-greatest>>
 * <<esql-is_finite>>
 * <<esql-is_infinite>>
 * <<esql-is_nan>>
 * <<esql-least>>
+* <<esql-left>>
 * <<esql-length>>
 * <<esql-log10>>
 * <<esql-ltrim>>
-* <<esql-rtrim>>
 * <<esql-mv_avg>>
 * <<esql-mv_concat>>
 * <<esql-mv_count>>
@@ -47,13 +48,15 @@ these functions:
 * <<esql-now>>
 * <<esql-pi>>
 * <<esql-pow>>
+* <<esql-replace>>
+* <<esql-right>>
 * <<esql-round>>
+* <<esql-rtrim>>
 * <<esql-sin>>
 * <<esql-sinh>>
 * <<esql-split>>
 * <<esql-starts_with>>
 * <<esql-substring>>
-* <<esql-left>>
 * <<esql-tan>>
 * <<esql-tanh>>
 * <<esql-tau>>
@@ -88,16 +91,17 @@ include::functions/date_format.asciidoc[]
 include::functions/date_parse.asciidoc[]
 include::functions/date_trunc.asciidoc[]
 include::functions/e.asciidoc[]
+include::functions/ends_with.asciidoc[]
 include::functions/floor.asciidoc[]
 include::functions/greatest.asciidoc[]
 include::functions/is_finite.asciidoc[]
 include::functions/is_infinite.asciidoc[]
 include::functions/is_nan.asciidoc[]
 include::functions/least.asciidoc[]
+include::functions/left.asciidoc[]
 include::functions/length.asciidoc[]
 include::functions/log10.asciidoc[]
 include::functions/ltrim.asciidoc[]
-include::functions/rtrim.asciidoc[]
 include::functions/mv_avg.asciidoc[]
 include::functions/mv_concat.asciidoc[]
 include::functions/mv_count.asciidoc[]
@@ -109,14 +113,16 @@ include::functions/mv_sum.asciidoc[]
 include::functions/now.asciidoc[]
 include::functions/pi.asciidoc[]
 include::functions/pow.asciidoc[]
+include::functions/replace.asciidoc[]
+include::functions/right.asciidoc[]
 include::functions/round.asciidoc[]
+include::functions/rtrim.asciidoc[]
 include::functions/sin.asciidoc[]
 include::functions/sinh.asciidoc[]
 include::functions/split.asciidoc[]
 include::functions/sqrt.asciidoc[]
 include::functions/starts_with.asciidoc[]
 include::functions/substring.asciidoc[]
-include::functions/left.asciidoc[]
 include::functions/tan.asciidoc[]
 include::functions/tanh.asciidoc[]
 include::functions/tau.asciidoc[]

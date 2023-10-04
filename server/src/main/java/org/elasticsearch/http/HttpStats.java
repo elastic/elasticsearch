@@ -31,7 +31,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
     }
 
     public HttpStats(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readList(ClientStats::new));
+        this(in.readVLong(), in.readVLong(), in.readCollectionAsList(ClientStats::new));
     }
 
     @Override

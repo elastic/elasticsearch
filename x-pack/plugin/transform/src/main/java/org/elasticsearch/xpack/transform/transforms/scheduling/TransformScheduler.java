@@ -92,7 +92,7 @@ public final class TransformScheduler {
      */
     public void start() {
         if (scheduledFuture == null) {
-            scheduledFuture = threadPool.scheduleWithFixedDelay(this::processScheduledTasks, schedulerFrequency, ThreadPool.Names.GENERIC);
+            scheduledFuture = threadPool.scheduleWithFixedDelay(this::processScheduledTasks, schedulerFrequency, threadPool.generic());
         }
     }
 

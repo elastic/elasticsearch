@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.Releasables;
+
 /**
  * Block view of a BooleanVector.
  * This class is generated. Do not edit it.
@@ -16,7 +18,7 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     private final BooleanVector vector;
 
     BooleanVectorBlock(BooleanVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -46,6 +48,11 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof BooleanBlock that) {
             return BooleanBlock.equals(this, that);
@@ -61,5 +68,14 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

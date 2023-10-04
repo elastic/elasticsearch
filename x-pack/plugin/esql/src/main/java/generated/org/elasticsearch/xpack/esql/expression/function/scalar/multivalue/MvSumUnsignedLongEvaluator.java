@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,9 +21,13 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
   private final Warnings warnings;
 
-  public MvSumUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field) {
+  private final DriverContext driverContext;
+
+  public MvSumUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
+      DriverContext driverContext) {
     super(field);
     this.warnings = new Warnings(source);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -34,31 +39,34 @@ public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block evalNullable(Block fieldVal) {
-    LongBlock v = (LongBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
-      }
-      try {
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        long value = v.getLong(first);
-        for (int i = first + 1; i < end; i++) {
-          long next = v.getLong(i);
-          value = MvSum.processUnsignedLong(value, next);
+  public Block.Ref evalNullable(Block.Ref ref) {
+    try (ref) {
+      LongBlock v = (LongBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          try {
+            int first = v.getFirstValueIndex(p);
+            int end = first + valueCount;
+            long value = v.getLong(first);
+            for (int i = first + 1; i < end; i++) {
+              long next = v.getLong(i);
+              value = MvSum.processUnsignedLong(value, next);
+            }
+            long result = value;
+            builder.appendLong(result);
+          } catch (ArithmeticException e) {
+            warnings.registerException(e);
+            builder.appendNull();
+          }
         }
-        long result = value;
-        builder.appendLong(result);
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        builder.appendNull();
+        return Block.Ref.floating(builder.build());
       }
     }
-    return builder.build();
   }
 }

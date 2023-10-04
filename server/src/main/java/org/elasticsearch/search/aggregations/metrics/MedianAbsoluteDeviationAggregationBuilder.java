@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -63,10 +64,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     public MedianAbsoluteDeviationAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_018)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
-            executionHint = TDigestExecutionHint.readFrom(in);
         } else {
             executionHint = TDigestExecutionHint.HIGH_ACCURACY;
         }
@@ -128,10 +127,8 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_018)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeOptionalWriteable(executionHint);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_014)) {
-            (executionHint == null ? TDigestExecutionHint.DEFAULT : executionHint).writeTo(out);
         }
     }
 
@@ -197,6 +194,6 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

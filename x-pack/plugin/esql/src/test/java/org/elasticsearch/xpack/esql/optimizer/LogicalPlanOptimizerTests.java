@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -84,6 +83,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -135,7 +135,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 getIndexResult,
                 new EnrichResolution(Set.of(policy), Set.of("languages_idx", "something"))
             ),
-            new Verifier(new Metrics())
+            TEST_VERIFIER
         );
     }
 
@@ -255,6 +255,28 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var from = as(agg.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * EsqlProject[[x{r}#3, y{r}#6]]
+     * \_Eval[[emp_no{f}#9 + 2[INTEGER] AS x, salary{f}#14 + 3[INTEGER] AS y]]
+     *   \_Limit[10000[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testCombineEvals() {
+        var plan = plan("""
+            from test
+            | eval x = emp_no + 2
+            | eval y = salary + 3
+            | keep x, y
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
     public void testCombineLimits() {
         var limitValues = new int[] { randomIntBetween(10, 99), randomIntBetween(100, 1000) };
         var firstLimit = randomBoolean() ? 0 : 1;
@@ -273,7 +295,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limitWithMinimum = randomIntBetween(0, numberOfLimits - 1);
 
         var fa = getFieldAttribute("a", INTEGER);
-        var relation = localSource(singletonList(fa), singletonList(1));
+        var relation = localSource(BlockFactory.getNonBreakingInstance(), singletonList(fa), singletonList(1));
         LogicalPlan plan = relation;
 
         for (int i = 0; i < numberOfLimits; i++) {
@@ -777,9 +799,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("z", "emp_no"));
         var eval = as(topN.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("z"));
-        eval = as(eval.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
+        assertThat(Expressions.names(eval.fields()), contains("x", "y", "z"));
         as(eval.child(), EsRelation.class);
     }
 
@@ -1437,7 +1457,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(limit.child(), Filter.class);
         Equals equals = as(filter.condition(), Equals.class);
         FieldAttribute left = as(equals.left(), FieldAttribute.class);
-        assertThat(left.name(), equalTo("job.raw"));
+        assertThat(left.name(), equalTo("job"));
     }
 
     public void testReplaceExpressionWithExact() {
@@ -1461,7 +1481,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(plan, TopN.class);
         assertThat(topN.order().size(), equalTo(1));
         var sortField = as(topN.order().get(0).child(), FieldAttribute.class);
-        assertThat(sortField.name(), equalTo("job.raw"));
+        assertThat(sortField.name(), equalTo("job"));
     }
 
     public void testPruneUnusedEval() {
@@ -1599,8 +1619,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var eval = as(plan, Eval.class);
-        eval = as(eval.child(), Eval.class);
-        eval = as(eval.child(), Eval.class);
         var limit = as(eval.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
     }
@@ -1630,9 +1648,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("y"));
-        eval = as(eval.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("x"));
+        assertThat(Expressions.names(eval.fields()), contains("x", "y"));
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
     }

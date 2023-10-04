@@ -7,17 +7,28 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Vector implementation that stores a constant double value.
  * This class is generated. Do not edit it.
  */
 public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
+
     private final double value;
 
+    private final DoubleBlock block;
+
     public ConstantDoubleVector(double value, int positionCount) {
-        super(positionCount);
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
+        this.block = new DoubleVectorBlock(this);
     }
 
     @Override
@@ -27,7 +38,7 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     @Override
     public DoubleBlock asBlock() {
-        return new DoubleVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -46,6 +57,11 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
     }
 
     @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof DoubleVector that) {
             return DoubleVector.equals(this, that);
@@ -60,5 +76,10 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

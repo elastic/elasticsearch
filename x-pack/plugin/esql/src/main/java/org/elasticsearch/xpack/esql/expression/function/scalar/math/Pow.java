@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast.cast;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -36,7 +35,11 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     private final Expression base, exponent;
     private final DataType dataType;
 
-    public Pow(Source source, @Named("base") Expression base, @Named("exponent") Expression exponent) {
+    public Pow(
+        Source source,
+        @Param(name = "base", type = { "integer", "long", "double" }) Expression base,
+        @Param(name = "exponent", type = { "integer", "double" }) Expression exponent
+    ) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
         this.exponent = exponent;
@@ -165,28 +168,29 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var baseEvaluator = toEvaluator.apply(base);
         var exponentEvaluator = toEvaluator.apply(exponent);
         if (dataType == DataTypes.DOUBLE) {
-            return () -> new PowDoubleEvaluator(
+            return dvrCtx -> new PowDoubleEvaluator(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get()
+                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
+                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
+                dvrCtx
             );
         } else if (dataType == DataTypes.LONG) {
-            return () -> new PowLongEvaluator(
+            return dvrCtx -> new PowLongEvaluator(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get()
+                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
+                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
+                dvrCtx
             );
         } else {
-            return () -> new PowIntEvaluator(
+            return dvrCtx -> new PowIntEvaluator(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get()
+                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
+                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
+                dvrCtx
             );
         }
     }

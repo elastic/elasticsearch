@@ -10,11 +10,11 @@ package org.elasticsearch.blocks;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -127,7 +127,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             IndexRequestBuilder builder = client().prepareIndex(index);
             builder.setSource("foo", "bar");
-            IndexResponse r = builder.execute().actionGet();
+            DocWriteResponse r = builder.execute().actionGet();
             assertThat(r, notNullValue());
         } catch (ClusterBlockException e) {
             fail();

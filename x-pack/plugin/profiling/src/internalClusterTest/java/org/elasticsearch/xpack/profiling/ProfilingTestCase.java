@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -72,7 +72,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     }
 
     private void indexDoc(String index, String id, Map<String, Object> source) {
-        IndexResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
+        DocWriteResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 
@@ -84,7 +84,16 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
      *
      * @return <code>true</code> iff this test should rely on only "profiling-events-all" being present.
      */
-    protected abstract boolean useOnlyAllEvents();
+    protected boolean useOnlyAllEvents() {
+        return randomBoolean();
+    }
+
+    /**
+     * @return <code>true</code> iff this test relies that data (and the corresponding indices / data streams) are present for this test.
+     */
+    protected boolean requiresDataSetup() {
+        return true;
+    }
 
     protected void waitForIndices() throws Exception {
         assertBusy(() -> {
@@ -110,6 +119,9 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     @Before
     public void setupData() throws Exception {
+        if (requiresDataSetup() == false) {
+            return;
+        }
         // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
         updateProfilingTemplatesEnabled(true);
         Collection<String> eventsIndices = useOnlyAllEvents() ? List.of(EventsIndex.FULL_INDEX.getName()) : EventsIndex.indexNames();

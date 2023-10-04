@@ -12,11 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,7 +31,7 @@ import java.util.concurrent.Executor;
 /**
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
  * fans-out its result to the subscribed listeners.
- *
+ * <p>
  * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
  * completed exceptionally then the exception is passed to subscribed listeners without modification.
  */
@@ -37,6 +39,41 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     private static final Logger logger = LogManager.getLogger(SubscribableListener.class);
     private static final Object EMPTY = new Object();
+
+    /**
+     * Create a {@link SubscribableListener} which is incomplete.
+     */
+    public SubscribableListener() {
+        this(EMPTY);
+    }
+
+    /**
+     * Create a {@link SubscribableListener} which has already succeeded with the given result.
+     */
+    public static <T> SubscribableListener<T> newSucceeded(T result) {
+        return new SubscribableListener<>(new SuccessResult<>(result));
+    }
+
+    /**
+     * Create a {@link SubscribableListener} which has already failed with the given exception.
+     */
+    public static <T> SubscribableListener<T> newFailed(Exception exception) {
+        return new SubscribableListener<>(new FailureResult(exception, exception));
+    }
+
+    /**
+     * Create a {@link SubscribableListener}, fork a computation to complete it, and return the listener. If the forking itself throws an
+     * exception then the exception is caught and fed to the returned listener.
+     */
+    public static <T> SubscribableListener<T> newForked(CheckedConsumer<ActionListener<T>, ? extends Exception> fork) {
+        final var listener = new SubscribableListener<T>();
+        ActionListener.run(listener, fork::accept);
+        return listener;
+    }
+
+    private SubscribableListener(Object initialState) {
+        state = initialState;
+    }
 
     /**
      * If we are incomplete, {@code state} may be one of the following depending on how many waiting subscribers there are:
@@ -50,7 +87,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * subsequent subscribers.
      */
     @SuppressWarnings("FieldMayBeFinal") // updated via VH_STATE_FIELD (and _only_ via VH_STATE_FIELD)
-    private volatile Object state = EMPTY;
+    private volatile Object state;
 
     /**
      * Add a listener to this listener's collection of subscribers. If this listener is complete, this method completes the subscribing
@@ -298,6 +335,53 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} and subscribes {@code nextStep} to this listener such that if this
+     * listener is completed successfully with result {@code R} then {@code nextStep} is invoked with arguments {@code L} and {@code R}. If
+     * this listener is completed with exception {@code E} then so is {@code L}.
+     * <p>
+     * This can be used to construct a sequence of async actions, each invoked with the result of the previous one:
+     * <pre>
+     * l.andThen((l1, o1) -> forkAction1(o1, args1, l1)).andThen((l2, o2) -> forkAction2(o2, args2, l2)).addListener(finalListener);
+     * </pre>
+     * After creating this chain, completing {@code l} with a successful response will pass the response to {@code forkAction1}, which will
+     * on completion pass its response to {@code forkAction2}, which will in turn pass its response to {@code finalListener}. A failure of
+     * any step will bypass the remaining steps and ultimately fail {@code finalListener}.
+     * <p>
+     * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
+     * listener is incomplete then {@code nextStep} is invoked on the completing thread and in its thread context.
+     */
+    public <U> SubscribableListener<U> andThen(CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep) {
+        return andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, null, nextStep);
+    }
+
+    /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} and subscribes {@code nextStep} to this listener such that if this
+     * listener is completed successfully with result {@code R} then {@code nextStep} is invoked with arguments {@code L} and {@code R}. If
+     * this listener is completed with exception {@code E} then so is {@code L}.
+     * <p>
+     * This can be used to construct a sequence of async actions, each invoked with the result of the previous one:
+     * <pre>
+     * l.andThen(x, t, (l1,o1) -> forkAction1(o1,args1,l1)).andThen(x, t, (l2,o2) -> forkAction2(o2,args2,l2)).addListener(finalListener);
+     * </pre>
+     * After creating this chain, completing {@code l} with a successful response will pass the response to {@code forkAction1}, which will
+     * on completion pass its response to {@code forkAction2}, which will in turn pass its response to {@code finalListener}. A failure of
+     * any step will bypass the remaining steps and ultimately fail {@code finalListener}.
+     * <p>
+     * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
+     * listener is incomplete then {@code nextStep} is invoked using {@code executor}, in a thread context captured when {@link #andThen}
+     * was called.
+     */
+    public <U> SubscribableListener<U> andThen(
+        Executor executor,
+        @Nullable ThreadContext threadContext,
+        CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep
+    ) {
+        return newForked(l -> addListener(l.delegateFailureAndWrap(nextStep), executor, threadContext));
+    }
+
+    /**
      * Adds a timeout to this listener, such that if the timeout elapses before the listener is completed then it will be completed with an
      * {@link ElasticsearchTimeoutException}.
      * <p>
@@ -305,14 +389,14 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * work. For instance, it could check that the race is not lost by calling {@link #isDone} whenever appropriate, or it could subscribe
      * another listener which performs any necessary cleanup steps.
      */
-    public void addTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
+    public void addTimeout(TimeValue timeout, ThreadPool threadPool, Executor timeoutExecutor) {
         if (isDone()) {
             return;
         }
         addListener(ActionListener.running(scheduleTimeout(timeout, threadPool, timeoutExecutor)));
     }
 
-    private Runnable scheduleTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
+    private Runnable scheduleTimeout(TimeValue timeout, ThreadPool threadPool, Executor timeoutExecutor) {
         try {
             final var cancellable = threadPool.schedule(
                 () -> onFailure(new ElasticsearchTimeoutException(Strings.format("timed out after [%s/%dms]", timeout, timeout.millis()))),

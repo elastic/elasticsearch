@@ -61,6 +61,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
+    @SuppressWarnings("this-escape")
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
         // we sort suggestions by their names to ensure iteration over suggestions are consistent
         // this is needed as we need to fill in suggestion docs in SearchPhaseController#sortDocs
@@ -70,9 +71,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
+    @SuppressWarnings({ "rawtypes", "unchecked", "this-escape" })
     public Suggest(StreamInput in) throws IOException {
-        suggestions = (List) in.readNamedWriteableList(Suggestion.class);
+        suggestions = (List) in.readNamedWriteableCollectionAsList(Suggestion.class);
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
@@ -112,7 +113,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(suggestions);
+        out.writeNamedWriteableCollection(suggestions);
     }
 
     @Override
@@ -216,6 +217,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             this.size = size; // The suggested term size specified in request, only used for merging shard responses
         }
 
+        @SuppressWarnings("this-escape")
         public Suggestion(StreamInput in) throws IOException {
             name = in.readString();
             size = in.readVInt();
@@ -405,6 +407,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             protected Entry() {}
 
+            @SuppressWarnings("this-escape")
             public Entry(StreamInput in) throws IOException {
                 text = in.readText();
                 offset = in.readVInt();

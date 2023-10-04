@@ -6,15 +6,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantDoubleVector;
-import org.elasticsearch.compute.data.DoubleArrayBlock;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -23,13 +20,14 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToDoubleFromIntEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDoubleFromIntEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
-    super(field, source);
+  public ToDoubleFromIntEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
+    super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToDouble";
+    return "ToDoubleFromInt";
   }
 
   @Override
@@ -38,29 +36,22 @@ public final class ToDoubleFromIntEvaluator extends AbstractConvertFunction.Abst
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return new ConstantDoubleVector(evalValue(vector, 0), positionCount).asBlock();
+        return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount);
+        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
       }
     }
-    BitSet nullsMask = null;
-    double[] values = new double[positionCount];
+    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
     for (int p = 0; p < positionCount; p++) {
       try {
-        values[p] = evalValue(vector, p);
+        builder.appendDouble(evalValue(vector, p));
       } catch (Exception e) {
         registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
-        }
-        nullsMask.set(p);
+        builder.appendNull();
       }
     }
-    return nullsMask == null
-          ? new DoubleArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new DoubleArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
+    return builder.build();
   }
 
   private static double evalValue(IntVector container, int index) {
@@ -72,33 +63,34 @@ public final class ToDoubleFromIntEvaluator extends AbstractConvertFunction.Abst
   public Block evalBlock(Block b) {
     IntBlock block = (IntBlock) b;
     int positionCount = block.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = block.getValueCount(p);
-      int start = block.getFirstValueIndex(p);
-      int end = start + valueCount;
-      boolean positionOpened = false;
-      boolean valuesAppended = false;
-      for (int i = start; i < end; i++) {
-        try {
-          double value = evalValue(block, i);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+    try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
+          try {
+            double value = evalValue(block, i);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendDouble(value);
+            valuesAppended = true;
+          } catch (Exception e) {
+            registerException(e);
           }
-          builder.appendDouble(value);
-          valuesAppended = true;
-        } catch (Exception e) {
-          registerException(e);
+        }
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
         }
       }
-      if (valuesAppended == false) {
-        builder.appendNull();
-      } else if (positionOpened) {
-        builder.endPositionEntry();
-      }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static double evalValue(IntBlock container, int index) {

@@ -114,7 +114,9 @@ public class LimitOperator implements Operator {
 
     @Override
     public void close() {
-
+        if (lastInput != null) {
+            lastInput.releaseBlocks();
+        }
     }
 
     @Override

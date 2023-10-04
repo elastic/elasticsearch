@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,10 +36,6 @@ public class ExchangeSinkOperator extends SinkOperator {
         implements
             SinkOperatorFactory {
 
-        public ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks) {
-            this(exchangeSinks, Function.identity());
-        }
-
         @Override
         public SinkOperator get(DriverContext driverContext) {
             return new ExchangeSinkOperator(exchangeSinks.get(), transformer);
@@ -67,7 +63,7 @@ public class ExchangeSinkOperator extends SinkOperator {
     }
 
     @Override
-    public ListenableActionFuture<Void> isBlocked() {
+    public SubscribableListener<Void> isBlocked() {
         return sink.waitForWriting();
     }
 

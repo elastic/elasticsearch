@@ -59,6 +59,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -129,6 +130,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
+    @SuppressWarnings("this-escape")
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
         this.settings = settings;
         this.configPath = configPath;
@@ -343,6 +345,27 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         return Collections.unmodifiableList(result);
+    }
+
+    /**
+     * Loads a single SPI extension.
+     *
+     * There should be no more than one extension found. If no service providers
+     * are found, the supplied fallback is used.
+     *
+     * @param service the SPI class that should be loaded
+     * @param fallback a supplier for an instance if no providers are found
+     * @return an instance of the service
+     * @param <T> the SPI service type
+     */
+    public <T> T loadSingletonServiceProvider(Class<T> service, Supplier<T> fallback) {
+        var services = loadServiceProviders(service);
+        if (services.size() > 1) {
+            throw new IllegalStateException(String.format(Locale.ROOT, "More than one extension found for %s", service.getSimpleName()));
+        } else if (services.size() == 0) {
+            return fallback.get();
+        }
+        return services.get(0);
     }
 
     private static void loadExtensionsForPlugin(ExtensiblePlugin extensiblePlugin, List<Plugin> extendingPlugins) {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.Releasables;
+
 /**
  * Block view of a IntVector.
  * This class is generated. Do not edit it.
@@ -16,7 +18,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     private final IntVector vector;
 
     IntVectorBlock(IntVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -46,6 +48,11 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof IntBlock that) {
             return IntBlock.equals(this, that);
@@ -61,5 +68,14 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

@@ -10,12 +10,16 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter block for $Type$Blocks.
  * This class is generated. Do not edit it.
  */
 final class Filter$Type$Block extends AbstractFilterBlock implements $Type$Block {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Filter$Type$Block.class);
 
     private final $Type$Block block;
 
@@ -59,27 +63,35 @@ $endif$
          * we've been assigned and expanding all multivalued fields
          * into single valued fields.
          */
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(positions.length);
+        try ($Type$Block.Builder builder = $Type$Block.newBlockBuilder(positions.length, blockFactory())) {
 $if(BytesRef)$
-        BytesRef scratch = new BytesRef();
+            BytesRef scratch = new BytesRef();
 $endif$
-        for (int p : positions) {
-            if (block.isNull(p)) {
-                builder.appendNull();
-                continue;
-            }
-            int start = block.getFirstValueIndex(p);
-            int end = start + block.getValueCount(p);
-            for (int i = start; i < end; i++) {
+            for (int p : positions) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = block.getFirstValueIndex(p);
+                int end = start + block.getValueCount(p);
+                for (int i = start; i < end; i++) {
 $if(BytesRef)$
-                BytesRef v = block.getBytesRef(i, scratch);
-                builder.appendBytesRef(v);
+                    BytesRef v = block.getBytesRef(i, scratch);
+                    builder.appendBytesRef(v);
 $else$
-                builder.append$Type$(block.get$Type$(i));
+                    builder.append$Type$(block.get$Type$(i));
 $endif$
+                }
             }
+            return builder.build();
         }
-        return builder.build();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter blocks encapsulate
+        // their inner block, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(block) + RamUsageEstimator.sizeOf(positions);
     }
 
     @Override
@@ -99,9 +111,14 @@ $endif$
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
-        sb.append("[positions=" + getPositionCount() + ", values=[");
-        appendValues(sb);
-        sb.append("]]");
+        sb.append("[positions=" + getPositionCount());
+        sb.append(", released=" + isReleased());
+        if (isReleased() == false) {
+            sb.append(", values=[");
+            appendValues(sb);
+            sb.append("]");
+        }
+        sb.append("]");
         return sb.toString();
     }
 
@@ -135,5 +152,13 @@ $endif$
             }
             sb.append(']');
         }
+    }
+
+    @Override
+    public void close() {
+        if (block.isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        Releasables.closeExpectNoException(block);
     }
 }

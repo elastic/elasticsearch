@@ -573,15 +573,21 @@ stream's oldest backing index.
       "indices": [
         {
           "index_name": ".ds-my-data-stream-2099.03.07-000001", <1>
-          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
+          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw",
+          "prefer_ilm": true,
+          "managed_by": "Unmanaged"
         },
         {
           "index_name": ".ds-my-data-stream-2099.03.08-000002",
-          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"
+          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ",
+          "prefer_ilm": true,
+          "managed_by": "Unmanaged"
         }
       ],
       "generation": 2,
       "status": "GREEN",
+      "next_generation_managed_by": "Unmanaged",
+      "prefer_ilm": true,
       "template": "my-data-stream-template",
       "hidden": false,
       "system": false,

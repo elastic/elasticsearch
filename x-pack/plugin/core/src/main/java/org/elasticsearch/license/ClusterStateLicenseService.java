@@ -96,6 +96,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
+    @SuppressWarnings("this-escape")
     public ClusterStateLicenseService(
         Settings settings,
         ThreadPool threadPool,
@@ -122,7 +123,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
-        threadPool.scheduleWithFixedDelay(xPacklicenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
+        threadPool.scheduleWithFixedDelay(xPacklicenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), threadPool.generic());
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {

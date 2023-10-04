@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.archive;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
@@ -29,7 +30,7 @@ public class ArchiveFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_3_0;
+        return TransportVersions.V_8_3_0;
     }
 
     @Override

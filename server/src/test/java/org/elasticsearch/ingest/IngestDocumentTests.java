@@ -8,7 +8,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -958,70 +957,6 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testEqualsAndHashcode() throws Exception {
-        Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
-        int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
-        for (int i = 0; i < numFields; i++) {
-            Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
-            sourceAndMetadata.put(metadata.v1(), metadata.v2());
-        }
-        sourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-        }
-        // this is testing equality so use the wire constructor
-        IngestDocument ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
-
-        boolean changed = false;
-        Map<String, Object> otherSourceAndMetadata;
-        if (randomBoolean()) {
-            otherSourceAndMetadata = RandomDocumentPicks.randomSource(random());
-            otherSourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
-            changed = true;
-        } else {
-            otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
-        }
-        if (randomBoolean()) {
-            numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
-            for (int i = 0; i < numFields; i++) {
-                Tuple<String, Object> metadata;
-                do {
-                    metadata = TestIngestDocument.randomMetadata();
-                } while (metadata.v2().equals(sourceAndMetadata.get(metadata.v1()))); // must actually be a change
-                otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
-            }
-            changed = true;
-        }
-
-        Map<String, Object> otherIngestMetadata;
-        if (randomBoolean()) {
-            otherIngestMetadata = new HashMap<>();
-            numFields = randomIntBetween(1, 5);
-            for (int i = 0; i < numFields; i++) {
-                otherIngestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-            }
-            changed = true;
-        } else {
-            otherIngestMetadata = Map.copyOf(ingestMetadata);
-        }
-
-        IngestDocument otherIngestDocument = new IngestDocument(otherSourceAndMetadata, otherIngestMetadata);
-        if (changed) {
-            assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
-            assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
-        } else {
-            assertThat(ingestDocument, equalTo(otherIngestDocument));
-            assertThat(otherIngestDocument, equalTo(ingestDocument));
-            assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            IngestDocument thirdIngestDocument = new IngestDocument(Map.copyOf(sourceAndMetadata), Map.copyOf(ingestMetadata));
-            assertThat(thirdIngestDocument, equalTo(ingestDocument));
-            assertThat(ingestDocument, equalTo(thirdIngestDocument));
-            assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
-        }
-    }
-
     public void testIngestMetadataTimestamp() throws Exception {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -1068,6 +1003,17 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("foo1"));
             assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("bar1"));
             assertThat(ingestDocument.getFieldValue("hello", String.class), equalTo("world1"));
+        }
+
+        {
+            // the copy constructor rejects self-references
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            List<Object> someList = new ArrayList<>();
+            someList.add("some string");
+            someList.add(someList); // the list contains itself
+            ingestDocument.setFieldValue("someList", someList);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
         }
     }
 

@@ -10,14 +10,17 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of BooleanBlocks.
+ * Builder for {@link BooleanVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class BooleanVectorBuilder extends AbstractVectorBuilder implements BooleanVector.Builder {
 
     private boolean[] values;
 
-    BooleanVectorBuilder(int estimatedSize) {
+    BooleanVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new boolean[Math.max(estimatedSize, 2)];
     }
 
@@ -27,6 +30,11 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
         values[valueCount] = value;
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Byte.BYTES;
     }
 
     @Override
@@ -41,12 +49,17 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
 
     @Override
     public BooleanVector build() {
+        finish();
+        BooleanVector vector;
         if (valueCount == 1) {
-            return new ConstantBooleanVector(values[0], 1);
+            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes).asVector();
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = blockFactory.newBooleanArrayVector(values, valueCount, estimatedBytes);
         }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
-        return new BooleanArrayVector(values, valueCount);
+        built();
+        return vector;
     }
 }

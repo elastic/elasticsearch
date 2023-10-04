@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
@@ -18,8 +18,11 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
  * This class is generated. Do not edit it.
  */
 public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvSumDoubleEvaluator(EvalOperator.ExpressionEvaluator field) {
+  private final DriverContext driverContext;
+
+  public MvSumDoubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
     super(field);
+    this.driverContext = driverContext;
   }
 
   @Override
@@ -31,49 +34,55 @@ public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.Abstr
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block evalNullable(Block fieldVal) {
-    DoubleBlock v = (DoubleBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
-    CompensatedSum work = new CompensatedSum();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+  public Block.Ref evalNullable(Block.Ref ref) {
+    try (ref) {
+      DoubleBlock v = (DoubleBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+        CompensatedSum work = new CompensatedSum();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          for (int i = first; i < end; i++) {
+            double value = v.getDouble(i);
+            MvSum.process(work, value);
+          }
+          double result = MvSum.finish(work);
+          builder.appendDouble(result);
+        }
+        return Block.Ref.floating(builder.build());
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      for (int i = first; i < end; i++) {
-        double value = v.getDouble(i);
-        MvSum.process(work, value);
-      }
-      double result = MvSum.finish(work);
-      builder.appendDouble(result);
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
-    DoubleBlock v = (DoubleBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
-    CompensatedSum work = new CompensatedSum();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      for (int i = first; i < end; i++) {
-        double value = v.getDouble(i);
-        MvSum.process(work, value);
+  public Block.Ref evalNotNullable(Block.Ref ref) {
+    try (ref) {
+      DoubleBlock v = (DoubleBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+        CompensatedSum work = new CompensatedSum();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          for (int i = first; i < end; i++) {
+            double value = v.getDouble(i);
+            MvSum.process(work, value);
+          }
+          double result = MvSum.finish(work);
+          builder.appendDouble(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      double result = MvSum.finish(work);
-      values[p] = result;
     }
-    return new DoubleArrayVector(values, positionCount);
   }
 }

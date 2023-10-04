@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -62,11 +62,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(240);
 
     /**
-     * The ELSER model turned out to use more memory then what we usually estimate.
-     * We overwrite the estimate with this static value for ELSER V1 for now. Soon to be
-     * replaced with a better estimate provided by the model.
+     * The ELSER model turned out to use more memory than what we usually estimate.
+     * We overwrite the estimate with this static value for ELSER v1 and v2 for now.
+     * Soon to be replaced with a better estimate provided by the model.
      */
-    private static final ByteSizeValue ELSER_1_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
+    private static final ByteSizeValue ELSER_1_OR_2_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
 
     public StartTrainedModelDeploymentAction() {
         super(NAME, CreateTrainedModelAssignmentAction.Response::new);
@@ -155,16 +155,16 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             numberOfAllocations = in.readVInt();
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 this.priority = in.readEnum(Priority.class);
             } else {
                 this.priority = Priority.NORMAL;
             }
 
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 this.deploymentId = in.readString();
             } else {
                 this.deploymentId = modelId;
@@ -253,13 +253,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(numberOfAllocations);
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 out.writeOptionalWriteable(cacheSize);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 out.writeEnum(priority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
         }
@@ -509,17 +509,17 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.threadsPerAllocation = in.readVInt();
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             } else {
                 this.cacheSize = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 this.priority = in.readEnum(Priority.class);
             } else {
                 this.priority = Priority.NORMAL;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 this.deploymentId = in.readString();
             } else {
                 this.deploymentId = modelId;
@@ -575,13 +575,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(numberOfAllocations);
             out.writeVInt(queueCapacity);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 out.writeOptionalWriteable(cacheSize);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
                 out.writeEnum(priority);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(deploymentId);
             }
             if (out.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
@@ -713,14 +713,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     ) {
         // While loading the model in the process we need twice the model size.
 
-        // 1. If ELSER v1 then 2004MB
+        // 1. If ELSER v1 or v2 then 2004MB
         // 2. If static memory and dynamic memory are not set then 240MB + 2 * model size
         // 3. Else static memory + dynamic memory * allocations + model size
 
         // The model size is still added in option 3 to account for the temporary requirement to hold the zip file in memory
-        // in `pytorch_inference`.
-        if (isElserV1Model(modelId)) {
-            return ELSER_1_MEMORY_USAGE.getBytes();
+        // in `pytorch_inference`.
+        if (isElserV1Or2Model(modelId)) {
+            return ELSER_1_OR_2_MEMORY_USAGE.getBytes();
         } else {
             long baseSize = MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
             if (perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
@@ -734,7 +734,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
     }
 
-    private static boolean isElserV1Model(String modelId) {
-        return modelId.startsWith(".elser_model_1");
+    private static boolean isElserV1Or2Model(String modelId) {
+        return modelId.startsWith(".elser_model_1") || modelId.startsWith(".elser_model_2");
     }
 }

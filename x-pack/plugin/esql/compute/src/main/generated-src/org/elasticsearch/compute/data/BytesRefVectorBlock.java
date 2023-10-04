@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a BytesRefVector.
@@ -18,7 +19,7 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     private final BytesRefVector vector;
 
     BytesRefVectorBlock(BytesRefVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -48,6 +49,11 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof BytesRefBlock that) {
             return BytesRefBlock.equals(this, that);
@@ -63,5 +69,14 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

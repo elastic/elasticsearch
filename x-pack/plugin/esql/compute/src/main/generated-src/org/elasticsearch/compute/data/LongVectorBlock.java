@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.Releasables;
+
 /**
  * Block view of a LongVector.
  * This class is generated. Do not edit it.
@@ -16,7 +18,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     private final LongVector vector;
 
     LongVectorBlock(LongVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -46,6 +48,11 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof LongBlock that) {
             return LongBlock.equals(this, that);
@@ -61,5 +68,14 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

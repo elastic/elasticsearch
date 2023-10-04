@@ -170,21 +170,24 @@ a:integer | b:integer | y:integer
 1 | 2 | null
 ;
 
-rowWithNullsInCount
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+rowWithNullsInCount-Ignore
 row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = count(s);
 
 c:long
 0
 ;
 
-rowWithNullsInAvg
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+rowWithNullsInAvg-Ignore
 row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = avg(s);
 
 c:double
 null
 ;
 
-rowWithNullsInAvg2
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+rowWithNullsInAvg2-Ignore
 row a = 1.5, b = 2.6, c = null | eval s = a - b * c | stats avg(s);
 
 avg(s):double
@@ -225,14 +228,16 @@ row a = 1 | limit 0;
 a:integer
 ;
 
-rowWithMultipleStats
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+rowWithMultipleStats-Ignore
 row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | stats avg = avg(x), min(x), max(x), count(x), avg(x), avg(ab), avg(a);
 
 avg:double | min(x):integer | max(x):integer | count(x):long | avg(x):double | avg(ab):double | avg(a):double
        8.0 |              8 |              8 |             1 |           8.0 |            5.0 |           4.0
 ;
 
-rowWithMultipleStatsOverNull
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+rowWithMultipleStatsOverNull-Ignore
 row x=1, y=2 | eval tot = null + y + x | stats c=count(tot), a=avg(tot), mi=min(tot), ma=max(tot), s=sum(tot);
 
 c:long | a:double |   mi:integer |  ma:integer | s:long
@@ -292,7 +297,7 @@ a:integer |b:integer |c:integer
 convertMvToMvDifferentCardinality
 row strings = ["1", "2", "three"] | eval ints = to_int(strings);
 warning:Line 1:49: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: For input string: \"three\"
+warning:Line 1:49: java.lang.NumberFormatException: For input string: \"three\"
 
 strings:keyword |ints:integer
 [1, 2, three]   |[1, 2]
@@ -302,7 +307,7 @@ convertMvToSv
 row strings = ["1", "two"] | eval ints = to_int(strings);
 
 warning:Line 1:42: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: For input string: \"two\"
+warning:Line 1:42: java.lang.NumberFormatException: For input string: \"two\"
 
 strings:keyword |ints:integer
 [1, two]        |1
@@ -311,8 +316,8 @@ strings:keyword |ints:integer
 convertMvToNull
 row strings = ["one", "two"] | eval ints = to_int(strings);
 warning:Line 1:44: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: For input string: \"one\"
-warning:java.lang.NumberFormatException: For input string: \"two\"
+warning:Line 1:44: java.lang.NumberFormatException: For input string: \"one\"
+warning:Line 1:44: java.lang.NumberFormatException: For input string: \"two\"
 
 strings:keyword |ints:integer
 [one, two]      |null

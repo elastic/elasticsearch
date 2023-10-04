@@ -11,7 +11,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -68,7 +68,7 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
-    public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersion.V_8_500_069;
+    public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_500_069;
 
     public static boolean isFailureStoreEnabled() {
         return FAILURE_STORE_FEATURE_FLAG.isEnabled();
@@ -157,6 +157,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
+        assert indices.isEmpty() == false;
         this.generation = generation;
         this.metadata = metadata;
         assert system == false || hidden; // system indices must be hidden
@@ -840,16 +841,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.readBoolean(),
             in.readBoolean(),
             in.readBoolean(),
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null
             in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of()
         );
     }
 
     static List<Index> readIndices(StreamInput in) throws IOException {
         in.readString(); // timestamp field, which is always @timestamp
-        return in.readImmutableList(Index::new);
+        return in.readCollectionAsImmutableList(Index::new);
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -866,13 +867,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeBoolean(allowCustomRouting);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeOptionalEnum(indexMode);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_010)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeOptionalWriteable(lifecycle);
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -49,6 +50,7 @@ import java.util.function.Function;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
 
 /**
  * JWT realms supports JWTs as bearer tokens for authenticating to Elasticsearch.
@@ -71,7 +73,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private final ClaimParser claimParserMail;
     private final ClaimParser claimParserName;
     private final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
-    private final SecureString clientAuthenticationSharedSecret;
+    private final RotatableSecret clientAuthenticationSharedSecret;
     private final JwtAuthenticator jwtAuthenticator;
     private final TimeValue allowedClockSkew;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
@@ -86,9 +88,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         this.populateUserMetadata = realmConfig.getSetting(JwtRealmSettings.POPULATE_USER_METADATA);
         this.clientAuthenticationType = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE);
-        final SecureString sharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET);
-        this.clientAuthenticationSharedSecret = Strings.hasText(sharedSecret) ? sharedSecret : null; // convert "" to null
-
+        this.clientAuthenticationSharedSecret = new RotatableSecret(
+            realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHENTICATION_SHARED_SECRET)
+        );
         // Validate Client Authentication settings. Throw SettingsException there was a problem.
         JwtUtil.validateClientAuthenticationSettings(
             RealmSettings.getFullSettingKey(realmConfig, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE),
@@ -372,7 +374,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         return null;
     }
 
-    private void processValidatedJwt(
+    // package private for testing
+    void processValidatedJwt(
         String tokenPrincipal,
         BytesArray jwtCacheKey,
         JWTClaimsSet claimsSet,
@@ -442,6 +445,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }, listener::onFailure));
     }
 
+    public void rotateClientSecret(SecureString clientSecret) {
+        this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD));
+    }
+
+    // package private for testing
+    RotatableSecret getClientAuthenticationSharedSecret() {
+        return clientAuthenticationSharedSecret;
+    }
+
     /**
      * Clean up JWT cache (if enabled).
      */
@@ -449,7 +461,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         if (isCacheEnabled()) {
             try {
                 logger.trace("Invalidating JWT cache for realm [{}]", name());
-                try (ReleasableLock ignored = jwtCacheHelper.acquireUpdateLock()) {
+                try (ReleasableLock ignored = jwtCacheHelper.acquireForIterator()) {
                     jwtCache.invalidateAll();
                 }
                 logger.debug("Invalidated JWT cache for realm [{}]", name());

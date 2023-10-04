@@ -9,7 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,7 +66,13 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.SNAPSHOT);
+            super(
+                NAME,
+                transportService,
+                actionFilters,
+                Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
+            );
             this.repositoriesService = repositoriesService;
             this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT);
         }
@@ -114,6 +121,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                             protected void doRun() {
                                 if (((CancellableTask) task).notifyIfCancelled(listener) == false) {
                                     blobContainer.compareAndExchangeRegister(
+                                        OperationPurpose.SNAPSHOT,
                                         registerName,
                                         bytesFromLong(currentValue),
                                         bytesFromLong(currentValue + 1L),
@@ -161,9 +169,10 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             };
 
             if (request.getInitialRead() > request.getRequestCount()) {
-                blobContainer.getRegister(registerName, initialValueListener);
+                blobContainer.getRegister(OperationPurpose.SNAPSHOT, registerName, initialValueListener);
             } else {
                 blobContainer.compareAndExchangeRegister(
+                    OperationPurpose.SNAPSHOT,
                     registerName,
                     bytesFromLong(request.getInitialRead()),
                     bytesFromLong(
@@ -192,7 +201,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0);
+            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             repositoryName = in.readString();
             containerPath = in.readString();
             registerName = in.readString();
@@ -202,7 +211,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0);
+            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             super.writeTo(out);
             out.writeString(repositoryName);
             out.writeString(containerPath);

@@ -61,8 +61,8 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             .downsampling(
                 new Downsampling(
                     List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("1s"))),
-                        new Downsampling.Round(TimeValue.timeValueSeconds(10), new DownsampleConfig(new DateHistogramInterval("10s")))
+                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
+                        new Downsampling.Round(TimeValue.timeValueSeconds(10), new DownsampleConfig(new DateHistogramInterval("10m")))
                     )
                 )
             )
@@ -72,8 +72,8 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         List<String> backingIndices = getBackingIndices(client(), dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0);
-        String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
-        String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
+        String oneSecondDownsampleIndex = "downsample-5m-" + firstGenerationBackingIndex;
+        String tenSecondsDownsampleIndex = "downsample-10m-" + firstGenerationBackingIndex;
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
@@ -107,6 +107,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
             // the last downsampling round must remain in the data stream
             assertThat(dsBackingIndices.get(0), is(tenSecondsDownsampleIndex));
+            assertThat(indexExists(oneSecondDownsampleIndex), is(false));
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -118,10 +119,10 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             .downsampling(
                 new Downsampling(
                     List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("1s"))),
+                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
                         // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
                         // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10s")))
+                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10m")))
                     )
                 )
             )
@@ -130,8 +131,8 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         List<String> backingIndices = getBackingIndices(client(), dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0);
-        String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
-        String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
+        String oneSecondDownsampleIndex = "downsample-5m-" + firstGenerationBackingIndex;
+        String tenSecondsDownsampleIndex = "downsample-10m-" + firstGenerationBackingIndex;
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
@@ -172,10 +173,10 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             .downsampling(
                 new Downsampling(
                     List.of(
-                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("1s"))),
+                        new Downsampling.Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))),
                         // data stream lifecycle runs every 1 second, so by the time we forcemerge the backing index it would've been at
                         // least 2 seconds since rollover. only the 10 seconds round should be executed.
-                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10s")))
+                        new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("10m")))
                     )
                 )
             )
@@ -185,8 +186,8 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         List<String> backingIndices = getBackingIndices(client(), dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0);
-        String oneSecondDownsampleIndex = "downsample-1s-" + firstGenerationBackingIndex;
-        String tenSecondsDownsampleIndex = "downsample-10s-" + firstGenerationBackingIndex;
+        String oneSecondDownsampleIndex = "downsample-5m-" + firstGenerationBackingIndex;
+        String tenSecondsDownsampleIndex = "downsample-10m-" + firstGenerationBackingIndex;
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
@@ -221,7 +222,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
         DataStreamLifecycle updatedLifecycle = DataStreamLifecycle.newBuilder()
             .downsampling(
                 new Downsampling(
-                    List.of(new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("30s"))))
+                    List.of(new Downsampling.Round(TimeValue.timeValueMillis(10), new DownsampleConfig(new DateHistogramInterval("20m"))))
                 )
             )
             .build();
@@ -231,7 +232,7 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, updatedLifecycle)
         );
 
-        String thirtySecondsDownsampleIndex = "downsample-30s-" + firstGenerationBackingIndex;
+        String thirtySecondsDownsampleIndex = "downsample-20m-" + firstGenerationBackingIndex;
 
         assertBusy(() -> {
             assertThat(indexExists(tenSecondsDownsampleIndex), is(false));

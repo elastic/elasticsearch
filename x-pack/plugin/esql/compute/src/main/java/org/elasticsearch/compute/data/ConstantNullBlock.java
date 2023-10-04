@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -19,8 +21,15 @@ import java.util.Objects;
  */
 public final class ConstantNullBlock extends AbstractBlock {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
+
+    // Eventually, this should use the GLOBAL breaking instance
     ConstantNullBlock(int positionCount) {
-        super(positionCount);
+        this(positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
     }
 
     @Override
@@ -60,6 +69,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public Block filter(int... positions) {
+        Releasables.closeExpectNoException(this);
         return new ConstantNullBlock(positions.length);
     }
 
@@ -94,6 +104,11 @@ public final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof ConstantNullBlock that) {
             return this.getPositionCount() == that.getPositionCount();
@@ -111,8 +126,29 @@ public final class ConstantNullBlock extends AbstractBlock {
         return "ConstantNullBlock[positions=" + getPositionCount() + "]";
     }
 
+    @Override
+    public void close() {
+        if (isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    }
+
     static class Builder implements Block.Builder {
+
+        final BlockFactory blockFactory;
+
+        Builder(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
+
         private int positionCount;
+
+        /**
+         * Has this builder been closed already?
+         */
+        private boolean closed = false;
 
         @Override
         public Builder appendNull() {
@@ -137,6 +173,7 @@ public final class ConstantNullBlock extends AbstractBlock {
                     throw new UnsupportedOperationException("can't append non-null values to a null block");
                 }
             }
+            positionCount += endExclusive - beginInclusive;
             return this;
         }
 
@@ -152,7 +189,16 @@ public final class ConstantNullBlock extends AbstractBlock {
 
         @Override
         public Block build() {
-            return new ConstantNullBlock(positionCount);
+            if (closed) {
+                throw new IllegalStateException("already closed");
+            }
+            close();
+            return blockFactory.newConstantNullBlock(positionCount);
+        }
+
+        @Override
+        public void close() {
+            closed = true;
         }
     }
 }

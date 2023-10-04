@@ -135,7 +135,7 @@ public class EsqlParser {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
                 if (param >= params.size()) {
-                    throw new ParsingException("Not enough actual parameters {} ", params.size());
+                    throw new ParsingException("Not enough actual parameters {}", params.size());
                 }
                 paramTokens.put(token, params.get(param));
                 param++;

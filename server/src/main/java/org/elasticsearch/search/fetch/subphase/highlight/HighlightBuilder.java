@@ -124,11 +124,12 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public HighlightBuilder(StreamInput in) throws IOException {
         super(in);
         encoder(in.readOptionalString());
         useExplicitFieldOrder(in.readBoolean());
-        this.fields = in.readList(Field::new);
+        this.fields = in.readCollectionAsList(Field::new);
         assert this.equals(new HighlightBuilder(this, highlightQuery, fields)) : "copy constructor is broken";
     }
 
@@ -474,6 +475,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         /**
          * Read from a stream.
          */
+        @SuppressWarnings("this-escape")
         public Field(StreamInput in) throws IOException {
             super(in);
             name = in.readString();

@@ -76,7 +76,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -166,7 +166,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 future.addTimeout(
                     requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                     threadPool,
-                    ThreadPool.Names.SAME
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
                 );
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);

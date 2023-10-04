@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -157,19 +158,19 @@ public class MultivalueDedupeBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
-    public Block adaptive() {
-        return MultivalueDedupe.dedupeToBlockAdaptive(block);
+    public void adaptive() {
+        MultivalueDedupe.dedupeToBlockAdaptive(Block.Ref.floating(block), BlockFactory.getNonBreakingInstance()).close();
     }
 
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
-    public Block copyAndSort() {
-        return MultivalueDedupe.dedupeToBlockUsingCopyAndSort(block);
+    public void copyAndSort() {
+        MultivalueDedupe.dedupeToBlockUsingCopyAndSort(Block.Ref.floating(block), BlockFactory.getNonBreakingInstance()).close();
     }
 
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
-    public Block copyMissing() {
-        return MultivalueDedupe.dedupeToBlockUsingCopyMissing(block);
+    public void copyMissing() {
+        MultivalueDedupe.dedupeToBlockUsingCopyMissing(Block.Ref.floating(block), BlockFactory.getNonBreakingInstance()).close();
     }
 }

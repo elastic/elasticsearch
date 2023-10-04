@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -15,16 +17,25 @@ import java.util.Arrays;
  */
 public final class IntArrayVector extends AbstractVector implements IntVector {
 
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class);
+
     private final int[] values;
 
+    private final IntBlock block;
+
     public IntArrayVector(int[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return new IntVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -47,6 +58,15 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
         return new FilterIntVector(this, positions);
     }
 
+    public static long ramBytesEstimated(int[] values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof IntVector that) {
@@ -64,4 +84,5 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
 }

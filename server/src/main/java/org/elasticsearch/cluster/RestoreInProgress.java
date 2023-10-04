@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.Iterators;
@@ -349,7 +350,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -371,7 +372,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 // Backwards compatibility: previously there was no logging of the start or completion of a snapshot restore
                 quiet = true;
             }
-            List<String> indices = in.readImmutableList(StreamInput::readString);
+            List<String> indices = in.readCollectionAsImmutableList(StreamInput::readString);
             entriesBuilder.put(
                 uuid,
                 new Entry(

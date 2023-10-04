@@ -88,7 +88,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return map.size();
         }
 
-        boolean isUnsafe() {
+        public boolean isUnsafe() {
             return unsafe;
         }
 
@@ -320,7 +320,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     boolean isUnsafe() {
-        return maps.current.isUnsafe() || maps.old.isUnsafe();
+        return maps.current.isUnsafe() || maps.old.isUnsafe() || archive.isUnsafe();
     }
 
     void enforceSafeAccess() {

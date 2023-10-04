@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -68,7 +67,6 @@ public class XPackRestIT extends AbstractXPackRestTest {
 
     @Override
     protected String getTestRestCluster() {
-        MockIndicesRequest foo = null;
         return cluster.getHttpAddresses();
     }
 }

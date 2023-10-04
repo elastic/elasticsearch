@@ -378,6 +378,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/959")
     public void testMetricsAreRepublishedAfterMasterNodeHasToRecoverStateFromStore() throws Exception {
         var masterNode = startMasterNode();
         startIndexNode(

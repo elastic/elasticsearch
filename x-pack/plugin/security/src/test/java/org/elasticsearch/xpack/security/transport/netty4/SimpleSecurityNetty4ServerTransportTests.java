@@ -916,7 +916,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             socket.setReuseAddress(true);
             new Thread(() -> {
                 try (Socket ignored = socket.accept()) {
-                    safeAwait(doneLatch);
+                    doneLatch.await();
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }

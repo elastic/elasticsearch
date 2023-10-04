@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -81,7 +82,13 @@ public class TransportExplainDataFrameAnalyticsAction extends HandledTransportAc
         Settings settings,
         ThreadPool threadPool
     ) {
-        super(ExplainDataFrameAnalyticsAction.NAME, transportService, actionFilters, ExplainDataFrameAnalyticsAction.Request::new);
+        super(
+            ExplainDataFrameAnalyticsAction.NAME,
+            transportService,
+            actionFilters,
+            ExplainDataFrameAnalyticsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.transportService = transportService;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);

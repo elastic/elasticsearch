@@ -119,6 +119,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true));
     }
 
+    protected static Expression deepCopyOfField(String name, DataType type) {
+        return new DeepCopy(Source.EMPTY, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true)));
+    }
+
     /**
      * Build the expression being tested, for the given source and list of arguments.  Test classes need to implement this
      * to have something to test.
@@ -130,6 +134,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsFields());
+    }
+
+    protected final Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
+        return build(testCase.getSource(), testCase.getDataAsDeepCopiedFields());
     }
 
     protected final Expression buildLiteralExpression(TestCaseSupplier.TestCase testCase) {
@@ -148,7 +156,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(BlockUtils.fromListRow(values));
+        return new Page(BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), values));
     }
 
     /**
@@ -171,14 +179,25 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluate() {
+        testEvaluate(false);
+    }
+
+    public final void testEvaluateFloating() {
+        testEvaluate(true);
+    }
+
+    private void testEvaluate(boolean readFloating) {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
-        Expression expression = buildFieldExpression(testCase);
+        Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTrue("expected unresolved", expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
+            if (readFloating == false) {
+                // The hack that creates floating fields changes the error message so don't assert it
+                assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
+            }
             return;
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
@@ -205,7 +224,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();
         try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
-            Block[] orig = BlockUtils.fromListRow(simpleData);
+            Block[] orig = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), simpleData);
             for (int i = 0; i < orig.length; i++) {
                 List<Object> data = new ArrayList<>();
                 Block[] blocks = new Block[orig.length];
@@ -402,7 +421,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                             }).toList();
                             return new TestCaseSupplier.TestCase(
                                 data,
-                                "LiteralsEvaluator[block=null]",
+                                "LiteralsEvaluator[lit=null]",
                                 entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType,
                                 nullValue(),
                                 null,
@@ -674,7 +693,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * A {@link DriverContext} with a BigArrays that does not circuit break.
      */
-    protected DriverContext driverContext() {
+    protected final DriverContext driverContext() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);

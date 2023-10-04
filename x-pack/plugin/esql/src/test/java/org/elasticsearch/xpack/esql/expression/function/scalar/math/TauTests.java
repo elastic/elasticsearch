@@ -34,7 +34,7 @@ public class TauTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Tau Test", () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
-                "LiteralsEvaluator[block=6.283185307179586]",
+                "LiteralsEvaluator[lit=6.283185307179586]",
                 DataTypes.DOUBLE,
                 equalTo(Tau.TAU)
             );

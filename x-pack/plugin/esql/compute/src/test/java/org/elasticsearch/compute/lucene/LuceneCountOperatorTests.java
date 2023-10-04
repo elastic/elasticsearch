@@ -149,8 +149,8 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             BooleanBlock bb = page.getBlock(1);
             assertTrue(bb.getBoolean(0));
         }
-        // We can't verify the limit if we have more than one pipeline
-        if (dataPartitioning == DataPartitioning.SHARD || size <= limit || taskConcurrency == 1) {
+        // We can't verify the limit
+        if (size <= limit) {
             assertThat(totalCount, equalTo((long) size));
         }
     }

@@ -21,7 +21,6 @@ public class SequenceBooleanBlockSourceOperator extends AbstractBlockSourceOpera
 
     static final int DEFAULT_MAX_PAGE_POSITIONS = 8 * 1024;
 
-    private final BlockFactory blockFactory;
     private final boolean[] values;
 
     public SequenceBooleanBlockSourceOperator(BlockFactory blockFactory, List<Boolean> values) {
@@ -29,8 +28,7 @@ public class SequenceBooleanBlockSourceOperator extends AbstractBlockSourceOpera
     }
 
     public SequenceBooleanBlockSourceOperator(BlockFactory blockFactory, List<Boolean> values, int maxPagePositions) {
-        super(maxPagePositions);
-        this.blockFactory = blockFactory;
+        super(blockFactory, maxPagePositions);
         this.values = new boolean[values.size()];
         for (int i = 0; i < values.size(); i++) {
             this.values[i] = values.get(i);

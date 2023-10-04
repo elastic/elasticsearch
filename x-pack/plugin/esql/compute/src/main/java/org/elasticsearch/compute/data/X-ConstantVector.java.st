@@ -27,6 +27,8 @@ $endif$
 
     private final $type$ value;
 
+    private final $Type$Block block;
+
     public Constant$Type$Vector($type$ value, int positionCount) {
         this(value, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -34,6 +36,7 @@ $endif$
     public Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
+        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
@@ -47,7 +50,7 @@ $endif$
 
     @Override
     public $Type$Block asBlock() {
-        return new $Type$VectorBlock(this);
+        return block;
     }
 
     @Override

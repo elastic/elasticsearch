@@ -11,7 +11,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;

@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;

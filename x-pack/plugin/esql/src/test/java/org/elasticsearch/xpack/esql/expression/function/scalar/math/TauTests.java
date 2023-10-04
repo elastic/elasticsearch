@@ -62,7 +62,8 @@ public class TauTests extends AbstractScalarFunctionTestCase {
         assertThat(((DoubleBlock) value).asVector().getDouble(0), equalTo(Tau.TAU));
     }
 
-    @Override protected Matcher<Object> allNullsMatcher() {
+    @Override
+    protected Matcher<Object> allNullsMatcher() {
         return equalTo(Math.PI * 2);
     }
 }

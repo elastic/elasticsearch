@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 
-
 import java.util.Arrays;
 
 /**

@@ -307,7 +307,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     }
                     assertThat(toJavaObject(ref.block(), p), testCase.getMatcher());
                 }
-                assertThat(ref.block().blockFactory(), sameInstance(context.blockFactory()));
+                assertThat("evaluates to tracked block", ref.block().blockFactory(), sameInstance(context.blockFactory()));
             }
         } finally {
             Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(manyPositionsBlocks));

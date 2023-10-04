@@ -33,7 +33,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 
-
 $endif$
 import java.util.Arrays;
 

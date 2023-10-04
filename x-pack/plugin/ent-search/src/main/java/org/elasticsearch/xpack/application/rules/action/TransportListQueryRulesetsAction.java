@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
@@ -30,7 +31,13 @@ public class TransportListQueryRulesetsAction extends HandledTransportAction<
         ActionFilters actionFilters,
         Client client
     ) {
-        super(ListQueryRulesetsAction.NAME, transportService, actionFilters, ListQueryRulesetsAction.Request::new);
+        super(
+            ListQueryRulesetsAction.NAME,
+            transportService,
+            actionFilters,
+            ListQueryRulesetsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.systemIndexService = new QueryRulesIndexService(client, clusterService.getClusterSettings());
     }
 

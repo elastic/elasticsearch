@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.movingPercentiles;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -55,7 +54,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         switch (config.method) {
             case TDIGEST -> reduceTDigest(buckets, histo, newBuckets, factory, config);
             case HDR -> reduceHDR(buckets, histo, newBuckets, factory, config);
-            default -> throw new AggregationExecutionException(
+            default -> throw new IllegalArgumentException(
                 AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                     + " references an unknown percentile aggregation method: ["
                     + config.method

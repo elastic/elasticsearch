@@ -571,13 +571,12 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {
-        return new DiscoveryNode(
-            node.getName(),
-            node.getId(),
-            node.getAddress(),
-            node.getAttributes(),
-            node.getRoles(),
-            node.getVersionInformation()
-        );
+        return DiscoveryNodeUtils.builder(node.getId())
+            .name(node.getName())
+            .address(node.getAddress())
+            .attributes(node.getAttributes())
+            .roles(node.getRoles())
+            .version(node.getVersionInformation())
+            .build();
     }
 }

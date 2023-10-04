@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -104,6 +105,7 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
     }
 
     private final List<CircuitBreaker> breakers = new ArrayList<>();
+    private final List<BlockFactory> blockFactories = new ArrayList<>();
 
     /**
      * A {@link DriverContext} with a breaking {@link BigArrays} and {@link BlockFactory}.
@@ -112,13 +114,23 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        blockFactories.add(factory);
+        return new DriverContext(bigArrays, factory);
     }
 
     @After
-    public void allBreakersEmpty() {
+    public void allBreakersEmpty() throws Exception {
+        // first check that all big arrays are released, which can affect breakers
+        MockBigArrays.ensureAllArraysAreReleased();
+
         for (CircuitBreaker breaker : breakers) {
-            assertThat(breaker.getUsed(), equalTo(0L));
+            for (var factory : blockFactories) {
+                if (factory instanceof MockBlockFactory mockBlockFactory) {
+                    mockBlockFactory.ensureAllBlocksAreReleased();
+                }
+            }
+            assertThat("Unexpected used in breaker: " + breaker, breaker.getUsed(), equalTo(0L));
         }
     }
 }

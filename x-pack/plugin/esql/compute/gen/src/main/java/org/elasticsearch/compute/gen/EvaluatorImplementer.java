@@ -152,57 +152,60 @@ public class EvaluatorImplementer {
                 builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
             }
         });
-        builder.addStatement(
-            "$T.Builder result = $T.$L(positionCount)",
+        builder.beginControlFlow(
+            "try($T.Builder result = $T.$L(positionCount, driverContext.blockFactory()))",
             resultDataType,
             resultDataType,
             resultDataType.simpleName().endsWith("Vector") ? "newVectorBuilder" : "newBlockBuilder"
         );
-        processFunction.args.stream().forEach(a -> a.createScratch(builder));
-
-        builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
         {
-            if (blockStyle) {
-                processFunction.args.stream().forEach(a -> a.skipNull(builder));
-            }
-            processFunction.args.stream().forEach(a -> a.unpackValues(builder, blockStyle));
+            processFunction.args.stream().forEach(a -> a.createScratch(builder));
 
-            StringBuilder pattern = new StringBuilder();
-            List<Object> args = new ArrayList<>();
-            pattern.append("$T.$N(");
-            args.add(declarationType);
-            args.add(processFunction.function.getSimpleName());
-            processFunction.args.stream().forEach(a -> {
-                if (args.size() > 2) {
-                    pattern.append(", ");
+            builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
+            {
+                if (blockStyle) {
+                    processFunction.args.stream().forEach(a -> a.skipNull(builder));
                 }
-                a.buildInvocation(pattern, args, blockStyle);
-            });
-            pattern.append(")");
-            String builtPattern;
-            if (processFunction.builderArg == null) {
-                builtPattern = "result.$L(" + pattern + ")";
-                args.add(0, appendMethod(resultDataType));
-            } else {
-                builtPattern = pattern.toString();
-            }
+                processFunction.args.stream().forEach(a -> a.unpackValues(builder, blockStyle));
 
-            if (processFunction.warnExceptions.isEmpty() == false) {
-                builder.beginControlFlow("try");
+                StringBuilder pattern = new StringBuilder();
+                List<Object> args = new ArrayList<>();
+                pattern.append("$T.$N(");
+                args.add(declarationType);
+                args.add(processFunction.function.getSimpleName());
+                processFunction.args.stream().forEach(a -> {
+                    if (args.size() > 2) {
+                        pattern.append(", ");
+                    }
+                    a.buildInvocation(pattern, args, blockStyle);
+                });
+                pattern.append(")");
+                String builtPattern;
+                if (processFunction.builderArg == null) {
+                    builtPattern = "result.$L(" + pattern + ")";
+                    args.add(0, appendMethod(resultDataType));
+                } else {
+                    builtPattern = pattern.toString();
+                }
+
+                if (processFunction.warnExceptions.isEmpty() == false) {
+                    builder.beginControlFlow("try");
+                }
+                builder.addStatement(builtPattern, args.toArray());
+                if (processFunction.warnExceptions.isEmpty() == false) {
+                    String catchPattern = "catch ("
+                        + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
+                        + " e)";
+                    builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
+                    builder.addStatement("warnings.registerException(e)");
+                    builder.addStatement("result.appendNull()");
+                    builder.endControlFlow();
+                }
             }
-            builder.addStatement(builtPattern, args.toArray());
-            if (processFunction.warnExceptions.isEmpty() == false) {
-                String catchPattern = "catch ("
-                    + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
-                    + " e)";
-                builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
-                builder.addStatement("warnings.registerException(e)");
-                builder.addStatement("result.appendNull()");
-                builder.endControlFlow();
-            }
+            builder.endControlFlow();
+            builder.addStatement("return result.build()");
+            builder.endControlFlow();
         }
-        builder.endControlFlow();
-        builder.addStatement("return result.build()");
         return builder.build();
     }
 
@@ -348,7 +351,9 @@ public class EvaluatorImplementer {
             TypeName blockType = blockType(type);
             builder.beginControlFlow("try (Block.Ref $LRef = $L.eval(page))", name, name);
             builder.beginControlFlow("if ($LRef.block().areAllValuesNull())", name);
-            builder.addStatement("return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()))");
+            builder.addStatement(
+                "return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()))"
+            );
             builder.endControlFlow();
             builder.addStatement("$T $LBlock = ($T) $LRef.block()", blockType, name, blockType, name);
         }
@@ -455,7 +460,9 @@ public class EvaluatorImplementer {
                 builder.addStatement("$LRefs[i] = $L[i].eval(page)", name, name);
                 builder.addStatement("Block block = $LRefs[i].block()", name);
                 builder.beginControlFlow("if (block.areAllValuesNull())");
-                builder.addStatement("return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()))");
+                builder.addStatement(
+                    "return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()))"
+                );
                 builder.endControlFlow();
                 builder.addStatement("$LBlocks[i] = ($T) block", name, blockType);
             }

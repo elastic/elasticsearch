@@ -55,19 +55,20 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
          * we've been assigned and expanding all multivalued fields
          * into single valued fields.
          */
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(positions.length);
-        for (int p : positions) {
-            if (block.isNull(p)) {
-                builder.appendNull();
-                continue;
+        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positions.length, blockFactory())) {
+            for (int p : positions) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = block.getFirstValueIndex(p);
+                int end = start + block.getValueCount(p);
+                for (int i = start; i < end; i++) {
+                    builder.appendInt(block.getInt(i));
+                }
             }
-            int start = block.getFirstValueIndex(p);
-            int end = start + block.getValueCount(p);
-            for (int i = start; i < end; i++) {
-                builder.appendInt(block.getInt(i));
-            }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
@@ -94,9 +95,14 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
-        sb.append("[positions=" + getPositionCount() + ", values=[");
-        appendValues(sb);
-        sb.append("]]");
+        sb.append("[positions=" + getPositionCount());
+        sb.append(", released=" + isReleased());
+        if (isReleased() == false) {
+            sb.append(", values=[");
+            appendValues(sb);
+            sb.append("]");
+        }
+        sb.append("]");
         return sb.toString();
     }
 

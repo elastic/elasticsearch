@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -36,10 +36,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
+import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -58,6 +59,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
     }
 
     private LuceneCountOperator.Factory simple(BigArrays bigArrays, DataPartitioning dataPartitioning, int numDocs, int limit) {
+        boolean enableShortcut = randomBoolean();
         int commitEvery = Math.max(1, numDocs / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -67,9 +69,14 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
             )
         ) {
             for (int d = 0; d < numDocs; d++) {
-                List<IndexableField> doc = new ArrayList<>();
-                doc.add(new SortedNumericDocValuesField("s", d));
+                var doc = new Document();
+                doc.add(new LongPoint("s", d));
                 writer.addDocument(doc);
+                if (enableShortcut == false && randomBoolean()) {
+                    doc = new Document();
+                    doc.add(new LongPoint("s", randomLongBetween(numDocs * 5L, numDocs * 10L)));
+                    writer.addDocument(doc);
+                }
                 if (d % commitEvery == 0) {
                     writer.commit();
                 }
@@ -83,8 +90,13 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         SearchExecutionContext ectx = mock(SearchExecutionContext.class);
         when(ctx.getSearchExecutionContext()).thenReturn(ectx);
         when(ectx.getIndexReader()).thenReturn(reader);
-        Function<SearchContext, Query> queryFunction = c -> new MatchAllDocsQuery();
-        return new LuceneCountOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, limit);
+        final Query query;
+        if (enableShortcut && randomBoolean()) {
+            query = new MatchAllDocsQuery();
+        } else {
+            query = LongPoint.newRangeQuery("s", 0, numDocs);
+        }
+        return new LuceneCountOperator.Factory(List.of(ctx), c -> query, dataPartitioning, between(1, 8), limit);
     }
 
     @Override
@@ -102,34 +114,45 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     // TODO tests for the other data partitioning configurations
 
-    public void testShardDataPartitioning() {
+    public void testSimple() {
         int size = between(1_000, 20_000);
-        int limit = between(10, size);
+        int limit = randomBoolean() ? between(10, size) : Integer.MAX_VALUE;
         testCount(size, limit);
     }
 
     public void testEmpty() {
-        testCount(0, between(10, 10_000));
+        int limit = randomBoolean() ? between(10, 10000) : Integer.MAX_VALUE;
+        testCount(0, limit);
     }
 
     private void testCount(int size, int limit) {
-        DriverContext ctx = driverContext();
-        LuceneCountOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
-
-        List<Page> results = new ArrayList<>();
-        OperatorTestCase.runDriver(new Driver(ctx, factory.get(ctx), List.of(), new PageConsumerOperator(results::add), () -> {}));
-        OperatorTestCase.assertDriverContext(ctx);
-
-        assertThat(results, hasSize(1));
-        Page page = results.get(0);
-
-        assertThat(page.getPositionCount(), is(1));
-        assertThat(page.getBlockCount(), is(2));
-        LongBlock lb = page.getBlock(0);
-        assertThat(lb.getPositionCount(), is(1));
-        assertThat(lb.getLong(0), is((long) Math.min(size, limit)));
-        BooleanBlock bb = page.getBlock(1);
-        assertThat(bb.getBoolean(1), is(true));
+        DataPartitioning dataPartitioning = randomFrom(DataPartitioning.values());
+        LuceneCountOperator.Factory factory = simple(nonBreakingBigArrays(), dataPartitioning, size, limit);
+        List<Page> results = new CopyOnWriteArrayList<>();
+        List<Driver> drivers = new ArrayList<>();
+        int taskConcurrency = between(1, 8);
+        for (int i = 0; i < taskConcurrency; i++) {
+            DriverContext ctx = driverContext();
+            drivers.add(new Driver(ctx, factory.get(ctx), List.of(), new PageConsumerOperator(results::add), () -> {}));
+        }
+        OperatorTestCase.runDriver(drivers);
+        assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));
+        long totalCount = 0;
+        for (Page page : results) {
+            assertThat(page.getPositionCount(), is(1));
+            assertThat(page.getBlockCount(), is(2));
+            LongBlock lb = page.getBlock(0);
+            assertThat(lb.getPositionCount(), is(1));
+            long count = lb.getLong(0);
+            assertThat(count, lessThanOrEqualTo((long) limit));
+            totalCount += count;
+            BooleanBlock bb = page.getBlock(1);
+            assertTrue(bb.getBoolean(0));
+        }
+        // We can't verify the limit
+        if (size <= limit) {
+            assertThat(totalCount, equalTo((long) size));
+        }
     }
 
     /**

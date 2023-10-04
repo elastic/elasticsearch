@@ -293,8 +293,9 @@ public class DfsQueryPhaseTests extends ESTestCase {
 
     public void testRewriteShardSearchRequestWithRank() {
         List<DfsKnnResults> dkrs = List.of(
-            new DfsKnnResults(new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1), new ScoreDoc(7, 0.1f, 2) }),
+            new DfsKnnResults(null, new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1), new ScoreDoc(7, 0.1f, 2) }),
             new DfsKnnResults(
+                null,
                 new ScoreDoc[] { new ScoreDoc(2, 1.75f, 2), new ScoreDoc(1, 2.0f, 1), new ScoreDoc(3, 0.25f, 2), new ScoreDoc(6, 2.5f, 2) }
             )
         );

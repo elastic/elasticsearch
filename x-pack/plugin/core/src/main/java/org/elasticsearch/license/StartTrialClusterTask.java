@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.license.internal.TrialLicenseEra;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
@@ -88,7 +88,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
                 specBuilder.maxNodes(LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES);
             }
             License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, discoveryNodes);
-            LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, TrialLicenseEra.CURRENT);
+            LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, TrialLicenseVersion.CURRENT);
             taskContext.success(() -> listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL)));
             return newLicensesMetadata;
         } else {

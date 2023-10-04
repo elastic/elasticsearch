@@ -20,11 +20,11 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TrialLicenseEraTests extends ESTestCase {
+public class TrialLicenseVersionTests extends ESTestCase {
 
     public void testCanParseAllVersions() {
         for (var version : Version.getDeclaredVersions(Version.class)) {
-            TrialLicenseEra era = TrialLicenseEra.fromString(version.toString());
+            TrialLicenseVersion era = TrialLicenseVersion.fromString(version.toString());
             assertThat((byte) era.asInt(), equalTo(version.major));
         }
     }
@@ -35,12 +35,12 @@ public class TrialLicenseEraTests extends ESTestCase {
         }
 
         for (int i = 2; i < 100; i++) { // old Version class only grows to 99, so that's the limit
-            eraToVersionSerialization(new TrialLicenseEra(i));
+            eraToVersionSerialization(new TrialLicenseVersion(i));
         }
     }
 
     // This simulates a node of a version that supports transport eras receiving a message which is still using old-school Versions
-    private TrialLicenseEra versionToEraSerialization(Version version) throws IOException {
+    private TrialLicenseVersion versionToEraSerialization(Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(TransportVersion.current());
             Version.writeVersion(version, output);
@@ -51,7 +51,7 @@ public class TrialLicenseEraTests extends ESTestCase {
                 )
             ) {
                 in.setTransportVersion(TransportVersion.current());
-                TrialLicenseEra readEra = new TrialLicenseEra(in);
+                TrialLicenseVersion readEra = new TrialLicenseVersion(in);
                 assertEquals(version.major, (byte) readEra.asInt());
                 return readEra;
             }
@@ -60,7 +60,7 @@ public class TrialLicenseEraTests extends ESTestCase {
 
     // This simulates (imperfectly) a node of a version that does not support transport eras receiving a message which uses trial version
     // eras
-    private Version eraToVersionSerialization(TrialLicenseEra era) throws IOException {
+    private Version eraToVersionSerialization(TrialLicenseVersion era) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(TransportVersion.current());
             era.writeTo(output);
@@ -79,19 +79,19 @@ public class TrialLicenseEraTests extends ESTestCase {
     }
 
     public void testRoundTripParsing() {
-        var randomEra = new TrialLicenseEra(randomNonNegativeInt());
-        assertThat(TrialLicenseEra.fromString(randomEra.toString()), equalTo(randomEra));
+        var randomEra = new TrialLicenseVersion(randomNonNegativeInt());
+        assertThat(TrialLicenseVersion.fromString(randomEra.toString()), equalTo(randomEra));
     }
 
     public void testVersionCanParseAllEras() {
-        for (int i = 2; i <= TrialLicenseEra.CURRENT.asInt(); i++) {
-            Version.fromString(new TrialLicenseEra(i).asVersionString());
+        for (int i = 2; i <= TrialLicenseVersion.CURRENT.asInt(); i++) {
+            Version.fromString(new TrialLicenseVersion(i).asVersionString());
         }
     }
 
     public void testNewTrialAllowed() {
-        var randomEra = new TrialLicenseEra(randomNonNegativeInt());
-        var subsequentEra = new TrialLicenseEra(randomEra.asInt() + randomIntBetween(0, Integer.MAX_VALUE - randomEra.asInt()));
+        var randomEra = new TrialLicenseVersion(randomNonNegativeInt());
+        var subsequentEra = new TrialLicenseVersion(randomEra.asInt() + randomIntBetween(0, Integer.MAX_VALUE - randomEra.asInt()));
         assertFalse(randomEra.ableToStartNewTrialSince(randomEra));
         assertTrue(subsequentEra.ableToStartNewTrialSince(randomEra));
     }

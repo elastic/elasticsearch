@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.license.internal.TrialLicenseEra;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
@@ -78,7 +78,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
                     return currentLicensesMetadata;
                 }
             }
-            TrialLicenseEra trialEra = currentLicensesMetadata != null ? currentLicensesMetadata.getMostRecentTrialEra() : null;
+            TrialLicenseVersion trialEra = currentLicensesMetadata != null ? currentLicensesMetadata.getMostRecentTrialEra() : null;
             updatedLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, trialEra);
         } else {
             updatedLicensesMetadata = currentLicensesMetadata;

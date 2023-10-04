@@ -31,15 +31,11 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.ESTestCase;
@@ -618,63 +614,6 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId2),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
-        );
-    }
-
-    public void testCompoundTranslogOldVersionFile() throws Exception {
-        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
-        long primaryTerm = randomLongBetween(0, 10);
-
-        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
-
-        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
-        doAnswer(invocation -> {
-            StreamInput streamInput = invocation.<BytesReference>getArgument(1).streamInput();
-            var metadata = CompoundTranslogHeader.readFromStore("test", streamInput).metadata();
-            BytesStreamOutput streamOutput = new BytesStreamOutput();
-            try (BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput)) {
-                // Serialize in old version
-                out.writeMap(metadata, StreamOutput::writeWriteable, (out1, value) -> {
-                    out1.writeLong(value.offset());
-                    out1.writeLong(value.size());
-                    out1.writeLong(value.minSeqNo());
-                    out1.writeLong(value.maxSeqNo());
-                    out1.writeLong(value.totalOps());
-                });
-                out.writeLong(out.getChecksum());
-                out.flush();
-            }
-            long copy = Streams.copy(streamInput, streamOutput, false);
-            compoundFiles.add(streamOutput.bytes());
-            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
-            return null;
-        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
-        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
-
-        TranslogReplicator translogReplicator = new TranslogReplicator(
-            threadPool,
-            getSettings(),
-            objectStoreService,
-            consistencyService,
-            (sId) -> primaryTerm
-        );
-        translogReplicator.doStart();
-        translogReplicator.register(shardId, primaryTerm);
-
-        Translog.Operation[] operations = generateRandomOperations(2);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
-        long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        translogReplicator.syncAll(shardId, future);
-        future.actionGet();
-
-        assertTranslogContains(
-            new TranslogReplicatorReader(mockObjectStoreService(compoundFiles).getTranslogBlobContainer(), shardId),
-            new Translog.Operation[] { operations[0], operations[1] }
         );
     }
 

@@ -71,7 +71,7 @@ This is insecure when dealing with untrusted clients.
 
 The response will look like this:
 
-[source,js]
+[source,console-result]
 ----
 {
   "id": "v1CCJYkBvb5Pg9T-_JgO",
@@ -81,6 +81,7 @@ The response will look like this:
   "encoded": "djFDQ0pZa0J2YjVQZzlULV9KZ086enRWSS0xUTRSalM4cUZEeEFWZXQ1dw"
 }
 ----
+// TEST[skip:TODO]
 
 The encoded value can then be directly used in the Authorization header.
 Here's an example using cURL:

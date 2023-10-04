@@ -452,6 +452,7 @@ Remember to update your search application to use the new template using the <<p
 ====
 
 Finally, a parameterless search using this template would fall back to a default search returning all documents:
+
 [source,console]
 ----
 POST _application/search_application/my_search_application/_search

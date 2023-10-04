@@ -129,50 +129,65 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .addAlias("employees", "engineers", new MatchQueryBuilder("dept", "engineering"))
                 .addAlias("employees", "sales", new MatchQueryBuilder("dept", "sales"))
         );
-        EsqlQueryResponse resp;
         // employees index
-        resp = run("from employees | stats count(emp_no)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
-        resp = run("from employees | stats avg(salary)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        try (var resp = run("from employees | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        }
 
-        resp = run("from employees | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
-        resp = run("from employees | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        try (var resp = run("from employees | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        }
 
         // match both employees index and engineers alias -> employees
-        resp = run("from e* | stats count(emp_no)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
-        resp = run("from employees | stats avg(salary)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        try (var resp = run("from e* | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        }
 
-        resp = run("from e* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
-        resp = run("from e* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        try (var resp = run("from e* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from e* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        }
 
         // engineers alias
-        resp = run("from engineer* | stats count(emp_no)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
-        resp = run("from engineer* | stats avg(salary)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        }
 
-        resp = run("from engineer* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(3L)));
-        resp = run("from engineer* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(27.2d)));
+        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(3L)));
+        }
+        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(27.2d)));
+        }
 
         // sales alias
-        resp = run("from sales | stats count(emp_no)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(2L)));
-        resp = run("from sales | stats avg(salary)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(27.55d)));
+        try (var resp = run("from sales | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(2L)));
+        }
+        try (var resp = run("from sales | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(27.55d)));
+        }
 
-        resp = run("from sales | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(1L)));
-        resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(25.0d)));
+        try (var resp = run("from sales | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(1L)));
+        }
+        try (var resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(25.0d)));
+        }
     }
 
     public void testFailOnUnavailableShards() throws Exception {

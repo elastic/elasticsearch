@@ -99,6 +99,7 @@ curl -XPOST "http://localhost:9200/_application/search_application/website-produ
   }
 }'
 ----
+// NOTCONSOLE
 
 [TIP]
 ====

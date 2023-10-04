@@ -134,10 +134,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster() == false) {
-            if (nodes.getMasterNodeId() == null) {
-                logger.debug("not recovering from gateway, no master elected yet");
-                return;
-            }
             // not our job to recover
             return;
         }

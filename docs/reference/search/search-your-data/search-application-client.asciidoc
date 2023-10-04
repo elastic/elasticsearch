@@ -475,7 +475,7 @@ PUT _application/search_application/my-example-app
 If a match was found, this will return the results with a highlight field.
 For example:
 
-[source, json]
+[source, js]
 ----
 {
   "hits": [
@@ -665,7 +665,7 @@ const results = await request()
 
 You can access the facets in the results:
 
-[source, json]
+[source, js]
 ----
 {
   "took": 1,

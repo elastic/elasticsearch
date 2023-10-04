@@ -847,7 +847,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         putDatafeed(datafeedConfig);
 
-        StartDatafeedAction.Request request;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new StartDatafeedAction.Request(datafeedId, negativeStartTime)

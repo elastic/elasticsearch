@@ -43,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-   id "com.netflix.nebula.ospackage-base" version "11.5.0"
+  id "com.netflix.nebula.ospackage-base" version "11.5.0"
 }
 
 ['deb', 'rpm'].each { type ->
@@ -56,14 +56,14 @@ plugins {
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      filter("tokens" : expansionsForDistribution(type, false), ReplaceTokens.class)
+      filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
       with configFiles(type, false)
     }
 
-    filter("tokens" : expansionsForDistribution(type, false), ReplaceTokens.class)
+    filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
@@ -92,22 +92,22 @@ def commonPackageConfig(String type, String architecture) {
       if (architecture == 'x64') {
         arch('amd64')
       } else {
-        assert architecture == 'aarch64' : architecture
+        assert architecture == 'aarch64': architecture
         arch('arm64')
       }
     } else {
-      assert type == 'rpm' : type
+      assert type == 'rpm': type
       if (architecture == 'x64') {
         arch('X86_64')
       } else {
-        assert architecture == 'aarch64' : architecture
+        assert architecture == 'aarch64': architecture
         arch('aarch64')
       }
     }
     // Follow elasticsearch's file naming convention
     String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
-    archiveFileName.value(project.provider({ "${packageName}-${project.version}-${archString}.${type}" } ))
+    archiveFileName.value(project.provider({ "${packageName}-${project.version}-${archString}.${type}" }))
     String packagingFiles = "build/packaging/${type}"
 
     String scripts = "${packagingFiles}/scripts"
@@ -243,7 +243,9 @@ def commonPackageConfig(String type, String architecture) {
         user u
         permissionGroup g
         dirMode = mode
-        setgid = mode == 02750
+        if (mode == 02750) {
+          setgid = true
+        }
       }
     }
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
@@ -402,7 +404,7 @@ subprojects {
     } else {
       assert project.name.contains('rpm')
       tasks.named("checkExtraction").configure {
-         onlyIf("rpm exists", rpmExists)
+        onlyIf("rpm exists", rpmExists)
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
         commandLine 'rpm',
           '--badreloc',
@@ -434,9 +436,11 @@ subprojects {
           copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch/copyright")
           expectedLicense = "Elastic-License"
           licenseFilename = "ELASTIC-LICENSE-2.0.txt"
-          final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
+          final List<String> header = Arrays.asList(
+            "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
             "Copyright: Elasticsearch B.V. <info@elastic.co>",
-            "License: " + expectedLicense)
+            "License: " + expectedLicense
+          )
           final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
           final List<String> expectedLines = header + licenseLines.collect { " " + it }
           assertLinesInFile(copyrightPath, expectedLines)

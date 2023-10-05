@@ -27,15 +27,12 @@ import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 public class HttpClient implements Closeable {
-
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
     enum Status {
@@ -146,12 +143,6 @@ public class HttpClient implements Closeable {
     @Override
     public void close() throws IOException {
         client.close();
-        connectionEvictor.shutdown();
-
-        try {
-            connectionEvictor.awaitTermination(3, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            connectionEvictor.shutdownNow();
-        }
+        connectionEvictor.shutdownNow();
     }
 }

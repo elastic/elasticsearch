@@ -72,7 +72,11 @@ public class IdleConnectionEvictor {
                     }
                 }
             } catch (Exception e) {
-                logger.error("HTTP connection eviction thread failed", e);
+                if (e instanceof InterruptedException && running.get() == false) {
+                    logger.info("HTTP connection eviction thread stopping");
+                } else {
+                    logger.warn("HTTP connection eviction thread failed", e);
+                }
             } finally {
                 running.set(false);
             }

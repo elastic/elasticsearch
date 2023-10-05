@@ -1,5 +1,5 @@
 [[search-with-synonyms]]
-=== Search with synonyms
+== Search with synonyms
 
 Synonyms are words or phrases that have the same or similar meaning.
 They are an important aspect of search, as they can improve the search experience and increase the scope of search results.
@@ -20,14 +20,14 @@ In order to use synonyms sets in {es}, you need to:
 
 [discrete]
 [[synonyms-store-synonyms]]
-==== Store your synonyms set
+=== Store your synonyms set
 
 Your synonyms sets need to be stored in {es} so your analyzers can refer to them.
 There are three ways to store your synonyms sets:
 
 [discrete]
 [[synonyms-store-synonyms-api]]
-===== Synonyms API
+==== Synonyms API
 
 You can use the <<synonyms-apis,synonyms APIs>> to manage synonyms sets.
 This is the most flexible approach, as it allows to dynamically define and modify synonyms sets.
@@ -36,7 +36,7 @@ Changes in your synonyms sets will automatically reload the associated analyzers
 
 [discrete]
 [[synonyms-store-synonyms-file]]
-===== Synonyms File
+==== Synonyms File
 
 You can store your synonyms set in a file.
 
@@ -59,7 +59,7 @@ This manual syncing and reloading makes this approach less flexible than using t
 
 [discrete]
 [[synonyms-store-synonyms-inline]]
-===== Inline
+==== Inline
 
 You can test your synonyms by adding them directly inline in your token filter definition.
 
@@ -85,7 +85,7 @@ Check each synonym token filter documentation for configuration details and inst
 
 [discrete]
 [[synonyms-test-analyzer]]
-===== Test your analyzer
+==== Test your analyzer
 
 You can test an analyzer configuration without modifying your index settings.
 Use the <<indices-analyze,analyze API>> to test your analyzer chain:
@@ -108,7 +108,7 @@ GET /_analyze
 
 [discrete]
 [[synonyms-apply-synonyms]]
-===== Apply synonyms at index or search time
+==== Apply synonyms at index or search time
 
 Analyzers can be applied at <<analysis-index-search-time,index time or search time>>.
 

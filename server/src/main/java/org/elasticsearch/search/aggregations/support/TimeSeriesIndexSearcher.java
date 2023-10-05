@@ -277,11 +277,10 @@ public class TimeSeriesIndexSearcher {
                 if (isInvalidDoc(docId)) {
                     continue;
                 }
-                // Check if the current tsid matches the passed one (if not null).
-                if (tsid != null && tsid.compareTo(getTsid()) != 0) {
+                BytesRef currentTsid = getTsid();
+                if (tsid != null && tsid.compareTo(currentTsid) != 0) {
                     return;
                 }
-                getTsid();
                 timestamp = timestamps.nextValue();
                 collector.collect(docId);
                 docId = iterator.nextDoc();

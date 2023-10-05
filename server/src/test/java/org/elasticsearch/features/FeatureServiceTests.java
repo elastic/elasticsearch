@@ -1,0 +1,118 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.features;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.junit.Before;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
+public class FeatureServiceTests extends ESTestCase {
+
+    private static final NodeFeature ELIDED_FEATURE = new NodeFeature("elided_v6", FeatureEra.V_6);
+    private static final NodeFeature ELIDED_HISTORICAL_FEATURE = new NodeFeature("elided_hf_v6", FeatureEra.V_6);
+
+    @Before
+    public void loadTestSpecs() {
+        FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1", FeatureEra.V_8), new NodeFeature("f2", FeatureEra.V_8));
+            }
+        }, new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(ELIDED_FEATURE, new NodeFeature("f1_v7", FeatureEra.V_7));
+            }
+        }, new FeatureSpecification() {
+            @Override
+            public Map<NodeFeature, Version> getHistoricalFeatures() {
+                return Map.of(
+                    new NodeFeature("hf1", FeatureEra.V_8),
+                    Version.V_8_2_0,
+                    new NodeFeature("hf2", FeatureEra.V_8),
+                    Version.V_8_7_0,
+                    new NodeFeature("hf3", FeatureEra.V_8),
+                    Version.V_8_8_0,
+                    ELIDED_HISTORICAL_FEATURE,
+                    Version.fromString("6.8.0")
+                );
+            }
+        }));
+    }
+
+    public void testServiceReadsFeatures() {
+        assertThat(FeatureService.readFeatures(), containsInAnyOrder("f1", "f2", "f1_v7"));
+    }
+
+    public void testServiceRejectsDuplicates() {
+        FeatureSpecification dupSpec = new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("f1", FeatureEra.V_8));
+            }
+        };
+        var iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupSpec)));
+        assertThat(iae.getMessage(), containsString("Duplicate feature"));
+    }
+
+    public void testServiceRejectsIncorrectHistoricalEra() {
+        FeatureSpecification dupSpec = new FeatureSpecification() {
+            @Override
+            public Map<NodeFeature, Version> getHistoricalFeatures() {
+                return Map.of(new NodeFeature("hf1", FeatureEra.V_7), Version.V_8_0_0);
+            }
+        };
+        var iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupSpec)));
+        assertThat(iae.getMessage(), containsString("Duplicate feature"));
+    }
+
+    public void testHistoricalFeaturesLoaded() {
+        assertThat(
+            FeatureService.readHistoricalFeatures(VersionUtils.randomVersionBetween(random(), Version.V_8_8_0, Version.CURRENT)),
+            contains("hf1", "hf2", "hf3")
+        );
+        assertThat(
+            FeatureService.readHistoricalFeatures(
+                VersionUtils.randomVersionBetween(random(), Version.V_8_7_0, VersionUtils.getPreviousVersion(Version.V_8_8_0))
+            ),
+            contains("hf1", "hf2")
+        );
+        assertThat(
+            FeatureService.readHistoricalFeatures(
+                VersionUtils.randomVersionBetween(random(), Version.V_8_2_0, VersionUtils.getPreviousVersion(Version.V_8_7_0))
+            ),
+            contains("hf1")
+        );
+        assertThat(
+            FeatureService.readHistoricalFeatures(
+                VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, VersionUtils.getPreviousVersion(Version.V_8_2_0))
+            ),
+            empty()
+        );
+    }
+
+    public void testElidedFeatureAccepted() {
+        assertThat(new FeatureService().readPublishableFeatures(), not(hasItem("f1_v6")));
+        assertThat(FeatureService.nodeHasFeature(Version.V_8_0_0, Set.of(), ELIDED_FEATURE), is(true));
+        assertThat(FeatureService.nodeHasFeature(Version.V_8_0_0, Set.of(), ELIDED_HISTORICAL_FEATURE), is(true));
+    }
+}

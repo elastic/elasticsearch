@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureEra;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -510,13 +509,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * or a historical feature due to its version
      */
     public boolean hasFeature(NodeFeature feature) {
-        int nodeEra = versionInfo.nodeVersion().major;
-        if (FeatureEra.isPublishable(nodeEra) == false) {
-            // this feature can never appear in our lists - its true by default
-            return true;
-        } else {
-            return features.contains(feature.id()) || FeatureService.versionHasHistoricalFeature(versionInfo.nodeVersion(), feature.id());
-        }
+        return FeatureService.nodeHasFeature(versionInfo.nodeVersion(), features, feature);
     }
 
     public VersionInformation getVersionInformation() {

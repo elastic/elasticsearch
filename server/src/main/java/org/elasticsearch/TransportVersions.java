@@ -85,25 +85,6 @@ public class TransportVersions {
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_500_020 = def(8_500_020);
-    public static final TransportVersion V_8_500_021 = def(8_500_021);
-    public static final TransportVersion V_8_500_022 = def(8_500_022);
-    public static final TransportVersion V_8_500_023 = def(8_500_023);
-    public static final TransportVersion V_8_500_024 = def(8_500_024);
-    public static final TransportVersion V_8_500_025 = def(8_500_025);
-    public static final TransportVersion V_8_500_026 = def(8_500_026);
-    public static final TransportVersion V_8_500_027 = def(8_500_027);
-    public static final TransportVersion V_8_500_028 = def(8_500_028);
-    public static final TransportVersion V_8_500_029 = def(8_500_029);
-    public static final TransportVersion V_8_500_030 = def(8_500_030);
-    public static final TransportVersion V_8_500_031 = def(8_500_031);
-    public static final TransportVersion V_8_500_032 = def(8_500_032);
-    public static final TransportVersion V_8_500_033 = def(8_500_033);
-    public static final TransportVersion V_8_500_034 = def(8_500_034);
-    public static final TransportVersion V_8_500_035 = def(8_500_035);
-    public static final TransportVersion V_8_500_036 = def(8_500_036);
-    public static final TransportVersion V_8_500_037 = def(8_500_037);
-    public static final TransportVersion V_8_500_038 = def(8_500_038);
-    public static final TransportVersion V_8_500_039 = def(8_500_039);
     public static final TransportVersion V_8_500_040 = def(8_500_040);
     public static final TransportVersion V_8_500_041 = def(8_500_041);
     public static final TransportVersion V_8_500_042 = def(8_500_042);
@@ -152,6 +133,8 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_MODEL_SECRETS_ADDED = def(8_509_00_0);
     public static final TransportVersion NODE_INFO_REQUEST_SIMPLIFIED = def(8_510_00_0);
     public static final TransportVersion NESTED_KNN_VECTOR_QUERY_V = def(8_511_00_0);
+    public static final TransportVersion ML_PACKAGE_LOADER_PLATFORM_ADDED = def(8_512_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

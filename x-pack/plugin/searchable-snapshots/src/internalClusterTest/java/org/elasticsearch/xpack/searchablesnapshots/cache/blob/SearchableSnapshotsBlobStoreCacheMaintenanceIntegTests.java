@@ -429,11 +429,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 ActionListener.running(latch::countDown)
             );
         }
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new AssertionError(e);
-        }
+        safeAwait(latch);
         return nbDocs;
     }
 }

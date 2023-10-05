@@ -17,6 +17,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
@@ -42,13 +43,12 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -474,8 +474,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         // key to map is clusterAlias on the primary querying cluster of a CCS minimize_roundtrips=true query
         // the Map itself is immutable after construction - all Clusters will be accounted for at the start of the search
-        // updates to the Cluster occur by CAS swapping in new Cluster objects into the AtomicReference in the map.
-        private final Map<String, AtomicReference<Cluster>> clusterInfo;
+        // updates to the Cluster occur with the updateCluster method that given the key to map transforms an
+        // old Cluster Object to a new Cluster Object with the remapping function.
+        private final Map<String, Cluster> clusterInfo;
 
         // not Writeable since it is only needed on the (primary) CCS coordinator
         private transient Boolean ccsMinimizeRoundtrips;
@@ -503,19 +504,19 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.successful = 0; // calculated from clusterInfo map for minimize_roundtrips
             this.skipped = 0;    // calculated from clusterInfo map for minimize_roundtrips
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-            Map<String, AtomicReference<Cluster>> m = new HashMap<>();
+            Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
             if (localIndices != null) {
                 String localKey = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
                 Cluster c = new Cluster(localKey, String.join(",", localIndices.indices()), false);
-                m.put(localKey, new AtomicReference<>(c));
+                m.put(localKey, c);
             }
             for (Map.Entry<String, OriginalIndices> remote : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remote.getKey();
                 boolean skipUnavailable = skipUnavailablePredicate.test(clusterAlias);
                 Cluster c = new Cluster(clusterAlias, String.join(",", remote.getValue().indices()), skipUnavailable);
-                m.put(clusterAlias, new AtomicReference<>(c));
+                m.put(clusterAlias, c);
             }
-            this.clusterInfo = Collections.unmodifiableMap(m);
+            this.clusterInfo = m;
         }
 
         /**
@@ -548,9 +549,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     this.successful = successfulTemp;
                     this.skipped = skippedTemp;
                 } else {
-                    Map<String, AtomicReference<Cluster>> m = new HashMap<>();
-                    clusterList.forEach(c -> m.put(c.getClusterAlias(), new AtomicReference<>(c)));
-                    this.clusterInfo = Collections.unmodifiableMap(m);
+                    Map<String, Cluster> m = ConcurrentCollections.newConcurrentMap();
+                    clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
+                    this.clusterInfo = m;
                     this.successful = getClusterStateCount(Cluster.Status.SUCCESSFUL);
                     this.skipped = getClusterStateCount(Cluster.Status.SKIPPED);
                 }
@@ -579,7 +580,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     + failed;
         }
 
-        private Clusters(Map<String, AtomicReference<Cluster>> clusterInfoMap) {
+        private Clusters(Map<String, Cluster> clusterInfoMap) {
             assert clusterInfoMap.size() > 0 : "this constructor should not be called with an empty Cluster info map";
             this.total = clusterInfoMap.size();
             this.clusterInfo = clusterInfoMap;
@@ -596,7 +597,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(skipped);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
                 if (clusterInfo != null) {
-                    List<Cluster> clusterList = clusterInfo.values().stream().map(AtomicReference::get).toList();
+                    List<Cluster> clusterList = clusterInfo.values().stream().toList();
                     out.writeCollection(clusterList);
                 } else {
                     out.writeCollection(Collections.emptyList());
@@ -616,8 +617,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 builder.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
                 if (clusterInfo.size() > 0) {
                     builder.startObject("details");
-                    for (AtomicReference<Cluster> cluster : clusterInfo.values()) {
-                        cluster.get().toXContent(builder, params);
+                    for (Cluster cluster : clusterInfo.values()) {
+                        cluster.toXContent(builder, params);
                     }
                     builder.endObject();
                 }
@@ -635,7 +636,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             int running = 0;    // 0 for BWC
             int partial = 0;    // 0 for BWC
             int failed = 0;     // 0 for BWC
-            Map<String, AtomicReference<Cluster>> clusterInfoMap = new HashMap<>();
+            Map<String, Cluster> clusterInfoMap = ConcurrentCollections.newConcurrentMap();
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -664,7 +665,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                                 currentDetailsFieldName = parser.currentName();  // cluster alias
                             } else if (token == Token.START_OBJECT) {
                                 Cluster c = Cluster.fromXContent(currentDetailsFieldName, parser);
-                                clusterInfoMap.put(currentDetailsFieldName, new AtomicReference<>(c));
+                                clusterInfoMap.put(currentDetailsFieldName, c);
                             } else {
                                 parser.skipChildren();
                             }
@@ -716,7 +717,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @return count of clusters matching the predicate
          */
         private int determineCountFromClusterInfo(Predicate<Cluster> predicate) {
-            return (int) clusterInfo.values().stream().filter(c -> predicate.test(c.get())).count();
+            return (int) clusterInfo.values().stream().filter(predicate).count();
         }
 
         /**
@@ -730,8 +731,31 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * @param clusterAlias The cluster alias as specified in the cluster collection
          * @return Cluster object associated with teh clusterAlias or null if not present
          */
-        public AtomicReference<Cluster> getCluster(String clusterAlias) {
+        public Cluster getCluster(String clusterAlias) {
             return clusterInfo.get(clusterAlias);
+        }
+
+        /**
+         * Utility to swap a Cluster object. Guidelines for the remapping function:
+         * <ul>
+         * <li> The remapping function should return a new Cluster object to swap it for
+         * the existing one.</li>
+         * <li> If in the remapping function you decide to abort the swap you must return
+         * the original Cluster object to keep the map unchanged.</li>
+         * <li> Do not return {@code null}. If the remapping function returns {@code null},
+         * the mapping is removed (or remains absent if initially absent).</li>
+         * <li> If the remapping function itself throws an (unchecked) exception, the exception
+         * is rethrown, and the current mapping is left unchanged. Throwing exception therefore
+         * is OK, but it is generally discouraged.</li>
+         * <li> The remapping function may be called multiple times in a CAS fashion underneath,
+         * make sure that is safe to do so.</li>
+         * </ul>
+         * @param clusterAlias key with which the specified value is associated
+         * @param remappingFunction function to swap the oldCluster to a newCluster
+         * @return the new Cluster object
+         */
+        public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
+            return clusterInfo.compute(clusterAlias, remappingFunction);
         }
 
         @Override
@@ -785,8 +809,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *              or any Cluster is marked as timedOut.
          */
         public boolean hasPartialResults() {
-            for (AtomicReference<Cluster> clusterRef : clusterInfo.values()) {
-                Cluster cluster = clusterRef.get();
+            for (Cluster cluster : clusterInfo.values()) {
                 switch (cluster.getStatus()) {
                     case PARTIAL, SKIPPED, FAILED, RUNNING -> {
                         return true;

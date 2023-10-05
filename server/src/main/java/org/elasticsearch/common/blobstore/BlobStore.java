@@ -25,24 +25,11 @@ public interface BlobStore extends Closeable {
 
     /**
      * Delete all the provided blobs from the blob store. Each blob could belong to a different {@code BlobContainer}
-     * @param blobNames the blobs to be deleted
-     */
-    @Deprecated(forRemoval = true)
-    default void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobNames);
-    }
-
-    // TODO: Remove the default implementation and require each blob store to implement this method. Once it's done, remove the
-    // the above overload version that does not take the Purpose parameter.
-    /**
-     * Delete all the provided blobs from the blob store. Each blob could belong to a different {@code BlobContainer}
      *
      * @param purpose   the purpose of the delete operation
      * @param blobNames the blobs to be deleted
      */
-    default void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        throw new UnsupportedOperationException();
-    }
+    void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException;
 
     /**
      * Returns statistics on the count of operations that have been performed on this blob store

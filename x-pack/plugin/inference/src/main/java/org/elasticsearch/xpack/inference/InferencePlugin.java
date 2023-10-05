@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -17,8 +18,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -47,6 +50,8 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAct
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -62,6 +67,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+    private final Settings settings;
+    private final SetOnce<HttpClient> httpClient = new SetOnce<>();
+
+    public InferencePlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -108,6 +119,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         AllocationService allocationService,
         IndicesService indicesService
     ) {
+        httpClient.set(HttpClient.create(settings, threadPool));
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
     }
@@ -155,6 +167,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     }
 
     @Override
+    public List<Setting<?>> getSettings() {
+        return HttpSettings.getSettings();
+    }
+
+    @Override
     public String getFeatureName() {
         return "inference_plugin";
     }
@@ -172,5 +189,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     @Override
     public List<NamedWriteableRegistry.Entry> getInferenceServiceNamedWriteables() {
         return InferenceNamedWriteablesProvider.getNamedWriteables();
+    }
+
+    @Override
+    public void close() {
+        if (httpClient.get() != null) {
+            IOUtils.closeWhileHandlingException(httpClient.get());
+        }
     }
 }

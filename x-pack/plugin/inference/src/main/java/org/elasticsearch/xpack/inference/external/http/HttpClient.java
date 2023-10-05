@@ -88,6 +88,7 @@ public class HttpClient implements Closeable {
         return clientBuilder.build();
     }
 
+    // Default for testing
     HttpClient(Settings settings, CloseableHttpAsyncClient asyncClient, IdleConnectionEvictor evictor, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;

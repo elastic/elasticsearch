@@ -295,7 +295,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * Fetches documents containing 1000 fields which are {@code 1kb} each.
      */
     private void fetchManyBigFields(int docs) throws IOException {
-        Response response = query("{\"query\": \"FROM manybigfields | SORT f000 | LIMIT " + count + "\"}", "columns");
+        Response response = query("{\"query\": \"FROM manybigfields | SORT f000 | LIMIT " + docs + "\"}", "columns");
         Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {

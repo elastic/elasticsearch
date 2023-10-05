@@ -19,7 +19,9 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +42,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
@@ -86,30 +89,41 @@ public class GetHealthCancellationIT extends ESIntegTestCase {
             );
         }
 
-        assertBusy(() -> {
-            ClusterState state = internalCluster().clusterService().state();
-            DiscoveryNode healthNode = HealthNode.findHealthNode(state);
-            assertNotNull(healthNode);
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final CountDownLatch healthNodeFoundLatch = new CountDownLatch(1);
+        AtomicReference<DiscoveryNode> healthNodeReference = new AtomicReference<>();
+        // the health node might take a bit of time to be assigned by the persistent task framework so we wait until we have a health
+        // node in the cluster before proceeding with the test
+        // proceeding with the execution before the health node assignment would yield a non-deterministic behaviour as we
+        // wouldn't call the transport service anymore (there wouldn't be a node to fetch the health information from)
+        final ClusterStateListener clusterStateListener = event -> {
+            setHealthNodeReferenceIfPresent(event.state(), healthNodeReference, healthNodeFoundLatch);
+        };
+        clusterService.addListener(clusterStateListener);
+        setHealthNodeReferenceIfPresent(clusterService.state(), healthNodeReference, healthNodeFoundLatch);
+        safeAwait(healthNodeFoundLatch);
 
-            NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
-            for (NodeInfo node : nodesInfoResponse.getNodes()) {
-                if (node.getInfo(HttpInfo.class) != null
-                    && Node.NODE_NAME_SETTING.get(node.getSettings()).equals(healthNode.getName()) == false) {
-                    // we don't want the request to hit the health node as it will execute it locally (without going through our stub
-                    // transport service)
-                    TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
-                    InetSocketAddress address = publishAddress.address();
-                    getRestClient().setNodes(
-                        List.of(
-                            new org.elasticsearch.client.Node(
-                                new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), "http")
-                            )
+        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
+        DiscoveryNode healthNode = healthNodeReference.get();
+        assert healthNode != null : "the health node must be assigned";
+
+        for (NodeInfo node : nodesInfoResponse.getNodes()) {
+            if (node.getInfo(HttpInfo.class) != null
+                && Node.NODE_NAME_SETTING.get(node.getSettings()).equals(healthNode.getName()) == false) {
+                // we don't want the request to hit the health node as it will execute it locally (without going through our stub
+                // transport service)
+                TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
+                InetSocketAddress address = publishAddress.address();
+                getRestClient().setNodes(
+                    List.of(
+                        new org.elasticsearch.client.Node(
+                            new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), "http")
                         )
-                    );
-                    break;
-                }
+                    )
+                );
+                break;
             }
-        });
+        }
 
         final Request request = new Request(HttpGet.METHOD_NAME, "/_health_report");
         final PlainActionFuture<Response> future = new PlainActionFuture<>();
@@ -127,5 +141,17 @@ public class GetHealthCancellationIT extends ESIntegTestCase {
 
         assertAllTasksHaveFinished(FetchHealthInfoCacheAction.NAME);
         assertAllTasksHaveFinished(GetHealthAction.NAME);
+    }
+
+    private static void setHealthNodeReferenceIfPresent(
+        ClusterState event,
+        AtomicReference<DiscoveryNode> healthNodeReference,
+        CountDownLatch waitForHealthNode
+    ) {
+        DiscoveryNode healthNode = HealthNode.findHealthNode(event);
+        if (healthNode != null) {
+            healthNodeReference.set(healthNode);
+            waitForHealthNode.countDown();
+        }
     }
 }

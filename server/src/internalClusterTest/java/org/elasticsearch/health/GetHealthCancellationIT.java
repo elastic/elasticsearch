@@ -42,7 +42,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
@@ -90,23 +90,20 @@ public class GetHealthCancellationIT extends ESIntegTestCase {
         }
 
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        final CountDownLatch healthNodeFoundLatch = new CountDownLatch(1);
-        AtomicReference<DiscoveryNode> healthNodeReference = new AtomicReference<>();
+        final PlainActionFuture<DiscoveryNode> findHealthNodeFuture = PlainActionFuture.newFuture();
         // the health node might take a bit of time to be assigned by the persistent task framework so we wait until we have a health
         // node in the cluster before proceeding with the test
         // proceeding with the execution before the health node assignment would yield a non-deterministic behaviour as we
         // wouldn't call the transport service anymore (there wouldn't be a node to fetch the health information from)
-        final ClusterStateListener clusterStateListener = event -> {
-            setHealthNodeReferenceIfPresent(event.state(), healthNodeReference, healthNodeFoundLatch);
-        };
+        final ClusterStateListener clusterStateListener = event -> getHealthNodeIfPresent(event.state(), findHealthNodeFuture);
         clusterService.addListener(clusterStateListener);
-        setHealthNodeReferenceIfPresent(clusterService.state(), healthNodeReference, healthNodeFoundLatch);
-        safeAwait(healthNodeFoundLatch);
+        // look up the node in case the health node was assigned before we registered the listener
+        getHealthNodeIfPresent(clusterService.state(), findHealthNodeFuture);
+        DiscoveryNode healthNode = findHealthNodeFuture.get(10, TimeUnit.SECONDS);
+        assert healthNode != null : "the health node must be assigned";
+        clusterService.removeListener(clusterStateListener);
 
         NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
-        DiscoveryNode healthNode = healthNodeReference.get();
-        assert healthNode != null : "the health node must be assigned";
-
         for (NodeInfo node : nodesInfoResponse.getNodes()) {
             if (node.getInfo(HttpInfo.class) != null
                 && Node.NODE_NAME_SETTING.get(node.getSettings()).equals(healthNode.getName()) == false) {
@@ -143,15 +140,10 @@ public class GetHealthCancellationIT extends ESIntegTestCase {
         assertAllTasksHaveFinished(GetHealthAction.NAME);
     }
 
-    private static void setHealthNodeReferenceIfPresent(
-        ClusterState event,
-        AtomicReference<DiscoveryNode> healthNodeReference,
-        CountDownLatch waitForHealthNode
-    ) {
+    private static void getHealthNodeIfPresent(ClusterState event, ActionListener<DiscoveryNode> healthNodeReference) {
         DiscoveryNode healthNode = HealthNode.findHealthNode(event);
         if (healthNode != null) {
-            healthNodeReference.set(healthNode);
-            waitForHealthNode.countDown();
+            healthNodeReference.onResponse(healthNode);
         }
     }
 }

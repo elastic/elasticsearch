@@ -77,6 +77,7 @@ public class Constants {
         "cluster:admin/settings/update",
         "cluster:admin/slm/delete",
         "cluster:admin/slm/execute",
+        "cluster:admin/slm/execute/get_expired_snapshots",
         "cluster:admin/slm/execute-retention",
         "cluster:admin/slm/get",
         "cluster:admin/slm/put",

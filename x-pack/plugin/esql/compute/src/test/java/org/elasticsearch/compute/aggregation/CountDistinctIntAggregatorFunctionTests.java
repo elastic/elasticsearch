@@ -29,9 +29,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, Math.min(Integer.MAX_VALUE, Integer.MAX_VALUE / size));
-        return new SequenceIntBlockSourceOperator(LongStream.range(0, size).mapToInt(l -> between(-max, max)));
+        return new SequenceIntBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToInt(l -> between(-max, max)));
     }
 
     @Override

@@ -21,6 +21,8 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
 
     private final BitArray values;
 
+    private final BooleanBlock block;
+
     public BooleanBigArrayVector(BitArray values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -28,11 +30,12 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     public BooleanBigArrayVector(BitArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
     public BooleanBlock asBlock() {
-        return new BooleanVectorBlock(this);
+        return block;
     }
 
     @Override

@@ -178,7 +178,7 @@ class FieldCapabilitiesFetcher {
                             false,
                             false,
                             null,
-                            Collections.emptyMap()
+                            Map.of()
                         );
                         responseMap.put(parentField, fieldCap);
                     }

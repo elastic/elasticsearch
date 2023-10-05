@@ -164,9 +164,7 @@ public class DeploymentManager {
             finalListener.onResponse(task);
         }, failedDeploymentListener::onFailure);
 
-        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
-            assert getModelResponse.getResources().results().size() == 1;
-            TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+        ActionListener<TrainedModelConfig> getVerifiedModel = ActionListener.wrap((modelConfig) -> {
             processContext.modelInput.set(modelConfig.getInput());
 
             if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
@@ -209,13 +207,55 @@ public class DeploymentManager {
             }
         }, failedDeploymentListener::onFailure);
 
+        ActionListener<GetTrainedModelsAction.Response> verifyModelAndClusterArchitecturesListener = ActionListener.wrap(
+            getModelResponse -> {
+                assert getModelResponse.getResources().results().size() == 1;
+                TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
+
+                verifyMlNodesAndModelArchitectures(modelConfig, client, threadPool, getVerifiedModel);
+
+            },
+            failedDeploymentListener::onFailure
+        );
+
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
             GetTrainedModelsAction.INSTANCE,
             new GetTrainedModelsAction.Request(task.getParams().getModelId()),
-            getModelListener
+            verifyModelAndClusterArchitecturesListener
         );
+    }
+
+    void verifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        Client client,
+        ThreadPool threadPool,
+        ActionListener<TrainedModelConfig> configToReturnListener
+    ) {
+        ActionListener<TrainedModelConfig> verifyConfigListener = new ActionListener<TrainedModelConfig>() {
+            @Override
+            public void onResponse(TrainedModelConfig config) {
+                assert Objects.equals(config, configToReturn);
+                configToReturnListener.onResponse(configToReturn);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                configToReturnListener.onFailure(e);
+            }
+        };
+
+        callVerifyMlNodesAndModelArchitectures(configToReturn, verifyConfigListener, client, threadPool);
+    }
+
+    void callVerifyMlNodesAndModelArchitectures(
+        TrainedModelConfig configToReturn,
+        ActionListener<TrainedModelConfig> configToReturnListener,
+        Client client,
+        ThreadPool threadPool
+    ) {
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(configToReturnListener, client, threadPool, configToReturn);
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {
@@ -394,11 +434,11 @@ public class DeploymentManager {
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
         private final PriorityProcessWorkerExecutorService priorityProcessWorker;
+        private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
+        private final AtomicInteger timeoutCount = new AtomicInteger();
         private volatile Instant startTime;
         private volatile Integer numThreadsPerAllocation;
         private volatile Integer numAllocations;
-        private final AtomicInteger rejectedExecutionCount = new AtomicInteger();
-        private final AtomicInteger timeoutCount = new AtomicInteger();
         private volatile boolean isStopped;
 
         private static final TimeValue COMPLETION_TIMEOUT = TimeValue.timeValueMinutes(3);

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MedianAbsoluteDeviationLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         long[][] samples = new long[][] {
             { 12, 125, 20, 20, 43, 60, 90 },
             { 1, 15, 20, 30, 40, 75, 1000 },
@@ -42,7 +43,7 @@ public class MedianAbsoluteDeviationLongGroupingAggregatorFunctionTests extends 
                 values.add(Tuple.tuple((long) i, v));
             }
         }
-        return new TupleBlockSourceOperator(values);
+        return new TupleBlockSourceOperator(blockFactory, values);
     }
 
     @Override

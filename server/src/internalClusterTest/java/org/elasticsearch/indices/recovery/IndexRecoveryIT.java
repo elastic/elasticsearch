@@ -25,6 +25,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -35,7 +36,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -439,6 +439,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99941")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -1506,7 +1507,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indexers[i] = new Thread(() -> {
                 while (stopped.get() == false) {
                     try {
-                        IndexResponse response = client().prepareIndex(indexName)
+                        DocWriteResponse response = client().prepareIndex(indexName)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));

@@ -8,15 +8,33 @@
 package org.elasticsearch.datastreams.action;
 
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response;
+import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase<Response> {
 
@@ -43,13 +61,198 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         return new Response(instance.getDataStreams().stream().map(this::mutateInstance).toList());
     }
 
+    @SuppressWarnings("unchecked")
+    public void testResponseIlmAndDataStreamLifecycleRepresentation() throws Exception {
+        // we'll test a data stream with 3 backing indices - two managed by ILM (having the ILM policy configured for them)
+        // and one without any ILM policy configured
+        String dataStreamName = "logs";
+
+        Index firstGenerationIndex = new Index(getDefaultBackingIndexName(dataStreamName, 1), UUIDs.base64UUID());
+        Index secondGenerationIndex = new Index(getDefaultBackingIndexName(dataStreamName, 2), UUIDs.base64UUID());
+        Index writeIndex = new Index(getDefaultBackingIndexName(dataStreamName, 3), UUIDs.base64UUID());
+        List<Index> indices = List.of(firstGenerationIndex, secondGenerationIndex, writeIndex);
+        {
+            // data stream has an enabled lifecycle
+            DataStream logs = new DataStream(
+                "logs",
+                indices,
+                3,
+                null,
+                false,
+                false,
+                false,
+                true,
+                IndexMode.STANDARD,
+                new DataStreamLifecycle()
+            );
+
+            String ilmPolicyName = "rollover-30days";
+            Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
+                firstGenerationIndex,
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                secondGenerationIndex,
+                new Response.IndexProperties(false, ilmPolicyName, ManagedBy.LIFECYCLE),
+                writeIndex,
+                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE)
+            );
+
+            Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
+                logs,
+                ClusterHealthStatus.GREEN,
+                "index-template",
+                null,
+                null,
+                indexSettingsValues,
+                false
+            );
+            Response response = new Response(List.of(dataStreamInfo));
+            XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
+            response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
+
+            BytesReference bytes = BytesReference.bytes(contentBuilder);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+                Map<String, Object> map = parser.map();
+                List<Object> dataStreams = (List<Object>) map.get(Response.DATA_STREAMS_FIELD.getPreferredName());
+                assertThat(dataStreams.size(), is(1));
+                Map<String, Object> dataStreamMap = (Map<String, Object>) dataStreams.get(0);
+                assertThat(dataStreamMap.get(DataStream.NAME_FIELD.getPreferredName()), is(dataStreamName));
+
+                assertThat(dataStreamMap.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                assertThat(dataStreamMap.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
+                assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(Map.of("enabled", true)));
+                assertThat(
+                    dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.LIFECYCLE.displayValue)
+                );
+
+                List<Object> indicesRepresentation = (List<Object>) dataStreamMap.get(DataStream.INDICES_FIELD.getPreferredName());
+                Map<String, Object> firstGenIndexRepresentation = (Map<String, Object>) indicesRepresentation.get(0);
+                assertThat(firstGenIndexRepresentation.get("index_name"), is(firstGenerationIndex.getName()));
+                assertThat(firstGenIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(true));
+                assertThat(firstGenIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(ilmPolicyName));
+                assertThat(
+                    firstGenIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.ILM.displayValue)
+                );
+
+                Map<String, Object> secondGenIndexRepresentation = (Map<String, Object>) indicesRepresentation.get(1);
+                assertThat(secondGenIndexRepresentation.get("index_name"), is(secondGenerationIndex.getName()));
+                assertThat(secondGenIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                assertThat(
+                    secondGenIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()),
+                    is(ilmPolicyName)
+                );
+                assertThat(
+                    secondGenIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.LIFECYCLE.displayValue)
+                );
+
+                // the write index is managed by data stream lifecycle
+                Map<String, Object> writeIndexRepresentation = (Map<String, Object>) indicesRepresentation.get(2);
+                assertThat(writeIndexRepresentation.get("index_name"), is(writeIndex.getName()));
+                assertThat(writeIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                assertThat(writeIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
+                assertThat(
+                    writeIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.LIFECYCLE.displayValue)
+                );
+            }
+        }
+
+        {
+            // data stream has a lifecycle that's not enabled
+            DataStream logs = new DataStream(
+                "logs",
+                indices,
+                3,
+                null,
+                false,
+                false,
+                false,
+                true,
+                IndexMode.STANDARD,
+                new DataStreamLifecycle(null, null, false)
+            );
+
+            String ilmPolicyName = "rollover-30days";
+            Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
+                firstGenerationIndex,
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                secondGenerationIndex,
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                writeIndex,
+                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED)
+            );
+
+            Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
+                logs,
+                ClusterHealthStatus.GREEN,
+                "index-template",
+                null,
+                null,
+                indexSettingsValues,
+                false
+            );
+            Response response = new Response(List.of(dataStreamInfo));
+            XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
+            response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
+
+            BytesReference bytes = BytesReference.bytes(contentBuilder);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+                Map<String, Object> map = parser.map();
+                List<Object> dataStreams = (List<Object>) map.get(Response.DATA_STREAMS_FIELD.getPreferredName());
+                assertThat(dataStreams.size(), is(1));
+                Map<String, Object> dataStreamMap = (Map<String, Object>) dataStreams.get(0);
+                assertThat(dataStreamMap.get(DataStream.NAME_FIELD.getPreferredName()), is(dataStreamName));
+                // note that the prefer_ilm value is displayed at the top level even if the template backing the data stream doesn't have a
+                // policy specified anymore
+                assertThat(dataStreamMap.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                assertThat(dataStreamMap.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
+                assertThat(dataStreamMap.get(Response.DataStreamInfo.LIFECYCLE_FIELD.getPreferredName()), is(Map.of("enabled", false)));
+                assertThat(
+                    dataStreamMap.get(Response.DataStreamInfo.NEXT_GENERATION_INDEX_MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.UNMANAGED.displayValue)
+                );
+
+                List<Object> indicesRepresentation = (List<Object>) dataStreamMap.get(DataStream.INDICES_FIELD.getPreferredName());
+                Map<String, Object> firstGenIndexRepresentation = (Map<String, Object>) indicesRepresentation.get(0);
+                assertThat(firstGenIndexRepresentation.get("index_name"), is(firstGenerationIndex.getName()));
+                assertThat(firstGenIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(true));
+                assertThat(firstGenIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(ilmPolicyName));
+                assertThat(
+                    firstGenIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.ILM.displayValue)
+                );
+
+                // the write index is managed by data stream lifecycle
+                Map<String, Object> writeIndexRepresentation = (Map<String, Object>) indicesRepresentation.get(2);
+                assertThat(writeIndexRepresentation.get("index_name"), is(writeIndex.getName()));
+                assertThat(writeIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
+                assertThat(writeIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
+                assertThat(
+                    writeIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.UNMANAGED.displayValue)
+                );
+            }
+        }
+    }
+
+    public void testManagedByDisplayValuesDontAccidentalyChange() {
+        // UI might derive logic based on the display values so any changes should be coordinated with the UI team
+        assertThat(ManagedBy.ILM.displayValue, is("Index Lifecycle Management"));
+        assertThat(ManagedBy.LIFECYCLE.displayValue, is("Data stream lifecycle"));
+        assertThat(ManagedBy.UNMANAGED.displayValue, is("Unmanaged"));
+    }
+
     private Response.DataStreamInfo mutateInstance(Response.DataStreamInfo instance) {
         var dataStream = instance.getDataStream();
         var status = instance.getDataStreamStatus();
         var indexTemplate = instance.getIndexTemplate();
         var ilmPolicyName = instance.getIlmPolicy();
         var timeSeries = instance.getTimeSeries();
-        switch (randomIntBetween(0, 4)) {
+        var indexSettings = instance.getIndexSettingsValues();
+        var templatePreferIlm = instance.templatePreferIlmValue();
+        switch (randomIntBetween(0, 6)) {
             case 0 -> dataStream = randomValueOtherThan(dataStream, DataStreamTestHelper::randomInstance);
             case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
             case 2 -> indexTemplate = randomBoolean() && indexTemplate != null ? null : randomAlphaOfLengthBetween(2, 10);
@@ -57,8 +260,22 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             case 4 -> timeSeries = randomBoolean() && timeSeries != null
                 ? null
                 : randomValueOtherThan(timeSeries, () -> new Response.TimeSeries(generateRandomTimeSeries()));
+            case 5 -> indexSettings = randomValueOtherThan(
+                indexSettings,
+                () -> randomBoolean()
+                    ? Map.of()
+                    : Map.of(
+                        new Index(randomAlphaOfLengthBetween(50, 100), UUIDs.base64UUID()),
+                        new Response.IndexProperties(
+                            randomBoolean(),
+                            randomAlphaOfLengthBetween(50, 100),
+                            randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE
+                        )
+                    )
+            );
+            case 6 -> templatePreferIlm = templatePreferIlm ? false : true;
         }
-        return new Response.DataStreamInfo(dataStream, status, indexTemplate, ilmPolicyName, timeSeries);
+        return new Response.DataStreamInfo(dataStream, status, indexTemplate, ilmPolicyName, timeSeries, indexSettings, templatePreferIlm);
     }
 
     private List<Tuple<Instant, Instant>> generateRandomTimeSeries() {
@@ -70,6 +287,21 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         return timeSeries;
     }
 
+    private Map<Index, Response.IndexProperties> generateRandomIndexSettingsValues() {
+        Map<Index, Response.IndexProperties> values = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(0, 3); i++) {
+            values.put(
+                new Index(randomAlphaOfLengthBetween(50, 100), UUIDs.base64UUID()),
+                new Response.IndexProperties(
+                    randomBoolean(),
+                    randomAlphaOfLengthBetween(50, 100),
+                    randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE
+                )
+            );
+        }
+        return values;
+    }
+
     private Response.DataStreamInfo generateRandomDataStreamInfo() {
         List<Tuple<Instant, Instant>> timeSeries = randomBoolean() ? generateRandomTimeSeries() : null;
         return new Response.DataStreamInfo(
@@ -77,7 +309,9 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             ClusterHealthStatus.GREEN,
             randomAlphaOfLengthBetween(2, 10),
             randomAlphaOfLengthBetween(2, 10),
-            timeSeries != null ? new Response.TimeSeries(timeSeries) : null
+            timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
+            generateRandomIndexSettingsValues(),
+            randomBoolean()
         );
     }
 }

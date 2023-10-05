@@ -13,7 +13,21 @@ import org.elasticsearch.core.Releasables;
  * Block view of a BooleanVector.
  * This class is generated. Do not edit it.
  */
-public final class BooleanVectorBlock extends AbstractVectorBlock implements BooleanBlock {
+public sealed class BooleanVectorBlock extends AbstractVectorBlock implements BooleanBlock permits BooleanVectorBlock.ShallowCopy {
+
+    final class ShallowCopy extends BooleanVectorBlock {
+        /**
+         * The vector must be a shallow copy of the original vector.
+         */
+        ShallowCopy(BooleanVector vector) {
+            super(vector);
+        }
+
+        @Override
+        public void close() {
+            BooleanVectorBlock.this.close();
+        }
+    }
 
     private final BooleanVector vector;
 
@@ -44,7 +58,7 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
 
     @Override
     public BooleanBlock filter(int... positions) {
-        return new FilterBooleanVector(vector, positions).asBlock();
+        return new ShallowCopy(new FilterBooleanVector(vector, positions));
     }
 
     @Override

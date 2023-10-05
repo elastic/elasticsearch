@@ -13,7 +13,21 @@ import org.elasticsearch.core.Releasables;
  * Block view of a IntVector.
  * This class is generated. Do not edit it.
  */
-public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
+public sealed class IntVectorBlock extends AbstractVectorBlock implements IntBlock permits IntVectorBlock.ShallowCopy {
+
+    final class ShallowCopy extends IntVectorBlock {
+        /**
+         * The vector must be a shallow copy of the original vector.
+         */
+        ShallowCopy(IntVector vector) {
+            super(vector);
+        }
+
+        @Override
+        public void close() {
+            IntVectorBlock.this.close();
+        }
+    }
 
     private final IntVector vector;
 
@@ -44,7 +58,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public IntBlock filter(int... positions) {
-        return new FilterIntVector(vector, positions).asBlock();
+        return new ShallowCopy(new FilterIntVector(vector, positions));
     }
 
     @Override

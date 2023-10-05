@@ -14,7 +14,21 @@ import org.elasticsearch.core.Releasables;
  * Block view of a BytesRefVector.
  * This class is generated. Do not edit it.
  */
-public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {
+public sealed class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock permits BytesRefVectorBlock.ShallowCopy {
+
+    final class ShallowCopy extends BytesRefVectorBlock {
+        /**
+         * The vector must be a shallow copy of the original vector.
+         */
+        ShallowCopy(BytesRefVector vector) {
+            super(vector);
+        }
+
+        @Override
+        public void close() {
+            BytesRefVectorBlock.this.close();
+        }
+    }
 
     private final BytesRefVector vector;
 
@@ -45,7 +59,7 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
 
     @Override
     public BytesRefBlock filter(int... positions) {
-        return new FilterBytesRefVector(vector, positions).asBlock();
+        return new ShallowCopy(new FilterBytesRefVector(vector, positions));
     }
 
     @Override

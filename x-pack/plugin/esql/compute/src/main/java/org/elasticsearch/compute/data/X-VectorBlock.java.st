@@ -16,7 +16,21 @@ import org.elasticsearch.core.Releasables;
  * Block view of a $Type$Vector.
  * This class is generated. Do not edit it.
  */
-public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
+public sealed class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block permits $Type$VectorBlock.ShallowCopy {
+
+    final class ShallowCopy extends $Type$VectorBlock {
+        /**
+         * The vector must be a shallow copy of the original vector.
+         */
+        ShallowCopy($Type$Vector vector) {
+            super(vector);
+        }
+
+        @Override
+        public void close() {
+            $Type$VectorBlock.this.close();
+        }
+    }
 
     private final $Type$Vector vector;
 
@@ -52,7 +66,7 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        return new Filter$Type$Vector(vector, positions).asBlock();
+        return new ShallowCopy(new Filter$Type$Vector(vector, positions));
     }
 
     @Override

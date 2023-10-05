@@ -13,7 +13,21 @@ import org.elasticsearch.core.Releasables;
  * Block view of a DoubleVector.
  * This class is generated. Do not edit it.
  */
-public final class DoubleVectorBlock extends AbstractVectorBlock implements DoubleBlock {
+public sealed class DoubleVectorBlock extends AbstractVectorBlock implements DoubleBlock permits DoubleVectorBlock.ShallowCopy {
+
+    final class ShallowCopy extends DoubleVectorBlock {
+        /**
+         * The vector must be a shallow copy of the original vector.
+         */
+        ShallowCopy(DoubleVector vector) {
+            super(vector);
+        }
+
+        @Override
+        public void close() {
+            DoubleVectorBlock.this.close();
+        }
+    }
 
     private final DoubleVector vector;
 
@@ -44,7 +58,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public DoubleBlock filter(int... positions) {
-        return new FilterDoubleVector(vector, positions).asBlock();
+        return new ShallowCopy(new FilterDoubleVector(vector, positions));
     }
 
     @Override

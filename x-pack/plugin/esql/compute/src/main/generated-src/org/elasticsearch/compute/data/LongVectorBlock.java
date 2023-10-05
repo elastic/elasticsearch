@@ -13,7 +13,21 @@ import org.elasticsearch.core.Releasables;
  * Block view of a LongVector.
  * This class is generated. Do not edit it.
  */
-public final class LongVectorBlock extends AbstractVectorBlock implements LongBlock {
+public sealed class LongVectorBlock extends AbstractVectorBlock implements LongBlock permits LongVectorBlock.ShallowCopy {
+
+    final class ShallowCopy extends LongVectorBlock {
+        /**
+         * The vector must be a shallow copy of the original vector.
+         */
+        ShallowCopy(LongVector vector) {
+            super(vector);
+        }
+
+        @Override
+        public void close() {
+            LongVectorBlock.this.close();
+        }
+    }
 
     private final LongVector vector;
 
@@ -44,7 +58,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public LongBlock filter(int... positions) {
-        return new FilterLongVector(vector, positions).asBlock();
+        return new ShallowCopy(new FilterLongVector(vector, positions));
     }
 
     @Override

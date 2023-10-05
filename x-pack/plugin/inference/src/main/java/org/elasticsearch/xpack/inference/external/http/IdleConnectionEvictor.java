@@ -73,12 +73,16 @@ public class IdleConnectionEvictor {
                         connectionManager.closeIdleConnections(maxIdleTime.millis(), TimeUnit.MILLISECONDS);
                     }
                 }
-            } catch (Exception e) {
-                if (e instanceof InterruptedException && running.get() == false) {
-                    logger.info("HTTP connection eviction thread stopping");
+            } catch (InterruptedException e) {
+                if (running.get() == false) {
+                    logger.info("HTTP connection eviction thread shutting down");
                 } else {
-                    logger.warn("HTTP connection eviction thread failed", e);
+                    logger.warn("HTTP connection eviction thread interrupted");
                 }
+
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                logger.warn("HTTP connection eviction thread failed", e);
             } finally {
                 running.set(false);
             }

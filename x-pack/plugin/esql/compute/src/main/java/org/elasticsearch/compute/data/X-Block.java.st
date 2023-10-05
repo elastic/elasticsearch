@@ -60,12 +60,16 @@ $endif$
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::readFrom);
 
     private static $Type$Block readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static $Type$Block readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return $Type$Vector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
+            return $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try ($Type$Block.Builder builder = ((BlockStreamInput) in).blockFactory().new$Type$BlockBuilder(positions)) {
+        try ($Type$Block.Builder builder = in.blockFactory().new$Type$BlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();

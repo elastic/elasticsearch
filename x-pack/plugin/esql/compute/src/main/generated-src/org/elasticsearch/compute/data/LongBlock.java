@@ -44,12 +44,16 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::readFrom);
 
     private static LongBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static LongBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return LongVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
+            return LongVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (LongBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newLongBlockBuilder(positions)) {
+        try (LongBlock.Builder builder = in.blockFactory().newLongBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();

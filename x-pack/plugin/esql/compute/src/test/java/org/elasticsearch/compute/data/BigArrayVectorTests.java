@@ -140,10 +140,11 @@ public class BigArrayVectorTests extends SerializationTestCase {
     }
 
     void assertSerialization(Block origBlock) throws IOException {
-        Block deserBlock = serializeDeserializeBlock(origBlock);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock.asVector(), unused -> deserBlock.asVector());
-        assertThat(deserBlock.asVector(), is(origBlock.asVector()));
-        assertThat(deserBlock.asVector().isConstant(), is(origBlock.asVector().isConstant()));
+        try (Block deserBlock = serializeDeserializeBlock(origBlock)) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock.asVector(), unused -> deserBlock.asVector());
+            assertThat(deserBlock.asVector(), is(origBlock.asVector()));
+            assertThat(deserBlock.asVector().isConstant(), is(origBlock.asVector().isConstant()));
+        }
     }
 }

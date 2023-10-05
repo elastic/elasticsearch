@@ -45,7 +45,7 @@ public class LimitOperator implements Operator {
     public record Factory(int limit) implements OperatorFactory {
 
         @Override
-        public Operator get(DriverContext driverContext) {
+        public LimitOperator get(DriverContext driverContext) {
             return new LimitOperator(limit);
         }
 

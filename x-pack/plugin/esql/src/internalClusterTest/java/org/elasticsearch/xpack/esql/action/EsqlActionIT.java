@@ -862,6 +862,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testFromLimit() {
         try (EsqlQueryResponse results = run("from test | keep data | limit 2")) {
             logger.info(results);

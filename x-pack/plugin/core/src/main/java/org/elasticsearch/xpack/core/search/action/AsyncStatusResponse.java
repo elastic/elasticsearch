@@ -139,7 +139,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         } else {
             this.clusters = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_035)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             this.completionTimeMillis = in.readOptionalVLong();
         } else {
             this.completionTimeMillis = null;
@@ -164,7 +164,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
             // optional since only CCS uses is; it is null for local-only searches
             out.writeOptionalWriteable(clusters);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_035)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             out.writeOptionalVLong(completionTimeMillis);
         }
     }

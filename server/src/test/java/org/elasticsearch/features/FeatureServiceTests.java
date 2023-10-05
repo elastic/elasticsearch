@@ -72,6 +72,15 @@ public class FeatureServiceTests extends ESTestCase {
         };
         var iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupSpec)));
         assertThat(iae.getMessage(), containsString("Duplicate feature"));
+
+        FeatureSpecification dupHistoricalSpec = new FeatureSpecification() {
+            @Override
+            public Map<NodeFeature, Version> getHistoricalFeatures() {
+                return Map.of(new NodeFeature("f1", FeatureEra.V_8), Version.V_8_1_0);
+            }
+        };
+        iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupHistoricalSpec)));
+        assertThat(iae.getMessage(), containsString("Duplicate feature"));
     }
 
     public void testServiceRejectsIncorrectHistoricalEra() {
@@ -82,7 +91,7 @@ public class FeatureServiceTests extends ESTestCase {
             }
         };
         var iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupSpec)));
-        assertThat(iae.getMessage(), containsString("Duplicate feature"));
+        assertThat(iae.getMessage(), containsString("incorrect feature era"));
     }
 
     public void testHistoricalFeaturesLoaded() {
@@ -114,5 +123,7 @@ public class FeatureServiceTests extends ESTestCase {
         assertThat(new FeatureService().readPublishableFeatures(), not(hasItem("f1_v6")));
         assertThat(FeatureService.nodeHasFeature(Version.V_8_0_0, Set.of(), ELIDED_FEATURE), is(true));
         assertThat(FeatureService.nodeHasFeature(Version.V_8_0_0, Set.of(), ELIDED_HISTORICAL_FEATURE), is(true));
+        assertThat(FeatureService.nodeHasFeature(Version.V_7_0_0, Set.of(), ELIDED_FEATURE), is(true));
+        assertThat(FeatureService.nodeHasFeature(Version.V_7_0_0, Set.of(), ELIDED_HISTORICAL_FEATURE), is(true));
     }
 }

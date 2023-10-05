@@ -13,14 +13,22 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
@@ -28,9 +36,14 @@ import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -350,5 +363,121 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertFileCount(repositoryPath, 2); // just the index-N and index.latest blobs
 
         logger.info("--> done");
+    }
+
+    public void testCleanupStaleBlobsConcurrency() throws Exception {
+        // This test is verifying the detailed behaviour of cleanup tasks that are enqueued after a snapshot delete is committed to the
+        // repository, ensuring that we see exactly the right number of tasks enqueued at each stage to demonstrate that we do use all the
+        // threads available to us, but don't spam the threadpool queue with all the tasks at once, and that we submit one task that drains
+        // the queue eagerly to provide backpressure. That means this test is sensitive to changes in the breakdown of the cleanup work
+        // after a snapshot delete.
+
+        final var client = client();
+        final var repositoryPath = randomRepoPath();
+        final var repositoryName = "test-repo";
+        createRepository(repositoryName, "mock", repositoryPath);
+
+        final var threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
+        final var snapshotPoolSize = threadPool.info(ThreadPool.Names.SNAPSHOT).getMax();
+        final var indexCount = snapshotPoolSize * 3;
+
+        for (int i = 0; i < indexCount; i++) {
+            createIndex("test-idx-" + i);
+            for (int j = 0; j < 10; j++) {
+                indexDoc("test-idx-" + i, Integer.toString(10 + j), "foo", "bar" + 10 + j);
+            }
+        }
+
+        ensureGreen();
+
+        final var snapshotName = "test-snap";
+        createFullSnapshot(repositoryName, snapshotName);
+
+        final var executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        final var barrier = new CyclicBarrier(snapshotPoolSize + 1);
+        final var keepBlocking = new AtomicBoolean(true);
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final ToLongFunction<ClusterState> repoGenFn = s -> RepositoriesMetadata.get(s).repository(repositoryName).generation();
+        final var repositoryGenerationBeforeDelete = repoGenFn.applyAsLong(clusterService.state());
+        final ClusterStateListener clusterStateListener = event -> {
+            if (repoGenFn.applyAsLong(event.previousState()) == repositoryGenerationBeforeDelete
+                && repoGenFn.applyAsLong(event.state()) > repositoryGenerationBeforeDelete) {
+
+                for (int i = 0; i < snapshotPoolSize - 1; i++) {
+                    executor.execute(() -> {
+                        while (keepBlocking.get()) {
+                            safeAwait(barrier);
+                            safeAwait(barrier);
+                        }
+                    });
+                }
+
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        executor.execute(() -> {
+                            safeAwait(barrier);
+                            safeAwait(barrier);
+                            if (keepBlocking.get()) {
+                                this.run();
+                            }
+                        });
+                    }
+                }.run();
+            }
+        };
+        clusterService.addListener(clusterStateListener);
+
+        final var deleteFuture = new PlainActionFuture<AcknowledgedResponse>();
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).execute(deleteFuture);
+
+        safeAwait(barrier); // wait for all the snapshot threads to be blocked
+        clusterService.removeListener(clusterStateListener);
+
+        // flush the cluster applier thread by running another task, so we can be sure that all the snapshot delete tasks are enqueued
+        PlainActionFuture.get(fut -> clusterService.createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Object> executeTask(ClusterStateTaskListener clusterStateTaskListener, ClusterState clusterState) {
+                return Tuple.tuple(clusterState, null);
+            }
+
+            @Override
+            public void taskSucceeded(ClusterStateTaskListener clusterStateTaskListener, Object ignored) {
+                fut.onResponse(null);
+            }
+        }).submitTask("test", e -> fail(), null), 10, TimeUnit.SECONDS);
+
+        // Throttled runner enqueued one task per worker, and the eager runner added another one
+        assertThat(
+            threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.SNAPSHOT)).findFirst().orElseThrow().queue(),
+            equalTo(snapshotPoolSize + 1)
+        );
+
+        safeAwait(barrier); // unblock the barrier thread and let it process the queue
+        safeAwait(barrier); // wait for the queue to be processed
+
+        // Each task completed by the throttled runner will have enqueued another one, but the eager runner drained the rest of the queue
+        assertThat(
+            threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.SNAPSHOT)).findFirst().orElseThrow().queue(),
+            equalTo(snapshotPoolSize)
+        );
+
+        safeAwait(barrier); // unblock the barrier thread and let it process the queue
+        safeAwait(barrier); // wait for the queue to be processed
+
+        // There was no more work to process
+        assertThat(
+            threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.SNAPSHOT)).findFirst().orElseThrow().queue(),
+            equalTo(0)
+        );
+
+        try {
+            assertFileCount(repositoryPath, 2); // just the index-N and index.latest blobs
+        } finally {
+            keepBlocking.set(false);
+            safeAwait(barrier);
+        }
+
+        assertTrue(deleteFuture.get(10, TimeUnit.SECONDS).isAcknowledged());
     }
 }

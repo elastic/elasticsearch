@@ -35,7 +35,7 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       LongBlock valBlock = (LongBlock) valRef.block();
       LongVector valVector = valBlock.asVector();
@@ -47,23 +47,25 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Sqrt.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p))));
       }
-      result.appendDouble(Sqrt.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, LongVector valVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Sqrt.processUnsignedLong(valVector.getLong(p)));
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Sqrt.processUnsignedLong(valVector.getLong(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

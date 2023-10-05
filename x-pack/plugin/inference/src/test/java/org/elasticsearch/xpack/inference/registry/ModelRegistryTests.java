@@ -89,7 +89,7 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testGetUnparsedModelMap_ThrowsIllegalStateException_WhenUnableToFindInferenceEntry() {
         var client = mockClient();
-        var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".infer-secrets"));
+        var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceSecretsHit }));
 
         var registry = new ModelRegistry(client);
@@ -124,7 +124,7 @@ public class ModelRegistryTests extends ESTestCase {
     public void testGetUnparsedModelMap_ReturnsModelConfigMap_WhenBothInferenceAndSecretsHitsAreFound() {
         var client = mockClient();
         var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
-        var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".infer-secrets"));
+        var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit, inferenceSecretsHit }));
 

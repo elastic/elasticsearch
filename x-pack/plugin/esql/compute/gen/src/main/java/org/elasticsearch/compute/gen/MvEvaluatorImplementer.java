@@ -195,22 +195,22 @@ public class MvEvaluatorImplementer {
         builder.addStatement("int positionCount = v.getPositionCount()");
         if (nullable) {
             TypeName resultBlockType = blockType(resultType);
-            builder.addStatement(
-                "$T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory())",
+            builder.beginControlFlow(
+                "try ($T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory()))",
                 resultBlockType,
                 resultBlockType
             );
         } else if (resultType.equals(BYTES_REF)) {
             TypeName resultVectorType = vectorType(resultType);
-            builder.addStatement(
-                "$T.Builder builder = $T.newVectorBuilder(positionCount, driverContext.blockFactory())",
+            builder.beginControlFlow(
+                "try ($T.Builder builder = $T.newVectorBuilder(positionCount, driverContext.blockFactory()))",
                 resultVectorType,
                 resultVectorType
             );
         } else {
             TypeName resultVectorType = vectorType(resultType);
-            builder.addStatement(
-                "$T.FixedBuilder builder = $T.newVectorFixedBuilder(positionCount, driverContext.blockFactory())",
+            builder.beginControlFlow(
+                "try ($T.FixedBuilder builder = $T.newVectorFixedBuilder(positionCount, driverContext.blockFactory()))",
                 resultVectorType,
                 resultVectorType
             );
@@ -252,6 +252,7 @@ public class MvEvaluatorImplementer {
         builder.endControlFlow();
 
         builder.addStatement("return Block.Ref.floating(builder.build()$L)", nullable ? "" : ".asBlock()");
+        builder.endControlFlow();
         builder.endControlFlow();
         return builder.build();
     }

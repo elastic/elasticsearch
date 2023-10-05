@@ -20,6 +20,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportInfo;
@@ -51,7 +52,7 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
         Client client,
         ActionFilters actionFilters
     ) {
-        super(NodeEnrollmentAction.NAME, transportService, actionFilters, NodeEnrollmentRequest::new);
+        super(NodeEnrollmentAction.NAME, transportService, actionFilters, NodeEnrollmentRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.sslService = sslService;
         this.client = client;
     }

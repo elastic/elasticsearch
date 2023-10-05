@@ -45,7 +45,7 @@ public class LimitOperator implements Operator {
     public record Factory(int limit) implements OperatorFactory {
 
         @Override
-        public Operator get(DriverContext driverContext) {
+        public LimitOperator get(DriverContext driverContext) {
             return new LimitOperator(limit);
         }
 
@@ -114,7 +114,9 @@ public class LimitOperator implements Operator {
 
     @Override
     public void close() {
-
+        if (lastInput != null) {
+            lastInput.releaseBlocks();
+        }
     }
 
     @Override

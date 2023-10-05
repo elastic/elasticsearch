@@ -50,8 +50,7 @@ public class MultivalueDedupeBytesRef {
         if (block.mvDeduplicated()) {
             return ref;
         }
-        try (ref) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory);
+        try (ref; BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -100,8 +99,7 @@ public class MultivalueDedupeBytesRef {
         if (block.mvDeduplicated()) {
             return ref;
         }
-        try (ref) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory);
+        try (ref; BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -130,8 +128,7 @@ public class MultivalueDedupeBytesRef {
         if (block.mvDeduplicated()) {
             return ref;
         }
-        try (ref) {
-            BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory);
+        try (ref; BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
@@ -153,32 +150,33 @@ public class MultivalueDedupeBytesRef {
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
     public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
-        boolean sawNull = false;
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> {
-                    sawNull = true;
-                    builder.appendInt(0);
-                }
-                case 1 -> {
-                    BytesRef v = block.getBytesRef(first, work[0]);
-                    hash(builder, hash, v);
-                }
-                default -> {
-                    if (count < ALWAYS_COPY_MISSING) {
-                        copyMissing(first, count);
-                        hashUniquedWork(hash, builder);
-                    } else {
-                        copyAndSort(first, count);
-                        hashSortedWork(hash, builder);
+        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+            boolean sawNull = false;
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> {
+                        sawNull = true;
+                        builder.appendInt(0);
+                    }
+                    case 1 -> {
+                        BytesRef v = block.getBytesRef(first, work[0]);
+                        hash(builder, hash, v);
+                    }
+                    default -> {
+                        if (count < ALWAYS_COPY_MISSING) {
+                            copyMissing(first, count);
+                            hashUniquedWork(hash, builder);
+                        } else {
+                            copyAndSort(first, count);
+                            hashSortedWork(hash, builder);
+                        }
                     }
                 }
             }
+            return new MultivalueDedupe.HashResult(builder.build(), sawNull);
         }
-        return new MultivalueDedupe.HashResult(builder.build(), sawNull);
     }
 
     /**

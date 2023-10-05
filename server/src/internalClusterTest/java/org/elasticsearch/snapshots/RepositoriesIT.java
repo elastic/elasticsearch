@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -447,37 +448,33 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             }
         }).submitTask("test", e -> fail(), null), 10, TimeUnit.SECONDS);
 
+        final LongSupplier queueLength = () -> threadPool.stats()
+            .stats()
+            .stream()
+            .filter(s -> s.name().equals(ThreadPool.Names.SNAPSHOT))
+            .findFirst()
+            .orElseThrow()
+            .queue();
+
         // Throttled runner enqueued one task per worker, and the eager runner added another one
-        assertThat(
-            threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.SNAPSHOT)).findFirst().orElseThrow().queue(),
-            equalTo(snapshotPoolSize + 1)
-        );
+        assertThat(queueLength.getAsLong(), equalTo(snapshotPoolSize + 1));
 
         safeAwait(barrier); // unblock the barrier thread and let it process the queue
         safeAwait(barrier); // wait for the queue to be processed
 
         // Each task completed by the throttled runner will have enqueued another one, but the eager runner drained the rest of the queue
-        assertThat(
-            threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.SNAPSHOT)).findFirst().orElseThrow().queue(),
-            equalTo(snapshotPoolSize)
-        );
+        assertThat(queueLength.getAsLong(), equalTo(snapshotPoolSize));
 
         safeAwait(barrier); // unblock the barrier thread and let it process the queue
         safeAwait(barrier); // wait for the queue to be processed
 
         // There was no more work to process
-        assertThat(
-            threadPool.stats().stats().stream().filter(s -> s.name().equals(ThreadPool.Names.SNAPSHOT)).findFirst().orElseThrow().queue(),
-            equalTo(0)
-        );
+        assertThat(queueLength.getAsLong(), equalTo(0));
 
-        try {
-            assertFileCount(repositoryPath, 2); // just the index-N and index.latest blobs
-        } finally {
-            keepBlocking.set(false);
-            safeAwait(barrier);
-        }
+        assertFileCount(repositoryPath, 2); // just the index-N and index.latest blobs
 
+        keepBlocking.set(false);
+        safeAwait(barrier); // release the threads so they can exit
         assertTrue(deleteFuture.get(10, TimeUnit.SECONDS).isAcknowledged());
     }
 }

@@ -136,7 +136,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.endObject();
 
         builder.startArray(Fields.VERSIONS);
-        for (final var v : versions) {
+        for (var v : versions) {
             builder.value(v);
         }
         builder.endArray();

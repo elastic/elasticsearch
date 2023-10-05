@@ -25,6 +25,7 @@ public sealed class IntVectorBlock extends AbstractVectorBlock implements IntBlo
 
         @Override
         public void close() {
+            released = true;
             IntVectorBlock.this.close();
         }
     }

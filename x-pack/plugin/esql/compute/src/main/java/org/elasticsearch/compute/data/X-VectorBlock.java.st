@@ -28,6 +28,7 @@ public sealed class $Type$VectorBlock extends AbstractVectorBlock implements $Ty
 
         @Override
         public void close() {
+            released = true;
             $Type$VectorBlock.this.close();
         }
     }

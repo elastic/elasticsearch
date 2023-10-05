@@ -25,6 +25,7 @@ public sealed class BooleanVectorBlock extends AbstractVectorBlock implements Bo
 
         @Override
         public void close() {
+            released = true;
             BooleanVectorBlock.this.close();
         }
     }

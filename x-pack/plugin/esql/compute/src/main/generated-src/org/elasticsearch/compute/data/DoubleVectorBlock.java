@@ -25,6 +25,7 @@ public sealed class DoubleVectorBlock extends AbstractVectorBlock implements Dou
 
         @Override
         public void close() {
+            released = true;
             DoubleVectorBlock.this.close();
         }
     }

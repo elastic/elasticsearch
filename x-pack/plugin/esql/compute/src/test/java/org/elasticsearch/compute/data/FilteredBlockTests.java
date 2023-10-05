@@ -46,12 +46,13 @@ public class FilteredBlockTests extends ESTestCase {
     public void testFilterAllPositions() {
         var positionCount = 100;
         var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
-        var filteredVector = vector.filter();
+        var block = vector.asBlock();
+        var filteredBlock = block.filter();
+        var filteredVector = filteredBlock.asVector();
 
         assertEquals(0, filteredVector.getPositionCount());
         expectThrows(ArrayIndexOutOfBoundsException.class, () -> filteredVector.getInt(0));
 
-        var filteredBlock = vector.asBlock().filter();
         assertEquals(0, filteredBlock.getPositionCount());
         expectThrows(ArrayIndexOutOfBoundsException.class, () -> filteredBlock.getInt(0));
         releaseAndAssertBreaker(filteredBlock);
@@ -61,13 +62,14 @@ public class FilteredBlockTests extends ESTestCase {
         var positionCount = 100;
         var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).toArray();
+        var block = vector.asBlock();
+        var filteredBlock = block.filter(positions);
+        var filteredVector = filteredBlock.asVector();
 
-        var filteredVector = vector.filter(positions);
         assertEquals(positionCount, filteredVector.getPositionCount());
         var anyPosition = randomPosition(positionCount);
         assertEquals(anyPosition, filteredVector.getInt(anyPosition));
 
-        var filteredBlock = vector.filter(positions).asBlock();
         assertEquals(positionCount, filteredBlock.getPositionCount());
         assertEquals(anyPosition, filteredBlock.getInt(anyPosition));
         releaseAndAssertBreaker(filteredBlock);
@@ -77,14 +79,15 @@ public class FilteredBlockTests extends ESTestCase {
         var positionCount = 100;
         var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
         var positions = IntStream.range(0, positionCount).filter(i -> i % 2 == 0).toArray();
+        var block = vector.asBlock();
+        var filteredBlock = block.filter(positions);
+        var filteredVector = filteredBlock.asVector();
 
-        var filteredVector = vector.filter(positions);
         assertEquals(positionCount / 2, filteredVector.getPositionCount());
         var anyPosition = randomIntBetween(0, (positionCount / 2) - 1);
         assertEquals(anyPosition * 2, filteredVector.getInt(anyPosition));
-        assertEquals(anyPosition * 2, filteredVector.asBlock().getInt(anyPosition));
+        assertEquals(anyPosition * 2, filteredBlock.getInt(anyPosition));
 
-        var filteredBlock = vector.asBlock().filter(positions);
         assertEquals(positionCount / 2, filteredBlock.getPositionCount());
         assertEquals(anyPosition * 2, filteredBlock.getInt(anyPosition));
         releaseAndAssertBreaker(filteredBlock);
@@ -93,9 +96,9 @@ public class FilteredBlockTests extends ESTestCase {
     public void testFilterOnFilter() {  // TODO: tired of this sv / mv block here. do more below
         var positionCount = 100;
         var vector = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
-
-        var filteredVector = vector.filter(IntStream.range(0, positionCount).filter(i1 -> i1 % 2 == 0).toArray());
-        var filteredTwice = filteredVector.filter(IntStream.range(0, positionCount / 2).filter(i -> i % 2 == 0).toArray());
+        var block = vector.asBlock();
+        var filteredBlock = block.filter(IntStream.range(0, positionCount).filter(i1 -> i1 % 2 == 0).toArray());
+        var filteredTwice = filteredBlock.filter(IntStream.range(0, positionCount / 2).filter(i -> i % 2 == 0).toArray());
 
         assertEquals(positionCount / 4, filteredTwice.getPositionCount());
         var anyPosition = randomIntBetween(0, positionCount / 4 - 1);

@@ -26,6 +26,7 @@ public sealed class BytesRefVectorBlock extends AbstractVectorBlock implements B
 
         @Override
         public void close() {
+            released = true;
             BytesRefVectorBlock.this.close();
         }
     }

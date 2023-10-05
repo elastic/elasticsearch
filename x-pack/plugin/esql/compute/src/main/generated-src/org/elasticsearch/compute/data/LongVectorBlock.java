@@ -25,6 +25,7 @@ public sealed class LongVectorBlock extends AbstractVectorBlock implements LongB
 
         @Override
         public void close() {
+            released = true;
             LongVectorBlock.this.close();
         }
     }

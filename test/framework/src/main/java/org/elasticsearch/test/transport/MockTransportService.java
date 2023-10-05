@@ -176,14 +176,13 @@ public class MockTransportService extends TransportService {
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            boundAddress -> new DiscoveryNode(
-                Node.NODE_NAME_SETTING.get(settings),
-                UUIDs.randomBase64UUID(),
-                boundAddress.publishAddress(),
-                Node.NODE_ATTRIBUTES.getAsMap(settings),
-                DiscoveryNode.getRolesFromSettings(settings),
-                version
-            ),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .name(Node.NODE_NAME_SETTING.get(settings))
+                .address(boundAddress.publishAddress())
+                .attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
+                .roles(DiscoveryNode.getRolesFromSettings(settings))
+                .version(version)
+                .build(),
             clusterSettings,
             createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
         );

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
@@ -30,7 +30,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
         this.finished = finished;
     }
 
-    public ExchangeResponse(StreamInput in) throws IOException {
+    public ExchangeResponse(BlockStreamInput in) throws IOException {
         super(in);
         this.page = in.readOptionalWriteable(Page::new);
         this.finished = in.readBoolean();

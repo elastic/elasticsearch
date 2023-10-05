@@ -238,8 +238,10 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
     };
 
+    @SuppressWarnings("this-escape")
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
+    @SuppressWarnings("this-escape")
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 
     private static final List<NamedXContentRegistry.Entry> namedXContents;

@@ -51,7 +51,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     /**
      * Read from a stream.
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "this-escape", "unchecked" })
     public InternalGeoGrid(StreamInput in) throws IOException {
         super(in);
         requiredSize = readSize(in);

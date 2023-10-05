@@ -29,13 +29,11 @@ import org.junit.After;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -81,19 +79,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
         assertEquals(getLatestDesiredNodes(), desiredNodes);
-    }
-
-    public void testSettingsAreValidatedWithDryRun() {
-        var exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> updateDesiredNodes(
-                randomDryRunUpdateDesiredNodesRequest(
-                    Version.CURRENT,
-                    Settings.builder().put(SETTING_HTTP_TCP_KEEP_IDLE.getKey(), Integer.MIN_VALUE).build()
-                )
-            )
-        );
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
     }
 
     public void testUpdateDesiredNodesIsIdempotent() {
@@ -195,52 +180,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
     }
 
-    public void testSettingsAreValidated() {
-        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
-            Settings.builder().put(SETTING_HTTP_TCP_KEEP_IDLE.getKey(), Integer.MIN_VALUE).build()
-        );
-
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> updateDesiredNodes(updateDesiredNodesRequest)
-        );
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(
-            exception.getSuppressed()[0].getMessage(),
-            containsString("Failed to parse value [-2147483648] for setting [http.tcp.keep_idle] must be >= -1")
-        );
-    }
-
-    public void testNodeVersionIsValidated() {
-        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(Version.CURRENT.previousMajor(), Settings.EMPTY);
-
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> updateDesiredNodes(updateDesiredNodesRequest)
-        );
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
-    }
-
-    public void testUnknownSettingsAreForbiddenInKnownVersions() {
-        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
-            Settings.builder().put("desired_nodes.random_setting", Integer.MIN_VALUE).build()
-        );
-
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> updateDesiredNodes(updateDesiredNodesRequest)
-        );
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("unknown setting [desired_nodes.random_setting]"));
-    }
-
     public void testUnknownSettingsAreAllowedInFutureVersions() {
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
             Version.fromString("99.9.0"),
@@ -255,72 +194,46 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     public void testNodeProcessorsGetValidatedWithDesiredNodeProcessors() {
         final int numProcessors = Math.max(Runtime.getRuntime().availableProcessors() + 1, 2048);
-
-        {
-            final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
-                UUIDs.randomBase64UUID(),
-                randomIntBetween(1, 20),
-                randomList(
-                    1,
-                    20,
-                    () -> randomDesiredNode(
-                        Version.CURRENT,
-                        Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors + 1).build(),
-                        numProcessors
-                    )
-                ),
-                false
-            );
-
-            final IllegalArgumentException exception = expectThrows(
-                IllegalArgumentException.class,
-                () -> updateDesiredNodes(updateDesiredNodesRequest)
-            );
-            assertThat(exception.getMessage(), containsString("Nodes with ids"));
-            assertThat(exception.getMessage(), containsString("contain invalid settings"));
-            assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-            assertThat(
-                exception.getSuppressed()[0].getMessage(),
-                containsString(
-                    String.format(
-                        Locale.ROOT,
-                        "Failed to parse value [%d] for setting [node.processors] must be <= %d",
-                        numProcessors + 1,
-                        numProcessors
-                    )
+        // This test verifies that the validation doesn't throw on desired nodes
+        // with a higher number of available processors than the node running the tests.
+        final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            randomList(
+                1,
+                20,
+                () -> randomDesiredNode(
+                    Version.CURRENT,
+                    Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
+                    numProcessors
                 )
-            );
+            ),
+            false
+        );
+
+        updateDesiredNodes(updateDesiredNodesRequest);
+
+        final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
+        assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
+
+        assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
+        for (final var desiredNodeWithStatus : latestDesiredNodes) {
+            final var desiredNode = desiredNodeWithStatus.desiredNode();
+            assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
         }
+    }
 
-        {
-            // This test verifies that the validation doesn't throw on desired nodes
-            // with a higher number of available processors than the node running the tests.
-            final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
-                UUIDs.randomBase64UUID(),
-                randomIntBetween(1, 20),
-                randomList(
-                    1,
-                    20,
-                    () -> randomDesiredNode(
-                        Version.CURRENT,
-                        Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
-                        numProcessors
-                    )
-                ),
-                false
-            );
+    public void testNodeVersionIsValidated() {
+        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(Version.CURRENT.previousMajor(), Settings.EMPTY);
 
-            updateDesiredNodes(updateDesiredNodesRequest);
-
-            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
-            assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
-
-            assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
-            for (final var desiredNodeWithStatus : latestDesiredNodes) {
-                final var desiredNode = desiredNodeWithStatus.desiredNode();
-                assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
-            }
-        }
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> updateDesiredNodes(updateDesiredNodesRequest)
+        );
+        assertThat(exception.getMessage(), containsString("Nodes with ids"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
     }
 
     public void testUpdateDesiredNodesTasksAreBatchedCorrectly() throws Exception {

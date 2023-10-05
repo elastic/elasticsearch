@@ -14,7 +14,7 @@ The instructions in this tutorial shows you how to use ELSER to perform semantic
 search on your data.
 
 NOTE: Only the first 512 extracted tokens per field are considered during 
-semantic search with ELSER v1. Refer to 
+semantic search with ELSER. Refer to 
 {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[this page] for more 
 information.
 
@@ -44,15 +44,16 @@ you must provide suitably sized nodes yourself.
 
 First, the mapping of the destination index - the index that contains the tokens 
 that the model created based on your text - must be created.  The destination 
-index must have a field with the <<rank-features, `rank_features`>> field type 
-to index the ELSER output.
+index must have a field with the 
+<<rank-features, `sparse_vector` or `rank_features`>> field type to index the 
+ELSER output.
 
-NOTE: ELSER output must be ingested into a field with the `rank_features` field 
-type. Otherwise, {es} interprets the token-weight pairs as a massive amount of 
-fields in a document. If you get an error similar to this 
+NOTE: ELSER output must be ingested into a field with the `sparse_vector` or 
+`rank_features` field type. Otherwise, {es} interprets the token-weight pairs as 
+a massive amount of fields in a document. If you get an error similar to this 
 `"Limit of total fields [1000] has been exceeded while adding new fields"` then 
 the ELSER output field is not mapped properly and it has a field type different 
-than `rank_features`.
+than `sparse_vector` or `rank_features`.
 
 [source,console]
 ----
@@ -61,7 +62,7 @@ PUT my-index
   "mappings": {
     "properties": {
       "ml.tokens": { <1>
-        "type": "rank_features" <2>
+        "type": "sparse_vector" <2>
       },
       "text": { <3>
         "type": "text" <4>
@@ -72,7 +73,7 @@ PUT my-index
 ----
 // TEST[skip:TBD]
 <1> The name of the field to contain the generated tokens.
-<2> The field to contain the tokens is a `rank_features` field.
+<2> The field to contain the tokens is a `sparse_vector` field.
 <3> The name of the field from which to create the sparse vector representation. 
 In this example, the name of the field is `text`.
 <4> The field type which is text in this example.
@@ -90,12 +91,12 @@ that is being ingested in the pipeline.
 
 [source,console]
 ----
-PUT _ingest/pipeline/elser-v1-test
+PUT _ingest/pipeline/elser-v2-test
 {
   "processors": [
     {
       "inference": {
-        "model_id": ".elser_model_1",
+        "model_id": ".elser_model_2",
         "target_field": "ml",
         "field_map": { <1>
           "text": "text_field"
@@ -155,7 +156,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "my-index",
-    "pipeline": "elser-v1-test"
+    "pipeline": "elser-v2-test"
   }
 }
 ----
@@ -192,7 +193,7 @@ GET my-index/_search
    "query":{
       "text_expansion":{
          "ml.tokens":{
-            "model_id":".elser_model_1",
+            "model_id":".elser_model_2",
             "model_text":"How to avoid muscle soreness after running?"
          }
       }
@@ -236,7 +237,7 @@ weights.
                "exercises":0.36694175,
                (...)
             },
-            "model_id":".elser_model_1"
+            "model_id":".elser_model_2"
          }
       }
    },
@@ -276,7 +277,7 @@ GET my-index/_search
           "text_expansion": { 
             "ml.tokens": {
               "model_text": "How to avoid muscle soreness after running?",
-              "model_id": ".elser_model_1",
+              "model_id": ".elser_model_2",
               "boost": 1 <2>
             }
           }
@@ -342,7 +343,7 @@ PUT my-index
     },
     "properties": {
       "ml.tokens": {
-        "type": "rank_features" 
+        "type": "sparse_vector" 
       },
       "text": { 
         "type": "text" 
@@ -359,7 +360,7 @@ PUT my-index
 ==== Further reading
 
 * {ml-docs}/ml-nlp-elser.html[How to download and deploy ELSER]
-* {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[ELSER v1 limitation]
+* {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[ELSER limitation]
 * https://www.elastic.co/blog/may-2023-launch-information-retrieval-elasticsearch-ai-model[Improving information retrieval in the Elastic Stack: Introducing Elastic Learned Sparse Encoder, our new retrieval model]
 
 [discrete]

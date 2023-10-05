@@ -169,6 +169,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         delegate = new LinkedHashMap<>();
     }
 
+    @SuppressWarnings("this-escape")
     public AttributeMap(Attribute key, E value) {
         delegate = new LinkedHashMap<>();
         add(key, value);

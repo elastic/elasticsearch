@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,9 +37,9 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private final int desiredNodesVersion;
 
-    public DesiredNodesUpgradeIT(@Name("upgradeNode") Integer upgradeNode) {
-        super(upgradeNode);
-        desiredNodesVersion = Objects.requireNonNullElse(upgradeNode, -1) + 2;
+    public DesiredNodesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+        desiredNodesVersion = upgradedNodes + 1;
     }
 
     private enum ProcessorsPrecision {

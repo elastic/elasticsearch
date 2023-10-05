@@ -13,9 +13,11 @@ package org.elasticsearch.compute.data;
 abstract class AbstractVector implements Vector {
 
     private final int positionCount;
+    protected final BlockFactory blockFactory;
 
-    protected AbstractVector(int positionCount) {
+    protected AbstractVector(int positionCount, BlockFactory blockFactory) {
         this.positionCount = positionCount;
+        this.blockFactory = blockFactory;
     }
 
     public final int getPositionCount() {
@@ -26,4 +28,15 @@ abstract class AbstractVector implements Vector {
     public final Vector getRow(int position) {
         return filter(position);
     }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    }
+
 }

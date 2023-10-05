@@ -60,7 +60,7 @@ public final class ValueSources {
                 // MatchOnlyTextFieldMapper class lives in the mapper-extras module. We use string equality
                 // for the field type name to avoid adding a dependency to the module
                 if (fieldType instanceof KeywordFieldMapper.KeywordFieldType
-                    || fieldType instanceof TextFieldMapper.TextFieldType
+                    || fieldType instanceof TextFieldMapper.TextFieldType tft && (tft.isSyntheticSource() == false || tft.isStored())
                     || MATCH_ONLY_TEXT.equals(fieldType.typeName())) {
                     ValuesSource vs = textValueSource(ctx, fieldType);
                     sources.add(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, vs, elementType, ctx.getIndexReader()));

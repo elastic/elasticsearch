@@ -19,3 +19,8 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
     systemProperty("tests.old_cluster_version", bwcVersion)
   }
 }
+
+tasks.withType(Test).configureEach {
+  // CI doesn't like it when there's multiple clusters running at once
+  maxParallelForks = 1
+}

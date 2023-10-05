@@ -422,7 +422,7 @@ public class RecoverySourceHandler {
             cancellableThreads.checkForCancel();
             ensureNotRelocatedPrimary(primary);
             action.accept(l2);
-        })), ThreadPool.Names.GENERIC);
+        })), primary.getThreadPool().generic());
     }
 
     static void runUnderPrimaryPermit(

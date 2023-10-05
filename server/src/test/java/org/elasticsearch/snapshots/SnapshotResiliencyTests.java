@@ -1829,6 +1829,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 peerRecoverySourceService = new PeerRecoverySourceService(
                     transportService,
                     indicesService,
+                    clusterService,
                     recoverySettings,
                     PeerOnlyRecoveryPlannerService.INSTANCE
                 );

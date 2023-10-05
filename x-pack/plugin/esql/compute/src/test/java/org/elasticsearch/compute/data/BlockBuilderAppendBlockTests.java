@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class BlockBuilderAppendBlockTests extends ESTestCase {
 
     public void testBasic() {
-        IntBlock src = new IntBlockBuilder(10).appendInt(1)
+        IntBlock src = new IntBlockBuilder(10, BlockFactory.getNonBreakingInstance()).appendInt(1)
             .appendNull()
             .beginPositionEntry()
             .appendInt(4)

@@ -69,13 +69,11 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1680,33 +1678,21 @@ public class MasterServiceTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         try (MasterService masterService = createMasterService(true); var ignored = mockAppender.capturing(MasterService.class)) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
-
-            final Runnable await = new Runnable() {
-                private final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
-
-                @Override
-                public void run() {
-                    try {
-                        cyclicBarrier.await(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                        throw new AssertionError("unexpected", e);
-                    }
-                }
-            };
+            final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
             final Runnable awaitNextTask = () -> {
-                await.run();
-                await.run();
+                safeAwait(cyclicBarrier);
+                safeAwait(cyclicBarrier);
             };
 
             final ClusterStateUpdateTask starvationCausingTask = new ClusterStateUpdateTask(Priority.HIGH) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    await.run();
+                    safeAwait(cyclicBarrier);
                     relativeTimeInMillis += taskDurationMillis;
                     if (keepRunning.get()) {
                         masterService.submitUnbatchedStateUpdateTask("starvation-causing task", this);
                     }
-                    await.run();
+                    safeAwait(cyclicBarrier);
                     return currentState;
                 }
 

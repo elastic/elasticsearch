@@ -297,7 +297,7 @@ public final class MlAutoscalingResourceTracker {
             && perNodeAvailableModelMemoryInBytes > 0
             && extraModelMemoryInBytes == 0
             && extraProcessors == 0
-            && modelMemoryBytesSum < perNodeMemoryInBytes * (osStatsPerNode.size() - 1)
+            && modelMemoryBytesSum <= perNodeMemoryInBytes * (osStatsPerNode.size() - 1)
             && (perNodeModelMemoryInBytes.size() < osStatsPerNode.size() // a node has no assigned jobs
                 || checkIfOneNodeCouldBeRemoved(
                     perNodeModelMemoryInBytes,

@@ -105,7 +105,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
             )
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2022-01-08T23:40:53.384Z");
 
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
@@ -147,7 +147,7 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             ensureGreen();
 
             final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            long startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+            long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
             setup(sourceIndex, 1, 0, startTime);
             final DownsampleConfig config = new DownsampleConfig(randomInterval());
             final SourceSupplier sourceSupplier = () -> {

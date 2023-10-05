@@ -290,6 +290,7 @@ public class AggregatorFactories {
         /**
          * Read from a stream.
          */
+        @SuppressWarnings("this-escape")
         public Builder(StreamInput in) throws IOException {
             int factoriesSize = in.readVInt();
             for (int i = 0; i < factoriesSize; i++) {

@@ -142,6 +142,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public SimpleQueryStringBuilder(StreamInput in) throws IOException {
         super(in);
         queryText = in.readString();

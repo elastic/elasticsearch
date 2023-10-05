@@ -168,6 +168,7 @@ public class EmailService extends NotificationService<Account> {
     private final SSLService sslService;
     private volatile Set<String> allowedDomains;
 
+    @SuppressWarnings("this-escape")
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, SSLService sslService, ClusterSettings clusterSettings) {
         super("email", settings, clusterSettings, EmailService.getDynamicSettings(), EmailService.getSecureSettings());
         this.cryptoService = cryptoService;

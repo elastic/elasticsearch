@@ -543,7 +543,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 TestTasksRequest::new,
                 TestTasksResponse::new,
                 TestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
         }
 

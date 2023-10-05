@@ -52,7 +52,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
             actionFilters,
             indexNameExpressionResolver,
             IndicesSegmentsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
     }

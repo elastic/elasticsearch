@@ -20,9 +20,12 @@ public final class FilterBooleanVector extends AbstractFilterVector implements B
 
     private final BooleanVector vector;
 
+    private final BooleanBlock block;
+
     FilterBooleanVector(BooleanVector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
+        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
@@ -32,7 +35,7 @@ public final class FilterBooleanVector extends AbstractFilterVector implements B
 
     @Override
     public BooleanBlock asBlock() {
-        return new BooleanVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -88,6 +91,11 @@ public final class FilterBooleanVector extends AbstractFilterVector implements B
             }
             sb.append(getBoolean(i));
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 
     @Override

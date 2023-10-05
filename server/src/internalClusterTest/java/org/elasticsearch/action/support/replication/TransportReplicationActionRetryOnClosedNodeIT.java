@@ -105,7 +105,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                 actionFilters,
                 Request::new,
                 Request::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 

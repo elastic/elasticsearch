@@ -53,6 +53,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
@@ -452,6 +453,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             Version.CURRENT,
             TransportVersion.current(),
             IndexVersion.current(),
+            Map.of(),
             Build.current(),
             node,
             null,
@@ -569,13 +571,12 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {
-        return new DiscoveryNode(
-            node.getName(),
-            node.getId(),
-            node.getAddress(),
-            node.getAttributes(),
-            node.getRoles(),
-            node.getVersionInformation()
-        );
+        return DiscoveryNodeUtils.builder(node.getId())
+            .name(node.getName())
+            .address(node.getAddress())
+            .attributes(node.getAttributes())
+            .roles(node.getRoles())
+            .version(node.getVersionInformation())
+            .build();
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -214,7 +215,7 @@ class S3BlobStore implements BlobStore {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -227,12 +228,12 @@ class S3BlobStore implements BlobStore {
                 blobNames.forEachRemaining(key -> {
                     partition.add(key);
                     if (partition.size() == MAX_BULK_DELETES) {
-                        deletePartition(clientReference, partition, aex);
+                        deletePartition(purpose, clientReference, partition, aex);
                         partition.clear();
                     }
                 });
                 if (partition.isEmpty() == false) {
-                    deletePartition(clientReference, partition, aex);
+                    deletePartition(purpose, clientReference, partition, aex);
                 }
             });
             if (aex.get() != null) {
@@ -243,9 +244,14 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private void deletePartition(AmazonS3Reference clientReference, List<String> partition, AtomicReference<Exception> aex) {
+    private void deletePartition(
+        OperationPurpose purpose,
+        AmazonS3Reference clientReference,
+        List<String> partition,
+        AtomicReference<Exception> aex
+    ) {
         try {
-            clientReference.client().deleteObjects(bulkDelete(this, partition));
+            clientReference.client().deleteObjects(bulkDelete(purpose, this, partition));
         } catch (MultiObjectDeleteException e) {
             // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
             // first remove all keys that were sent in the request and then add back those that ran into an exception.
@@ -264,7 +270,7 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    private static DeleteObjectsRequest bulkDelete(S3BlobStore blobStore, List<String> blobs) {
+    private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {
         return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
             .withQuiet(true)
             .withRequestMetricCollector(blobStore.deleteMetricCollector);

@@ -3,6 +3,25 @@
 
 Also see <<breaking-changes-8.9,Breaking changes in 8.9>>.
 
+[float]
+[[security-updates-8.9.2]]
+=== Security updates
+
+* {es} generally filters out sensitive information and credentials before
+logging to the audit log. It was found that this filtering was not applied when
+requests to {es} use certain deprecated `_xpack/security` URIs for APIs. The
+impact of this flaw is that sensitive information, such as passwords and tokens,
+might be printed in cleartext in {es} audit logs. Note that audit logging is
+disabled by default and needs to be explicitly enabled. Even when audit logging
+is enabled, request bodies that could contain sensitive information are not
+printed to the audit log unless explicitly configured.
++
+The issue is resolved in {es} 8.9.2.
++
+For more information, see our related
+https://discuss.elastic.co/t/elasticsearch-8-9-2-and-7-17-13-security-update/342479[security
+announcement].
+
 [[bug-8.9.2]]
 [float]
 === Bug fixes

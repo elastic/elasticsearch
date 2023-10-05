@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -66,17 +65,17 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
-        return Stream.concat(Stream.of((Integer) null), IntStream.range(0, NODE_NUM).boxed()).map(n -> new Object[] { n }).toList();
+        return IntStream.rangeClosed(0, NODE_NUM).boxed().map(n -> new Object[] { n }).toList();
     }
 
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static boolean upgradeFailed = false;
     private static IndexVersion oldIndexVersion;
 
-    private final Integer requestedUpgradeNode;
+    private final int requestedUpgradedNodes;
 
-    protected ParameterizedRollingUpgradeTestCase(@Name("upgradeNode") Integer upgradeNode) {
-        this.requestedUpgradeNode = upgradeNode;
+    protected ParameterizedRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
+        this.requestedUpgradedNodes = upgradedNodes;
     }
 
     @Before
@@ -117,12 +116,13 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         // Skip remaining tests if upgrade failed
         assumeFalse("Cluster upgrade failed", upgradeFailed);
 
-        if (requestedUpgradeNode != null && upgradedNodes.contains(requestedUpgradeNode) == false) {
+        if (upgradedNodes.size() < requestedUpgradedNodes) {
             closeClients();
             // we might be running a specific upgrade test by itself - check previous nodes too
-            for (int n = 0; n <= requestedUpgradeNode; n++) {
+            for (int n = 0; n < requestedUpgradedNodes; n++) {
                 if (upgradedNodes.add(n)) {
                     try {
+                        logger.info("Upgrading node {} to version {}", n, Version.CURRENT);
                         cluster.upgradeNodeToVersion(n, Version.CURRENT);
                     } catch (Exception e) {
                         upgradeFailed = true;

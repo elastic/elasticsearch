@@ -49,6 +49,7 @@ public class PerFieldMapperCodec extends Lucene95Codec {
             : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
+    @SuppressWarnings("this-escape")
     public PerFieldMapperCodec(Mode compressionMode, MapperService mapperService, BigArrays bigArrays) {
         super(compressionMode);
         this.mapperService = mapperService;
@@ -91,10 +92,7 @@ public class PerFieldMapperCodec extends Lucene95Codec {
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         Mapper mapper = mapperService.mappingLookup().getMapper(field);
         if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-            KnnVectorsFormat format = vectorMapper.getKnnVectorsFormatForField();
-            if (format != null) {
-                return format;
-            }
+            return vectorMapper.getKnnVectorsFormatForField(super.getKnnVectorsFormatForField(field));
         }
         return super.getKnnVectorsFormatForField(field);
     }

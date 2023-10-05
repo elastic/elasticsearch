@@ -105,6 +105,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
                     Version.CURRENT,
                     TransportVersion.current(),
                     IndexVersion.current(),
+                    Map.of(),
                     null,
                     n,
                     null,

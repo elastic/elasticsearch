@@ -1130,6 +1130,7 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
+    @SuppressWarnings("this-escape")
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,

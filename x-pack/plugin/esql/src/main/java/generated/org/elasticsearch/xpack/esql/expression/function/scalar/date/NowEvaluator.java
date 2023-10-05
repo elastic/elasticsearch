@@ -27,20 +27,25 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block eval(Page page) {
-    return eval(page.getPositionCount()).asBlock();
+  public Block.Ref eval(Page page) {
+    return Block.Ref.floating(eval(page.getPositionCount()).asBlock());
   }
 
   public LongVector eval(int positionCount) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(Now.process(now));
+    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(Now.process(now));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
   public String toString() {
     return "NowEvaluator[" + "now=" + now + "]";
+  }
+
+  @Override
+  public void close() {
   }
 }

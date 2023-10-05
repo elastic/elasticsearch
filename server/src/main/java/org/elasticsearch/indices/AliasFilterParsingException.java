@@ -16,6 +16,7 @@ import java.io.IOException;
 
 public class AliasFilterParsingException extends ElasticsearchException {
 
+    @SuppressWarnings("this-escape")
     public AliasFilterParsingException(Index index, String name, String desc, Throwable ex) {
         super("[" + name + "], " + desc, ex);
         setIndex(index);

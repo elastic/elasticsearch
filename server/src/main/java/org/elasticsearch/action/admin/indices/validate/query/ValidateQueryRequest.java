@@ -65,6 +65,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
      * Constructs a new validate request against the provided indices. No indices provided means it will
      * run against all indices.
      */
+    @SuppressWarnings("this-escape")
     public ValidateQueryRequest(String... indices) {
         super(indices);
         indicesOptions(DEFAULT_INDICES_OPTIONS);

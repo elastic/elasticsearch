@@ -108,6 +108,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private long stateInitializedTime;
 
+    @SuppressWarnings("this-escape")
     public LocalExporter(
         Exporter.Config config,
         Client client,

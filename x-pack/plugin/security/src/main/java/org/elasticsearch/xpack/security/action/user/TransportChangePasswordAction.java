@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -35,7 +36,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         ActionFilters actionFilters,
         NativeUsersStore nativeUsersStore
     ) {
-        super(ChangePasswordAction.NAME, transportService, actionFilters, ChangePasswordRequest::new);
+        super(ChangePasswordAction.NAME, transportService, actionFilters, ChangePasswordRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.nativeUsersStore = nativeUsersStore;
     }

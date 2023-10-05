@@ -69,7 +69,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.snapshotShardsService = snapshotShardsService;
     }

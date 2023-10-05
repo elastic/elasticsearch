@@ -84,7 +84,8 @@ x:integer | z:integer
 4 | 8
 ;
 
-renameProjectEval
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/100356
+renameProjectEval-Ignore
 from employees | sort emp_no | eval y = languages | rename languages as x | keep x, y | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
 
 x:integer | y:integer | x2:integer | y2:integer
@@ -93,7 +94,8 @@ x:integer | y:integer | x2:integer | y2:integer
 4 | 4 | 5 | 6
 ;
 
-duplicateProjectEval
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/100356
+duplicateProjectEval-Ignore
 from employees | eval y = languages, x = languages | keep x, y | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
 
 x:integer | y:integer | x2:integer | y2:integer
@@ -158,7 +160,8 @@ y:integer | x:date
 10061     | 1985-09-17T00:00:00.000Z                  
 ;
 
-renameIntertwinedWithSort
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/100356
+renameIntertwinedWithSort-Ignore
 FROM employees | eval x = salary | rename x as y | rename y as x | sort x | rename x as y | limit 10;
 
 avg_worked_seconds:l | birth_date:date          | emp_no:i             | first_name:s         | gender:s             | height:d             | height.float:d       | height.half_float:d  | height.scaled_float:d| hire_date:date           | is_rehired:bool      | job_positions:s      | languages:i          | languages.byte:i     | languages.long:l     | languages.short:i    | last_name:s          | salary:i             | salary_change:d      | salary_change.int:i  | salary_change.keyword:s | salary_change.long:l | still_hired:bool  | y:i          

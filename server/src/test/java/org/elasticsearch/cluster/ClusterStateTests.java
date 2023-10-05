@@ -208,7 +208,8 @@ public class ClusterStateTests extends ESTestCase {
                               ],
                               "version": "%s",
                               "min_index_version":%s,
-                              "max_index_version":%s
+                              "max_index_version":%s,
+                              "features":[]
                             }
                           },
                           "nodes_versions" : [
@@ -469,7 +470,8 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "version" : "%s",
                           "min_index_version" : %s,
-                          "max_index_version" : %s
+                          "max_index_version" : %s,
+                          "features" : [ ]
                         }
                       },
                       "nodes_versions" : [
@@ -726,7 +728,8 @@ public class ClusterStateTests extends ESTestCase {
                           ],
                           "version" : "%s",
                           "min_index_version" : %s,
-                          "max_index_version" : %s
+                          "max_index_version" : %s,
+                          "features" : [ ]
                         }
                       },
                       "nodes_versions" : [

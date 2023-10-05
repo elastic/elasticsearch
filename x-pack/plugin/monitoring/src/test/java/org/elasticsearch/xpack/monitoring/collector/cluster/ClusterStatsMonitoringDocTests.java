@@ -767,7 +767,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     ],
                     "version": "%s",
                     "min_index_version":%s,
-                    "max_index_version":%s
+                    "max_index_version":%s,
+                    "features":["_feature_id"]
                   }
                 },
                 "nodes_versions": []

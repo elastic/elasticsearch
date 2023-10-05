@@ -220,7 +220,10 @@ public class DiscoveryNodeTests extends ESTestCase {
                             ],
                             "version" : "%s",
                             "min_index_version" : %s,
-                            "max_index_version" : %s
+                            "max_index_version" : %s,
+                            "features" : [
+                              "test-feature"
+                            ]
                           }
                         }""",
                     transportAddress,

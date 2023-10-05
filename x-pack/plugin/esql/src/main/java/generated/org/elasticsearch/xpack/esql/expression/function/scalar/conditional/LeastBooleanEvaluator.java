@@ -40,7 +40,7 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
         valuesRefs[i] = values[i].eval(page);
         Block block = valuesRefs[i].block();
         if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         valuesBlocks[i] = (BooleanBlock) block;
       }
@@ -56,7 +56,7 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock[] valuesBlocks) {
-    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       boolean[] valuesValues = new boolean[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -77,7 +77,7 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
-    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       boolean[] valuesValues = new boolean[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

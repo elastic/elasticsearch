@@ -38,12 +38,12 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       IntBlock valBlock = (IntBlock) valRef.block();
       try (Block.Ref decimalsRef = decimals.eval(page)) {
         if (decimalsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
         IntVector valVector = valBlock.asVector();
@@ -60,7 +60,7 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntBlock eval(int positionCount, IntBlock valBlock, LongBlock decimalsBlock) {
-    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -77,7 +77,7 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntVector eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
-    try (IntVector.Builder result = IntVector.newVectorBuilder(positionCount)) {
+    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendInt(Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
       }

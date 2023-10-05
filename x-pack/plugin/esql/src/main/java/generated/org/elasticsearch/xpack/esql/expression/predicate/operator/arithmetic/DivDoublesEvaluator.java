@@ -36,12 +36,12 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       DoubleBlock lhsBlock = (DoubleBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         DoubleBlock rhsBlock = (DoubleBlock) rhsRef.block();
         DoubleVector lhsVector = lhsBlock.asVector();
@@ -58,7 +58,7 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
-    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -75,7 +75,7 @@ public final class DivDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public DoubleVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try (DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount)) {
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Div.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }

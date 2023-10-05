@@ -231,17 +231,14 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Map<String, String> attrs = new HashMap<>(node.getAttributes());
                 attrs.put("new", "new");
                 final TransportAddress nodeAddress = node.getAddress();
-                node = new DiscoveryNode(
-                    node.getName(),
-                    node.getId(),
-                    node.getEphemeralId(),
-                    nodeAddress.address().getHostString(),
-                    nodeAddress.getAddress(),
-                    nodeAddress,
-                    attrs,
-                    node.getRoles(),
-                    node.getVersionInformation()
-                );
+                node = DiscoveryNodeUtils.builder(node.getId())
+                    .name(node.getName())
+                    .ephemeralId(node.getEphemeralId())
+                    .address(nodeAddress)
+                    .attributes(attrs)
+                    .roles(node.getRoles())
+                    .version(node.getVersionInformation())
+                    .build();
             }
             nodesB.add(node);
         }

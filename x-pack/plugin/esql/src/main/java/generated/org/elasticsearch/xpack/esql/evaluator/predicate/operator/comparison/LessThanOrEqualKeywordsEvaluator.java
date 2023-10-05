@@ -39,12 +39,12 @@ public final class LessThanOrEqualKeywordsEvaluator implements EvalOperator.Expr
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       BytesRefBlock lhsBlock = (BytesRefBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         BytesRefBlock rhsBlock = (BytesRefBlock) rhsRef.block();
         BytesRefVector lhsVector = lhsBlock.asVector();
@@ -61,7 +61,7 @@ public final class LessThanOrEqualKeywordsEvaluator implements EvalOperator.Expr
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock lhsBlock, BytesRefBlock rhsBlock) {
-    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -80,7 +80,7 @@ public final class LessThanOrEqualKeywordsEvaluator implements EvalOperator.Expr
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector lhsVector, BytesRefVector rhsVector) {
-    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {

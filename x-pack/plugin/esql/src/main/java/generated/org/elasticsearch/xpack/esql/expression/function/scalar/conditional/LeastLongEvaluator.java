@@ -40,7 +40,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
         valuesRefs[i] = values[i].eval(page);
         Block block = valuesRefs[i].block();
         if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         valuesBlocks[i] = (LongBlock) block;
       }
@@ -56,7 +56,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongBlock eval(int positionCount, LongBlock[] valuesBlocks) {
-    try (LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -77,7 +77,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
-    try (LongVector.Builder result = LongVector.newVectorBuilder(positionCount)) {
+    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

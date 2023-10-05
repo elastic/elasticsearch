@@ -38,12 +38,12 @@ public final class NotEqualsDoublesEvaluator implements EvalOperator.ExpressionE
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       DoubleBlock lhsBlock = (DoubleBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         DoubleBlock rhsBlock = (DoubleBlock) rhsRef.block();
         DoubleVector lhsVector = lhsBlock.asVector();
@@ -60,7 +60,7 @@ public final class NotEqualsDoublesEvaluator implements EvalOperator.ExpressionE
   }
 
   public BooleanBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
-    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -77,7 +77,7 @@ public final class NotEqualsDoublesEvaluator implements EvalOperator.ExpressionE
   }
 
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(NotEquals.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }

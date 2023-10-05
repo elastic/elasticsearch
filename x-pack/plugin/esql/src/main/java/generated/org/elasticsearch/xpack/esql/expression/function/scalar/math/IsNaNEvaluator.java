@@ -34,7 +34,7 @@ public final class IsNaNEvaluator implements EvalOperator.ExpressionEvaluator {
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       DoubleBlock valBlock = (DoubleBlock) valRef.block();
       DoubleVector valVector = valBlock.asVector();
@@ -46,7 +46,7 @@ public final class IsNaNEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BooleanBlock eval(int positionCount, DoubleBlock valBlock) {
-    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -59,7 +59,7 @@ public final class IsNaNEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BooleanVector eval(int positionCount, DoubleVector valVector) {
-    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(IsNaN.process(valVector.getDouble(p)));
       }

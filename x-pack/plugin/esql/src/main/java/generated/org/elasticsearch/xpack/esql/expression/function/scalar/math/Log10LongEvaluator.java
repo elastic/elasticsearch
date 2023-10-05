@@ -40,7 +40,7 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       LongBlock valBlock = (LongBlock) valRef.block();
       LongVector valVector = valBlock.asVector();
@@ -52,7 +52,7 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
-    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -70,7 +70,7 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleBlock eval(int positionCount, LongVector valVector) {
-    try (DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendDouble(Log10.process(valVector.getLong(p)));

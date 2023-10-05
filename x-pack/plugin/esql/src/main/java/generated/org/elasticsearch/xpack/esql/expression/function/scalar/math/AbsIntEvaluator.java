@@ -32,7 +32,7 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public Block.Ref eval(Page page) {
     try (Block.Ref fieldValRef = fieldVal.eval(page)) {
       if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       IntBlock fieldValBlock = (IntBlock) fieldValRef.block();
       IntVector fieldValVector = fieldValBlock.asVector();
@@ -44,7 +44,7 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
-    try (IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount)) {
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -57,7 +57,7 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector fieldValVector) {
-    try (IntVector.Builder result = IntVector.newVectorBuilder(positionCount)) {
+    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendInt(Abs.process(fieldValVector.getInt(p)));
       }

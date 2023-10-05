@@ -38,12 +38,12 @@ public final class LessThanLongsEvaluator implements EvalOperator.ExpressionEval
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       LongBlock lhsBlock = (LongBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         LongBlock rhsBlock = (LongBlock) rhsRef.block();
         LongVector lhsVector = lhsBlock.asVector();
@@ -60,7 +60,7 @@ public final class LessThanLongsEvaluator implements EvalOperator.ExpressionEval
   }
 
   public BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
-    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount)) {
+    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -77,7 +77,7 @@ public final class LessThanLongsEvaluator implements EvalOperator.ExpressionEval
   }
 
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount)) {
+    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(LessThan.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
       }

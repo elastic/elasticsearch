@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
@@ -87,18 +88,18 @@ public final class QuantileStates {
             blocks[offset] = new ConstantBytesRefVector(serializeDigest(this.digest), 1).asBlock();
         }
 
-        Block evaluateMedianAbsoluteDeviation() {
+        Block evaluateMedianAbsoluteDeviation(DriverContext driverContext) {
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
             if (digest.size() == 0) {
-                return Block.constantNullBlock(1);
+                return Block.constantNullBlock(1, driverContext.blockFactory());
             }
             double result = InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest);
-            return DoubleBlock.newConstantBlockWith(result, 1);
+            return DoubleBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
         }
 
-        Block evaluatePercentile() {
+        Block evaluatePercentile(DriverContext driverContext) {
             if (percentile == null) {
-                return DoubleBlock.newBlockBuilder(1).appendNull().build();
+                return DoubleBlock.newBlockBuilder(1, driverContext.blockFactory()).appendNull().build();
             }
             if (digest.size() == 0) {
                 return Block.constantNullBlock(1);
@@ -157,9 +158,9 @@ public final class QuantileStates {
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount());
+            var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 TDigestState state;
@@ -176,9 +177,9 @@ public final class QuantileStates {
             blocks[offset] = builder.build();
         }
 
-        Block evaluateMedianAbsoluteDeviation(IntVector selected) {
+        Block evaluateMedianAbsoluteDeviation(IntVector selected, DriverContext driverContext) {
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (si >= digests.size()) {
@@ -195,8 +196,8 @@ public final class QuantileStates {
             return builder.build();
         }
 
-        Block evaluatePercentile(IntVector selected) {
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        Block evaluatePercentile(IntVector selected, DriverContext driverContext) {
+            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (si >= digests.size()) {

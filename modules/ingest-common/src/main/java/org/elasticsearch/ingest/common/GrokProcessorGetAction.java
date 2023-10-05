@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -139,7 +140,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             PatternBank legacyGrokPatterns,
             PatternBank ecsV1GrokPatterns
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.legacyGrokPatterns = legacyGrokPatterns.bank();
             this.sortedLegacyGrokPatterns = new TreeMap<>(this.legacyGrokPatterns);
             this.ecsV1GrokPatterns = ecsV1GrokPatterns.bank();

@@ -121,6 +121,18 @@ public class QuestionAnsweringInferenceResults extends NlpInferenceResults {
     @Override
     void addMapFields(Map<String, Object> map) {
         map.put(resultsField, answer);
+        addSupportingFieldsToMap(map);
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        var map = super.asMap(outputField);
+        map.put(outputField, answer);
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    private void addSupportingFieldsToMap(Map<String, Object> map) {
         map.put(START_OFFSET.getPreferredName(), startOffset);
         map.put(END_OFFSET.getPreferredName(), endOffset);
         if (topClasses.isEmpty() == false) {

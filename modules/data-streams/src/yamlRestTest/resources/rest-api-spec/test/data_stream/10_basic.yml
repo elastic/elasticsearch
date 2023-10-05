@@ -764,6 +764,10 @@ setup:
   - is_true: acknowledged
 
   - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
       indices.get_data_stream:
         name: "*"
   - match: { data_streams.0.name: simple-data-stream1 }

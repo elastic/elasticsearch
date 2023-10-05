@@ -11,6 +11,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -68,6 +69,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public Block filter(int... positions) {
+        Releasables.closeExpectNoException(this);
         return new ConstantNullBlock(positions.length);
     }
 
@@ -134,6 +136,13 @@ public final class ConstantNullBlock extends AbstractBlock {
     }
 
     static class Builder implements Block.Builder {
+
+        final BlockFactory blockFactory;
+
+        Builder(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
+
         private int positionCount;
 
         /**
@@ -164,6 +173,7 @@ public final class ConstantNullBlock extends AbstractBlock {
                     throw new UnsupportedOperationException("can't append non-null values to a null block");
                 }
             }
+            positionCount += endExclusive - beginInclusive;
             return this;
         }
 
@@ -183,7 +193,7 @@ public final class ConstantNullBlock extends AbstractBlock {
                 throw new IllegalStateException("already closed");
             }
             close();
-            return new ConstantNullBlock(positionCount);
+            return blockFactory.newConstantNullBlock(positionCount);
         }
 
         @Override

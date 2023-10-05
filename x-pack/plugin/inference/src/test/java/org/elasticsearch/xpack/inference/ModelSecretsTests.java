@@ -32,7 +32,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
     }
 
     private static SecretSettings randomSecretSettings() {
-        return new FakeSecretSettings(randomAlphaOfLengthBetween(1, 10));
+        return new FakeSecretSettings(randomAlphaOfLengthBetween(8, 10));
     }
 
     @Override

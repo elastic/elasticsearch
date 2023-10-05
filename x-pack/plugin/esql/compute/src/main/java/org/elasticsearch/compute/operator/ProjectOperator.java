@@ -70,10 +70,17 @@ public class ProjectOperator extends AbstractPageMappingOperator {
             var block = page.getBlock(source);
             blocks[b++] = block;
         }
-        // iterate the blocks to see which one isn't used
+        closeUnused(page, blocks);
+        return new Page(page.getPositionCount(), blocks);
+    }
+
+    /**
+     * Close all {@link Block}s that are in {@code page} but are not in {@code blocks}.
+     */
+    public static void closeUnused(Page page, Block[] blocks) {
         List<Releasable> blocksToRelease = new ArrayList<>();
 
-        for (int i = 0; i < blockCount; i++) {
+        for (int i = 0; i < page.getBlockCount(); i++) {
             boolean used = false;
             var current = page.getBlock(i);
             for (int j = 0; j < blocks.length; j++) {
@@ -87,7 +94,6 @@ public class ProjectOperator extends AbstractPageMappingOperator {
             }
         }
         Releasables.close(blocksToRelease);
-        return new Page(page.getPositionCount(), blocks);
     }
 
     @Override

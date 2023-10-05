@@ -403,7 +403,11 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         final ClusterStateListener clusterStateListener = event -> {
             if (repoGenFn.applyAsLong(event.previousState()) == repositoryGenerationBeforeDelete
                 && repoGenFn.applyAsLong(event.state()) > repositoryGenerationBeforeDelete) {
+                // We are updating the safe repository generation which indicates that the snapshot delete is complete. Once this cluster
+                // state update completes we will enqueue all the cleanup work on the SNAPSHOT pool. So here we prepare for that by blocking
+                // all the SNAPSHOT threads:
 
+                // All but one of the threads just repeatedly block on the barrier without picking up any new tasks
                 for (int i = 0; i < snapshotPoolSize - 1; i++) {
                     executor.execute(() -> {
                         while (keepBlocking.get()) {
@@ -413,6 +417,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     });
                 }
 
+                // The last thread runs a task which blocks on the barrier and then enqueues itself again, at the back of the queue,
+                // so that this thread will run everything _currently_ in the queue each time the barrier is released, in the order in which
+                // it was enqueued, and will then block on the barrier again.
                 new Runnable() {
                     @Override
                     public void run() {
@@ -435,7 +442,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         safeAwait(barrier); // wait for all the snapshot threads to be blocked
         clusterService.removeListener(clusterStateListener);
 
-        // flush the cluster applier thread by running another task, so we can be sure that all the snapshot delete tasks are enqueued
+        // We must wait for all the cleanup work to be enqueued (with the throttled runner at least) so we can be sure of exactly how it
+        // will execute. The cleanup work is enqueued by the master service thread on completion of the cluster state update which increases
+        // the root blob generation in the repo metadata, so it is sufficient to wait for another no-op task to run on the master service:
         PlainActionFuture.get(fut -> clusterService.createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
             @Override
             public Tuple<ClusterState, Object> executeTask(ClusterStateTaskListener clusterStateTaskListener, ClusterState clusterState) {
@@ -456,19 +465,23 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             .orElseThrow()
             .queue();
 
-        // Throttled runner enqueued one task per worker, and the eager runner added another one
+        // There are indexCount (=3*snapshotPoolSize) index-deletion tasks, plus one for cleaning up the root metadata. However, the
+        // throttled runner only enqueues one task per SNAPSHOT thread to start with, and then the eager runner adds another one. This shows
+        // we are not spamming the threadpool with all the tasks at once, which means that other snapshot activities can run alongside this
+        // cleanup.
         assertThat(queueLength.getAsInt(), equalTo(snapshotPoolSize + 1));
 
         safeAwait(barrier); // unblock the barrier thread and let it process the queue
         safeAwait(barrier); // wait for the queue to be processed
 
-        // Each task completed by the throttled runner will have enqueued another one, but the eager runner drained the rest of the queue
+        // We first ran all the one-task actions, each of which completes and puts another one-task action into the queue. Then the eager
+        // runner runs all the remaining tasks.
         assertThat(queueLength.getAsInt(), equalTo(snapshotPoolSize));
 
         safeAwait(barrier); // unblock the barrier thread and let it process the queue
         safeAwait(barrier); // wait for the queue to be processed
 
-        // There was no more work to process
+        // Since the eager runner already ran all the remaining tasks, when the enqueued actions run they add no more work to the queue.
         assertThat(queueLength.getAsInt(), equalTo(0));
 
         assertFileCount(repositoryPath, 2); // just the index-N and index.latest blobs

@@ -168,9 +168,22 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
+    // TODO: drop testHugeConcatRejected() once this is fixed
     public void testHugeConcat() throws IOException {
         initSingleDocIndex();
         assertCircuitBreaks(() -> concat(10));
+    }
+
+    public void testHugeConcatRejected() throws IOException {
+        initSingleDocIndex();
+        ResponseException e = expectThrows(ResponseException.class, () -> concat(10));
+        Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(e.getResponse().getEntity()), false);
+        logger.info("expected request rejected {}", map);
+        assertMap(
+            map,
+            matchesMap().entry("status", 400)
+                .entry("error", matchesMap().extraOk().entry("reason", "concatenating more than [10485760] bytes is not supported"))
+        );
     }
 
     private Response concat(int evals) throws IOException {

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -834,7 +835,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testStartDatafeed_GivenNegativeStartTime_Returns408() throws Exception {
-        client().admin().indices().prepareCreate("data-1").setMapping("time", "type=date").get();
+        client().admin().indices().prepareCreate("data-1").addMapping("type", "time", "type=date").get();
         long numDocs = 100;
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;

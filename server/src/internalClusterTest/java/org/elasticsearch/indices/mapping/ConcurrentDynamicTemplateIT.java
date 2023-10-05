@@ -9,7 +9,7 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -61,9 +61,9 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
                 client().prepareIndex("test")
                     .setId(Integer.toString(currentID++))
                     .setSource(source)
-                    .execute(new ActionListener<IndexResponse>() {
+                    .execute(new ActionListener<DocWriteResponse>() {
                         @Override
-                        public void onResponse(IndexResponse response) {
+                        public void onResponse(DocWriteResponse response) {
                             latch.countDown();
                         }
 

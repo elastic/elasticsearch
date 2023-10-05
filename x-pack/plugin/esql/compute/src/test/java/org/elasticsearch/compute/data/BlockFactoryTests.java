@@ -49,11 +49,19 @@ public class BlockFactoryTests extends ESTestCase {
 
     @ParametersFactory
     public static List<Object[]> params() {
-        List<Supplier<BlockFactory>> l = List.of(() -> {
-            CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-            BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-            return BlockFactory.getInstance(breaker, bigArrays);
-        }, BlockFactory::getGlobalInstance);
+        List<Supplier<BlockFactory>> l = List.of(new Supplier<>() {
+            @Override
+            public BlockFactory get() {
+                CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+                BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+                return BlockFactory.getInstance(breaker, bigArrays);
+            }
+
+            @Override
+            public String toString() {
+                return "1gb";
+            }
+        });
         return l.stream().map(s -> new Object[] { s }).toList();
     }
 
@@ -555,13 +563,16 @@ public class BlockFactoryTests extends ESTestCase {
     }
 
     <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
+        Page page = data instanceof Block block ? new Page(block) : null;
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
         if (data instanceof Block block) {
             assertThat(block.isReleased(), is(true));
-            Page page = new Page(block);
-            var e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+            Exception e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
             assertThat(e.getMessage(), containsString("can't read released block"));
+
+            e = expectThrows(IllegalArgumentException.class, () -> new Page(block));
+            assertThat(e.getMessage(), containsString("can't build page out of released blocks"));
         }
         assertThat(breaker.getUsed(), is(0L));
     }

@@ -426,7 +426,8 @@ nullsum:integer | salary:integer
 null | 74999
 ;
 
-evalWithNullAndAvg
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+evalWithNullAndAvg-Ignore
 from employees | eval nullsum = salary + null | stats avg(nullsum), count(nullsum);
 
 avg(nullsum):double | count(nullsum):long

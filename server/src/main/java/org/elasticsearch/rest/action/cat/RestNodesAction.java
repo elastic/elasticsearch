@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -90,10 +91,10 @@ public class RestNodesAction extends AbstractCatAction {
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear()
             .addMetrics(
-                NodesInfoRequest.Metric.JVM.metricName(),
-                NodesInfoRequest.Metric.OS.metricName(),
-                NodesInfoRequest.Metric.PROCESS.metricName(),
-                NodesInfoRequest.Metric.HTTP.metricName()
+                NodesInfoMetrics.Metric.JVM.metricName(),
+                NodesInfoMetrics.Metric.OS.metricName(),
+                NodesInfoMetrics.Metric.PROCESS.metricName(),
+                NodesInfoMetrics.Metric.HTTP.metricName()
             );
 
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();

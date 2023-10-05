@@ -26,6 +26,8 @@ To help you manage your data, {es} offers you:
 * <<data-stream-lifecycle, Data stream lifecycle>> which is the built-in lifecycle of data streams and addresses the most
 common lifecycle management needs.
 
+preview::["The built-in data stream lifecycle is in technical preview and may be changed or removed in a future release. Elastic will apply best effort to fix any issues, but this feature is not subject to the support SLA of official GA features."]
+
 **{ilm-init}** can be used to manage both indices and data streams and it allows you to:
 
 * Define the retention period of your data. The retention period is the minimum time your data will be stored in {es}.

@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
@@ -134,7 +133,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testSingleRole() throws Exception {
-        IndexResponse indexResponse = index("test", jsonBuilder().startObject().field("name", "value").endObject());
+        DocWriteResponse indexResponse = index("test", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = index("test1", jsonBuilder().startObject().field("name", "value1").endObject());
@@ -185,7 +184,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     public void testMonitorRestrictedWildcards() throws Exception {
 
-        IndexResponse indexResponse = index("foo", jsonBuilder().startObject().field("name", "value").endObject());
+        DocWriteResponse indexResponse = index("foo", jsonBuilder().startObject().field("name", "value").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = index("foobar", jsonBuilder().startObject().field("name", "value").endObject());
@@ -239,7 +238,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
     }
 
     public void testMultipleRoles() throws Exception {
-        IndexResponse indexResponse = index("a", jsonBuilder().startObject().field("name", "value_a").endObject());
+        DocWriteResponse indexResponse = index("a", jsonBuilder().startObject().field("name", "value_a").endObject());
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = index("b", jsonBuilder().startObject().field("name", "value_b").endObject());

@@ -181,7 +181,13 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 Page page = op.getOutput();
-                if (page != null && page.getPositionCount() != 0) {
+                if (page == null) {
+                    // No result, just move to the next iteration
+                } else if (page.getPositionCount() == 0) {
+                    // Empty result, release any memory it holds immediately and move to the next iteration
+                    page.releaseBlocks();
+                } else {
+                    // Non-empty result from the previous operation, move it to the next operation
                     nextOp.addInput(page);
                     movedPage = true;
                 }

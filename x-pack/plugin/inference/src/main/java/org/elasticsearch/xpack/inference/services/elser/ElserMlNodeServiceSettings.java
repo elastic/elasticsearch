@@ -12,7 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.MapParsingUtils;
@@ -46,13 +46,17 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         Integer numThreads = MapParsingUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
         if (numAllocations == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, Model.SERVICE_SETTINGS));
+            validationException.addValidationError(
+                MapParsingUtils.missingSettingErrorMsg(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS)
+            );
         } else if (numAllocations < 1) {
             validationException.addValidationError(mustBeAPositiveNumberError(NUM_ALLOCATIONS, numAllocations));
         }
 
         if (numThreads == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(NUM_THREADS, Model.SERVICE_SETTINGS));
+            validationException.addValidationError(
+                MapParsingUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS)
+            );
         } else if (numThreads < 1) {
             validationException.addValidationError(mustBeAPositiveNumberError(NUM_THREADS, numThreads));
         }

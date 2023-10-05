@@ -118,7 +118,8 @@ public class FileSettingsRoleMappingsStartupIT extends SecurityIntegTestCase {
 
     @TestLogging(
         value = "org.elasticsearch.common.file:DEBUG,org.elasticsearch.xpack.security:DEBUG,org.elasticsearch.cluster.metadata:DEBUG",
-        reason = "https://github.com/elastic/elasticsearch/issues/98391")
+        reason = "https://github.com/elastic/elasticsearch/issues/98391"
+    )
     public void testFailsOnStartMasterNodeWithError() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 

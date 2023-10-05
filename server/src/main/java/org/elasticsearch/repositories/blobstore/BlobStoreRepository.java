@@ -70,6 +70,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
@@ -1214,6 +1215,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             public void onFailure(Exception e) {
                 logger.error("unexpected failure while processing deletes on dedicated snapshot thread", e);
                 assert false : e;
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
+                    return;
+                }
+                super.onRejection(e);
             }
         });
     }

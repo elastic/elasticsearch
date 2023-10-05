@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 import java.util.Objects;
 
 /**
@@ -169,8 +170,8 @@ public final class Page implements Writeable {
     @Override
     public int hashCode() {
         int result = Objects.hash(positionCount);
-        for (int i = 0; i < blocks.length; i++) {
-            result = 31 * result + Objects.hashCode(blocks[i]);
+        for (Block block : blocks) {
+            result = 31 * result + Objects.hashCode(block);
         }
         return result;
     }
@@ -222,6 +223,13 @@ public final class Page implements Writeable {
      */
     public void releaseBlocks() {
         blocksReleased = true;
-        Releasables.closeExpectNoException(blocks);
+        // blocks can be used as multiple columns
+        var set = new IdentityHashMap<Block, Object>();
+        var DUMMY = new Object();
+        for (Block b : blocks) {
+            if (set.putIfAbsent(b, DUMMY) == null) {
+                Releasables.closeExpectNoException(b);
+            }
+        }
     }
 }

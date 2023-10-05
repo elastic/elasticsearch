@@ -1194,6 +1194,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }));
             }
         }
+
+        // If we did the cleanup of stale indices purely using a throttled executor then there would be no backpressure to prevent us from
+        // falling arbitrarily far behind. But nor do we want to dedicate all the SNAPSHOT threads to stale index cleanups because that
+        // would slow down other snapshot operations in situations that do not need backpressure.
+        //
+        // The solution is to dedicate one SNAPSHOT thread to doing the cleanups eagerly, alongside the throttled executor which spreads
+        // the rest of the work across the other threads if they are free. If the eager cleanup loop doesn't finish before the next one
+        // starts then we dedicate another SNAPSHOT thread to the deletions, and so on, until eventually either we catch up or the SNAPSHOT
+        // pool is fully occupied with blob deletions, which pushes back on other snapshot operations.
+
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                staleBlobDeleteRunner.runSyncTasksEagerly();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("unexpected failure while processing deletes on dedicated snapshot thread", e);
+                assert false : e;
+            }
+        });
     }
 
     /**

@@ -19,7 +19,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +31,12 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
@@ -68,10 +73,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.RestApiVersion;
@@ -99,8 +107,10 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -149,13 +159,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -1292,18 +1305,230 @@ public abstract class ESTestCase extends LuceneTestCase {
         return TestEnvironment.newEnvironment(build);
     }
 
-    /** Return consistent index settings for the provided index version. */
+    /**
+     * If you need a reference, construct and pass your own into the IndexSearcherBuilder's threadPoolExecutor.
+     * A test may instantiate multiple instances of a ContextIndexSearcher, so we must keep track for cleanup.
+     */
+    @Nullable
+    private final List<ThreadPool> contextIndexSearcherThreadPools = new ArrayList<>();
+
+    /**
+     * If you need a reference, construct and pass your own into the IndexSearcherBuilder.
+     * A test may instantiate multiple instances of a ContextIndexSearcher, so we must keep track for cleanup.
+     */
+    @Nullable
+    private final List<ThreadPoolExecutor> ContextIndexSearcherExecutors = new ArrayList<>();
+
+
+    /**
+     * Use this builder to instantiate {@link ContextIndexSearcher}s for tests.  It randomly creates both concurrent
+     * and non-concurrent versions to exercise both code paths using various random settings.
+     * <p>
+     * Check out the method {@link ContextIndexSearcherBuilder#instantiator} if you need to override methods in the
+     * {@link ContextIndexSearcher}.
+     */
+    public class ContextIndexSearcherBuilder {
+        public record BuilderInstantiationValues(
+            IndexReader reader,
+            Similarity similarity,
+            QueryCache queryCache,
+            QueryCachingPolicy queryCachingPolicy,
+            boolean wrapWithExitableDirectoryReader,
+            Executor executor,
+            int maximumNumberOfSlices,
+            int minimumDocsPerSlice
+        ) {
+        }
+
+        private CheckedFunction<BuilderInstantiationValues, ContextIndexSearcher, IOException> instantiator = (builderValues) ->
+            new ContextIndexSearcher(
+                builderValues.reader,
+                builderValues.similarity,
+                builderValues.queryCache,
+                builderValues.queryCachingPolicy,
+                builderValues.wrapWithExitableDirectoryReader,
+                builderValues.executor,
+                builderValues.maximumNumberOfSlices,
+                builderValues.minimumDocsPerSlice
+            );
+
+        private IndexReader reader;
+        private Similarity similarity;
+        private QueryCache queryCache;
+        private QueryCachingPolicy queryCachingPolicy;
+        private boolean wrapWithExitableDirectoryReader;
+        private Optional<Executor> executor;
+        private Optional<Integer> maximumNumberOfSlices;
+        private Optional<Integer> minimumDocsPerSlice;
+
+        public ContextIndexSearcherBuilder(IndexReader reader) {
+            this.reader = reader;
+            this.similarity = IndexSearcher.getDefaultSimilarity();
+            this.queryCache = IndexSearcher.getDefaultQueryCache();
+            this.queryCachingPolicy = IndexSearcher.getDefaultQueryCachingPolicy();
+            this.wrapWithExitableDirectoryReader = reader instanceof DirectoryReader && randomBoolean();
+            this.executor = Optional.empty();
+            this.maximumNumberOfSlices = Optional.empty();
+            this.minimumDocsPerSlice = Optional.empty();
+        }
+
+        public ContextIndexSearcher build() throws IOException {
+            int numThreads = randomIntBetween(1, 4);
+            var exec = executor.orElseGet(() -> {
+                if (randomBoolean()) {
+                    var threadPool = new TestThreadPool(ESTestCase.class.getName());
+                    contextIndexSearcherThreadPools.add(threadPool);
+                    var threadPoolExecutor = EsExecutors.newFixed(
+                        "test",
+                        numThreads,
+                        10,
+                        EsExecutors.daemonThreadFactory("test"),
+                        threadPool.getThreadContext(),
+                        randomFrom(EsExecutors.TaskTrackingConfig.DEFAULT, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK)
+                    );
+                    ContextIndexSearcherExecutors.add(threadPoolExecutor);
+                    return threadPoolExecutor;
+                } else {
+                    return null;
+                }
+            });
+
+            return instantiator.apply(new BuilderInstantiationValues(
+                reader,
+                similarity,
+                queryCache,
+                queryCachingPolicy,
+                wrapWithExitableDirectoryReader,
+                exec,
+                maximumNumberOfSlices.orElse(numThreads),
+                minimumDocsPerSlice.orElse(1)
+            ));
+        }
+
+        /**
+         * This method allows for configuring the way the {@link ContextIndexSearcher} is instantiated, such as
+         * overriding methods in the base ContextIndexSearcher during instantiation where an anonymous class/type would
+         * be used, or other customizations.
+         * <p>
+         * Example:
+         * <pre>
+         * {@code
+         * new ContextIndexSearcherBuilder(reader)
+         *         .instantiation((builderValues) -> new ContextIndexSearcher(
+         *                 builderValues.reader(),
+         *                 builderValues.similarity(),
+         *                 builderValues.queryCache(),
+         *                 builderValues.queryCachingPolicy(),
+         *                 builderValues.wrapWithExitableDirectoryReader(),
+         *                 builderValues.executor(),
+         *                 builderValues.maximumNumberOfSlices(),
+         *                 builderValues.minimumDocsPerSlice()
+         *             ) {
+         *                 @Override
+         *                 public <C extends Collector, T> T search(
+         *                     Query query,
+         *                     CollectorManager<C,T> collectorManager
+         *                 ) throws IOException {
+         *                     // Your override logic here.
+         *                 }
+         *             }
+         *         ).build();
+         * </pre>
+         *
+         * @param instantiator A function used to instantiate the ContextIndexSearcher, containing the desired
+         *                     overrides.
+         */
+        public ContextIndexSearcherBuilder instantiation(
+            CheckedFunction<BuilderInstantiationValues, ContextIndexSearcher, IOException> instantiator
+        ) {
+            this.instantiator = instantiator;
+            return this;
+        }
+
+        public ContextIndexSearcherBuilder similarity(Similarity similarity) {
+            this.similarity = similarity;
+            return this;
+        }
+
+        public ContextIndexSearcherBuilder queryCache(QueryCache queryCache) {
+            this.queryCache = queryCache;
+            return this;
+        }
+
+        public ContextIndexSearcherBuilder queryCachingPolicy(QueryCachingPolicy queryCachingPolicy) {
+            this.queryCachingPolicy = queryCachingPolicy;
+            return this;
+        }
+
+        public ContextIndexSearcherBuilder wrapWithExitableDirectoryReader(
+            boolean wrapWithExitableDirectoryReader) {
+            this.wrapWithExitableDirectoryReader = wrapWithExitableDirectoryReader;
+            return this;
+        }
+
+        /**
+         * Set an executor for the worker pool to enable concurrency. This can be useful if you need to inspect/modify
+         * state of the executor/threadpool as part of your test.
+         * <p>
+         * Set to null to explicitly not use a (concurrent) worker thread pool and instead use the search thread pool.
+         * This will disable concurrency.
+         * <p>
+         * Not setting this will randomly use either approach.
+         */
+        public <T extends Executor> ContextIndexSearcherBuilder workerExecutor(T executor) {
+            this.executor = Optional.of(executor);
+            return this;
+        }
+
+        public ContextIndexSearcherBuilder maximumNumberOfSlices(int maximumNumberOfSlices) {
+            if (executor.isEmpty()) {
+                throw new UnsupportedOperationException("An executor must be set first.");
+            }
+            this.maximumNumberOfSlices = Optional.of(maximumNumberOfSlices);
+            return this;
+        }
+
+        public ContextIndexSearcherBuilder minimumDocsPerSlice(int minimumDocsPerSlice) {
+            this.minimumDocsPerSlice = Optional.of(minimumDocsPerSlice);
+            return this;
+        }
+    }
+
+    /**
+     * Convenience function to create a new {@link ContextIndexSearcher} from the given reader, randomizing if an
+     * executor for multithreaded collection will be used or not.
+     * <p>
+     * Use the {@link ContextIndexSearcherBuilder} directly
+     * if additional configuration is required.
+     */
+    public ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
+        return new ContextIndexSearcherBuilder(reader).build();
+    }
+
+    @After
+    public void shutdownExecutors() {
+        contextIndexSearcherThreadPools.forEach(ESTestCase::terminate);
+        ContextIndexSearcherExecutors.forEach(ESTestCase::terminate);
+    }
+
+    /**
+     * Return consistent index settings for the provided index version.
+     */
     public static Settings.Builder settings(IndexVersion version) {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
-    /** Return consistent index settings for the provided index version, shard- and replica-count. */
+    /**
+     * Return consistent index settings for the provided index version, shard- and replica-count.
+     */
     public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, int shards, int replicas) {
         return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 
-    /** Return consistent index settings for the provided shard- and replica-count. */
+    /**
+     * Return consistent index settings for the provided shard- and replica-count.
+     */
     public static Settings.Builder indexSettings(int shards, int replicas) {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)

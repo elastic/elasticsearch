@@ -852,7 +852,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             () -> new StartDatafeedAction.Request(datafeedId, negativeStartTime)
         );
 
-        assertThat(e.getMessage(), equalTo("[startTime] must not be negative [-1000]."));
+        assertThat(e.getMessage(), equalTo("[start] must not be negative [-1000]."));
     }
 
     public void testStart_GivenAggregateMetricDoubleWithoutAggs() throws Exception {

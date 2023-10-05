@@ -71,6 +71,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -284,6 +285,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
             null,
+            Set.of("_feature_id"),
             "_external_id"
         );
 

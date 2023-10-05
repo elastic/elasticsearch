@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 
@@ -161,10 +162,22 @@ public class DiscoveryNodeUtils {
             }
 
             if (features == null) {
-
+                features = FeatureService.readFeatures();
             }
 
-            return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, features, externalId);
+            return new DiscoveryNode(
+                name,
+                id,
+                ephemeralId,
+                hostName,
+                hostAddress,
+                address,
+                attributes,
+                roles,
+                versionInfo,
+                features,
+                externalId
+            );
         }
     }
 }

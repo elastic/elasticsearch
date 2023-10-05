@@ -508,7 +508,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 transportAddress,
                 Collections.emptyMap(),
                 DiscoveryNodeRole.roles(),
-                seedVersion
+                seedVersion,
+                Collections.emptySet()
             );
         } else {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
@@ -522,7 +523,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 transportAddress,
                 Collections.singletonMap("server_name", hostName),
                 DiscoveryNodeRole.roles(),
-                seedVersion
+                seedVersion,
+                Collections.emptySet()
             );
         }
     }
@@ -552,7 +554,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 new TransportAddress(proxyInetAddress),
                 node.getAttributes(),
                 node.getRoles(),
-                node.getVersionInformation()
+                node.getVersionInformation(),
+                node.getFeatures()
             );
         }
     }

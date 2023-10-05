@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -100,7 +99,8 @@ public final class Allocators {
             new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet()),
             attributes,
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            (VersionInformation) null
+            null,
+            Set.of()
         );
     }
 }

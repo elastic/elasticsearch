@@ -91,7 +91,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                         Version.CURRENT.minimumCompatibilityVersion(),
                         IndexVersion.MINIMUM_COMPATIBLE,
                         IndexVersion.current()
-                    )
+                    ),
+                    emptySet()
                 ),
                 handshakeConnectionProfile,
                 listener.delegateFailure((l, connection) -> {

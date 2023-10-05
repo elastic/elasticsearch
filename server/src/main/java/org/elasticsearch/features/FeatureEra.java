@@ -20,6 +20,9 @@ public enum FeatureEra {
 
     private static final int FIRST_PUBLISHABLE_ERA = Arrays.stream(values()).filter(FeatureEra::isPublishable).findFirst().get().era();
 
+    /**
+     * {@code true} if the {@code era} is one that is published by this node
+     */
     public static boolean isPublishable(int era) {
         return era >= FIRST_PUBLISHABLE_ERA;
     }

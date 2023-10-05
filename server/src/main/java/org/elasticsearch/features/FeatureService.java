@@ -10,9 +10,11 @@ package org.elasticsearch.features;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -29,6 +31,7 @@ public class FeatureService {
 
     private static Set<FeatureSpecification> FEATURE_SPECS;
 
+    private static volatile Set<String> NODE_FEATURES;
     private static volatile NavigableMap<Version, Set<String>> HISTORICAL_FEATURES;
 
     static {
@@ -38,17 +41,48 @@ public class FeatureService {
             .stream()
             .map(ServiceLoader.Provider::get)
             .collect(Collectors.toUnmodifiableSet());
+
+        if (Assertions.ENABLED) {
+            checkSpecsForDuplicates();
+        }
     }
 
     /**
      * Loads additional historical features from {@link FeatureSpecification} instances in plugins and modules
      */
-    public static void loadAdditionalHistoricalFeatures(PluginsService plugins) {
+    public static void loadAdditionalFeatures(PluginsService plugins) {
+        NODE_FEATURES = null;
         HISTORICAL_FEATURES = null;
 
         var existingSpecs = new HashSet<>(FEATURE_SPECS);
         existingSpecs.addAll(plugins.loadServiceProviders(FeatureSpecification.class));
         FEATURE_SPECS = Collections.unmodifiableSet(existingSpecs);
+
+        if (Assertions.ENABLED) {
+            checkSpecsForDuplicates();
+        }
+    }
+
+    private static void checkSpecsForDuplicates() {
+        Map<String, FeatureSpecification> allFeatures = new HashMap<>();
+        for (var spec : FEATURE_SPECS) {
+            for (var f : spec.getFeatures()) {
+                var existing = allFeatures.putIfAbsent(f.id(), spec);
+                if (existing != null) {
+                    throw new IllegalStateException(
+                        Strings.format("Duplicate feature - %s is declared by both %s and %s", f.id(), existing, spec)
+                    );
+                }
+            }
+            for (var hf : spec.getHistoricalFeatures().keySet()) {
+                var existing = allFeatures.putIfAbsent(hf.id(), spec);
+                if (existing != null) {
+                    throw new IllegalStateException(
+                        Strings.format("Duplicate feature - %s is declared by both %s and %s", hf.id(), existing, spec)
+                    );
+                }
+            }
+        }
     }
 
     private static NavigableMap<Version, Set<String>> calculateHistoricalFeaturesFromSpecs() {
@@ -71,18 +105,12 @@ public class FeatureService {
         }
 
         // add in all features from previous versions
-        Set<String> featureAggregator = new HashSet<>();
+        // make the sets sorted so they're easier to look through
+        Set<String> featureAggregator = new TreeSet<>();
         for (Map.Entry<Version, Set<String>> versions : declaredHistoricalFeatures.entrySet()) {
             if (FeatureEra.isPublishable(versions.getKey().major)) continue;    // don't include, it's before the valid eras
 
-            // check the sizes to ensure we haven't got dups
-            int sizeBefore = featureAggregator.size();
             featureAggregator.addAll(versions.getValue());
-            if (featureAggregator.size() < sizeBefore + versions.getValue().size()) {
-                throw new IllegalStateException("Duplicated feature ids in historical features at version" + versions.getKey());
-            }
-
-            // make them sorted so they're easier to look through
             versions.setValue(Collections.unmodifiableNavigableSet(new TreeSet<>(featureAggregator)));
         }
 
@@ -92,7 +120,7 @@ public class FeatureService {
     /**
      * Returns the features that are implied by a node with a specified {@code version}.
      */
-    public static Set<String> readHistoricalFeatures(Version version) {
+    private static Set<String> readHistoricalFeatures(Version version) {
         var aggregates = HISTORICAL_FEATURES;
         if (aggregates == null) {
             aggregates = HISTORICAL_FEATURES = calculateHistoricalFeaturesFromSpecs();
@@ -101,35 +129,44 @@ public class FeatureService {
         return features != null ? features.getValue() : Set.of();
     }
 
-    private final Set<String> features = new TreeSet<>();
-    private volatile boolean locked;
+    public static boolean versionHasHistoricalFeature(Version version, String feature) {
+        return readHistoricalFeatures(version).contains(feature);
+    }
+
+    private static Set<String> calculateFeaturesFromSpecs() {
+        Set<String> features = new TreeSet<>();
+        for (var spec : FEATURE_SPECS) {
+            for (var f : spec.getFeatures()) {
+                if (f.era().isPublishable()) {
+                    features.add(f.id());
+                }
+            }
+        }
+        return Collections.unmodifiableSet(features);
+    }
+
+    /**
+     * Returns all the features registered by all loaded {@link FeatureSpecification} instances
+     */
+    public static Set<String> readFeatures() {
+        var features = NODE_FEATURES;
+        if (features == null) {
+            features = NODE_FEATURES = calculateFeaturesFromSpecs();
+        }
+        return features;
+    }
+
+    private final Set<String> features;
 
     /**
      * Constructs a new {@code FeatureService} for the local node
      */
     public FeatureService() {
-        // load all the pre-declared features
-        for (var spec : FEATURE_SPECS) {
-            try {
-                spec.getFeatures().forEach(this::registerFeature);
-            } catch (IllegalArgumentException e) {
-                // try to capture where the feature is from to help debugging
-                throw new IllegalArgumentException("Error registering features from " + spec, e);
-            }
-        }
+        features = readFeatures();
     }
 
-    /**
-     * Register a new feature. This should only be called during node initialization.
-     * Once {@link #readPublishableFeatures} is called, no more features can be registered.
-     */
-    public void registerFeature(NodeFeature feature) {
-        // we don't need proper sync here, this is just a sanity check
-        if (locked) throw new IllegalStateException("The node's feature set has already been read");
-
-        if (feature.era().isPublishable() && features.add(feature.id()) == false) {
-            throw new IllegalArgumentException("Feature " + feature.id() + " is already registered");
-        }
+    public FeatureService(Set<String> features) {
+        this.features = Set.copyOf(features);
     }
 
     /**
@@ -137,7 +174,6 @@ public class FeatureService {
      * This prevents any further modifications to the feature set.
      */
     public Set<String> readPublishableFeatures() {
-        locked = true;
-        return Collections.unmodifiableSet(features);
+        return features;
     }
 }

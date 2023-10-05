@@ -302,7 +302,8 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                         Version.CURRENT.minimumCompatibilityVersion(),
                         IndexVersion.MINIMUM_COMPATIBLE,
                         IndexVersion.current()
-                    )
+                    ),
+                    Collections.emptySet()
                 );
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -148,14 +147,18 @@ public class CoordinationStateTestCluster {
                 }
             }
 
-            localNode = DiscoveryNodeUtils.builder(localNode.getId())
-                .name(localNode.getName())
-                .ephemeralId(UUIDs.randomBase64UUID(random()))
-                .address(localNode.getHostName(), localNode.getHostAddress(), localNode.getAddress())
-                .attributes(localNode.getAttributes())
-                .roles(roles)
-                .version(localNode.getVersionInformation())
-                .build();
+            localNode = new DiscoveryNode(
+                localNode.getName(),
+                localNode.getId(),
+                UUIDs.randomBase64UUID(random()),
+                localNode.getHostName(),
+                localNode.getHostAddress(),
+                localNode.getAddress(),
+                localNode.getAttributes(),
+                roles,
+                localNode.getVersionInformation(),
+                localNode.getFeatures()
+            );
 
             state = new CoordinationState(localNode, persistedState, electionStrategy);
         }

@@ -184,6 +184,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
             null,
+            Set.of("test-feature"),
             withExternalId ? "test-external-id" : null
         );
 

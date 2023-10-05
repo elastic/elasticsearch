@@ -1604,7 +1604,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .searchShards(
                 clusterState,
                 concreteIndices,
-                Objects.requireNonNullElseGet(routingMap, Map::of),
+                routingMap,
                 searchRequest.preference(),
                 searchService.getResponseCollectorService(),
                 searchTransportService.getPendingSearchRequests()

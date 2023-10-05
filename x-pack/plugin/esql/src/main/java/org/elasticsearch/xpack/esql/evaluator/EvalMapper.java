@@ -11,7 +11,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -220,27 +219,42 @@ public final class EvalMapper {
         @Override
         public ExpressionEvaluator.Factory map(IsNull isNull, Layout layout) {
             var field = toEvaluator(isNull.field(), layout);
-            return driverContext -> new IsNullEvaluator(field.get(driverContext));
+            return driverContext -> new IsNullEvaluator(driverContext, field.get(driverContext));
         }
 
-        record IsNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
+        record IsNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
+            implements
+                EvalOperator.ExpressionEvaluator {
             @Override
             public Block.Ref eval(Page page) {
                 try (Block.Ref fieldBlock = field.eval(page)) {
                     if (fieldBlock.block().asVector() != null) {
-                        return Block.Ref.floating(BooleanBlock.newConstantBlockWith(false, page.getPositionCount()));
+                        return Block.Ref.floating(
+                            BooleanBlock.newConstantBlockWith(false, page.getPositionCount(), driverContext.blockFactory())
+                        );
                     }
-                    boolean[] result = new boolean[page.getPositionCount()];
-                    for (int p = 0; p < page.getPositionCount(); p++) {
-                        result[p] = fieldBlock.block().isNull(p);
+                    try (
+                        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(
+                            page.getPositionCount(),
+                            driverContext.blockFactory()
+                        )
+                    ) {
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            builder.appendBoolean(fieldBlock.block().isNull(p));
+                        }
+                        return Block.Ref.floating(builder.build().asBlock());
                     }
-                    return Block.Ref.floating(new BooleanArrayVector(result, result.length).asBlock());
                 }
             }
 
             @Override
             public void close() {
                 Releasables.closeExpectNoException(field);
+            }
+
+            @Override
+            public String toString() {
+                return "IsNullEvaluator[" + "field=" + field + ']';
             }
         }
     }
@@ -250,27 +264,42 @@ public final class EvalMapper {
         @Override
         public ExpressionEvaluator.Factory map(IsNotNull isNotNull, Layout layout) {
             var field = toEvaluator(isNotNull.field(), layout);
-            return driverContext -> new IsNotNullEvaluator(field.get(driverContext));
+            return driverContext -> new IsNotNullEvaluator(driverContext, field.get(driverContext));
         }
 
-        record IsNotNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
+        record IsNotNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
+            implements
+                EvalOperator.ExpressionEvaluator {
             @Override
             public Block.Ref eval(Page page) {
                 try (Block.Ref fieldBlock = field.eval(page)) {
                     if (fieldBlock.block().asVector() != null) {
-                        return Block.Ref.floating(BooleanBlock.newConstantBlockWith(true, page.getPositionCount()));
+                        return Block.Ref.floating(
+                            BooleanBlock.newConstantBlockWith(true, page.getPositionCount(), driverContext.blockFactory())
+                        );
                     }
-                    boolean[] result = new boolean[page.getPositionCount()];
-                    for (int p = 0; p < page.getPositionCount(); p++) {
-                        result[p] = fieldBlock.block().isNull(p) == false;
+                    try (
+                        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(
+                            page.getPositionCount(),
+                            driverContext.blockFactory()
+                        )
+                    ) {
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            builder.appendBoolean(fieldBlock.block().isNull(p) == false);
+                        }
+                        return Block.Ref.floating(builder.build().asBlock());
                     }
-                    return Block.Ref.floating(new BooleanArrayVector(result, result.length).asBlock());
                 }
             }
 
             @Override
             public void close() {
                 Releasables.closeExpectNoException(field);
+            }
+
+            @Override
+            public String toString() {
+                return "IsNotNullEvaluator[" + "field=" + field + ']';
             }
         }
     }

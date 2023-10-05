@@ -78,26 +78,41 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                     handler.messageReceived(request, channel, task);
                 });
             }
-            EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gte("2023-01-01"));
-            assertThat(getValuesList(resp), hasSize(4));
-            assertThat(queriedIndices, equalTo(Set.of("events_2023")));
-            queriedIndices.clear();
+            try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gte("2023-01-01"))) {
+                assertThat(getValuesList(resp), hasSize(4));
+                assertThat(queriedIndices, equalTo(Set.of("events_2023")));
+                queriedIndices.clear();
+            }
 
-            resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").lt("2023-01-01"));
-            assertThat(getValuesList(resp), hasSize(3));
-            assertThat(queriedIndices, equalTo(Set.of("events_2022")));
-            queriedIndices.clear();
+            try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").lt("2023-01-01"))) {
+                assertThat(getValuesList(resp), hasSize(3));
+                assertThat(queriedIndices, equalTo(Set.of("events_2022")));
+                queriedIndices.clear();
+            }
 
-            resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31"));
-            assertThat(getValuesList(resp), hasSize(7));
-            assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
-            queriedIndices.clear();
+            try (
+                EsqlQueryResponse resp = run(
+                    "from events_*",
+                    randomPragmas(),
+                    new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31")
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(7));
+                assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
+                queriedIndices.clear();
+            }
 
-            resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31"));
-            assertThat(getValuesList(resp), hasSize(0));
-            assertThat(queriedIndices, empty());
-            queriedIndices.clear();
-
+            try (
+                EsqlQueryResponse resp = run(
+                    "from events_*",
+                    randomPragmas(),
+                    new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31")
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(0));
+                assertThat(queriedIndices, empty());
+                queriedIndices.clear();
+            }
         } finally {
             for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
                 ((MockTransportService) ts).clearAllRules();
@@ -226,11 +241,12 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("timestamp", 10, "message", "aa"))
             .add(new IndexRequest().source("timestamp", 11, "message", "bb"))
             .get();
-        EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message");
-        assertThat(getValuesList(resp), hasSize(5));
-        internalCluster().stopNode(logsOnlyNode);
-        ensureClusterSizeConsistency();
-        Exception error = expectThrows(Exception.class, () -> run("from events,logs | KEEP timestamp,message"));
-        assertThat(error.getMessage(), containsString("no shard copies found"));
+        try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message")) {
+            assertThat(getValuesList(resp), hasSize(5));
+            internalCluster().stopNode(logsOnlyNode);
+            ensureClusterSizeConsistency();
+            Exception error = expectThrows(Exception.class, () -> run("from events,logs | KEEP timestamp,message"));
+            assertThat(error.getMessage(), containsString("no shard copies found"));
+        }
     }
 }

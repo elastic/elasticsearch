@@ -22,6 +22,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -61,15 +63,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final ThreadPool threadPool;
     private final Executor executor;
+    private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> sources = ConcurrentCollections.newConcurrentMap();
 
     private final InactiveSinksReaper inactiveSinksReaper;
 
-    public ExchangeService(Settings settings, ThreadPool threadPool, String executorName) {
+    public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
         this.executor = threadPool.executor(executorName);
+        this.blockFactory = blockFactory;
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMinutes(5));
         this.inactiveSinksReaper = new InactiveSinksReaper(LOGGER, threadPool, this.executor, inactiveInterval);
     }
@@ -250,11 +254,12 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param remoteNode       the node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, DiscoveryNode remoteNode) {
-        return new TransportRemoteSink(transportService, remoteNode, parentTask, exchangeId, executor);
+        return new TransportRemoteSink(transportService, blockFactory, remoteNode, parentTask, exchangeId, executor);
     }
 
     record TransportRemoteSink(
         TransportService transportService,
+        BlockFactory blockFactory,
         DiscoveryNode node,
         Task parentTask,
         String exchangeId,
@@ -269,7 +274,11 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 new ExchangeRequest(exchangeId, allSourcesFinished),
                 parentTask,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, ExchangeResponse::new, responseExecutor)
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    in -> new ExchangeResponse(new BlockStreamInput(in, blockFactory)),
+                    responseExecutor
+                )
             );
         }
     }

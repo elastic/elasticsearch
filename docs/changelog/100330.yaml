@@ -1,0 +1,5 @@
+pr: 100330
+summary: Create new feature interface for querying features on a node/cluster
+area: Infra/Core
+type: enhancement
+issues: []

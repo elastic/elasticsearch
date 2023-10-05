@@ -10,22 +10,17 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.apache.http.nio.conn.NHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 /**
- * Starts a monitoring thread to remove expired and idle connections from the HTTP connection pool.
+ * Starts a monitoring task to remove expired and idle connections from the HTTP connection pool.
  * This is modeled off of https://github.com/apache/httpcomponents-client/blob/master/httpclient5/
  * src/main/java/org/apache/hc/client5/http/impl/IdleConnectionEvictor.java
  *
@@ -41,8 +36,7 @@ public class IdleConnectionEvictor {
     private final NHttpClientConnectionManager connectionManager;
     private final TimeValue sleepTime;
     private final TimeValue maxIdleTime;
-    private final AtomicBoolean running = new AtomicBoolean(false);
-    private Future<?> threadFuture;
+    private Scheduler.Cancellable cancellableTask;
 
     public IdleConnectionEvictor(
         ThreadPool threadPool,
@@ -56,68 +50,30 @@ public class IdleConnectionEvictor {
         this.maxIdleTime = maxIdleTime;
     }
 
-    public void start() {
-        if (running.compareAndSet(false, true)) {
+    public synchronized void start() {
+        if (cancellableTask == null) {
             startInternal();
         }
     }
 
     private void startInternal() {
-        threadFuture = threadPool.executor(UTILITY_THREAD_POOL_NAME).submit(() -> {
-            logger.debug("HTTP connection eviction thread starting");
+        cancellableTask = threadPool.scheduleWithFixedDelay(() -> {
             try {
-                while (running.get()) {
-                    Thread.sleep(sleepTime.millis());
-                    connectionManager.closeExpiredConnections();
-                    if (maxIdleTime != null) {
-                        connectionManager.closeIdleConnections(maxIdleTime.millis(), TimeUnit.MILLISECONDS);
-                    }
+                connectionManager.closeExpiredConnections();
+                if (maxIdleTime != null) {
+                    connectionManager.closeIdleConnections(maxIdleTime.millis(), TimeUnit.MILLISECONDS);
                 }
-            } catch (InterruptedException e) {
-                if (running.get() == false) {
-                    logger.info("HTTP connection eviction thread shutting down");
-                } else {
-                    logger.warn("HTTP connection eviction thread interrupted");
-                }
-
-                Thread.currentThread().interrupt();
             } catch (Exception e) {
-                logger.warn("HTTP connection eviction thread failed", e);
-            } finally {
-                running.set(false);
+                logger.warn("HTTP connection eviction failed", e);
             }
-
-            logger.debug("HTTP connection eviction thread stopped");
-        });
-
+        }, sleepTime, threadPool.executor(UTILITY_THREAD_POOL_NAME));
     }
 
-    public void shutdown() {
-        running.set(false);
-    }
-
-    public void shutdownNow() {
-        shutdown();
-
-        if (threadFuture != null) {
-            FutureUtils.cancel(threadFuture);
-            // threadFuture.cancel(true);
-        }
+    public void stop() {
+        cancellableTask.cancel();
     }
 
     public boolean isRunning() {
-        return running.get();
-    }
-
-    public void awaitTermination(long timeout, TimeUnit unit) throws TimeoutException {
-        if (threadFuture == null) {
-            return;
-        }
-
-        try {
-            threadFuture.get(timeout, unit);
-        } catch (CancellationException | InterruptedException | ExecutionException e) {
-            logger.warn("The connection evictor received an exception while waiting for termination", e);
-        }
+        return cancellableTask != null && cancellableTask.isCancelled() == false;
     }
 }

@@ -26,7 +26,6 @@ public class ProfilingUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO: This should probably say 8.11.0 but I'm not certain. Check with somebody what's appropriate.
-        return TransportVersions.V_8_8_1;
+        return TransportVersions.UNIVERSAL_PROFILING_LICENSE_ADDED;
     }
 }

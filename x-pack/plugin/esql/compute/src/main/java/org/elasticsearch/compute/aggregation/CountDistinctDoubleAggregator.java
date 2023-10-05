@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "hll", type = "BYTES_REF") })
 @GroupingAggregator
@@ -36,9 +37,9 @@ public class CountDistinctDoubleAggregator {
         current.merge(0, inValue, 0);
     }
 
-    public static Block evaluateFinal(HllStates.SingleState state) {
+    public static Block evaluateFinal(HllStates.SingleState state, DriverContext driverContext) {
         long result = state.cardinality();
-        return LongBlock.newConstantBlockWith(result, 1);
+        return LongBlock.newConstantBlockWith(result, 1, driverContext.blockFactory());
     }
 
     public static HllStates.GroupingState initGrouping(BigArrays bigArrays, int precision) {
@@ -62,13 +63,14 @@ public class CountDistinctDoubleAggregator {
         current.merge(currentGroupId, state.hll, statePosition);
     }
 
-    public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int group = selected.getInt(i);
-            long count = state.cardinality(group);
-            builder.appendLong(count);
+    public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, DriverContext driverContext) {
+        try (LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                long count = state.cardinality(group);
+                builder.appendLong(count);
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 }

@@ -43,7 +43,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             LongFieldScript.Factory factory,
             Script script,
@@ -54,12 +54,14 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         }
 
         @Override
-        LongFieldScript.Factory getParseFromSourceFactory() {
+        protected LongFieldScript.Factory getParseFromSourceFactory() {
             return LongFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        LongFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected LongFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return LongFieldScript.leafAdapter(parentScriptFactory);
         }
     }

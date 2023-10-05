@@ -40,24 +40,25 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      MvMedian.Ints work = new MvMedian.Ints();
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+        MvMedian.Ints work = new MvMedian.Ints();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          for (int i = first; i < end; i++) {
+            int value = v.getInt(i);
+            MvMedian.process(work, value);
+          }
+          int result = MvMedian.finish(work);
+          builder.appendInt(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        for (int i = first; i < end; i++) {
-          int value = v.getInt(i);
-          MvMedian.process(work, value);
-        }
-        int result = MvMedian.finish(work);
-        builder.appendInt(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -72,20 +73,21 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      MvMedian.Ints work = new MvMedian.Ints();
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int end = first + valueCount;
-        for (int i = first; i < end; i++) {
-          int value = v.getInt(i);
-          MvMedian.process(work, value);
+      try (IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+        MvMedian.Ints work = new MvMedian.Ints();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          for (int i = first; i < end; i++) {
+            int value = v.getInt(i);
+            MvMedian.process(work, value);
+          }
+          int result = MvMedian.finish(work);
+          builder.appendInt(result);
         }
-        int result = MvMedian.finish(work);
-        builder.appendInt(result);
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
     }
   }
 
@@ -96,19 +98,20 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-      MvMedian.Ints work = new MvMedian.Ints();
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
-          builder.appendNull();
-          continue;
+      try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+        MvMedian.Ints work = new MvMedian.Ints();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int result = MvMedian.ascending(v, first, valueCount);
+          builder.appendInt(result);
         }
-        int first = v.getFirstValueIndex(p);
-        int result = MvMedian.ascending(v, first, valueCount);
-        builder.appendInt(result);
+        return Block.Ref.floating(builder.build());
       }
-      return Block.Ref.floating(builder.build());
     }
   }
 
@@ -119,15 +122,16 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory());
-      MvMedian.Ints work = new MvMedian.Ints();
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        int first = v.getFirstValueIndex(p);
-        int result = MvMedian.ascending(v, first, valueCount);
-        builder.appendInt(result);
+      try (IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+        MvMedian.Ints work = new MvMedian.Ints();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int result = MvMedian.ascending(v, first, valueCount);
+          builder.appendInt(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      return Block.Ref.floating(builder.build().asBlock());
     }
   }
 }

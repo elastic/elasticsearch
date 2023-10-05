@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -85,6 +86,15 @@ public class LuceneCountOperator extends LuceneOperator {
         this.leafCollector = new LeafCollector() {
             @Override
             public void setScorer(Scorable scorer) {}
+
+            @Override
+            public void collect(DocIdStream stream) throws IOException {
+                if (remainingDocs > 0) {
+                    int count = Math.min(stream.count(), remainingDocs);
+                    totalHits += count;
+                    remainingDocs -= count;
+                }
+            }
 
             @Override
             public void collect(int doc) {

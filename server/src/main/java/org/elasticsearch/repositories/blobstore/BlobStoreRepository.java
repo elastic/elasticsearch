@@ -70,7 +70,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
@@ -1205,26 +1204,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // starts then we dedicate another SNAPSHOT thread to the deletions, and so on, until eventually either we catch up or the SNAPSHOT
         // pool is fully occupied with blob deletions, which pushes back on other snapshot operations.
 
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                staleBlobDeleteRunner.runSyncTasksEagerly();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("unexpected failure while processing deletes on dedicated snapshot thread", e);
-                assert false : e;
-            }
-
-            @Override
-            public void onRejection(Exception e) {
-                if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
-                    return;
-                }
-                super.onRejection(e);
-            }
-        });
+        staleBlobDeleteRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
     }
 
     /**

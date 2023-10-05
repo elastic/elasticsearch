@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -175,11 +176,14 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         }
 
         safeAwait(barrier);
-        assertEquals(taskCount - maxTasks, queue.size());
-        assertThat(taskRunner.runningTasks(), equalTo(maxTasks));
+        assertThat(taskRunner.runningTasks(), equalTo(maxTasks)); // maxTasks tasks are running now
+        assertEquals(taskCount - maxTasks, queue.size()); // the remainder are enqueued
 
-        taskRunner.runSyncTasksEagerly();
-        assertEquals(0, queue.size());
+        final var capturedTask = new AtomicReference<Runnable>();
+        taskRunner.runSyncTasksEagerly(t -> assertTrue(capturedTask.compareAndSet(null, t)));
+        assertEquals(taskCount - maxTasks, queue.size()); // hasn't run any tasks yet
+        capturedTask.get().run();
+        assertTrue(queue.isEmpty());
 
         safeAwait(barrier);
         safeAwait(executedCountDown);

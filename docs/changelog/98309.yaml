@@ -29,5 +29,5 @@ highlight:
       and use queries to create custom alerts.
 
     [role="screenshot"]
-    image:images/esql/illustration_esql_kibana_wireframe.png[ES|QL usage in Kibana Discover]
+    image:images/esql/esql_kibana_discover_logs.png[ES|QL usage in Kibana Discover for Analysing Proxy Logs]
   notable: true

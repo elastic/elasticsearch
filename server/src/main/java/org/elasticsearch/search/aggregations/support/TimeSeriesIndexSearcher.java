@@ -168,6 +168,7 @@ public class TimeSeriesIndexSearcher {
             if (queue.size() == 1) {
                 LeafWalker leafWalker = queue.pop();
                 leafWalker.collectAllValidDocs(leafWalker.getTsid());
+                continue;
             }
             do {
                 if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {

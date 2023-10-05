@@ -72,17 +72,18 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static BooleanVector of(StreamInput in) throws IOException {
+    static BooleanVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantBooleanVector(in.readBoolean(), positions);
+            return blockFactory.newConstantBooleanVector(in.readBoolean(), positions);
         } else {
-            var builder = BooleanVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendBoolean(in.readBoolean());
+            try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendBoolean(in.readBoolean());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 

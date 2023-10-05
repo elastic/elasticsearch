@@ -1,5 +1,5 @@
 pr: 100287
 summary: Add an assertion to the testTransformFeatureReset test case
 area: Transform
-type: test
+type: bug
 issues: []

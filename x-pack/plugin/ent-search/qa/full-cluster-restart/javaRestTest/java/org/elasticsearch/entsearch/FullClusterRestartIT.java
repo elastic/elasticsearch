@@ -23,7 +23,7 @@ import java.util.List;
 
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
-    // Legacy name we used for ILM policy configuration in versions prior to 8.11.
+    // Legacy name we used for ILM policy configuration in versions prior to 8.12.0.
     private static final String EVENT_DATA_STREAM_LEGACY_ILM_POLICY_NAME = "behavioral_analytics-events-default_policy";
 
     @ClassRule
@@ -55,21 +55,21 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertOK(client().performRequest(legacyPutRequest));
 
             // Validate that ILM lifecycle is in place
-            assertBusy(() -> testLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
+            assertBusy(() -> assertLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
         } else {
             // Create a new analytics collection
             Request putRequest = new Request("PUT", "_application/analytics/" + newAnalyticsCollectionName);
             assertOK(client().performRequest(putRequest));
 
             // Validate that NO ILM lifecycle is in place and we are using DLS instead.
-            assertBusy(() -> testDslDataRetentionPolicy(newAnalyticsCollectionName));
+            assertBusy(() -> assertDslDataRetention(newAnalyticsCollectionName));
 
             // Validate that the existing analytics collection created with an older version is still using ILM
-            assertBusy(() -> testLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
+            assertBusy(() -> assertLegacyDataRetentionPolicy(legacyAnalyticsCollectionName));
         }
     }
 
-    private void testLegacyDataRetentionPolicy(String analyticsCollectionName) throws IOException {
+    private void assertLegacyDataRetentionPolicy(String analyticsCollectionName) throws IOException {
         String dataStreamName = "behavioral_analytics-events-" + analyticsCollectionName;
         Request getDataStreamRequest = new Request("GET", "_data_stream/" + dataStreamName);
         Response response = client().performRequest(getDataStreamRequest);
@@ -84,7 +84,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertNotNull(policy.evaluate(EVENT_DATA_STREAM_LEGACY_ILM_POLICY_NAME));
     }
 
-    private void testDslDataRetentionPolicy(String analyticsCollectionName) throws IOException {
+    private void assertDslDataRetention(String analyticsCollectionName) throws IOException {
         String dataStreamName = "behavioral_analytics-events-" + analyticsCollectionName;
         Request getDataStreamRequest = new Request("GET", "_data_stream/" + dataStreamName);
         Response response = client().performRequest(getDataStreamRequest);

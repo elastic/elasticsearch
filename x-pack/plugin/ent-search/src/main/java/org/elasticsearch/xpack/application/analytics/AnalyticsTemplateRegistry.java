@@ -34,8 +34,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
-    // This registry requires all nodes to be at least 8.11.0
-    static final Version MIN_NODE_VERSION = Version.V_8_11_0;
+    // This registry requires all nodes to be at least 8.12.0
+    static final Version MIN_NODE_VERSION = Version.V_8_12_0;
 
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 3;

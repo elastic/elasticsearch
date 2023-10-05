@@ -202,7 +202,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
                 fail("template should not have been re-installed");
                 return null;
             } else if (action instanceof PutLifecycleAction) {
-                fail("As of 8.11.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+                fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
                 return null;
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
@@ -258,7 +258,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
-                fail("As of 8.11.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+                fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
@@ -342,7 +342,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         } else if (action instanceof PutLifecycleAction) {
-            fail("As of 8.11.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+            fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
             return null;
         } else if (action instanceof PutComposableIndexTemplateAction) {
             calledTimes.incrementAndGet();
@@ -379,7 +379,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
         } else if (action instanceof PutLifecycleAction) {
-            fail("As of 8.11.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
+            fail("As of 8.12.0 we no longer put an ILM lifecycle and instead rely on DSL for analytics datastreams.");
             return null;
         } else if (action instanceof PutComposableIndexTemplateAction) {
             // Ignore this, it's verified in another test

@@ -8,6 +8,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -31,6 +34,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
 
     private final int allocatedProcessors;
     private final ThreadPool threadPool;
@@ -189,9 +194,25 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
 
             private void finish() {
-                listener.onResponse(
-                    new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]), buildTookInMillis())
-                );
+                MultiSearchResponse.Item[] responsesArray = responses.toArray(new MultiSearchResponse.Item[responses.length()]);
+                for (MultiSearchResponse.Item item : responsesArray) {
+                    Exception failure = item.getFailure();
+                    if (failure != null) {  // TODO: change to 500
+                        int statusCode = ExceptionsHelper.status(failure).getStatus();
+                        if (statusCode >= 400) {
+                            // TODO: add deduplication logic and only log exception per msearch?
+                            logger.warn(
+                                "{} msearch Exception. Request: {}. Exception: {}. Stack trace: {}",
+                                statusCode,
+                                request.request(),
+                                failure.getMessage(),
+                                ExceptionsHelper.stackTrace(failure)
+                            );
+                        }
+                    }
+                }
+
+                listener.onResponse(new MultiSearchResponse(responsesArray, buildTookInMillis()));
             }
 
             /**

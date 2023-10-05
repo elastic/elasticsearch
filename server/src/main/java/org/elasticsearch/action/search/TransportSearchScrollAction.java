@@ -8,6 +8,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -23,6 +26,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollI
 
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportSearchScrollAction.class);
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
 
@@ -66,6 +70,17 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             };
             action.run();
         } catch (Exception e) {
+            if (ExceptionsHelper.status(e).getStatus() >= 400) { // TODO: change to 500
+                logger.warn(
+                    "{} Exception in TransportSearchScrollAction for task: [{}] and request [{}]"
+                        + ". Exception message: {}. Stack trace: {}",
+                    ExceptionsHelper.status(e).getStatus(),
+                    task,
+                    request,
+                    e.getMessage(),
+                    ExceptionsHelper.stackTrace(e)
+                );
+            }
             listener.onFailure(e);
         }
     }

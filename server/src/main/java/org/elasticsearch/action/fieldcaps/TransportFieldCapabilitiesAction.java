@@ -109,8 +109,24 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
+        ActionListener<FieldCapabilitiesResponse> wrappedListener = listener.delegateResponse((l, e) -> {
+            int statusCode = ExceptionsHelper.status(e).getStatus();
+            if (statusCode >= 400) {  // TODO: change to 500
+                LOGGER.warn(
+                    "{} Exception in TransportFieldCapabilitiesAction for task: [{}]; "
+                        + "request: {}. Exception message: {}. Stack trace: {}",
+                    statusCode,
+                    task,
+                    request,
+                    e.getMessage(),
+                    ExceptionsHelper.stackTrace(e)
+                );
+            }
+            l.onFailure(e);
+        });
+
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(wrappedListener, l -> doExecuteForked(task, request, l)));
     }
 
     private void doExecuteForked(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {

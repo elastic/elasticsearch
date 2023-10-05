@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -84,18 +85,21 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     private Object process(Number val) {
-        return toJavaObject(
-            evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get(driverContext()).eval(row(List.of(val))),
-            0
-        );
+        try (
+            Block.Ref ref = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get(driverContext()).eval(row(List.of(val)))
+        ) {
+            return toJavaObject(ref.block(), 0);
+        }
     }
 
     private Object process(Number val, int decimals) {
-        return toJavaObject(
-            evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get(driverContext())
-                .eval(row(List.of(val, decimals))),
-            0
-        );
+        try (
+            Block.Ref ref = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get(
+                driverContext()
+            ).eval(row(List.of(val, decimals)))
+        ) {
+            return toJavaObject(ref.block(), 0);
+        }
     }
 
     private DataType typeOf(Number val) {

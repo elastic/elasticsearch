@@ -807,7 +807,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                     + id
                     + "] on node ["
                     + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics requires a node of version ["
+                    + "], because the data frame analytics requires a node with ML config version ["
                     + TaskParams.VERSION_INTRODUCED
                     + "] or higher";
             }

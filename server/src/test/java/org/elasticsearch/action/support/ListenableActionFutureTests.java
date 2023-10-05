@@ -96,7 +96,7 @@ public class ListenableActionFutureTests extends ESTestCase {
             if (i < adderThreads) {
                 final String threadName = ADDER_THREAD_NAME_PREFIX + i;
                 threads[i] = new Thread(() -> {
-                    awaitSafe(barrier);
+                    safeAwait(barrier);
 
                     final AtomicBoolean isComplete = new AtomicBoolean();
                     if (completerThreads == 1 && postComplete.get()) {
@@ -143,7 +143,7 @@ public class ListenableActionFutureTests extends ESTestCase {
             } else {
                 final String threadName = COMPLETER_THREAD_NAME_PREFIX + i;
                 threads[i] = new Thread(() -> {
-                    awaitSafe(barrier);
+                    safeAwait(barrier);
 
                     preComplete.set(true);
                     future.onResponse(null);
@@ -155,19 +155,11 @@ public class ListenableActionFutureTests extends ESTestCase {
             threads[i].start();
         }
 
-        awaitSafe(barrier);
+        safeAwait(barrier);
         for (final Thread thread : threads) {
             thread.join();
         }
 
-    }
-
-    private static void awaitSafe(CyclicBarrier barrier) {
-        try {
-            barrier.await(10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
-        }
     }
 
     public void testAddedListenersReleasedOnCompletion() {

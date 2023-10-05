@@ -12,7 +12,7 @@ GET my-index/_search
    "query":{
       "text_expansion":{
          "my_embeddings.tokens":{ <1>
-            "model_id":".elser_model_1",
+            "model_id":".elser_model_2",
             "model_text":"the query string"
          }
       }
@@ -20,7 +20,7 @@ GET my-index/_search
 }
 ----
 // TEST[skip:TBD]
-<1> The field of type `rank_features`.
+<1> The field of type `sparse_vector`.
 
 // end::elser[]
 

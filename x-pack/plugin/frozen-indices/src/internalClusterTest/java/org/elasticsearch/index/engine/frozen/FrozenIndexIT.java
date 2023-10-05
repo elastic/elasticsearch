@@ -8,7 +8,7 @@
 package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
@@ -73,7 +73,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         createIndex("index", 1, 1);
 
-        final IndexResponse indexResponse = client().prepareIndex("index")
+        final DocWriteResponse indexResponse = client().prepareIndex("index")
             .setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z")
             .get();
 

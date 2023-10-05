@@ -21,6 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
@@ -139,8 +140,10 @@ public final class SearchPhaseController {
         }
 
         List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
+        List<SetOnce<String>> nestedPath = new ArrayList<>(request.source().knnSearch().size());
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
             topDocsLists.add(new ArrayList<>());
+            nestedPath.add(new SetOnce<>());
         }
 
         for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
@@ -152,13 +155,15 @@ public final class SearchPhaseController {
                     TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
                     setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
+                    nestedPath.get(i).trySet(knnResults.getNestedPath());
                 }
             }
         }
+
         List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
             TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(mergedTopDocs.scoreDocs));
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;
     }

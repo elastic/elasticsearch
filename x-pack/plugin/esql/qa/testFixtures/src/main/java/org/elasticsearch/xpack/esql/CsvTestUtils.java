@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
@@ -119,7 +120,11 @@ public final class CsvTestUtils {
                             if (type == Type.NULL) {
                                 throw new IllegalArgumentException("Null type is not allowed in the test data; found " + entries[i]);
                             }
-                            columns[i] = new CsvColumn(name, type, BlockUtils.wrapperFor(ElementType.fromJava(type.clazz()), 8));
+                            columns[i] = new CsvColumn(
+                                name,
+                                type,
+                                BlockUtils.wrapperFor(BlockFactory.getNonBreakingInstance(), ElementType.fromJava(type.clazz()), 8)
+                            );
                         }
                     }
                     // data rows
@@ -337,6 +342,7 @@ public final class CsvTestUtils {
             LOOKUP.put("BYTE", INTEGER);
 
             // add also the types with short names
+            LOOKUP.put("BOOL", BOOLEAN);
             LOOKUP.put("I", INTEGER);
             LOOKUP.put("L", LONG);
             LOOKUP.put("UL", UNSIGNED_LONG);
@@ -415,7 +421,7 @@ public final class CsvTestUtils {
         }
     }
 
-    static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
+    public static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();

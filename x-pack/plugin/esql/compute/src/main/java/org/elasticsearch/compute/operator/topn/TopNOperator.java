@@ -12,7 +12,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -205,7 +207,15 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public TopNOperator get(DriverContext driverContext) {
-            return new TopNOperator(driverContext.breaker(), topCount, elementTypes, encoders, sortOrders, maxPageSize);
+            return new TopNOperator(
+                driverContext.blockFactory(),
+                driverContext.breaker(),
+                topCount,
+                elementTypes,
+                encoders,
+                sortOrders,
+                maxPageSize
+            );
         }
 
         @Override
@@ -222,6 +232,7 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
+    private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
     private final Queue inputQueue;
 
@@ -231,9 +242,11 @@ public class TopNOperator implements Operator, Accountable {
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
 
+    private Row spare;
     private Iterator<Page> output;
 
     public TopNOperator(
+        BlockFactory blockFactory,
         CircuitBreaker breaker,
         int topCount,
         List<ElementType> elementTypes,
@@ -241,6 +254,7 @@ public class TopNOperator implements Operator, Accountable {
         List<SortOrder> sortOrders,
         int maxPageSize
     ) {
+        this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.maxPageSize = maxPageSize;
         this.elementTypes = elementTypes;
@@ -301,21 +315,20 @@ public class TopNOperator implements Operator, Accountable {
          * and must be closed. That happens either because it's overflow from the
          * inputQueue or because we hit an allocation failure while building it.
          */
-        Row row = null;
         try {
             for (int i = 0; i < page.getPositionCount(); i++) {
-                if (row == null) {
-                    row = new Row(breaker);
+                if (spare == null) {
+                    spare = new Row(breaker);
                 } else {
-                    row.keys.clear();
-                    row.orderByCompositeKeyAscending.clear();
-                    row.values.clear();
+                    spare.keys.clear();
+                    spare.orderByCompositeKeyAscending.clear();
+                    spare.values.clear();
                 }
-                rowFiller.row(i, row);
-                row = inputQueue.insertWithOverflow(row);
+                rowFiller.row(i, spare);
+                spare = inputQueue.insertWithOverflow(spare);
             }
         } finally {
-            Releasables.close(row);
+            Releasables.close(() -> page.releaseBlocks());
         }
     }
 
@@ -327,18 +340,24 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     private Iterator<Page> toPages() {
+        if (spare != null) {
+            // Remove the spare, we're never going to use it again.
+            spare.close();
+            spare = null;
+        }
         if (inputQueue.size() == 0) {
             return Collections.emptyIterator();
         }
         List<Row> list = new ArrayList<>(inputQueue.size());
+        List<Page> result = new ArrayList<>();
+        ResultBuilder[] builders = null;
+        boolean success = false;
         try {
             while (inputQueue.size() > 0) {
                 list.add(inputQueue.pop());
             }
             Collections.reverse(list);
 
-            List<Page> result = new ArrayList<>();
-            ResultBuilder[] builders = null;
             int p = 0;
             int size = 0;
             for (int i = 0; i < list.size(); i++) {
@@ -347,6 +366,7 @@ public class TopNOperator implements Operator, Accountable {
                     builders = new ResultBuilder[elementTypes.size()];
                     for (int b = 0; b < builders.length; b++) {
                         builders[b] = ResultBuilder.resultBuilderFor(
+                            blockFactory,
                             elementTypes.get(b),
                             encoders.get(b).toUnsortable(),
                             channelInKey(sortOrders, b),
@@ -386,14 +406,22 @@ public class TopNOperator implements Operator, Accountable {
                 p++;
                 if (p == size) {
                     result.add(new Page(Arrays.stream(builders).map(ResultBuilder::build).toArray(Block[]::new)));
+                    Releasables.closeExpectNoException(builders);
                     builders = null;
                 }
-
             }
             assert builders == null;
+            success = true;
             return result.iterator();
         } finally {
-            Releasables.closeExpectNoException(() -> Releasables.close(list));
+            if (success == false) {
+                List<Releasable> close = new ArrayList<>(list);
+                for (Page p : result) {
+                    close.add(p::releaseBlocks);
+                }
+                Collections.addAll(close, builders);
+                Releasables.closeExpectNoException(Releasables.wrap(close));
+            }
         }
     }
 
@@ -422,10 +450,15 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public void close() {
         /*
-         * If everything went well we'll have drained inputQueue to this'll
-         * be a noop. But if inputQueue
+         * If we close before calling finish then spare and inputQueue will be live rows
+         * that need closing. If we close after calling finish then the output iterator
+         * will contain pages of results that have yet to be returned.
          */
-        Releasables.closeExpectNoException(() -> Releasables.close(inputQueue));
+        Releasables.closeExpectNoException(
+            spare,
+            inputQueue == null ? null : Releasables.wrap(inputQueue),
+            output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
+        );
     }
 
     private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator

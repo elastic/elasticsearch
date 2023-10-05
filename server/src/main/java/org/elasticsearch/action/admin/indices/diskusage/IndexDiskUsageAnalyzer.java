@@ -41,6 +41,8 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -525,6 +527,7 @@ final class IndexDiskUsageAnalyzer {
         for (FieldInfo field : reader.getFieldInfos()) {
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
+            final KnnCollector collector = new TopKnnCollector(100, Integer.MAX_VALUE);
             if (field.getVectorDimension() > 0) {
                 switch (field.getVectorEncoding()) {
                     case BYTE -> {
@@ -542,7 +545,7 @@ final class IndexDiskUsageAnalyzer {
                                 break;
                             }
                             cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
+                            vectorReader.search(field.name, vectorValues.vectorValue(), collector, null);
                         }
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }
@@ -561,7 +564,7 @@ final class IndexDiskUsageAnalyzer {
                                 break;
                             }
                             cancellationChecker.checkForCancellation();
-                            vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
+                            vectorReader.search(field.name, vectorValues.vectorValue(), collector, null);
                         }
                         stats.addKnnVectors(field.name, directory.getBytesRead());
                     }

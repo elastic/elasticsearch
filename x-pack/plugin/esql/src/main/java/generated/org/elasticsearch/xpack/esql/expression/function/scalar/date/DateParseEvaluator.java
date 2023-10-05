@@ -45,65 +45,69 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+      }
+      BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
+      try (Block.Ref formatterRef = formatter.eval(page)) {
+        if (formatterRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        }
+        BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
+        BytesRefVector valVector = valBlock.asVector();
+        if (valVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+        }
+        BytesRefVector formatterVector = formatterBlock.asVector();
+        if (formatterVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, formatterBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), valVector, formatterVector));
+      }
     }
-    BytesRefBlock valBlock = (BytesRefBlock) valUncastBlock;
-    Block formatterUncastBlock = formatter.eval(page);
-    if (formatterUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    BytesRefBlock formatterBlock = (BytesRefBlock) formatterUncastBlock;
-    BytesRefVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatterBlock);
-    }
-    BytesRefVector formatterVector = formatterBlock.asVector();
-    if (formatterVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatterBlock);
-    }
-    return eval(page.getPositionCount(), valVector, formatterVector);
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock valBlock, BytesRefBlock formatterBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    BytesRef formatterScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef valScratch = new BytesRef();
+      BytesRef formatterScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), zoneId));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (formatterBlock.isNull(p) || formatterBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), zoneId));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, BytesRefVector valVector,
       BytesRefVector formatterVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    BytesRef formatterScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch), zoneId));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef valScratch = new BytesRef();
+      BytesRef formatterScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch), zoneId));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

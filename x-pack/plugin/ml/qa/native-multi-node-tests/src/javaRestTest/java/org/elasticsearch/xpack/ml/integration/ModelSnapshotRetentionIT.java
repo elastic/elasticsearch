@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -241,7 +240,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         modelSnapshotBuilder.build().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         indexRequest.source(xContentBuilder);
 
-        IndexResponse indexResponse = client().execute(IndexAction.INSTANCE, indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().execute(IndexAction.INSTANCE, indexRequest).actionGet();
         assertThat(indexResponse.getResult(), is(DocWriteResponse.Result.CREATED));
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMeter;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.security.AccessController;
@@ -40,14 +41,24 @@ public class APMAgentSettings {
      * Sensible defaults that Elasticsearch configures. This cannot be done via the APM agent
      * config file, as then their values could not be overridden dynamically via system properties.
      */
-    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of("transaction_sample_rate", "0.2");
+    static Map<String, String> APM_AGENT_DEFAULT_SETTINGS = Map.of(
+        "transaction_sample_rate",
+        "0.2",
+        "enable_experimental_instrumentations",
+        "true"
+    );
 
     public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
+        final APMMeter apmMeter = apmTelemetryProvider.getMeter();
 
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
+            this.setAgentSetting("instrument", Boolean.toString(enabled));
+        });
+        clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, enabled -> {
+            apmMeter.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
             this.setAgentSetting("recording", Boolean.toString(enabled));
@@ -106,8 +117,10 @@ public class APMAgentSettings {
     private static final List<String> PROHIBITED_AGENT_KEYS = List.of(
         // ES generates a config file and sets this value
         "config_file",
-        // ES controls this via `tracing.apm.enabled`
-        "recording"
+        // ES controls this via `telemetry.metrics.enabled`
+        "recording",
+        // ES controls this via `apm.enabled`
+        "instrument"
     );
 
     public static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
@@ -159,6 +172,13 @@ public class APMAgentSettings {
 
     public static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting(
         APM_SETTING_PREFIX + "enabled",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
+
+    public static final Setting<Boolean> TELEMETRY_METRICS_ENABLED_SETTING = Setting.boolSetting(
+        "telemetry.metrics.enabled",
         false,
         OperatorDynamic,
         NodeScope

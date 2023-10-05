@@ -117,8 +117,9 @@ public class HeaderWarning {
      * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
      * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
      * arbitrary token; here we use the Elasticsearch version and build hash, if the version is semantic, or just the hash, if it is not
-     * semantic (e.g. in serverless). The warn text must be quoted. The warn-date is an optional quoted field that can be in a variety of
-     * specified date formats; here we use RFC 1123 format.
+     * semantic (e.g. overridden with an arbitrary string by a org.elasticsearch.internal.BuildExtension implementation).
+     * The warn text must be quoted. The warn-date is an optional quoted field that can be in a variety of specified date formats; here we
+     * use RFC 1123 format.
      */
     private static final String WARNING_PREFIX = buildWarningPrefix();
 
@@ -205,6 +206,7 @@ public class HeaderWarning {
      * {@code 299 Elasticsearch-6.0.0 "warning value"}, the return value of this method would be {@code warning value}.
      *
      * @param s the value of a warning header formatted according to RFC 7234.
+     * @param stripXContentPosition whether to remove XContent location information or not
      * @return the extracted warning value
      */
     public static String extractWarningValueFromWarningHeader(final String s, boolean stripXContentPosition) {

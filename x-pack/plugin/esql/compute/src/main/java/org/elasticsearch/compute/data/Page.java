@@ -89,9 +89,7 @@ public final class Page implements Writeable {
         this.positionCount = prev.positionCount;
 
         this.blocks = Arrays.copyOf(prev.blocks, prev.blocks.length + toAdd.length);
-        for (int i = 0; i < toAdd.length; i++) {
-            this.blocks[prev.blocks.length + i] = toAdd[i];
-        }
+        System.arraycopy(toAdd, 0, this.blocks, prev.blocks.length, toAdd.length);
     }
 
     public Page(StreamInput in) throws IOException {
@@ -224,12 +222,42 @@ public final class Page implements Writeable {
     public void releaseBlocks() {
         blocksReleased = true;
         // blocks can be used as multiple columns
-        var set = new IdentityHashMap<Block, Object>();
+        var map = new IdentityHashMap<Block, Object>(mapSize(blocks.length));
         var DUMMY = new Object();
         for (Block b : blocks) {
-            if (set.putIfAbsent(b, DUMMY) == null) {
+            if (map.putIfAbsent(b, DUMMY) == null) {
                 Releasables.closeExpectNoException(b);
             }
         }
+    }
+
+    /**
+     * Returns a Page from the given blocks and closes all blocks that are not included, from the current Page.
+     * That is, allows clean-up of the current page _after_ external manipulation of the blocks.
+     * The current page should no longer be used and be considered closed.
+     */
+    public Page newPageAndRelease(Block... keep) {
+        blocksReleased = true;
+
+        var newPage = new Page(positionCount, keep);
+        var map = new IdentityHashMap<Block, Object>(mapSize(keep.length));
+        var DUMMY = new Object();
+
+        // create identity set
+        for (Block b : keep) {
+            map.putIfAbsent(b, DUMMY);
+        }
+        // close blocks that have been left out
+        for (Block b : blocks) {
+            if (map.containsKey(b) == false) {
+                Releasables.closeExpectNoException(b);
+            }
+        }
+
+        return newPage;
+    }
+
+    static int mapSize(int expectedSize) {
+        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
     }
 }

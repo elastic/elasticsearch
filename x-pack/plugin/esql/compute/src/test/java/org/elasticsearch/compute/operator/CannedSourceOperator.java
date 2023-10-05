@@ -101,6 +101,7 @@ public class CannedSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
+        // release pages in the case of early termination - failure
         while (page.hasNext()) {
             page.next().releaseBlocks();
         }

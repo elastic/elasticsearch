@@ -225,6 +225,13 @@ public class BlockAccountingTests extends ESTestCase {
                     // skip BigArrays, as it is (correctly) not part of the ramBytesUsed for BytesRefArray
                 } else if (o instanceof BigArray bigArray) {
                     return bigArray.ramBytesUsed();
+                } else if (o instanceof Vector vector) {
+                    if (Block.class.isAssignableFrom(entry.getKey().getType())) {
+                        assert entry.getValue() instanceof AbstractVectorBlock;
+                        // skip block views of vectors, which amount to a circular reference
+                    } else {
+                        queue.add(entry.getValue());
+                    }
                 } else {
                     queue.add(entry.getValue());
                 }

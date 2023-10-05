@@ -525,7 +525,8 @@ min(salary):i | max(salary):i | c:l
 25324         | 74999         | 100
 ;
 
-statsWithLiterals
+# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
+statsWithLiterals-Ignore
 from employees | limit 10 | eval x = 1 | stats c = count(x);
 
 c:l
@@ -577,4 +578,107 @@ gender:keyword
 F
 M
 null
+;
+
+countFieldNoGrouping
+from employees | where emp_no < 10050 | stats c = count(salary);
+
+c:l
+49
+;
+
+countFieldWithRenamingNoGrouping
+from employees | rename emp_no as e, salary as s | where e < 10050 | stats c = count(s);
+
+c:l
+49
+;
+
+
+countFieldWithAliasNoGrouping
+from employees | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050 | stats c = count(hidden_s);
+
+c:l
+49
+;
+
+countFieldWithGrouping
+from employees | rename languages as l | where emp_no < 10050 | stats c = count(emp_no) by l | sort l;
+
+c:l | l:i 
+9  | 1   
+7  | 2   
+6  | 3   
+9  | 4   
+8  | 5   
+10 | null
+;
+
+countFieldWithAliasWithGrouping
+from employees | rename languages as l | eval e = emp_no | where emp_no < 10050 | stats c = count(e) by l | sort l;
+
+c:l | l:i 
+9  | 1   
+7  | 2   
+6  | 3   
+9  | 4   
+8  | 5   
+10 | null
+;         
+
+countEvalExpNoGrouping
+from employees | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e);
+
+c:l 
+49  
+;         
+
+countEvalExpWithGrouping
+from employees | rename languages as l | eval e = case(emp_no < 10050, emp_no, null) | stats c = count(e) by l | sort l;
+
+c:l | l:i 
+9   | 1   
+7   | 2   
+6   | 3   
+9   | 4   
+8   | 5   
+10  | null
+;         
+
+countAllOnOrdinalField
+from employees | stats ca = count() by gender | sort gender;
+
+ca:l|gender:s
+33  |F
+57  |M
+10  |null
+;
+
+countFieldOnOrdinalField
+from employees | stats ca = count(gender) by gender | sort gender;
+
+ca:l|gender:s
+33  |F
+57  |M
+0   |null
+;
+
+
+countFieldVsAll
+from employees | stats ca = count(), cn = count(null), cf = count(gender) by gender | sort gender;
+
+ca:l|cn:l|cf:l|gender:s
+33  |33  |33  |F
+57  |57  |57  |M
+10  |10  |0   |null
+;
+
+countMultiValue
+from employees | where emp_no == 10010 | stats c = count(job_positions) by job_positions;
+
+c:l |  job_positions:s  
+4   |Architect        
+4   |Purchase Manager 
+4   |Reporting Analyst
+4   |Tech Lead    
 ;

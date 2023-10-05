@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 
 import java.util.Arrays;
 
@@ -180,21 +181,33 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
 
     @Override
     public IntBlock build() {
-        finish();
-        IntBlock block;
-        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes);
-        } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
-            }
-            if (isDense() && singleValued()) {
-                block = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
+        try {
+            finish();
+            IntBlock theBlock;
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes);
             } else {
-                block = blockFactory.newIntArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, estimatedBytes);
+                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                    values = Arrays.copyOf(values, valueCount);
+                }
+                if (isDense() && singleValued()) {
+                    theBlock = blockFactory.newIntArrayVector(values, positionCount, estimatedBytes).asBlock();
+                } else {
+                    theBlock = blockFactory.newIntArrayBlock(
+                        values,
+                        positionCount,
+                        firstValueIndexes,
+                        nullsMask,
+                        mvOrdering,
+                        estimatedBytes
+                    );
+                }
             }
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
         }
-        built();
-        return block;
     }
 }

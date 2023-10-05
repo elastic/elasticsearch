@@ -210,8 +210,15 @@ public class DocVector extends AbstractVector implements Vector {
         int[] shardSegmentDocMapForwards,
         int[] shardSegmentDocMapBackwards
     ) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shards) + RamUsageEstimator.sizeOf(segments) + RamUsageEstimator.sizeOf(docs)
-            + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapForwards) + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapBackwards);
+        long bytesUsed = BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shards) + RamUsageEstimator.sizeOf(segments) + RamUsageEstimator
+            .sizeOf(docs);
+        if ((shardSegmentDocMapForwards == null) == false) {
+            bytesUsed += RamUsageEstimator.shallowSizeOf(shardSegmentDocMapForwards);
+        }
+        if ((shardSegmentDocMapBackwards == null) == false) {
+            bytesUsed += RamUsageEstimator.shallowSizeOf(shardSegmentDocMapBackwards);
+        }
+        return bytesUsed;
     }
 
     @Override

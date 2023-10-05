@@ -271,8 +271,6 @@ public class TimeSeriesIndexSearcher {
         }
 
         void collectAllValidDocs(BytesRef tsid) throws IOException {
-            // Collect either all docs for a given tsid or all docs in the leaf.
-            assert docId == 0 || tsid != null;
             do {
                 if (isInvalidDoc(docId)) {
                     continue;

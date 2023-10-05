@@ -79,7 +79,8 @@ public class TimeSeriesCancellationTests extends ESTestCase {
 
     public void testLowLevelCancellationActions() throws IOException {
         ContextIndexSearcher searcher = newContextSearcher(reader);
-        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> { // TODO: Use Concurrent Index Searcher?
+        // TODO: Use Concurrent Index Searcher?
+        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> {
             throw new TaskCancelledException("Cancel");
         }));
         CountingBucketCollector bc = new CountingBucketCollector();

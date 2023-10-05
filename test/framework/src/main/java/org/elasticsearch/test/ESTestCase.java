@@ -19,6 +19,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1319,7 +1320,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Nullable
     private final List<ThreadPoolExecutor> ContextIndexSearcherExecutors = new ArrayList<>();
 
-
     /**
      * Use this builder to instantiate {@link ContextIndexSearcher}s for tests.  It randomly creates both concurrent
      * and non-concurrent versions to exercise both code paths using various random settings.
@@ -1337,11 +1337,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             Executor executor,
             int maximumNumberOfSlices,
             int minimumDocsPerSlice
-        ) {
-        }
+        ) {}
 
-        private CheckedFunction<BuilderInstantiationValues, ContextIndexSearcher, IOException> instantiator = (builderValues) ->
-            new ContextIndexSearcher(
+        private CheckedFunction<BuilderInstantiationValues, ContextIndexSearcher, IOException> instantiator = (
+            builderValues) -> new ContextIndexSearcher(
                 builderValues.reader,
                 builderValues.similarity,
                 builderValues.queryCache,
@@ -1393,16 +1392,18 @@ public abstract class ESTestCase extends LuceneTestCase {
                 }
             });
 
-            return instantiator.apply(new BuilderInstantiationValues(
-                reader,
-                similarity,
-                queryCache,
-                queryCachingPolicy,
-                wrapWithExitableDirectoryReader,
-                exec,
-                maximumNumberOfSlices.orElse(numThreads),
-                minimumDocsPerSlice.orElse(1)
-            ));
+            return instantiator.apply(
+                new BuilderInstantiationValues(
+                    reader,
+                    similarity,
+                    queryCache,
+                    queryCachingPolicy,
+                    wrapWithExitableDirectoryReader,
+                    exec,
+                    maximumNumberOfSlices.orElse(numThreads),
+                    minimumDocsPerSlice.orElse(1)
+                )
+            );
         }
 
         /**
@@ -1460,8 +1461,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             return this;
         }
 
-        public ContextIndexSearcherBuilder wrapWithExitableDirectoryReader(
-            boolean wrapWithExitableDirectoryReader) {
+        public ContextIndexSearcherBuilder wrapWithExitableDirectoryReader(boolean wrapWithExitableDirectoryReader) {
             this.wrapWithExitableDirectoryReader = wrapWithExitableDirectoryReader;
             return this;
         }

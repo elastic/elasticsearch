@@ -38,8 +38,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-@Repeat(iterations = 100)
 public class SearchCancellationTests extends ESTestCase {
 
     private static final String STRING_FIELD_NAME = "foo";

@@ -1051,9 +1051,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         reader = DirectoryReader.open(dir);
 
         final List<Query> executed = new ArrayList<>();
-        ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(reader)
-            .wrapWithExitableDirectoryReader(true)
-            .instantiation((builderValues) -> new ContextIndexSearcher(
+        ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(reader).wrapWithExitableDirectoryReader(true)
+            .instantiation(
+                (builderValues) -> new ContextIndexSearcher(
                     builderValues.reader(),
                     builderValues.similarity(),
                     builderValues.queryCache(),
@@ -1069,7 +1069,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
                         return super.search(query, collectorManager);
                     }
                 }
-            ).build();
+            )
+            .build();
 
         SearchContext context = new TestSearchContext(null, indexShard, searcher) {
             @Override
@@ -1116,8 +1117,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
         @Override
-        public void onUse(Query query) {
-        }
+        public void onUse(Query query) {}
 
         @Override
         public boolean shouldCache(Query query) {
@@ -1126,10 +1126,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     };
 
     private ContextIndexSearcher createContextSearcher(IndexReader reader) throws IOException {
-        return new ContextIndexSearcherBuilder(reader)
-            .queryCachingPolicy(NEVER_CACHE_POLICY)
-            .wrapWithExitableDirectoryReader(true)
-            .build();
+        return new ContextIndexSearcherBuilder(reader).queryCachingPolicy(NEVER_CACHE_POLICY).wrapWithExitableDirectoryReader(true).build();
     }
 
     private ContextIndexSearcher noCollectionContextSearcher(IndexReader reader) throws IOException {
@@ -1137,10 +1134,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     private ContextIndexSearcher earlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
-        return new ContextIndexSearcherBuilder(reader)
-            .queryCachingPolicy(NEVER_CACHE_POLICY)
+        return new ContextIndexSearcherBuilder(reader).queryCachingPolicy(NEVER_CACHE_POLICY)
             .wrapWithExitableDirectoryReader(true)
-            .instantiation((builderValues) -> new ContextIndexSearcher(
+            .instantiation(
+                (builderValues) -> new ContextIndexSearcher(
                     builderValues.reader(),
                     builderValues.similarity(),
                     builderValues.queryCache(),
@@ -1161,7 +1158,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
                                     @Override
                                     public void collect(int doc) throws IOException {
-                                        assert collected <= size : "should not collect more than " + size + " doc per segment, got " + collected;
+                                        assert collected <= size
+                                            : "should not collect more than " + size + " doc per segment, got " + collected;
                                         ++collected;
                                         super.collect(doc);
                                     }

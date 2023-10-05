@@ -98,8 +98,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private ContextIndexSearcher createContextSearcher(IndexReader reader) throws IOException {
-        return new ContextIndexSearcherBuilder(reader)
-            .queryCachingPolicy(LuceneTestCase.MAYBE_CACHE_POLICY)
+        return new ContextIndexSearcherBuilder(reader).queryCachingPolicy(LuceneTestCase.MAYBE_CACHE_POLICY)
             .wrapWithExitableDirectoryReader(true)
             .build();
     }

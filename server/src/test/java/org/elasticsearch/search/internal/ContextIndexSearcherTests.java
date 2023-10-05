@@ -216,8 +216,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         try (Directory directory = newDirectory()) {
             indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(directoryReader)
-                    .workerExecutor(executor)
+                ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(directoryReader).workerExecutor(executor)
                     .maximumNumberOfSlices(Integer.MAX_VALUE) // create as many slices as possible
                     .build();
                 int numSegments = directoryReader.getContext().leaves().size();
@@ -241,8 +240,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         try (Directory directory = newDirectory()) {
             int numDocs = indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(directoryReader)
-                    .workerExecutor(executor)
+                ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(directoryReader).workerExecutor(executor)
                     .maximumNumberOfSlices(Integer.MAX_VALUE) // create as many slices as possible
                     .build();
                 Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
@@ -520,11 +518,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 final boolean[] reduceCalled;
                 LeafSlice[] leafSlices;
                 try (
-                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcherBuilder(directoryReader)
-                        .workerExecutor(executorTestWrapper)
-                        .maximumNumberOfSlices(executor.getMaximumPoolSize())
-                        .wrapWithExitableDirectoryReader(true)
-                        .build();
+                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcherBuilder(directoryReader).workerExecutor(
+                        executorTestWrapper
+                    ).maximumNumberOfSlices(executor.getMaximumPoolSize()).wrapWithExitableDirectoryReader(true).build();
                 ) {
                     leafSlices = contextIndexSearcher.getSlicesForCollection();
                     int numThrowingLeafSlices = randomIntBetween(1, 3);
@@ -651,11 +647,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 final boolean[] reduceCalled;
                 LeafSlice[] leafSlices;
                 try (
-                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcherBuilder(directoryReader)
-                        .workerExecutor(executorTestWrapper)
-                        .maximumNumberOfSlices(executor.getMaximumPoolSize())
-                        .wrapWithExitableDirectoryReader(true)
-                        .build();
+                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcherBuilder(directoryReader).workerExecutor(
+                        executorTestWrapper
+                    ).maximumNumberOfSlices(executor.getMaximumPoolSize()).wrapWithExitableDirectoryReader(true).build();
                 ) {
                     leafSlices = contextIndexSearcher.getSlicesForCollection();
                     int numThrowingLeafSlices = randomIntBetween(1, 3);

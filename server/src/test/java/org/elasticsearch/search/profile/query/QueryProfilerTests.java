@@ -76,9 +76,7 @@ public class QueryProfilerTests extends ESTestCase {
     @Before
     public void initSearcher() throws IOException {
         if (searcher == null) {
-            searcher = new ContextIndexSearcherBuilder(reader)
-                .queryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS)
-                .build();
+            searcher = new ContextIndexSearcherBuilder(reader).queryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS).build();
         }
     }
 

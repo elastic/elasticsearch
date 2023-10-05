@@ -430,11 +430,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SearchContext ctx = mock(SearchContext.class);
         try {
             when(ctx.searcher()).thenReturn(
-                new ContextIndexSearcherBuilder(searchExecutionContext.searcher().getIndexReader())
-                    .similarity(searchExecutionContext.searcher().getSimilarity())
-                    .queryCache(DisabledQueryCache.INSTANCE)
-                    .queryCachingPolicy(TrivialQueryCachingPolicy.NEVER)
-                    .build()
+                new ContextIndexSearcherBuilder(searchExecutionContext.searcher().getIndexReader()).similarity(
+                    searchExecutionContext.searcher().getSimilarity()
+                ).queryCache(DisabledQueryCache.INSTANCE).queryCachingPolicy(TrivialQueryCachingPolicy.NEVER).build()
             );
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -248,6 +248,10 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
     }
 
     private void assertNoRunningTasks(AbstractThrottledTaskRunner<?> taskRunner) {
+        // We decrement the running task count after the end of each task, although on the thread that ran the task, so there is no
+        // guarantee that it has reached zero yet. First we must flush the executor by running another task on every one of its threads
+        // which ensures that those threads have all finished doing AbstractThrottledTaskRunner-related work and in particular that the
+        // running tasks count is now accurate.
         final var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
             executor.execute(() -> safeAwait(barrier));

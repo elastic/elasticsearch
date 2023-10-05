@@ -38,15 +38,23 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        BooleanBlock block = page.getBlock(channel);
-        BooleanVector vector = block.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(block)) {
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            everSeen[NULL_ORD] = true;
+            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
                 addInput.add(0, groupIds);
             }
         } else {
-            try (IntBlock groupIds = add(vector).asBlock()) {
-                addInput.add(0, groupIds.asVector());
+            BooleanBlock booleanBlock = page.getBlock(channel);
+            BooleanVector booleanVector = booleanBlock.asVector();
+            if (booleanVector == null) {
+                try (IntBlock groupIds = add(booleanBlock)) {
+                    addInput.add(0, groupIds);
+                }
+            } else {
+                try (IntBlock groupIds = add(booleanVector).asBlock()) {
+                    addInput.add(0, groupIds.asVector());
+                }
             }
         }
     }

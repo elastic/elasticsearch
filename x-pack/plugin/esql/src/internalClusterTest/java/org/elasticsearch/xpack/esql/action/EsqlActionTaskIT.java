@@ -202,7 +202,9 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
             assertThat(exchangeSources, equalTo(1));
         } finally {
             scriptPermits.release(NUM_DOCS);
-            assertThat(Iterators.flatMap(response.get().values(), i -> i).next(), equalTo((long) NUM_DOCS));
+            try (EsqlQueryResponse esqlResponse = response.get()) {
+                assertThat(Iterators.flatMap(esqlResponse.values(), i -> i).next(), equalTo((long) NUM_DOCS));
+            }
         }
     }
 

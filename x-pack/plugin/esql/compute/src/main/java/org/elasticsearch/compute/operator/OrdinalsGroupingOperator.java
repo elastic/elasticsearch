@@ -22,7 +22,6 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -123,9 +122,6 @@ public class OrdinalsGroupingOperator implements Operator {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        if (docVector.getPositionCount() == 0) {
-            return;
-        }
         final int shardIndex = docVector.shards().getInt(0);
         final var source = sources.get(shardIndex);
         if (docVector.singleSegmentNonDecreasing() && source.source() instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
@@ -139,6 +135,7 @@ public class OrdinalsGroupingOperator implements Operator {
                     try {
                         final LeafReaderContext leafReaderContext = source.reader().leaves().get(k.segmentIndex);
                         final OrdinalSegmentAggregator ordinalSegmentAggregator = new OrdinalSegmentAggregator(
+                            driverContext.blockFactory(),
                             groupingAggregators,
                             withOrdinals,
                             leafReaderContext,
@@ -166,7 +163,6 @@ public class OrdinalsGroupingOperator implements Operator {
                     channelIndex,
                     aggregatorFactories,
                     maxPageSize,
-                    bigArrays,
                     driverContext
                 );
             }
@@ -252,36 +248,48 @@ public class OrdinalsGroupingOperator implements Operator {
             final int startPosition = seenNulls ? 0 : -1;
             int position = startPosition;
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
-            var blockBuilder = BytesRefBlock.newBlockBuilder(1);
-            if (seenNulls) {
-                blockBuilder.appendNull();
-            }
-            while (pq.size() > 0) {
-                final AggregatedResultIterator top = pq.top();
-                if (position == startPosition || lastTerm.get().equals(top.currentTerm) == false) {
-                    position++;
-                    lastTerm.copyBytes(top.currentTerm);
-                    blockBuilder.appendBytesRef(top.currentTerm);
+            final Block[] blocks;
+            final int[] aggBlockCounts;
+            try (var keysBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(1)) {
+                if (seenNulls) {
+                    keysBuilder.appendNull();
                 }
-                for (int i = 0; i < top.aggregators.size(); i++) {
-                    aggregators.get(i).addIntermediateRow(position, top.aggregators.get(i), top.currentPosition());
+                while (pq.size() > 0) {
+                    final AggregatedResultIterator top = pq.top();
+                    if (position == startPosition || lastTerm.get().equals(top.currentTerm) == false) {
+                        position++;
+                        lastTerm.copyBytes(top.currentTerm);
+                        keysBuilder.appendBytesRef(top.currentTerm);
+                    }
+                    for (int i = 0; i < top.aggregators.size(); i++) {
+                        aggregators.get(i).addIntermediateRow(position, top.aggregators.get(i), top.currentPosition());
+                    }
+                    if (top.next()) {
+                        pq.updateTop();
+                    } else {
+                        pq.pop();
+                    }
                 }
-                if (top.next()) {
-                    pq.updateTop();
-                } else {
-                    pq.pop();
+                aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+                blocks = new Block[1 + Arrays.stream(aggBlockCounts).sum()];
+                blocks[0] = keysBuilder.build();
+            }
+            boolean success = false;
+            try {
+                try (IntVector selected = IntVector.range(0, blocks[0].getPositionCount(), driverContext.blockFactory())) {
+                    int offset = 1;
+                    for (int i = 0; i < aggregators.size(); i++) {
+                        aggregators.get(i).evaluate(blocks, offset, selected, driverContext);
+                        offset += aggBlockCounts[i];
+                    }
+                }
+                success = true;
+                return new Page(blocks);
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(blocks);
                 }
             }
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            Block[] blocks = new Block[1 + Arrays.stream(aggBlockCounts).sum()];
-            blocks[0] = blockBuilder.build();
-            IntVector selected = IntVector.range(0, blocks[0].getPositionCount(), BlockFactory.getNonBreakingInstance()); // for now
-            int offset = 1;
-            for (int i = 0; i < aggregators.size(); i++) {
-                aggregators.get(i).evaluate(blocks, offset, selected);
-                offset += aggBlockCounts[i];
-            }
-            return new Page(blocks);
         } finally {
             Releasables.close(() -> Releasables.close(aggregators));
         }
@@ -313,6 +321,7 @@ public class OrdinalsGroupingOperator implements Operator {
     }
 
     static final class OrdinalSegmentAggregator implements Releasable, SeenGroupIds {
+        private final BlockFactory blockFactory;
         private final List<GroupingAggregator> aggregators;
         private final ValuesSource.Bytes.WithOrdinals withOrdinals;
         private final LeafReaderContext leafReaderContext;
@@ -320,6 +329,7 @@ public class OrdinalsGroupingOperator implements Operator {
         private BlockOrdinalsReader currentReader;
 
         OrdinalSegmentAggregator(
+            BlockFactory blockFactory,
             List<GroupingAggregator> aggregators,
             ValuesSource.Bytes.WithOrdinals withOrdinals,
             LeafReaderContext leafReaderContext,
@@ -327,11 +337,12 @@ public class OrdinalsGroupingOperator implements Operator {
         ) throws IOException {
             boolean success = false;
             try {
+                this.blockFactory = blockFactory;
                 this.aggregators = aggregators;
                 this.withOrdinals = withOrdinals;
                 this.leafReaderContext = leafReaderContext;
                 final SortedSetDocValues sortedSetDocValues = withOrdinals.ordinalsValues(leafReaderContext);
-                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues);
+                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues, blockFactory);
                 this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
                 success = true;
             } finally {
@@ -349,22 +360,25 @@ public class OrdinalsGroupingOperator implements Operator {
                 }
 
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
-                    currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
+                    currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext), blockFactory);
                 }
-                final IntBlock ordinals = currentReader.readOrdinalsAdded1(docs);
-                for (int p = 0; p < ordinals.getPositionCount(); p++) {
-                    int start = ordinals.getFirstValueIndex(p);
-                    int end = start + ordinals.getValueCount(p);
-                    for (int i = start; i < end; i++) {
-                        long ord = ordinals.getInt(i);
-                        visitedOrds.set(ord);
+                try (IntBlock ordinals = currentReader.readOrdinalsAdded1(docs)) {
+                    for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                        int start = ordinals.getFirstValueIndex(p);
+                        int end = start + ordinals.getValueCount(p);
+                        for (int i = start; i < end; i++) {
+                            long ord = ordinals.getInt(i);
+                            visitedOrds.set(ord);
+                        }
                     }
-                }
-                for (GroupingAggregatorFunction.AddInput addInput : prepared) {
-                    addInput.add(0, ordinals);
+                    for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                        addInput.add(0, ordinals);
+                    }
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            } finally {
+                page.releaseBlocks();
             }
         }
 
@@ -431,7 +445,6 @@ public class OrdinalsGroupingOperator implements Operator {
             int channelIndex,
             List<GroupingAggregator.Factory> aggregatorFactories,
             int maxPageSize,
-            BigArrays bigArrays,
             DriverContext driverContext
         ) {
             this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
@@ -472,34 +485,36 @@ public class OrdinalsGroupingOperator implements Operator {
     static final class BlockOrdinalsReader {
         private final SortedSetDocValues sortedSetDocValues;
         private final Thread creationThread;
+        private final BlockFactory blockFactory;
 
-        BlockOrdinalsReader(SortedSetDocValues sortedSetDocValues) {
+        BlockOrdinalsReader(SortedSetDocValues sortedSetDocValues, BlockFactory blockFactory) {
             this.sortedSetDocValues = sortedSetDocValues;
+            this.blockFactory = blockFactory;
             this.creationThread = Thread.currentThread();
         }
 
         IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
-            for (int p = 0; p < positionCount; p++) {
-                int doc = docs.getInt(p);
-                if (false == sortedSetDocValues.advanceExact(doc)) {
-                    builder.appendInt(0);
-                    continue;
+            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    int doc = docs.getInt(p);
+                    if (false == sortedSetDocValues.advanceExact(doc)) {
+                        builder.appendInt(0);
+                        continue;
+                    }
+                    int count = sortedSetDocValues.docValueCount();
+                    if (count == 1) {
+                        builder.appendInt(Math.toIntExact(sortedSetDocValues.nextOrd() + 1));
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int i = 0; i < count; i++) {
+                        builder.appendInt(Math.toIntExact(sortedSetDocValues.nextOrd() + 1));
+                    }
+                    builder.endPositionEntry();
                 }
-                int count = sortedSetDocValues.docValueCount();
-                // TODO don't come this way if there are a zillion ords on the field
-                if (count == 1) {
-                    builder.appendInt(Math.toIntExact(sortedSetDocValues.nextOrd() + 1));
-                    continue;
-                }
-                builder.beginPositionEntry();
-                for (int i = 0; i < count; i++) {
-                    builder.appendInt(Math.toIntExact(sortedSetDocValues.nextOrd() + 1));
-                }
-                builder.endPositionEntry();
+                return builder.build();
             }
-            return builder.build();
         }
 
         int docID() {

@@ -5,14 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.enrollment.tool;
+package org.elasticsearch.xpack.security.tool;
 
 import joptsimple.OptionSet;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
@@ -20,6 +19,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.HttpResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -192,12 +191,7 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
             stringContainsInOrder(
                 "Failed to determine the health of the cluster. Cluster health is currently RED.",
                 "This means that some cluster data is unavailable and your cluster is not fully functional.",
-                "The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/"
-                    + Version.CURRENT.major
-                    + "."
-                    + Version.CURRENT.minor
-                    + "/logging.html)"
-                    + " might contain information/indications for the underlying cause"
+                "The cluster logs (" + ReferenceDocs.LOGGING + ")" + " might contain information/indications for the underlying cause"
             )
         );
         assertNoUsers();

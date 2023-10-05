@@ -17,9 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
@@ -61,8 +58,6 @@ import java.util.function.Supplier;
 public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
-
-    public static final Setting<SecureString> ENCRYPTION_KEY_SETTING = SecureSetting.secureString("xpack.inference.encryption_key", null);
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -111,11 +106,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     ) {
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
-    }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return List.of(ENCRYPTION_KEY_SETTING);
     }
 
     @Override

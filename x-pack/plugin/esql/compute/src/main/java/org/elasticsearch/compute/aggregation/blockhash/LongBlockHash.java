@@ -48,15 +48,23 @@ final class LongBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        LongBlock block = page.getBlock(channel);
-        LongVector vector = block.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(block)) {
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            seenNull = true;
+            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
                 addInput.add(0, groupIds);
             }
         } else {
-            try (IntBlock groupIds = add(vector).asBlock()) {  // Ugh!!
-                addInput.add(0, groupIds.asVector());
+            LongBlock longBlock = page.getBlock(channel);
+            LongVector longVector = longBlock.asVector();
+            if (longVector == null) {
+                try (IntBlock groupIds = add(longBlock)) {
+                    addInput.add(0, groupIds);
+                }
+            } else {
+                try (IntBlock groupIds = add(longVector).asBlock()) {  // Ugh!!
+                    addInput.add(0, groupIds.asVector());
+                }
             }
         }
     }

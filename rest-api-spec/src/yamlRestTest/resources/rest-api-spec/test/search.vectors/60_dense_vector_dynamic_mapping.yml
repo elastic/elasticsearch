@@ -426,7 +426,7 @@ setup:
 
 
 ---
-"Fields with nested float arrays within the threshold map throw an exception":
+"Fields with nested float arrays within the threshold map index a nested dense_vector":
 
   - do:
       indices.create:
@@ -442,7 +442,6 @@ setup:
                   nested
 
   - do:
-      catch: /\[dense_vector\] fields cannot be indexed if they\'re within \[nested\] mappings/
       index:
         index: test-nested-index
         id: "1"
@@ -452,6 +451,15 @@ setup:
             my_field: [
               159.1, 289.56, -128.7424, 145.9871, -164.0003, 86.4034, -89.6929, 257.9717, 131.6075, 67.9233, -144.8255, 223.8446, 77.3228, -210.1163, -139.4783, 12.6499, 15.4491, 108.3465, -189.3947, 178.2045, -187.5925, 184.5089, 77.3022, -202.7439, -13.4959, 115.9719, -139.4332, 196.7845, 104.7573, -156.7746, 166.9878, 68.3936, 159.8473, -141.4446, 21.1947, 186.5908, -209.6895, 68.6169, 44.1255, 147.4659, 56.5079, -179.7997, -85.1651, 11.4847, 124.1662, 96.2246, -178.6705, 85.5925, 205.3616, -16.4704, 172.4947, -115.2535, -58.1722, 94.4836, 34.6458, -70.1011, -58.8047, 149.9562, -37.8998, 196.9805, -169.3555, -163.9432, 188.5611, 214.8378, 29.3182, -24.8724, 152.9382, -109.4345, -123.6716, -8.2441, 64.5902, 27.8083, 40.8185, -94.3161, 58.1463, -138.7432, 24.6805, -88.7222, -11.2018, 206.6434, 201.9024, 87.3079, -3.2883, -60.2484, -109.5789, 105.5766, -116.6709, -17.7073, -71.5093, -75.2937, -176.8691, -146.4967, 53.7586, 199.5294, 55.9754, -48.7399, 82.2051, 135.2921, 22.4408, -116.4008, -33.7538, 29.7207, 6.3692, -97.5768, -12.7982, -200.9331, -62.2743, 81.0843, 136.2247, 150.2565, 139.6838, 155.2657, -25.7447, 198.5955, 18.8099, 46.9014, -60.2672, 136.4801, 171.8966, 172.5842, 13.9123, 75.8386, -64.2444, -48.1964, 135.9685, 7.4927, -40.6424, -76.8922
             ]
+
+  - do:
+      indices.get_mapping:
+        index: test-nested-index
+
+  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.type: dense_vector }
+  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.dims: 128 }
+  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.index: true }
+  - match: { test-nested-index.mappings.properties.my_nested_field.properties.my_field.similarity: cosine }
 
 ---
 "Fields with copyTo fields still map as float":

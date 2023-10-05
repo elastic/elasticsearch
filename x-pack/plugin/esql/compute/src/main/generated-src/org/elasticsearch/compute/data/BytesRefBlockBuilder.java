@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
@@ -191,40 +192,45 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     @Override
     public BytesRefBlock build() {
-        finish();
-        BytesRefBlock block;
-        assert estimatedBytes == 0 || firstValueIndexes != null;
-        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
-            /*
-             * Update the breaker with the actual bytes used.
-             * We pass false below even though we've used the bytes. That's weird,
-             * but if we break here we will throw away the used memory, letting
-             * it be deallocated. The exception will bubble up and the builder will
-             * still technically be open, meaning the calling code should close it
-             * which will return all used memory to the breaker.
-             */
-            blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, false);
-            Releasables.closeExpectNoException(values);
-        } else {
-            if (isDense() && singleValued()) {
-                block = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
+        try {
+            finish();
+            BytesRefBlock theBlock;
+            assert estimatedBytes == 0 || firstValueIndexes != null;
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+                /*
+                 * Update the breaker with the actual bytes used.
+                 * We pass false below even though we've used the bytes. That's weird,
+                 * but if we break here we will throw away the used memory, letting
+                 * it be deallocated. The exception will bubble up and the builder will
+                 * still technically be open, meaning the calling code should close it
+                 * which will return all used memory to the breaker.
+                 */
+                blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes, false);
+                Releasables.closeExpectNoException(values);
             } else {
-                block = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                if (isDense() && singleValued()) {
+                    theBlock = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
+                } else {
+                    theBlock = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                }
+                /*
+                 * Update the breaker with the actual bytes used.
+                 * We pass false below even though we've used the bytes. That's weird,
+                 * but if we break here we will throw away the used memory, letting
+                 * it be deallocated. The exception will bubble up and the builder will
+                 * still technically be open, meaning the calling code should close it
+                 * which will return all used memory to the breaker.
+                 */
+                blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed(), false);
             }
-            /*
-             * Update the breaker with the actual bytes used.
-             * We pass false below even though we've used the bytes. That's weird,
-             * but if we break here we will throw away the used memory, letting
-             * it be deallocated. The exception will bubble up and the builder will
-             * still technically be open, meaning the calling code should close it
-             * which will return all used memory to the breaker.
-             */
-            blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed(), false);
+            values = null;
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
         }
-        values = null;
-        built();
-        return block;
     }
 
     @Override

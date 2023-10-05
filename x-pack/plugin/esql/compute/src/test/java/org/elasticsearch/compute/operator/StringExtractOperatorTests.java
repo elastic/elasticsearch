@@ -30,7 +30,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new BytesRefBlockSourceOperator(input);
+        return new BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(String fieldName) implements Function<String, Map<String, String>> {
@@ -84,8 +84,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 
     public void testMultivalueDissectInput() {
@@ -98,7 +97,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
             @Override
             public void close() {}
-        }, new FirstWord("test"));
+        }, new FirstWord("test"), driverContext());
 
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
         builder.beginPositionEntry();

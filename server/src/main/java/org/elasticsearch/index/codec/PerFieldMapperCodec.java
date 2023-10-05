@@ -92,10 +92,7 @@ public class PerFieldMapperCodec extends Lucene95Codec {
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         Mapper mapper = mapperService.mappingLookup().getMapper(field);
         if (mapper instanceof DenseVectorFieldMapper vectorMapper) {
-            KnnVectorsFormat format = vectorMapper.getKnnVectorsFormatForField();
-            if (format != null) {
-                return format;
-            }
+            return vectorMapper.getKnnVectorsFormatForField(super.getKnnVectorsFormatForField(field));
         }
         return super.getKnnVectorsFormatForField(field);
     }

@@ -33,7 +33,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     /** The number of bytes currently estimated with the breaker. */
     protected long estimatedBytes;
 
-    private boolean closed = false;
+    boolean closed = false;
 
     protected AbstractBlockBuilder(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -33,7 +34,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry
     ) {
-        super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new);
+        super(InferenceAction.NAME, transportService, actionFilters, InferenceAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
     }

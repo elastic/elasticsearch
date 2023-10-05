@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
@@ -23,7 +24,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(evaluator.get(driverContext));
+            return new EvalOperator(driverContext.blockFactory(), evaluator.get(driverContext));
         }
 
         @Override
@@ -33,16 +34,18 @@ public class EvalOperator extends AbstractPageMappingOperator {
         }
     }
 
+    private final BlockFactory blockFactory;
     private final ExpressionEvaluator evaluator;
 
-    public EvalOperator(ExpressionEvaluator evaluator) {
+    public EvalOperator(BlockFactory blockFactory, ExpressionEvaluator evaluator) {
+        this.blockFactory = blockFactory;
         this.evaluator = evaluator;
     }
 
     @Override
     protected Page process(Page page) {
         Block.Ref ref = evaluator.eval(page);
-        Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block());
+        Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block(), blockFactory);
         return page.appendBlock(block);
     }
 

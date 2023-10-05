@@ -26,15 +26,9 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.script.BooleanFieldScript;
-import org.elasticsearch.script.DateFieldScript;
-import org.elasticsearch.script.DoubleFieldScript;
-import org.elasticsearch.script.GeoPointFieldScript;
-import org.elasticsearch.script.IpFieldScript;
-import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
@@ -423,31 +417,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         b.startObject("script").field("source", "dummy_source").field("lang", "test").endObject();
     }
 
+    protected abstract ScriptFactory parseFromSource();
+
+    protected abstract ScriptFactory dummyScript();
+
     @Override
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         boolean deterministicSource = "deterministic_source".equals(script.getIdOrCode());
-        if (context == BooleanFieldScript.CONTEXT) {
-            return deterministicSource ? (T) BooleanFieldScript.PARSE_FROM_SOURCE : (T) BooleanFieldScriptTests.DUMMY;
-        }
-        if (context == DateFieldScript.CONTEXT) {
-            return deterministicSource ? (T) DateFieldScript.PARSE_FROM_SOURCE : (T) DateFieldScriptTests.DUMMY;
-        }
-        if (context == DoubleFieldScript.CONTEXT) {
-            return deterministicSource ? (T) DoubleFieldScript.PARSE_FROM_SOURCE : (T) DoubleFieldScriptTests.DUMMY;
-        }
-        if (context == IpFieldScript.CONTEXT) {
-            return deterministicSource ? (T) IpFieldScript.PARSE_FROM_SOURCE : (T) IpFieldScriptTests.DUMMY;
-        }
-        if (context == LongFieldScript.CONTEXT) {
-            return deterministicSource ? (T) LongFieldScript.PARSE_FROM_SOURCE : (T) LongFieldScriptTests.DUMMY;
-        }
-        if (context == StringFieldScript.CONTEXT) {
-            return deterministicSource ? (T) StringFieldScript.PARSE_FROM_SOURCE : (T) StringFieldScriptTests.DUMMY;
-        }
-        if (context == GeoPointFieldScript.CONTEXT) {
-            return deterministicSource ? (T) GeoPointFieldScript.PARSE_FROM_SOURCE : (T) GeoPointFieldScriptTests.DUMMY;
-        }
-        throw new IllegalArgumentException("Unsupported context: " + context);
+        return deterministicSource ? (T) parseFromSource() : (T) dummyScript();
     }
 }

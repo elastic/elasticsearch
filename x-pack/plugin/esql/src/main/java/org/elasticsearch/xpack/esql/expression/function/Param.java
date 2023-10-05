@@ -13,10 +13,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Names function parameters.
+ * Describes function parameters.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
-public @interface Named {
-    String value();
+public @interface Param {
+    String name();
+
+    String[] type();
+
+    String description() default "";
+
+    boolean optional() default false;
 }

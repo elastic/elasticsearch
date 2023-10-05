@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
@@ -34,7 +35,13 @@ public class TransportListSearchApplicationAction extends HandledTransportAction
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays
     ) {
-        super(ListSearchApplicationAction.NAME, transportService, actionFilters, ListSearchApplicationAction.Request::new);
+        super(
+            ListSearchApplicationAction.NAME,
+            transportService,
+            actionFilters,
+            ListSearchApplicationAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.systemIndexService = new SearchApplicationIndexService(client, clusterService, namedWriteableRegistry, bigArrays);
     }
 

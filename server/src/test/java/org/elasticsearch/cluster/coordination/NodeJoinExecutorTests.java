@@ -206,17 +206,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
 
         final DiscoveryNode actualNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        final DiscoveryNode bwcNode = new DiscoveryNode(
-            actualNode.getName(),
-            actualNode.getId(),
-            actualNode.getEphemeralId(),
-            actualNode.getHostName(),
-            actualNode.getHostAddress(),
-            actualNode.getAddress(),
-            actualNode.getAttributes(),
-            new HashSet<>(randomSubsetOf(actualNode.getRoles())),
-            actualNode.getVersionInformation()
-        );
+        final DiscoveryNode bwcNode = DiscoveryNodeUtils.builder(actualNode.getId())
+            .name(actualNode.getName())
+            .ephemeralId(actualNode.getEphemeralId())
+            .address(actualNode.getHostName(), actualNode.getHostAddress(), actualNode.getAddress())
+            .attributes(actualNode.getAttributes())
+            .roles(new HashSet<>(randomSubsetOf(actualNode.getRoles())))
+            .version(actualNode.getVersionInformation())
+            .build();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(bwcNode))
             .build();
@@ -395,17 +392,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var otherNodeOld = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
-        final var otherNodeNew = new DiscoveryNode(
-            otherNodeOld.getName(),
-            otherNodeOld.getId(),
-            UUIDs.randomBase64UUID(random()),
-            otherNodeOld.getHostName(),
-            otherNodeOld.getHostAddress(),
-            otherNodeOld.getAddress(),
-            otherNodeOld.getAttributes(),
-            otherNodeOld.getRoles(),
-            otherNodeOld.getVersionInformation()
-        );
+        final var otherNodeNew = DiscoveryNodeUtils.builder(otherNodeOld.getId())
+            .name(otherNodeOld.getName())
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
+            .address(otherNodeOld.getHostName(), otherNodeOld.getHostAddress(), otherNodeOld.getAddress())
+            .attributes(otherNodeOld.getAttributes())
+            .roles(otherNodeOld.getRoles())
+            .version(otherNodeOld.getVersionInformation())
+            .build();
 
         final var afterElectionClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             ClusterState.builder(ClusterName.DEFAULT)

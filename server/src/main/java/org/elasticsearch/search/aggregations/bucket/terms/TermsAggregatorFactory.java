@@ -17,7 +17,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -121,7 +120,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased()) && valuesSourceConfig.format() != DocValueFormat.RAW) {
                 // TODO this exception message is not really accurate for the string case. It's really disallowing regex + formatter
-                throw new AggregationExecutionException(
+                throw new IllegalArgumentException(
                     "Aggregation ["
                         + name
                         + "] cannot support regular expression style "
@@ -170,7 +169,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             metadata) -> {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                throw new AggregationExecutionException(
+                throw new IllegalArgumentException(
                     "Aggregation ["
                         + name
                         + "] cannot support regular expression style "

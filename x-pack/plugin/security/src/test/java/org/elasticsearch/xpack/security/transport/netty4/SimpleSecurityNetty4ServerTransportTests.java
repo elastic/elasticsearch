@@ -874,7 +874,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     // A read call will execute the ssl handshake
                     int byteRead = acceptedSocket.getInputStream().read();
                     assertEquals('E', byteRead);
-                    doneLatch.await();
+                    safeAwait(doneLatch);
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 } finally {

@@ -899,11 +899,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         public List<IndexRequest> triggerAndWaitForCompletion(long now) throws Exception {
             assertTrue(maybeTriggerAsyncJob(now));
-            try {
-                latch.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(latch);
             if (exc != null) {
                 throw exc;
             }

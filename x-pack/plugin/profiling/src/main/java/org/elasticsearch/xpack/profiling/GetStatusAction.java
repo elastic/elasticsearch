@@ -36,7 +36,6 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         private boolean resourcesCreated;
         private boolean pre891Data;
         private boolean timedOut;
-        private boolean validLicense;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -45,21 +44,13 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             resourcesCreated = in.readBoolean();
             pre891Data = in.readBoolean();
             timedOut = in.readBoolean();
-            validLicense = in.readBoolean();
         }
 
-        public Response(
-            boolean profilingEnabled,
-            boolean resourceManagementEnabled,
-            boolean resourcesCreated,
-            boolean pre891Data,
-            boolean validLicense
-        ) {
+        public Response(boolean profilingEnabled, boolean resourceManagementEnabled, boolean resourcesCreated, boolean pre891Data) {
             this.profilingEnabled = profilingEnabled;
             this.resourceManagementEnabled = resourceManagementEnabled;
             this.resourcesCreated = resourcesCreated;
             this.pre891Data = pre891Data;
-            this.validLicense = validLicense;
         }
 
         public void setTimedOut(boolean timedOut) {
@@ -73,7 +64,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.startObject("profiling").field("enabled", profilingEnabled).field("valid_license", validLicense).endObject();
+            builder.startObject("profiling").field("enabled", profilingEnabled).endObject();
             builder.startObject("resource_management").field("enabled", resourceManagementEnabled).endObject();
             builder.startObject("resources").field("created", resourcesCreated).field("pre_8_9_1_data", pre891Data).endObject();
             builder.endObject();
@@ -87,7 +78,6 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             out.writeBoolean(resourcesCreated);
             out.writeBoolean(pre891Data);
             out.writeBoolean(timedOut);
-            out.writeBoolean(validLicense);
         }
 
         @Override
@@ -99,13 +89,12 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
                 && resourceManagementEnabled == response.resourceManagementEnabled
                 && resourcesCreated == response.resourcesCreated
                 && pre891Data == response.pre891Data
-                && timedOut == response.timedOut
-                && validLicense == response.validLicense;
+                && timedOut == response.timedOut;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated, pre891Data, timedOut, validLicense);
+            return Objects.hash(profilingEnabled, resourceManagementEnabled, resourcesCreated, pre891Data, timedOut);
         }
 
         @Override

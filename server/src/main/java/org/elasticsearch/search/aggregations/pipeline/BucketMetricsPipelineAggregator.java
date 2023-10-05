@@ -73,6 +73,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                                     parsedPath.get(currElement).key()
                                 );
                             if (bucket == null) {
+                                // seems not retryable, and therefore should be 400?
                                 throw new AggregationExecutionException(
                                     "missing bucket ["
                                         + parsedPath.get(currElement).key()
@@ -84,12 +85,14 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                                 );
                             }
                             if (currElement == parsedPath.size() - 1) {
+                                // Seems not retryable, should be 400
                                 throw new AggregationExecutionException(
                                     "invalid bucket path ends at [" + parsedPath.get(currElement).key() + "]"
                                 );
                             }
                             currentAgg = bucket.getAggregations().get(parsedPath.get(++currElement).name());
                         } else {
+                            // Seems not retryable, should be 400
                             throw new AggregationExecutionException(
                                 "bucket_path ["
                                     + bucketsPaths()[0]
@@ -107,6 +110,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                     }
                 }
                 if (currentAgg instanceof InternalMultiBucketAggregation == false) {
+                    // Seems not retryable, should be 400
                     String msg = currentAgg == null
                         ? "did not find multi-bucket aggregation for extraction."
                         : "did not find multi-bucket aggregation for extraction. Found [" + currentAgg.getName() + "]";

@@ -81,6 +81,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
         if (propertyValue == null) {
+            // Seems like a user error, change to 400
             throw new AggregationExecutionException(
                 AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() + " must reference a cardinality aggregation"
             );
@@ -98,6 +99,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         }
 
         throw new AggregationExecutionException(
+            // seems like a user error, change to 400
             AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                 + " must reference a cardinality aggregation, got: ["
                 + propertyValue.getClass().getSimpleName()

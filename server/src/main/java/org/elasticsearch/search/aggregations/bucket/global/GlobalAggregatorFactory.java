@@ -47,6 +47,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
             );
         }
         if (cardinality != CardinalityUpperBound.ONE) {
+            // Not sure what would cause us to land here
             throw new AggregationExecutionException("Aggregation [" + name() + "] must have cardinality 1 but was [" + cardinality + "]");
         }
         return new GlobalAggregator(name, factories, context, metadata);

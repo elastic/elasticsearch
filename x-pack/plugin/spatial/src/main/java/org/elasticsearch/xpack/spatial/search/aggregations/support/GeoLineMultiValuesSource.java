@@ -25,6 +25,7 @@ public class GeoLineMultiValuesSource extends MultiValuesSource<ValuesSource> {
         for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
             final ValuesSource valuesSource = entry.getValue().getValuesSource();
             if (valuesSource instanceof ValuesSource.Numeric == false && valuesSource instanceof ValuesSource.GeoPoint == false) {
+                // This will not resolve on retry, should be 400
                 throw new AggregationExecutionException(
                     "ValuesSource type " + valuesSource.toString() + "is not supported for multi-valued aggregation"
                 );

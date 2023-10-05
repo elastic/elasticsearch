@@ -195,6 +195,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             while (ordsEnum.next()) {
                 long ordinal = ordsEnum.ord();
                 if (bucketOrdsToCollect[b] != ordinal) {
+                    // Not sure what can cause this; 500 seems appropriate, maybe?
                     throw new AggregationExecutionException(
                         "Iteration order of ["
                             + bucketOrds

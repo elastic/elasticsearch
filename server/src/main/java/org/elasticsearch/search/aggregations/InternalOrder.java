@@ -65,6 +65,7 @@ public abstract class InternalOrder extends BucketOrder {
                 BucketComparator bucketComparator = path.bucketComparator(aggregator, order);
                 return (lhs, rhs) -> bucketComparator.compare(ordinalReader.applyAsLong(lhs), ordinalReader.applyAsLong(rhs));
             } catch (IllegalArgumentException e) {
+                // Seems like this should be 400 (non-retryable), but we clearly intentionally throw a 500 here.  Why?
                 throw new AggregationExecutionException("Invalid aggregation order path [" + path + "]. " + e.getMessage(), e);
             }
         }

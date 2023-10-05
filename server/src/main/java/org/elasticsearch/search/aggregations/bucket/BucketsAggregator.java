@@ -340,6 +340,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             totalOrdsToCollect += bucketCount;
         }
         if (totalOrdsToCollect > Integer.MAX_VALUE) {
+            // Seems like this should be a 400; also, should this check the bucket limit instead of Integer.MAX_VALUE?
             throw new AggregationExecutionException(
                 "Can't collect more than [" + Integer.MAX_VALUE + "] buckets but attempted [" + totalOrdsToCollect + "]"
             );
@@ -361,6 +362,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
             while (ordsEnum.next()) {
                 if (bucketOrdsToCollect[b] != ordsEnum.ord()) {
+                    // Not sure what can cause this; 500 seems appropriate, maybe?
                     throw new AggregationExecutionException(
                         "Iteration order of ["
                             + bucketOrds

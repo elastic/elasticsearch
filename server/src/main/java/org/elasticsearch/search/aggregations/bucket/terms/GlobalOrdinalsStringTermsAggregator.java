@@ -98,6 +98,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         } else {
             this.collectionStrategy = cardinality.map(estimate -> {
                 if (estimate > 1) {
+                    // Seems like it should be 500; something went wrong if we got here
                     throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
                 }
                 return new DenseGlobalOrds();

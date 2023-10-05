@@ -194,6 +194,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         @Override
         public int compare(List<Object> thisTerms, List<Object> otherTerms) {
             if (thisTerms.size() != otherTerms.size()) {
+                // Not clear on how this can happen.
                 throw new AggregationExecutionException(
                     "Merging/Reducing the multi_term aggregations failed due to different term list" + " sizes"
                 );

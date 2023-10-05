@@ -1310,14 +1310,12 @@ public abstract class ESTestCase extends LuceneTestCase {
      * If you need a reference, construct and pass your own into the IndexSearcherBuilder's threadPoolExecutor.
      * A test may instantiate multiple instances of a ContextIndexSearcher, so we must keep track for cleanup.
      */
-    @Nullable
     private final List<ThreadPool> contextIndexSearcherThreadPools = new ArrayList<>();
 
     /**
      * If you need a reference, construct and pass your own into the IndexSearcherBuilder.
      * A test may instantiate multiple instances of a ContextIndexSearcher, so we must keep track for cleanup.
      */
-    @Nullable
     private final List<ThreadPoolExecutor> ContextIndexSearcherExecutors = new ArrayList<>();
 
     /**

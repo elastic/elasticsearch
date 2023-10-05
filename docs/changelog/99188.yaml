@@ -1,5 +1,5 @@
 pr: 99188
-summary: "ESQL: skip synthetic attributes when planning the physical fragment"
+summary: "Skip synthetic attributes when planning the physical fragment"
 area: ES|QL
 type: bug
 issues:

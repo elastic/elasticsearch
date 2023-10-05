@@ -214,7 +214,7 @@ public class BlockFactory {
     public IntVector newConstantIntVector(int value, int positions) {
         adjustBreaker(ConstantIntVector.RAM_BYTES_USED, false);
         var v = new ConstantIntVector(value, positions, this);
-        assert v.ramBytesUsed() == ConstantLongVector.RAM_BYTES_USED;
+        assert v.ramBytesUsed() == ConstantIntVector.RAM_BYTES_USED;
         return v;
     }
 

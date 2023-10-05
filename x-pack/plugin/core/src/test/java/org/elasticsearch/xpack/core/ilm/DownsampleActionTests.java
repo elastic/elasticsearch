@@ -65,7 +65,7 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(14, steps.size());
+        assertEquals(15, steps.size());
 
         assertTrue(steps.get(0) instanceof BranchingStep);
         assertThat(steps.get(0).getKey().name(), equalTo(CONDITIONAL_TIME_SERIES_CHECK_KEY));
@@ -79,53 +79,57 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
 
         assertTrue(steps.get(2) instanceof WaitForNoFollowersStep);
         assertThat(steps.get(2).getKey().name(), equalTo(WaitForNoFollowersStep.NAME));
-        assertThat(steps.get(2).getNextStepKey().name(), equalTo(ReadOnlyStep.NAME));
+        assertThat(steps.get(2).getNextStepKey().name(), equalTo(WaitUntilTimeSeriesEndTimePassesStep.NAME));
 
-        assertTrue(steps.get(3) instanceof ReadOnlyStep);
-        assertThat(steps.get(3).getKey().name(), equalTo(ReadOnlyStep.NAME));
-        assertThat(steps.get(3).getNextStepKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
+        assertTrue(steps.get(3) instanceof WaitUntilTimeSeriesEndTimePassesStep);
+        assertThat(steps.get(3).getKey().name(), equalTo(WaitUntilTimeSeriesEndTimePassesStep.NAME));
+        assertThat(steps.get(3).getNextStepKey().name(), equalTo(ReadOnlyStep.NAME));
 
-        assertTrue(steps.get(4) instanceof NoopStep);
-        assertThat(steps.get(4).getKey().name(), equalTo(CleanupTargetIndexStep.NAME));
-        assertThat(steps.get(4).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
+        assertTrue(steps.get(4) instanceof ReadOnlyStep);
+        assertThat(steps.get(4).getKey().name(), equalTo(ReadOnlyStep.NAME));
+        assertThat(steps.get(4).getNextStepKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
 
-        assertTrue(steps.get(5) instanceof DownsamplePrepareLifeCycleStateStep);
-        assertThat(steps.get(5).getKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
+        assertTrue(steps.get(5) instanceof NoopStep);
+        assertThat(steps.get(5).getKey().name(), equalTo(CleanupTargetIndexStep.NAME));
         assertThat(steps.get(5).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
 
-        assertTrue(steps.get(6) instanceof DownsampleStep);
-        assertThat(steps.get(6).getKey().name(), equalTo(DownsampleStep.NAME));
-        assertThat(steps.get(6).getNextStepKey().name(), equalTo(WaitForIndexColorStep.NAME));
+        assertTrue(steps.get(6) instanceof DownsamplePrepareLifeCycleStateStep);
+        assertThat(steps.get(6).getKey().name(), equalTo(DownsamplePrepareLifeCycleStateStep.NAME));
+        assertThat(steps.get(6).getNextStepKey().name(), equalTo(DownsampleStep.NAME));
 
-        assertTrue(steps.get(7) instanceof ClusterStateWaitUntilThresholdStep);
-        assertThat(steps.get(7).getKey().name(), equalTo(WaitForIndexColorStep.NAME));
-        assertThat(steps.get(7).getNextStepKey().name(), equalTo(CopyExecutionStateStep.NAME));
+        assertTrue(steps.get(7) instanceof DownsampleStep);
+        assertThat(steps.get(7).getKey().name(), equalTo(DownsampleStep.NAME));
+        assertThat(steps.get(7).getNextStepKey().name(), equalTo(WaitForIndexColorStep.NAME));
 
-        assertTrue(steps.get(8) instanceof CopyExecutionStateStep);
-        assertThat(steps.get(8).getKey().name(), equalTo(CopyExecutionStateStep.NAME));
-        assertThat(steps.get(8).getNextStepKey().name(), equalTo(CopySettingsStep.NAME));
+        assertTrue(steps.get(8) instanceof ClusterStateWaitUntilThresholdStep);
+        assertThat(steps.get(8).getKey().name(), equalTo(WaitForIndexColorStep.NAME));
+        assertThat(steps.get(8).getNextStepKey().name(), equalTo(CopyExecutionStateStep.NAME));
 
-        assertTrue(steps.get(9) instanceof CopySettingsStep);
-        assertThat(steps.get(9).getKey().name(), equalTo(CopySettingsStep.NAME));
-        assertThat(steps.get(9).getNextStepKey().name(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+        assertTrue(steps.get(9) instanceof CopyExecutionStateStep);
+        assertThat(steps.get(9).getKey().name(), equalTo(CopyExecutionStateStep.NAME));
+        assertThat(steps.get(9).getNextStepKey().name(), equalTo(CopySettingsStep.NAME));
 
-        assertTrue(steps.get(10) instanceof BranchingStep);
-        assertThat(steps.get(10).getKey().name(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
-        expectThrows(IllegalStateException.class, () -> steps.get(10).getNextStepKey());
-        assertThat(((BranchingStep) steps.get(10)).getNextStepKeyOnFalse().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
-        assertThat(((BranchingStep) steps.get(10)).getNextStepKeyOnTrue().name(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+        assertTrue(steps.get(10) instanceof CopySettingsStep);
+        assertThat(steps.get(10).getKey().name(), equalTo(CopySettingsStep.NAME));
+        assertThat(steps.get(10).getNextStepKey().name(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
 
-        assertTrue(steps.get(11) instanceof ReplaceDataStreamBackingIndexStep);
-        assertThat(steps.get(11).getKey().name(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
-        assertThat(steps.get(11).getNextStepKey().name(), equalTo(DeleteStep.NAME));
+        assertTrue(steps.get(11) instanceof BranchingStep);
+        assertThat(steps.get(11).getKey().name(), equalTo(CONDITIONAL_DATASTREAM_CHECK_KEY));
+        expectThrows(IllegalStateException.class, () -> steps.get(11).getNextStepKey());
+        assertThat(((BranchingStep) steps.get(11)).getNextStepKeyOnFalse().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
+        assertThat(((BranchingStep) steps.get(11)).getNextStepKeyOnTrue().name(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
 
-        assertTrue(steps.get(12) instanceof DeleteStep);
-        assertThat(steps.get(12).getKey().name(), equalTo(DeleteStep.NAME));
-        assertThat(steps.get(12).getNextStepKey(), equalTo(nextStepKey));
+        assertTrue(steps.get(12) instanceof ReplaceDataStreamBackingIndexStep);
+        assertThat(steps.get(12).getKey().name(), equalTo(ReplaceDataStreamBackingIndexStep.NAME));
+        assertThat(steps.get(12).getNextStepKey().name(), equalTo(DeleteStep.NAME));
 
-        assertTrue(steps.get(13) instanceof SwapAliasesAndDeleteSourceIndexStep);
-        assertThat(steps.get(13).getKey().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
+        assertTrue(steps.get(13) instanceof DeleteStep);
+        assertThat(steps.get(13).getKey().name(), equalTo(DeleteStep.NAME));
         assertThat(steps.get(13).getNextStepKey(), equalTo(nextStepKey));
+
+        assertTrue(steps.get(14) instanceof SwapAliasesAndDeleteSourceIndexStep);
+        assertThat(steps.get(14).getKey().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
+        assertThat(steps.get(14).getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testEqualsAndHashCode() {

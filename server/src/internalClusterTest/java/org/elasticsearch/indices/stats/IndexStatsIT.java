@@ -28,7 +28,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -1320,7 +1319,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 }
                 while (stop.get() == false) {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
-                    final IndexResponse response = client().prepareIndex("test").setId(id).setSource("{}", XContentType.JSON).get();
+                    final DocWriteResponse response = client().prepareIndex("test").setId(id).setSource("{}", XContentType.JSON).get();
                     assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
                 }
             });
@@ -1389,7 +1388,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         final AtomicInteger idGenerator = new AtomicInteger();
         assertBusy(() -> {
             final int numDocs = randomIntBetween(15, 25);
-            final List<ActionFuture<IndexResponse>> indexRequestFutures = new ArrayList<>(numDocs);
+            final List<ActionFuture<DocWriteResponse>> indexRequestFutures = new ArrayList<>(numDocs);
             for (int i = 0; i < numDocs; i++) {
                 indexRequestFutures.add(
                     client().prepareIndex(indexName)
@@ -1399,7 +1398,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 );
             }
 
-            for (ActionFuture<IndexResponse> indexRequestFuture : indexRequestFutures) {
+            for (ActionFuture<DocWriteResponse> indexRequestFuture : indexRequestFutures) {
                 assertThat(indexRequestFuture.get().getResult(), equalTo(DocWriteResponse.Result.CREATED));
             }
 

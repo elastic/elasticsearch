@@ -88,7 +88,7 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
                     double previousKey = Double.NEGATIVE_INFINITY;
                     while (sketch.next()) {
                         final double value = sketch.value();
-                        final int count = sketch.count();
+                        final long count = sketch.count();
 
                         double key = Math.floor((value - offset) / interval);
                         assert key >= previousKey;

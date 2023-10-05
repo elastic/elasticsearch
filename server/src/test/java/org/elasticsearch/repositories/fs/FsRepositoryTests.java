@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -242,18 +243,24 @@ public class FsRepositoryTests extends ESTestCase {
                             final BlobContainer blobContainer = blobStore.blobContainer(path);
                             return new FilterBlobContainer(blobContainer) {
                                 @Override
-                                public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                                    throws IOException {
+                                public void writeBlob(
+                                    OperationPurpose purpose,
+                                    String blobName,
+                                    InputStream inputStream,
+                                    long blobSize,
+                                    boolean failIfAlreadyExists
+                                ) throws IOException {
                                     if (canErrorForWriteBlob.get() && randomIntBetween(0, 10) == 0) {
                                         writeBlobErrored.set(true);
                                         throw new IOException("disk full");
                                     } else {
-                                        super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+                                        super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                                     }
                                 }
 
                                 @Override
                                 public void writeMetadataBlob(
+                                    OperationPurpose purpose,
                                     String blobName,
                                     boolean failIfAlreadyExists,
                                     boolean atomic,
@@ -262,7 +269,7 @@ public class FsRepositoryTests extends ESTestCase {
                                     if (shouldErrorForWriteMetadataBlob.get() && blobName.startsWith("snap-")) {
                                         throw new RuntimeException("snap file error");
                                     }
-                                    super.writeMetadataBlob(blobName, failIfAlreadyExists, atomic, writer);
+                                    super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
                                 }
 
                                 @Override

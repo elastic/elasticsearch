@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
@@ -495,7 +496,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private static LocalSupplier aggsFromEmpty(List<? extends NamedExpression> aggs) {
-            var result = new ArrayList<Object>(aggs.size());
+            var result = new ArrayList<>(aggs.size());
             for (var agg : aggs) {
                 // there needs to be an alias
                 if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
@@ -504,7 +505,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
                 }
             }
-            var blocks = BlockUtils.fromListRow(result);
+            var blocks = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), result);
             return LocalSupplier.of(blocks);
         }
     }

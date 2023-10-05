@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuild
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -520,14 +519,14 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> Indexing with gap in seqno to ensure that some operations will be replayed in resync");
         long numDocs = scaledRandomIntBetween(5, 50);
         for (int i = 0; i < numDocs; i++) {
-            IndexResponse indexResult = indexDoc("test", Long.toString(i));
+            DocWriteResponse indexResult = indexDoc("test", Long.toString(i));
             assertThat(indexResult.getShardInfo().getSuccessful(), equalTo(numberOfReplicas + 1));
         }
         final IndexShard oldPrimaryShard = internalCluster().getInstance(IndicesService.class, oldPrimary).getShardOrNull(shardId);
         EngineTestCase.generateNewSeqNo(IndexShardTestCase.getEngine(oldPrimaryShard)); // Make gap in seqno.
         long moreDocs = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < moreDocs; i++) {
-            IndexResponse indexResult = indexDoc("test", Long.toString(numDocs + i));
+            DocWriteResponse indexResult = indexDoc("test", Long.toString(numDocs + i));
             assertThat(indexResult.getShardInfo().getSuccessful(), equalTo(numberOfReplicas + 1));
         }
         final Set<String> replicasSide1 = Sets.newHashSet(randomSubsetOf(between(1, numberOfReplicas - 1), replicaNodes));

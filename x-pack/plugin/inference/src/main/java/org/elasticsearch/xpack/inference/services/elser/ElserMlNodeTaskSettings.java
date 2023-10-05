@@ -57,7 +57,7 @@ public class ElserMlNodeTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         // TODO Class has no members all instances are equivalent
-        // Return the hash of NAME to make the serialization tests poss
+        // Return the hash of NAME to make the serialization tests pass
         return Objects.hash(NAME);
     }
 }

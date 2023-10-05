@@ -12,7 +12,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -41,7 +40,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             @Override
             public void run() {
                 while (finished.get() == false && numAutoGenDocs.get() < 10_000) {
-                    IndexResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
+                    DocWriteResponse indexResponse = client().prepareIndex("test").setId("id").setSource("field", "value").get();
                     assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     DeleteResponse deleteResponse = client().prepareDelete("test", "id").get();
                     assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());

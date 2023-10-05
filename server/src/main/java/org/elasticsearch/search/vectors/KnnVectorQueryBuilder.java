@@ -11,12 +11,16 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -234,6 +238,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             );
         }
 
+        String parentPath = context.nestedLookup().getNestedParent(fieldName);
+        final BitSetProducer parentFilter;
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryBuilder query : this.filterQueries) {
             builder.add(query.toQuery(context), BooleanClause.Occur.FILTER);
@@ -242,9 +248,30 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
+        if (parentPath != null) {
+            NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(parentPath);
+            NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
+            if (objectMapper == null) {
+                parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+            } else {
+                parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
+            }
+            try {
+                context.nestedScope().nextLevel(mapper);
+                if (filterQuery != null) {
+                    filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
+                }
+                return queryVector != null
+                    ? vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, parentFilter)
+                    : vectorFieldType.createKnnQuery(byteQueryVector, numCands, filterQuery, vectorSimilarity, parentFilter);
+            } finally {
+                context.nestedScope().previousLevel();
+            }
+        }
+
         return queryVector != null
-            ? vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity)
-            : vectorFieldType.createKnnQuery(byteQueryVector, numCands, filterQuery, vectorSimilarity);
+            ? vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, null)
+            : vectorFieldType.createKnnQuery(byteQueryVector, numCands, filterQuery, vectorSimilarity, null);
     }
 
     @Override

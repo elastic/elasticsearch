@@ -36,33 +36,34 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
     @Override
     IntBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::of);
-
     @Override
     default String getWriteableName() {
         return "IntBlock";
     }
 
-    static IntBlock of(StreamInput in) throws IOException {
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::readFrom);
+
+    private static IntBlock readFrom(StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return IntVector.of(in).asBlock();
+            return IntVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendInt(in.readInt());
+        try (IntBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendInt(in.readInt());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override

@@ -12,6 +12,9 @@
       "model_id": {
         "type": "keyword"
       },
+      "platform_architecture" : {
+        "type" : "keyword"
+      },
       "created_by": {
         "type": "keyword"
       },

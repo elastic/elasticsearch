@@ -10,8 +10,6 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -20,8 +18,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -30,26 +26,14 @@ import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ProjectOperatorTests extends OperatorTestCase {
-
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
-
-    @Before
-    @After
-    public void assertBreakerIsZero() {
-        assertThat(breaker.getUsed(), is(0L));
-    }
-
     @Override
     protected DriverContext driverContext() {
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return breakingDriverContext();
     }
 
     public void testProjectionOnEmptyPage() {
@@ -60,10 +44,11 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     public void testProjection() {
+        DriverContext context = driverContext();
         var size = randomIntBetween(2, 5);
         var blocks = new Block[size];
         for (int i = 0; i < blocks.length; i++) {
-            blocks[i] = blockFactory.newConstantIntBlockWith(i, size);
+            blocks[i] = context.blockFactory().newConstantIntBlockWith(i, size);
         }
 
         var page = new Page(size, blocks);
@@ -90,7 +75,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new TupleBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 

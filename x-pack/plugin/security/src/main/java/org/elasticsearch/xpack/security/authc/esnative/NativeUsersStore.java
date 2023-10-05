@@ -16,7 +16,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -327,7 +326,7 @@ public class NativeUsersStore {
                     )
                     .setRefreshPolicy(refresh)
                     .request(),
-                listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
+                listener.<DocWriteResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
                 client::index
             );
         });
@@ -433,7 +432,7 @@ public class NativeUsersStore {
                     )
                     .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                     .request(),
-                listener.<IndexResponse>delegateFailure(
+                listener.<DocWriteResponse>delegateFailure(
                     (l, updateResponse) -> clearRealmCache(
                         putUserRequest.username(),
                         l,

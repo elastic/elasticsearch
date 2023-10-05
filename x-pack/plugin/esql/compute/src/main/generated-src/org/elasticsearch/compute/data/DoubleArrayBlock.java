@@ -75,6 +75,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     public static long ramBytesEstimated(double[] values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+        // TODO mvordering is shared
     }
 
     @Override

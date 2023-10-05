@@ -71,8 +71,10 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         }
 
         String version = MapParsingUtils.removeAsType(map, MODEL_VERSION, String.class);
-        if (version != null && VALID_ELSER_MODELS.contains(version) == false) {
-            validationException.addValidationError("unknown ELSER model version [" + version + "]");
+        if (version != null) {
+            if (VALID_ELSER_MODELS.contains(version) == false) {
+                validationException.addValidationError("unknown ELSER model version [" + version + "]");
+            }
         } else {
             version = ElserMlNodeService.ELSER_V2_MODEL;
         }

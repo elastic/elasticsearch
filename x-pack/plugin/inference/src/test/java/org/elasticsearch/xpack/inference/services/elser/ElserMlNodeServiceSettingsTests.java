@@ -42,7 +42,7 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
                     1,
                     ElserMlNodeServiceSettings.NUM_THREADS,
                     4,
-                    "model_version",
+                    ElserMlNodeServiceSettings.MODEL_VERSION,
                     ".elser_model_1"
                 )
             )
@@ -66,7 +66,7 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
                 )
             )
         );
-        assertThat(e.getMessage(), containsString("faeafa"));
+        assertThat(e.getMessage(), containsString("unknown ELSER model version [.elser_model_27]"));
     }
 
     public void testFromMapMissingOptions() {

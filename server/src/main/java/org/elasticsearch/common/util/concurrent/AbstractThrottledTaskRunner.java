@@ -17,6 +17,7 @@ import org.elasticsearch.core.Strings;
 
 import java.util.Queue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -155,4 +156,30 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
         return runningTasks.get();
     }
 
+    /**
+     * Eagerly pull tasks from the queue and execute them on this thread. This must only be used if the tasks in the queue are all
+     * synchronous, i.e. they release their ref before returning from {@code onResponse()}.
+     */
+    public void runSyncTasksEagerly() {
+        final AtomicBoolean isDone = new AtomicBoolean(true);
+        final Releasable ref = () -> isDone.set(true);
+        ActionListener<Releasable> task;
+        while ((task = tasks.poll()) != null) {
+            isDone.set(false);
+            try {
+                logger.trace("[{}] eagerly running task {}", taskRunnerName, task);
+                task.onResponse(ref);
+            } catch (Exception e) {
+                logger.error(Strings.format("[%s] task %s failed", taskRunnerName, task), e);
+                assert false : e;
+                task.onFailure(e);
+                return;
+            }
+            if (isDone.get() == false) {
+                logger.error("runSyncTasksEagerly() was called on a queue [{}] containing an async task: [{}]", taskRunnerName, task);
+                assert false;
+                return;
+            }
+        }
+    }
 }

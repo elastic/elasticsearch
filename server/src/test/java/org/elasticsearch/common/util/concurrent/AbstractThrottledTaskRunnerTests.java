@@ -143,6 +143,52 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         assertNoRunningTasks(taskRunner);
     }
 
+    public void testRunSyncTasksEagerly() {
+        final int maxTasks = randomIntBetween(1, maxThreads);
+        final int taskCount = between(maxTasks, maxTasks * 2);
+        final var barrier = new CyclicBarrier(maxTasks + 1);
+        final var executedCountDown = new CountDownLatch(taskCount);
+        final var testThread = Thread.currentThread();
+
+        class TestTask implements ActionListener<Releasable> {
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    if (Thread.currentThread() != testThread) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                } finally {
+                    executedCountDown.countDown();
+                }
+            }
+        }
+
+        final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", maxTasks, executor, queue);
+        for (int i = 0; i < taskCount; i++) {
+            taskRunner.enqueueTask(new TestTask());
+        }
+
+        safeAwait(barrier);
+        assertEquals(taskCount - maxTasks, queue.size());
+        assertThat(taskRunner.runningTasks(), equalTo(maxTasks));
+
+        taskRunner.runSyncTasksEagerly();
+        assertEquals(0, queue.size());
+
+        safeAwait(barrier);
+        safeAwait(executedCountDown);
+        assertTrue(queue.isEmpty());
+        assertNoRunningTasks(taskRunner);
+    }
+
     public void testFailsTasksOnRejectionOrShutdown() throws Exception {
         final var executor = randomBoolean()
             ? EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.MILLISECONDS, true, threadFactory, threadContext)

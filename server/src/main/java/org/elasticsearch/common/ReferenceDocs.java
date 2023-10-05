@@ -130,10 +130,12 @@ public enum ReferenceDocs {
             }
             return major + "." + minor;
         }
-        // Non-semantic version
+        // Non-semantic version and snapshot -> point to the preliminary documentation for a future release (master)
         if (isSnapshot) {
             return UNRELEASED_VERSION_COMPONENT;
         }
+        // Non-semantic, released version -> point to latest information (current release documentation, e.g.
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-plugins.html)
         return CURRENT_VERSION_COMPONENT;
     }
 

@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
-import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
 
@@ -119,7 +118,6 @@ public class TimeSeriesIndexSearcher {
 
     private void search(BucketCollector bucketCollector, Weight weight) throws IOException {
         int seen = 0;
-        int[] tsidOrd = new int[1];
 
         // Create LeafWalker for each subreader
         List<LeafWalker> leafWalkers = new ArrayList<>();
@@ -132,7 +130,7 @@ public class TimeSeriesIndexSearcher {
                 if (minimumScore != null) {
                     scorer = new MinScoreScorer(weight, scorer, minimumScore);
                 }
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -182,7 +180,6 @@ public class TimeSeriesIndexSearcher {
                     queue.updateTop();
                 }
             } while (queue.size() > 0);
-            tsidOrd[0]++;
         }
     }
 
@@ -255,9 +252,9 @@ public class TimeSeriesIndexSearcher {
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, IntSupplier tsidOrdSupplier)
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector)
             throws IOException {
-            AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, tsidOrdSupplier);
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, () -> tsidOrd);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
@@ -282,9 +279,10 @@ public class TimeSeriesIndexSearcher {
                 }
                 // Check if the current tsid matches the passed one (if not null).
                 if (tsid != null && tsid.compareTo(getTsid()) != 0) {
-                    timestamp = timestamps.nextValue();
                     return;
                 }
+                getTsid();
+                timestamp = timestamps.nextValue();
                 collector.collect(docId);
                 docId = iterator.nextDoc();
             } while (docId != DocIdSetIterator.NO_MORE_DOCS);

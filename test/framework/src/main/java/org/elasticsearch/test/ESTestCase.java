@@ -1434,6 +1434,7 @@ public abstract class ESTestCase extends LuceneTestCase {
          *                 }
          *             }
          *         ).build();
+         * }
          * </pre>
          *
          * @param instantiator A function used to instantiate the ContextIndexSearcher, containing the desired

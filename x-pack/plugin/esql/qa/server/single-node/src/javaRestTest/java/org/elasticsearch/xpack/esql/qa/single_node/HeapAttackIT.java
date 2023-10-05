@@ -104,7 +104,6 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * This groups on about 200 columns which is a lot but has never caused us trouble.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testGroupOnSomeLongs() throws IOException {
         initManyLongs();
         Map<?, ?> map = XContentHelper.convertToMap(

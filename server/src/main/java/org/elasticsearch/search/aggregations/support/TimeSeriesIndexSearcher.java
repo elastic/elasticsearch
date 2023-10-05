@@ -272,15 +272,14 @@ public class TimeSeriesIndexSearcher {
 
         void collectAllValidDocs(BytesRef tsid) throws IOException {
             do {
-                if (isInvalidDoc(docId)) {
-                    continue;
+                if (isInvalidDoc(docId) == false) {
+                    BytesRef currentTsid = getTsid();
+                    if (tsid != null && tsid.compareTo(currentTsid) != 0) {
+                        return;
+                    }
+                    timestamp = timestamps.nextValue();
+                    collector.collect(docId);
                 }
-                BytesRef currentTsid = getTsid();
-                if (tsid != null && tsid.compareTo(currentTsid) != 0) {
-                    return;
-                }
-                timestamp = timestamps.nextValue();
-                collector.collect(docId);
                 docId = iterator.nextDoc();
             } while (docId != DocIdSetIterator.NO_MORE_DOCS);
         }

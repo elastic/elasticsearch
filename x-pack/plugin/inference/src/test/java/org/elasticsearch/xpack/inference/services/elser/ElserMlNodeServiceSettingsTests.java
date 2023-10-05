@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -19,14 +20,31 @@ import static org.hamcrest.Matchers.containsString;
 public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTestCase<ElserMlNodeServiceSettings> {
 
     public static ElserMlNodeServiceSettings createRandom() {
-        return new ElserMlNodeServiceSettings(randomIntBetween(1, 4), randomIntBetween(1, 2));
+        return new ElserMlNodeServiceSettings(randomIntBetween(1, 4), randomIntBetween(1, 2),
+            randomFrom(ElserMlNodeServiceSettings.VALID_ELSER_MODELS));
+    }
+
+    public void testFromMap_DefaultModelVersion() {
+        var serviceSettings = ElserMlNodeServiceSettings.fromMap(
+            new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
+        );
+        assertEquals(new ElserMlNodeServiceSettings(1, 4, ".elser_model_2"), serviceSettings);
     }
 
     public void testFromMap() {
         var serviceSettings = ElserMlNodeServiceSettings.fromMap(
-            new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
+            new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4,
+                "model_version", ".elser_model_1"))
         );
-        assertEquals(new ElserMlNodeServiceSettings(1, 4), serviceSettings);
+        assertEquals(new ElserMlNodeServiceSettings(1, 4, ".elser_model_1"), serviceSettings);
+    }
+
+    public void testFromMapInvalidVersion() {
+        var e = expectThrows(ValidationException.class, () ->ElserMlNodeServiceSettings.fromMap(
+            new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4,
+                "model_version", ".elser_model_27"))
+        ));
+        assertThat(e.getMessage(), containsString("faeafa"));
     }
 
     public void testFromMapMissingOptions() {
@@ -67,9 +85,14 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected ElserMlNodeServiceSettings mutateInstance(ElserMlNodeServiceSettings instance) {
-        return switch (randomIntBetween(0, 1)) {
-            case 0 -> new ElserMlNodeServiceSettings(instance.getNumAllocations() + 1, instance.getNumThreads());
-            case 1 -> new ElserMlNodeServiceSettings(instance.getNumAllocations(), instance.getNumThreads() + 1);
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new ElserMlNodeServiceSettings(instance.getNumAllocations() + 1, instance.getNumThreads(), instance.getModelVariant());
+            case 1 -> new ElserMlNodeServiceSettings(instance.getNumAllocations(), instance.getNumThreads() + 1, instance.getModelVariant());
+            case 2 -> {
+                var versions = new HashSet<>(ElserMlNodeServiceSettings.VALID_ELSER_MODELS);
+                versions.remove(instance.getModelVariant());
+                yield new ElserMlNodeServiceSettings(instance.getNumAllocations(), instance.getNumThreads(), versions.iterator().next());
+            }
             default -> throw new IllegalStateException();
         };
     }

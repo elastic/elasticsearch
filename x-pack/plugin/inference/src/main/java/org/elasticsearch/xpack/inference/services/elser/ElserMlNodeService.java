@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
@@ -35,7 +36,10 @@ public class ElserMlNodeService implements InferenceService {
 
     public static final String NAME = "elser_mlnode";
 
-    private static final String ELSER_V1_MODEL = ".elser_model_1";
+    static final String ELSER_V1_MODEL = ".elser_model_1";
+    // Default non platform specific v2 model
+    static final String ELSER_V2_MODEL = ".elser_model_2";
+    static final String ELSER_V2_MODEL_LINUX_X86 = ".elser_model_2_linux-x86_64";
 
     public static ElserMlNodeModel parseConfig(
         boolean throwOnUnknownFields,
@@ -106,7 +110,10 @@ public class ElserMlNodeService implements InferenceService {
         var elserModel = (ElserMlNodeModel) model;
         var serviceSettings = elserModel.getServiceSettings();
 
-        var startRequest = new StartTrainedModelDeploymentAction.Request(ELSER_V1_MODEL, model.getConfigurations().getModelId());
+        var startRequest = new StartTrainedModelDeploymentAction.Request(
+            serviceSettings.getModelVariant(),
+            model.getConfigurations().getModelId()
+        );
         startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
         startRequest.setWaitForState(STARTED);

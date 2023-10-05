@@ -54,7 +54,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 "foo",
                 TaskType.SPARSE_EMBEDDING,
                 ElserMlNodeService.NAME,
-                new ElserMlNodeServiceSettings(1, 4),
+                new ElserMlNodeServiceSettings(1, 4, ElserMlNodeService.ELSER_V2_MODEL),
                 ElserMlNodeTaskSettings.DEFAULT
             ),
             parsedModel
@@ -77,7 +77,7 @@ public class ElserMlNodeServiceTests extends ESTestCase {
                 "foo",
                 TaskType.SPARSE_EMBEDDING,
                 ElserMlNodeService.NAME,
-                new ElserMlNodeServiceSettings(1, 4),
+                new ElserMlNodeServiceSettings(1, 4, ElserMlNodeService.ELSER_V2_MODEL),
                 ElserMlNodeTaskSettings.DEFAULT
             ),
             parsedModel

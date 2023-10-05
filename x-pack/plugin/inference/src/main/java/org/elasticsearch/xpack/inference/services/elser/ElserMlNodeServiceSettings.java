@@ -20,15 +20,24 @@ import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class ElserMlNodeServiceSettings implements ServiceSettings {
 
     public static final String NAME = "elser_mlnode_service_settings";
     public static final String NUM_ALLOCATIONS = "num_allocations";
     public static final String NUM_THREADS = "num_threads";
+    public static final String MODEL_VERSION = "model_version";
+
+    public static Set<String> VALID_ELSER_MODELS = Set.of(
+        ElserMlNodeService.ELSER_V1_MODEL,
+        ElserMlNodeService.ELSER_V2_MODEL,
+        ElserMlNodeService.ELSER_V2_MODEL_LINUX_X86
+    );
 
     private final int numAllocations;
     private final int numThreads;
+    private final String modelVariant;
 
     /**
      * Parse the Elser service setting from map and validate the setting values.
@@ -61,21 +70,34 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
             validationException.addValidationError(mustBeAPositiveNumberError(NUM_THREADS, numThreads));
         }
 
+        String version = MapParsingUtils.removeAsType(map, MODEL_VERSION, String.class);
+        if (version != null && VALID_ELSER_MODELS.contains(version) == false) {
+                validationException.addValidationError("unknown ELSER model version [" + version + "]");
+        } else {
+            version = ElserMlNodeService.ELSER_V2_MODEL;
+        }
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ElserMlNodeServiceSettings(numAllocations, numThreads);
+        return new ElserMlNodeServiceSettings(numAllocations, numThreads, version);
     }
 
-    public ElserMlNodeServiceSettings(int numAllocations, int numThreads) {
+    public ElserMlNodeServiceSettings(int numAllocations, int numThreads, String variant) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
+        this.modelVariant = variant;
     }
 
     public ElserMlNodeServiceSettings(StreamInput in) throws IOException {
         numAllocations = in.readVInt();
         numThreads = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED)) {
+            modelVariant = in.readString();
+        } else {
+            modelVariant = ElserMlNodeService.ELSER_V1_MODEL;
+        }
     }
 
     public int getNumAllocations() {
@@ -86,11 +108,16 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         return numThreads;
     }
 
+    public String getModelVariant() {
+        return modelVariant;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NUM_ALLOCATIONS, numAllocations);
         builder.field(NUM_THREADS, numThreads);
+        builder.field(MODEL_VERSION, modelVariant);
         builder.endObject();
         return builder;
     }
@@ -109,11 +136,14 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(numAllocations);
         out.writeVInt(numThreads);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED)) {
+            out.writeString(modelVariant);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numAllocations, numThreads);
+        return Objects.hash(numAllocations, numThreads, modelVariant);
     }
 
     @Override
@@ -121,7 +151,7 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElserMlNodeServiceSettings that = (ElserMlNodeServiceSettings) o;
-        return numAllocations == that.numAllocations && numThreads == that.numThreads;
+        return numAllocations == that.numAllocations && numThreads == that.numThreads && Objects.equals(modelVariant, that.modelVariant);
     }
 
     private static String mustBeAPositiveNumberError(String settingName, int value) {

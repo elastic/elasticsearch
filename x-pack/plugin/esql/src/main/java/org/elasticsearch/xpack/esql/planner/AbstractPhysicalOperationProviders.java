@@ -261,6 +261,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             }
                             sourceAttr = List.of(attr);
                         }
+
                     } else if (mode == AggregateExec.Mode.FINAL) {
                         aggMode = AggregatorMode.FINAL;
                         if (grouping) {

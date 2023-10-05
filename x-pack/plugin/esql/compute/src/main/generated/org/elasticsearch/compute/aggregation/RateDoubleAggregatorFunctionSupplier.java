@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link RateDoubleAggregator}.
@@ -25,13 +26,13 @@ public final class RateDoubleAggregatorFunctionSupplier implements AggregatorFun
   }
 
   @Override
-  public RateDoubleAggregatorFunction aggregator() {
-    return RateDoubleAggregatorFunction.create(channels);
+  public RateDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+    return RateDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public RateDoubleGroupingAggregatorFunction groupingAggregator() {
-    return RateDoubleGroupingAggregatorFunction.create(channels, bigArrays);
+  public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+    return RateDoubleGroupingAggregatorFunction.create(channels, driverContext, bigArrays);
   }
 
   @Override

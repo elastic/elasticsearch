@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link RateLongAggregator}.
@@ -26,17 +27,22 @@ public final class RateLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("rate", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final RateStates.SingleState state;
 
   private final List<Integer> channels;
 
-  public RateLongAggregatorFunction(List<Integer> channels, RateStates.SingleState state) {
+  public RateLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      RateStates.SingleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static RateLongAggregatorFunction create(List<Integer> channels) {
-    return new RateLongAggregatorFunction(channels, RateLongAggregator.initSingle());
+  public static RateLongAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new RateLongAggregatorFunction(driverContext, channels, RateLongAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -98,8 +104,8 @@ public final class RateLongAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = RateLongAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = RateLongAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

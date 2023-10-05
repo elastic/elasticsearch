@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -97,7 +98,10 @@ public final class RateStates {
             blocks[offset] = new ConstantBytesRefVector(serialize(), 1).asBlock();
         }
 
-        Block evaluateDelta() {
+        Block evaluateDelta(DriverContext driverContext) {
+            if (Double.isNaN(lastValue)) {
+                return Block.constantNullBlock(1);
+            }
             return DoubleBlock.newConstantBlockWith(currentDelta, 1);
         }
     }
@@ -148,9 +152,9 @@ public final class RateStates {
 
         /** Extracts an intermediate view of the contents of this state.  */
         @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected) {
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            try (var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount())) {
+            try (var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);
                     SingleState state;
@@ -168,8 +172,8 @@ public final class RateStates {
             }
         }
 
-        Block evaluateDelta(IntVector selected) {
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount());
+        Block evaluateDelta(IntVector selected, DriverContext driverContext) {
+            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (si >= states.size()) {

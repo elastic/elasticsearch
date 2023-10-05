@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link RateIntAggregator}.
@@ -31,18 +32,21 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final BigArrays bigArrays;
 
   public RateIntGroupingAggregatorFunction(List<Integer> channels, RateStates.GroupingState state,
-      BigArrays bigArrays) {
+      DriverContext driverContext, BigArrays bigArrays) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
     this.bigArrays = bigArrays;
   }
 
   public static RateIntGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new RateIntGroupingAggregatorFunction(channels, RateIntAggregator.initGrouping(bigArrays), bigArrays);
+      DriverContext driverContext, BigArrays bigArrays) {
+    return new RateIntGroupingAggregatorFunction(channels, RateIntAggregator.initGrouping(bigArrays), driverContext, bigArrays);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -181,12 +185,13 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-    blocks[offset] = RateIntAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+      DriverContext driverContext) {
+    blocks[offset] = RateIntAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

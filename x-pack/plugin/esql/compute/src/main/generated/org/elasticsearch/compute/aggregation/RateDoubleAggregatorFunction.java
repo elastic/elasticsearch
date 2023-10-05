@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link RateDoubleAggregator}.
@@ -26,17 +27,22 @@ public final class RateDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("rate", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final RateStates.SingleState state;
 
   private final List<Integer> channels;
 
-  public RateDoubleAggregatorFunction(List<Integer> channels, RateStates.SingleState state) {
+  public RateDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      RateStates.SingleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static RateDoubleAggregatorFunction create(List<Integer> channels) {
-    return new RateDoubleAggregatorFunction(channels, RateDoubleAggregator.initSingle());
+  public static RateDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new RateDoubleAggregatorFunction(driverContext, channels, RateDoubleAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -98,8 +104,8 @@ public final class RateDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = RateDoubleAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = RateDoubleAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

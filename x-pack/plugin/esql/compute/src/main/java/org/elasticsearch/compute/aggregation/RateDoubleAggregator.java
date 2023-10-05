@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "rate", type = "BYTES_REF") })
 @GroupingAggregator
@@ -35,8 +36,8 @@ class RateDoubleAggregator {
         state.add(inValue);
     }
 
-    public static Block evaluateFinal(RateStates.SingleState state) {
-        return state.evaluateDelta();
+    public static Block evaluateFinal(RateStates.SingleState state, DriverContext driverContext) {
+        return state.evaluateDelta(driverContext);
     }
 
     public static RateStates.GroupingState initGrouping(BigArrays bigArrays) {
@@ -60,7 +61,7 @@ class RateDoubleAggregator {
         current.add(currentGroupId, state.getOrNull(statePosition));
     }
 
-    public static Block evaluateFinal(RateStates.GroupingState state, IntVector selectedGroups) {
-        return state.evaluateDelta(selectedGroups);
+    public static Block evaluateFinal(RateStates.GroupingState state, IntVector selectedGroups, DriverContext driverContext) {
+        return state.evaluateDelta(selectedGroups, driverContext);
     }
 }

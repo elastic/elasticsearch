@@ -109,8 +109,8 @@ public enum ReferenceDocs {
     }
 
     /**
-     * Compute the version component of the URL path (e.g. {@code 8.5} or {@code master}) for a particular version of Elasticsearch. Exposed
-     * for testing, but all items use {@link #VERSION_COMPONENT}
+     * Compute the version component of the URL path (e.g. {@code 8.5}, {@code master} or {@code current}) for a particular version of
+     * Elasticsearch. Exposed for testing, but all items use {@link #VERSION_COMPONENT}
      * ({@code getVersionComponent(Build.current().version(), Build.current().isSnapshot())}) which relates to the current version and
      * build.
      */

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -51,7 +53,6 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -77,7 +79,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     );
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
-        "esql.query.result_truncation_max_size",
+        "esql.query.result_truncation_default_size",
         500,
         1,
         10000,
@@ -101,15 +103,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        IndexResolver indexResolver = new IndexResolver(
-            client,
-            clusterService.getClusterName().value(),
-            EsqlDataTypeRegistry.INSTANCE,
-            Set::of
-        );
+        CircuitBreaker circuitBreaker = indicesService.getBigArrays().breakerService().getBreaker("request");
+        Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
+        BlockFactory blockFactory = new BlockFactory(circuitBreaker, indicesService.getBigArrays());
         return List.of(
-            new PlanExecutor(indexResolver, new EnrichPolicyResolver(clusterService, indexResolver, threadPool)),
-            new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME)
+            new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of)),
+            new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME, blockFactory),
+            blockFactory
         );
     }
 

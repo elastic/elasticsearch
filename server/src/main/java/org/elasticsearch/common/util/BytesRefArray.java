@@ -160,7 +160,14 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + startOffsets.ramBytesUsed() + bytes.ramBytesUsed();
+        return BASE_RAM_BYTES_USED + bigArraysRamBytesUsed();
+    }
+
+    /**
+     * Memory used by the {@link BigArrays} portion of this {@link BytesRefArray}.
+     */
+    public long bigArraysRamBytesUsed() {
+        return startOffsets.ramBytesUsed() + bytes.ramBytesUsed();
     }
 
 }

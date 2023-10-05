@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -19,11 +18,11 @@ abstract class KeyExtractorForInt implements KeyExtractor {
             return new KeyExtractorForInt.ForVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
-            return block.mvOrdering() == Block.MvOrdering.ASCENDING
+            return block.mvSortedAscending()
                 ? new KeyExtractorForInt.MinForAscending(encoder, nul, nonNul, block)
                 : new KeyExtractorForInt.MinForUnordered(encoder, nul, nonNul, block);
         }
-        return block.mvOrdering() == Block.MvOrdering.ASCENDING
+        return block.mvSortedAscending()
             ? new KeyExtractorForInt.MaxForAscending(encoder, nul, nonNul, block)
             : new KeyExtractorForInt.MaxForUnordered(encoder, nul, nonNul, block);
     }

@@ -57,22 +57,6 @@ public abstract class TransportNodesAction<
     private final Executor finalExecutor;
 
     /**
-     * Temporary for serverless compatibility. TODO remove.
-     */
-    protected TransportNodesAction(
-        String actionName,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<NodesRequest> request,
-        Writeable.Reader<NodeRequest> nodeRequest,
-        String executor
-    ) {
-        this(actionName, threadPool, clusterService, transportService, actionFilters, request, nodeRequest, threadPool.executor(executor));
-    }
-
-    /**
      * @param actionName        action name
      * @param threadPool        thread-pool
      * @param clusterService    cluster service

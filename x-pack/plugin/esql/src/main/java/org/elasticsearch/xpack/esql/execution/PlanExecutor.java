@@ -28,7 +28,6 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class PlanExecutor {
 
     private final IndexResolver indexResolver;
-    private final EnrichPolicyResolver enrichPolicyResolver;
     private final PreAnalyzer preAnalyzer;
     private final FunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
@@ -36,9 +35,8 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
 
-    public PlanExecutor(IndexResolver indexResolver, EnrichPolicyResolver enrichPolicyResolver) {
+    public PlanExecutor(IndexResolver indexResolver) {
         this.indexResolver = indexResolver;
-        this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.logicalPlanOptimizer = new LogicalPlanOptimizer();
@@ -47,18 +45,14 @@ public class PlanExecutor {
         this.verifier = new Verifier(metrics);
     }
 
-    public void esql(EsqlQueryRequest request, String sessionId, EsqlConfiguration cfg, ActionListener<PhysicalPlan> listener) {
-        QueryMetric clientId = QueryMetric.fromString("rest");
-        metrics.total(clientId);
-        newSession(sessionId, cfg).execute(request, wrap(listener::onResponse, ex -> {
-            // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
-            metrics.failed(clientId);
-            listener.onFailure(ex);
-        }));
-    }
-
-    private EsqlSession newSession(String sessionId, EsqlConfiguration cfg) {
-        return new EsqlSession(
+    public void esql(
+        EsqlQueryRequest request,
+        String sessionId,
+        EsqlConfiguration cfg,
+        EnrichPolicyResolver enrichPolicyResolver,
+        ActionListener<PhysicalPlan> listener
+    ) {
+        final var session = new EsqlSession(
             sessionId,
             cfg,
             indexResolver,
@@ -69,6 +63,17 @@ public class PlanExecutor {
             mapper,
             verifier
         );
+        QueryMetric clientId = QueryMetric.fromString("rest");
+        metrics.total(clientId);
+        session.execute(request, wrap(listener::onResponse, ex -> {
+            // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
+            metrics.failed(clientId);
+            listener.onFailure(ex);
+        }));
+    }
+
+    public IndexResolver indexResolver() {
+        return indexResolver;
     }
 
     public Metrics metrics() {

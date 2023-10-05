@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
@@ -30,6 +31,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 2, maxNumDataNodes = 4)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100341")
 public class EsqlDisruptionIT extends EsqlActionIT {
 
     // copied from AbstractDisruptionTestCase
@@ -47,11 +49,13 @@ public class EsqlDisruptionIT extends EsqlActionIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
+        Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(1000, 2000)))
             .build();
+        logger.info("settings {}", settings);
+        return settings;
     }
 
     @Override
@@ -90,6 +94,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             return future.actionGet(2, TimeUnit.MINUTES);
         } catch (Exception e) {
             assertTrue("request must be failed or completed after clearing disruption", future.isDone());
+            ensureBlocksReleased();
             logger.info("--> failed to execute esql query with disruption; retrying...", e);
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         }

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -67,7 +69,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             Duration arg = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.TIME_DURATION, "arg")),
-                "NegDurationEvaluator[v=Attribute[channel=0]]",
+                "No evaluator since this expression is only folded",
                 EsqlDataTypes.TIME_DURATION,
                 equalTo(arg.negated())
             );
@@ -75,7 +77,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             Period arg = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, EsqlDataTypes.DATE_PERIOD, "arg")),
-                "NegPeriodEvaluator[v=Attribute[channel=0]]",
+                "No evaluator since this expression is only folded",
                 EsqlDataTypes.DATE_PERIOD,
                 equalTo(arg.negated())
             );
@@ -108,7 +110,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertEquals(null, process(Integer.MIN_VALUE));
             assertCriticalWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: integer overflow"
+                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
             );
 
             return;
@@ -117,7 +119,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             assertEquals(null, process(Long.MIN_VALUE));
             assertCriticalWarnings(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: long overflow"
+                "Line -1:-1: java.lang.ArithmeticException: long overflow"
             );
 
             return;
@@ -139,39 +141,48 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             return;
         }
         if (testCaseType == EsqlDataTypes.DATE_PERIOD) {
-            Period minPeriod = Period.of(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
-            assertNull(process(minPeriod));
-            assertCriticalWarnings(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: integer overflow"
-            );
-
             Period maxPeriod = Period.of(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
             Period negatedMaxPeriod = Period.of(-Integer.MAX_VALUE, -Integer.MAX_VALUE, -Integer.MAX_VALUE);
             assertEquals(negatedMaxPeriod, process(maxPeriod));
+
+            Period minPeriod = Period.of(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                "Expected exception when negating minimal date period.",
+                () -> process(minPeriod)
+            );
+            assertEquals(e.getMessage(), "arithmetic exception in expression []: [integer overflow]");
+
             return;
         }
         if (testCaseType == EsqlDataTypes.TIME_DURATION) {
-            Duration minDuration = Duration.ofSeconds(Long.MIN_VALUE, 0);
-            assertNull(process(minDuration));
-            assertCriticalWarnings(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Exceeds capacity of Duration: 9223372036854775808000000000"
-            );
-
             Duration maxDuration = Duration.ofSeconds(Long.MAX_VALUE, 0);
             Duration negatedMaxDuration = Duration.ofSeconds(-Long.MAX_VALUE, 0);
             assertEquals(negatedMaxDuration, process(maxDuration));
 
+            Duration minDuration = Duration.ofSeconds(Long.MIN_VALUE, 0);
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                "Expected exception when negating minimal time duration.",
+                () -> process(minDuration)
+            );
+            assertEquals(
+                e.getMessage(),
+                "arithmetic exception in expression []: [Exceeds capacity of Duration: 9223372036854775808000000000]"
+            );
+
             return;
         }
+
         throw new AssertionError("Edge cases not tested for negation with type [" + testCaseType.typeName() + "]");
     }
 
     private Object process(Object val) {
         if (testCase.allTypesAreRepresentable()) {
             Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
-            return toJavaObject(evaluator(neg).get(driverContext()).eval(row(List.of(val))), 0);
+            try (Block.Ref ref = evaluator(neg).get(driverContext()).eval(row(List.of(val)))) {
+                return toJavaObject(ref.block(), 0);
+            }
         } else { // just fold if type is not representable
             Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));
             return neg.fold();

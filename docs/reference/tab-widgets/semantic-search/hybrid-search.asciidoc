@@ -22,7 +22,7 @@ GET my-index/_search
       "query": {
         "text_expansion": {
           "my_embeddings.tokens": {
-            "model_id": ".elser_model_1",
+            "model_id": ".elser_model_2",
             "model_text": "the query string"
           }
         }

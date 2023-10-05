@@ -17,9 +17,11 @@ import java.util.Arrays;
  */
 public final class LongArrayVector extends AbstractVector implements LongVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class);
 
     private final long[] values;
+
+    private final LongBlock block;
 
     public LongArrayVector(long[] values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
@@ -28,11 +30,12 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
     public LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new LongVectorBlock(this);
     }
 
     @Override
     public LongBlock asBlock() {
-        return new LongVectorBlock(this);
+        return block;
     }
 
     @Override

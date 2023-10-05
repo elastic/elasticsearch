@@ -75,6 +75,7 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
     public static long ramBytesEstimated(long[] values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
             + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
+        // TODO mvordering is shared
     }
 
     @Override
@@ -109,6 +110,10 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

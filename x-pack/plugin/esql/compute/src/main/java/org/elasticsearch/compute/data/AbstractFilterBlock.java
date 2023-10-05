@@ -105,6 +105,11 @@ abstract class AbstractFilterBlock implements Block {
         return block.blockFactory();
     }
 
+    @Override
+    public boolean isReleased() {
+        return block.isReleased();
+    }
+
     private int mapPosition(int position) {
         assert assertPosition(position);
         return positions[position];

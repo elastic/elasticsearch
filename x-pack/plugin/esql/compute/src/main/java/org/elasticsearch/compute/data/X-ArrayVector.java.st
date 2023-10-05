@@ -25,7 +25,7 @@ $endif$
  */
 public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
 
 $if(BytesRef)$
     private final BytesRefArray values;
@@ -34,6 +34,8 @@ $else$
     private final $type$[] values;
 $endif$
 
+    private final $Type$Block block;
+
     public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -41,11 +43,12 @@ $endif$
     public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return new $Type$VectorBlock(this);
+        return block;
     }
 
 $if(BytesRef)$
@@ -110,7 +113,7 @@ $endif$
 $if(BytesRef)$
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-BASE_RAM_BYTES_USED, true);
+        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }
 $endif$

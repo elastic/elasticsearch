@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -118,7 +118,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             if (upgradesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size() + 1)) {
                 logger.info(
                     "Starting template upgrade to version {}, {} templates will be updated and {} will be removed",
-                    Version.CURRENT,
+                    Build.current().version(),
                     changes.get().v1().size(),
                     changes.get().v2().size()
                 );
@@ -190,9 +190,9 @@ public class TemplateUpgradeService implements ClusterStateListener {
             try {
                 // this is the last upgrade, the templates should now be in the desired state
                 if (anyUpgradeFailed.get()) {
-                    logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
+                    logger.info("Templates were partially upgraded to version {}", Build.current().version());
                 } else {
-                    logger.info("Templates were upgraded successfully to version {}", Version.CURRENT);
+                    logger.info("Templates were upgraded successfully to version {}", Build.current().version());
                 }
                 // Check upgraders are satisfied after the update completed. If they still
                 // report that changes are required, this might indicate a bug or that something

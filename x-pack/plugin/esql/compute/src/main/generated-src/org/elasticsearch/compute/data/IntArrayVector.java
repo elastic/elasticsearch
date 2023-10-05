@@ -17,9 +17,11 @@ import java.util.Arrays;
  */
 public final class IntArrayVector extends AbstractVector implements IntVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class);
 
     private final int[] values;
+
+    private final IntBlock block;
 
     public IntArrayVector(int[] values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
@@ -28,11 +30,12 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     public IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return new IntVectorBlock(this);
+        return block;
     }
 
     @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -23,8 +24,11 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -62,7 +66,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
-    private EsqlConfiguration configuration;
+    private final EsqlConfiguration configuration;
 
     public PlanStreamInput(
         StreamInput streamInput,
@@ -99,6 +103,48 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     public PhysicalPlan readPhysicalPlanNode() throws IOException {
         return readNamed(PhysicalPlan.class);
+    }
+
+    public Source readSource() throws IOException {
+        boolean hasSource = readBoolean();
+        if (hasSource) {
+            int line = readInt();
+            int column = readInt();
+            int length = readInt();
+            int charPositionInLine = column - 1;
+            return new Source(new Location(line, charPositionInLine), sourceText(configuration.query(), line, column, length));
+        }
+        return Source.EMPTY;
+    }
+
+    private static String sourceText(String query, int line, int column, int length) {
+        if (line <= 0 || column <= 0 || query.isEmpty()) {
+            return StringUtils.EMPTY;
+        }
+        int offset = textOffset(query, line, column);
+        if (offset + length > query.length()) {
+            throw new EsqlIllegalArgumentException(
+                "location [@" + line + ":" + column + "] and length [" + length + "] overrun query size [" + query.length() + "]"
+            );
+        }
+        return query.substring(offset, offset + length);
+    }
+
+    private static int textOffset(String query, int line, int column) {
+        int offset = 0;
+        if (line > 1) {
+            String[] lines = query.split("\n");
+            if (line > lines.length) {
+                throw new EsqlIllegalArgumentException(
+                    "line location [" + line + "] higher than max [" + lines.length + "] in query [" + query + "]"
+                );
+            }
+            for (int i = 0; i < line - 1; i++) {
+                offset += lines[i].length() + 1; // +1 accounts for the removed \n
+            }
+        }
+        offset += column - 1; // -1 since column is 1-based indexed
+        return offset;
     }
 
     public Expression readExpression() throws IOException {

@@ -1,0 +1,5 @@
+pr: 99947
+summary: GET `_data_stream` displays both ILM and DSL information
+area: Data streams
+type: feature
+issues: []

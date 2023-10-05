@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -138,7 +139,7 @@ public class AutoscalingNodeInfoService {
                                     .map(BaseNodeResponse::getNode)
                                     .map(DiscoveryNode::getId)
                                     .toArray(String[]::new)
-                            ).clear().addMetric(NodesInfoRequest.Metric.OS.metricName()).timeout(fetchTimeout),
+                            ).clear().addMetric(NodesInfoMetrics.Metric.OS.metricName()).timeout(fetchTimeout),
                             ActionListener.wrap(nodesInfoResponse -> {
                                 final Map<String, AutoscalingNodeInfo.Builder> builderBuilder = Maps.newHashMapWithExpectedSize(
                                     nodesStatsResponse.getNodes().size()

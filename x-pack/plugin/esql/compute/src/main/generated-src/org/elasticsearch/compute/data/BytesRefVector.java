@@ -72,17 +72,18 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static BytesRefVector of(StreamInput in) throws IOException {
+    static BytesRefVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantBytesRefVector(in.readBytesRef(), positions);
+            return blockFactory.newConstantBytesRefVector(in.readBytesRef(), positions);
         } else {
-            var builder = BytesRefVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendBytesRef(in.readBytesRef());
+            try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendBytesRef(in.readBytesRef());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 
@@ -106,10 +107,16 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Creates a builder that grows as needed.
+     */
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newBytesRefVectorBuilder(estimatedSize);
     }
 
+    /**
+     * A builder that grows as needed.
+     */
     sealed interface Builder extends Vector.Builder permits BytesRefVectorBuilder {
         /**
          * Appends a BytesRef to the current entry.
@@ -119,4 +126,5 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         @Override
         BytesRefVector build();
     }
+
 }

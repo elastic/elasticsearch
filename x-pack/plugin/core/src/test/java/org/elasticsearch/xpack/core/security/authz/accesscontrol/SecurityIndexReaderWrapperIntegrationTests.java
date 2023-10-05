@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -69,6 +71,11 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderTestCase {
+
+    @Override
+    public ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
+        return new ContextIndexSearcherBuilder(reader).wrapWithExitableDirectoryReader(true).build();
+    }
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
@@ -180,13 +187,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             when(searchExecutionContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
 
             DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
-            IndexSearcher indexSearcher = new ContextIndexSearcher(
-                wrappedDirectoryReader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(),
-                true
-            );
+            IndexSearcher indexSearcher = newContextSearcher(wrappedDirectoryReader);
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
@@ -310,13 +311,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
-        IndexSearcher indexSearcher = new ContextIndexSearcher(
-            wrappedDirectoryReader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
-        );
+        IndexSearcher indexSearcher = newContextSearcher(wrappedDirectoryReader);
 
         ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();

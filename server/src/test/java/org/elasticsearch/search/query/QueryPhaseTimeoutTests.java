@@ -97,14 +97,11 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
-        return new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            LuceneTestCase.MAYBE_CACHE_POLICY,
-            true
-        );
+    private ContextIndexSearcher createContextSearcher(IndexReader reader) throws IOException {
+        return new ContextIndexSearcherBuilder(reader)
+            .queryCachingPolicy(LuceneTestCase.MAYBE_CACHE_POLICY)
+            .wrapWithExitableDirectoryReader(true)
+            .build();
     }
 
     public void testScorerTimeoutTerms() throws IOException {
@@ -233,7 +230,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private TestSearchContext createSearchContextWithTimeout(TimeoutQuery query, int size) throws IOException {
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader)) {
+        TestSearchContext context = new TestSearchContext(null, indexShard, createContextSearcher(reader)) {
             @Override
             public long getRelativeTimeInMillis() {
                 return query.shouldTimeout ? 1L : 0L;
@@ -246,7 +243,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     }
 
     private TestSearchContext createSearchContext(Query query, int size) throws IOException {
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(null, indexShard, createContextSearcher(reader));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(size);

@@ -12,7 +12,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -79,14 +78,8 @@ public class TimeSeriesCancellationTests extends ESTestCase {
     }
 
     public void testLowLevelCancellationActions() throws IOException {
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
-        );
-        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> {
+        ContextIndexSearcher searcher = newContextSearcher(reader);
+        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> { // TODO: Use Concurrent Index Searcher?
             throw new TaskCancelledException("Cancel");
         }));
         CountingBucketCollector bc = new CountingBucketCollector();

@@ -216,17 +216,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
         try (Directory directory = newDirectory()) {
             indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                ContextIndexSearcher searcher = new ContextIndexSearcher(
-                    directoryReader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    IndexSearcher.getDefaultQueryCachingPolicy(),
-                    randomBoolean(),
-                    executor,
-                    // create as many slices as possible
-                    Integer.MAX_VALUE,
-                    1
-                );
+                ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(directoryReader)
+                    .workerExecutor(executor)
+                    .maximumNumberOfSlices(Integer.MAX_VALUE) // create as many slices as possible
+                    .build();
                 int numSegments = directoryReader.getContext().leaves().size();
                 assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
                 KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
@@ -248,17 +241,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
         try (Directory directory = newDirectory()) {
             int numDocs = indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                ContextIndexSearcher searcher = new ContextIndexSearcher(
-                    directoryReader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    IndexSearcher.getDefaultQueryCachingPolicy(),
-                    randomBoolean(),
-                    executor,
-                    // create as many slices as possible
-                    Integer.MAX_VALUE,
-                    1
-                );
+                ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(directoryReader)
+                    .workerExecutor(executor)
+                    .maximumNumberOfSlices(Integer.MAX_VALUE) // create as many slices as possible
+                    .build();
                 Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
                 assertEquals(numDocs, totalHits.intValue());
                 int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
@@ -340,14 +326,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            filteredReader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
-        );
-
+        ContextIndexSearcher searcher = newContextSearcher(filteredReader);
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
             assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
             SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
@@ -461,21 +440,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
     public void testReduceIsCalledOnTimeout() throws IOException {
         try (Directory dir = newDirectory()) {
             indexDocs(dir);
-            ThreadPoolExecutor executor = null;
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
-                if (randomBoolean()) {
-                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
-                }
-                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
-                    directoryReader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    IndexSearcher.getDefaultQueryCachingPolicy(),
-                    true,
-                    executor,
-                    executor == null ? -1 : executor.getMaximumPoolSize(),
-                    1
-                );
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcherBuilder(directoryReader)
+                    .wrapWithExitableDirectoryReader(true)
+                    .build();
                 boolean[] called = new boolean[1];
                 CollectorManager<Collector, Void> manager = new CollectorManager<>() {
                     @Override
@@ -519,10 +487,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 }, manager);
                 assertTrue(contextIndexSearcher.timeExceeded());
                 assertThat(called[0], equalTo(true));
-            } finally {
-                if (executor != null) {
-                    terminate(executor);
-                }
             }
         }
     }
@@ -556,16 +520,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 final boolean[] reduceCalled;
                 LeafSlice[] leafSlices;
                 try (
-                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
-                        directoryReader,
-                        IndexSearcher.getDefaultSimilarity(),
-                        IndexSearcher.getDefaultQueryCache(),
-                        IndexSearcher.getDefaultQueryCachingPolicy(),
-                        true,
-                        executorTestWrapper,
-                        executor.getMaximumPoolSize(),
-                        1
-                    )
+                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcherBuilder(directoryReader)
+                        .workerExecutor(executorTestWrapper)
+                        .maximumNumberOfSlices(executor.getMaximumPoolSize())
+                        .wrapWithExitableDirectoryReader(true)
+                        .build();
                 ) {
                     leafSlices = contextIndexSearcher.getSlicesForCollection();
                     int numThrowingLeafSlices = randomIntBetween(1, 3);
@@ -692,16 +651,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 final boolean[] reduceCalled;
                 LeafSlice[] leafSlices;
                 try (
-                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
-                        directoryReader,
-                        IndexSearcher.getDefaultSimilarity(),
-                        IndexSearcher.getDefaultQueryCache(),
-                        IndexSearcher.getDefaultQueryCachingPolicy(),
-                        true,
-                        executorTestWrapper,
-                        executor.getMaximumPoolSize(),
-                        1
-                    )
+                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcherBuilder(directoryReader)
+                        .workerExecutor(executorTestWrapper)
+                        .maximumNumberOfSlices(executor.getMaximumPoolSize())
+                        .wrapWithExitableDirectoryReader(true)
+                        .build();
                 ) {
                     leafSlices = contextIndexSearcher.getSlicesForCollection();
                     int numThrowingLeafSlices = randomIntBetween(1, 3);

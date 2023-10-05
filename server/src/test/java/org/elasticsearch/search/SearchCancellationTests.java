@@ -19,7 +19,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
@@ -39,6 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+@Repeat(iterations = 100)
 public class SearchCancellationTests extends ESTestCase {
 
     private static final String STRING_FIELD_NAME = "foo";
@@ -55,8 +56,10 @@ public class SearchCancellationTests extends ESTestCase {
         // we need at least 2 segments - so no merges should be allowed
         w.w.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
         w.setDoRandomForceMerge(false);
+        // TODO this might need more documents if we want to hit the concurrent search path more often
         indexRandomDocuments(w, TestUtil.nextInt(random(), 2, 20));
         w.flush();
+        // TODO this might need more documents if we want to hit the concurrent search path more often
         indexRandomDocuments(w, TestUtil.nextInt(random(), 1, 20));
         reader = w.getReader();
         w.close();
@@ -80,13 +83,7 @@ public class SearchCancellationTests extends ESTestCase {
     }
 
     public void testAddingCancellationActions() throws IOException {
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
-        );
+        ContextIndexSearcher searcher = newContextSearcher(reader);
         NullPointerException npe = expectThrows(NullPointerException.class, () -> searcher.addQueryCancellation(null));
         assertEquals("cancellation runnable should not be null", npe.getMessage());
 
@@ -99,13 +96,7 @@ public class SearchCancellationTests extends ESTestCase {
     public void testCancellableCollector() throws IOException {
         TotalHitCountCollector collector1 = new TotalHitCountCollector();
         Runnable cancellation = () -> { throw new TaskCancelledException("cancelled"); };
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
-        );
+        ContextIndexSearcher searcher = newContextSearcher(reader);
 
         searcher.search(new MatchAllDocsQuery(), collector1);
         assertThat(collector1.getTotalHits(), equalTo(reader.numDocs()));
@@ -126,13 +117,7 @@ public class SearchCancellationTests extends ESTestCase {
                 throw new TaskCancelledException("cancelled");
             }
         };
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
-        );
+        ContextIndexSearcher searcher = newContextSearcher(reader);
         searcher.addQueryCancellation(cancellation);
         CompiledAutomaton automaton = new CompiledAutomaton(new RegExp("a.*").toAutomaton());
 
@@ -188,13 +173,7 @@ public class SearchCancellationTests extends ESTestCase {
                 throw new TaskCancelledException("cancelled");
             }
         };
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
-        );
+        ContextIndexSearcher searcher = newContextSearcher(reader);
         searcher.addQueryCancellation(cancellation);
         final LeafReader leaf = searcher.getIndexReader().leaves().get(0).reader();
         expectThrows(TaskCancelledException.class, () -> leaf.getFloatVectorValues(KNN_FIELD_NAME));

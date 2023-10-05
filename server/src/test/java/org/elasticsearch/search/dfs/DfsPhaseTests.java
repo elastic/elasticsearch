@@ -11,51 +11,21 @@ package org.elasticsearch.search.dfs;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.ThreadPoolExecutor;
 
 public class DfsPhaseTests extends ESTestCase {
-
-    ThreadPoolExecutor threadPoolExecutor;
-    private TestThreadPool threadPool;
-
-    @Before
-    public final void init() {
-        int numThreads = randomIntBetween(2, 4);
-        threadPool = new TestThreadPool(DfsPhaseTests.class.getName());
-        threadPoolExecutor = EsExecutors.newFixed(
-            "test",
-            numThreads,
-            10,
-            EsExecutors.daemonThreadFactory("test"),
-            threadPool.getThreadContext(),
-            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
-        );
-    }
-
-    @After
-    public void cleanup() {
-        threadPoolExecutor.shutdown();
-        terminate(threadPool);
-    }
 
     public void testSingleKnnSearch() throws IOException {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
@@ -68,16 +38,7 @@ public class DfsPhaseTests extends ESTestCase {
             w.flush();
 
             IndexReader reader = w.getReader();
-            ContextIndexSearcher searcher = new ContextIndexSearcher(
-                reader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(),
-                randomBoolean(),
-                threadPoolExecutor,
-                threadPoolExecutor.getMaximumPoolSize(),
-                1
-            );
+            ContextIndexSearcher searcher = newContextSearcher(reader);
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
 

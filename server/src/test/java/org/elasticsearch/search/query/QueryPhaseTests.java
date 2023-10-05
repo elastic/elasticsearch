@@ -38,7 +38,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -103,6 +102,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+//@Repeat(iterations = 10000)
 public class QueryPhaseTests extends IndexShardTestCase {
 
     private Directory dir;
@@ -134,13 +134,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     private void countTestCase(Query query, IndexReader reader, boolean shouldCollectSearch, boolean shouldCollectCount) throws Exception {
-        ContextIndexSearcher searcher = shouldCollectSearch ? newContextSearcher(reader) : noCollectionContextSearcher(reader);
+        ContextIndexSearcher searcher = shouldCollectSearch ? createContextSearcher(reader) : noCollectionContextSearcher(reader);
         TestSearchContext context = createContext(searcher, query);
         context.setSize(0);
 
         QueryPhase.addCollectorsAndSearch(context);
 
-        ContextIndexSearcher countSearcher = shouldCollectCount ? newContextSearcher(reader) : noCollectionContextSearcher(reader);
+        ContextIndexSearcher countSearcher = shouldCollectCount ? createContextSearcher(reader) : noCollectionContextSearcher(reader);
         assertEquals(countSearcher.count(query), context.queryResult().topDocs().topDocs.totalHits.value);
     }
 
@@ -244,7 +244,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         {
             // QueryPhaseCollector does not propagate Weight#count when a post_filter is provided, hence it forces collection despite
             // the inner TotalHitCountCollector can shortcut
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(0);
             context.parsedPostFilter(new ParsedQuery(new MatchNoDocsQuery()));
             QueryPhase.executeQuery(context);
@@ -253,7 +253,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         {
             // shortcutTotalHitCount is disabled for filter collectors, hence we collect until track_total_hits
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(10);
             context.parsedPostFilter(new ParsedQuery(new MatchNoDocsQuery()));
             QueryPhase.addCollectorsAndSearch(context);
@@ -264,7 +264,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testTerminateAfterWithFilter() throws Exception {
         indexDocs();
-        TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+        TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
         context.terminateAfter(1);
         context.setSize(10);
         context.parsedPostFilter(new ParsedQuery(new TermQuery(new Term("foo", "bar"))));
@@ -294,7 +294,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         {
             // QueryPhaseCollector does not propagate Weight#count when min_score is provided, hence it forces collection despite
             // the inner TotalHitCountCollector can shortcut
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(0);
             context.minimumScore(100);
             QueryPhase.addCollectorsAndSearch(context);
@@ -303,7 +303,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         {
             // shortcutTotalHitCount is disabled for filter collectors, hence we collect until track_total_hits
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(10);
             context.minimumScore(100);
             QueryPhase.executeQuery(context);
@@ -314,7 +314,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testQueryCapturesThreadPoolStats() throws Exception {
         indexDocs();
-        TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+        TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
         QueryPhase.addCollectorsAndSearch(context);
         QuerySearchResult results = context.queryResult();
         assertThat(results.serviceTimeEWMA(), greaterThanOrEqualTo(0L));
@@ -327,7 +327,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         int numDocs = indexDocs(iwc);
 
         ScrollContext scrollContext = new ScrollContext();
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+        TestSearchContext context = new TestSearchContext(null, indexShard, createContextSearcher(reader), scrollContext);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
@@ -445,7 +445,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), query);
+            TestSearchContext context = createContext(createContextSearcher(reader), query);
             context.terminateAfter(10);
             context.setSize(0);
             // track total hits is higher than terminate_after, in which case collection effectively terminates after 10 documents
@@ -467,7 +467,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testTerminateAfterWithHitsHitCountShortcut() throws Exception {
         int numDocs = indexDocs();
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.terminateAfter(numDocs);
             context.setSize(10);
             QueryPhase.executeQuery(context);
@@ -607,7 +607,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         int numDocs = indexDocs(iwc);
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(1);
             context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
             QueryPhase.addCollectorsAndSearch(context);
@@ -619,7 +619,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(fieldDoc.fields[0], equalTo(1));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(1);
             context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
             context.parsedPostFilter(new ParsedQuery(new MinDocQuery(1)));
@@ -632,7 +632,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(1);
             context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
             QueryPhase.executeQuery(context);
@@ -644,7 +644,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(1);
             context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
             context.setSearcher(earlyTerminationContextSearcher(reader, 1));
@@ -657,7 +657,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), new MatchAllDocsQuery());
+            TestSearchContext context = createContext(createContextSearcher(reader), new MatchAllDocsQuery());
             context.setSize(1);
             context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
             QueryPhase.addCollectorsAndSearch(context);
@@ -692,7 +692,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         searchSortAndFormats.add(new SortAndFormats(new Sort(indexSort.getSort()[0]), new DocValueFormat[] { DocValueFormat.RAW }));
         for (SortAndFormats searchSortAndFormat : searchSortAndFormats) {
             ScrollContext scrollContext = new ScrollContext();
-            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+            TestSearchContext context = new TestSearchContext(null, indexShard, createContextSearcher(reader), scrollContext);
             context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
             scrollContext.lastEmittedDoc = null;
             scrollContext.maxScore = Float.NaN;
@@ -752,7 +752,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             .addClause(new SpanTermQuery(new Term("title", "bar")))
             .build();
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), q);
+            TestSearchContext context = createContext(createContextSearcher(reader), q);
             context.setSize(3);
             context.trackTotalHitsUpTo(3);
             CollectorManager<Collector, QueryPhaseResult> collectorManager = QueryPhaseCollectorManager.createQueryPhaseCollectorManager(
@@ -768,7 +768,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
         }
         {
-            TestSearchContext context = createContext(newContextSearcher(reader), q);
+            TestSearchContext context = createContext(createContextSearcher(reader), q);
             context.setSize(3);
             context.trackTotalHitsUpTo(3);
             context.sort(
@@ -835,7 +835,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 1. Test sort optimization on long field
         {
-            TestSearchContext searchContext = createContext(newContextSearcher(reader), q);
+            TestSearchContext searchContext = createContext(createContextSearcher(reader), q);
             searchContext.sort(formatsLong);
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
@@ -846,7 +846,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 2. Test sort optimization on long field with after
         {
-            TestSearchContext searchContext = createContext(newContextSearcher(reader), q);
+            TestSearchContext searchContext = createContext(createContextSearcher(reader), q);
             int afterDoc = (int) randomLongBetween(0, 30);
             long afterValue = startLongValue + afterDoc;
             FieldDoc after = new FieldDoc(afterDoc, Float.NaN, new Long[] { afterValue });
@@ -864,7 +864,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 3. Test sort optimization on long field + date field
         {
-            TestSearchContext searchContext = createContext(newContextSearcher(reader), q);
+            TestSearchContext searchContext = createContext(createContextSearcher(reader), q);
             searchContext.sort(formatsLongDate);
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
@@ -875,7 +875,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 4. Test sort optimization on date field
         {
-            TestSearchContext searchContext = createContext(newContextSearcher(reader), q);
+            TestSearchContext searchContext = createContext(createContextSearcher(reader), q);
             searchContext.sort(formatsDate);
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
@@ -886,7 +886,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 5. Test sort optimization on date field + long field
         {
-            TestSearchContext searchContext = createContext(newContextSearcher(reader), q);
+            TestSearchContext searchContext = createContext(createContextSearcher(reader), q);
             searchContext.sort(formatsDateLong);
             searchContext.trackTotalHitsUpTo(10);
             searchContext.setSize(10);
@@ -897,7 +897,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 6. Test sort optimization on when from > 0 and size = 0
         {
-            TestSearchContext searchContext = createContext(newContextSearcher(reader), q);
+            TestSearchContext searchContext = createContext(createContextSearcher(reader), q);
             searchContext.sort(formatsLong);
             searchContext.trackTotalHitsUpTo(10);
             searchContext.from(5);
@@ -911,7 +911,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         // 7. Test that sort optimization doesn't break a case where from = 0 and size= 0
         {
-            TestSearchContext searchContext = createContext(newContextSearcher(reader), q);
+            TestSearchContext searchContext = createContext(createContextSearcher(reader), q);
             searchContext.sort(formatsLong);
             searchContext.setSize(0);
             QueryPhase.addCollectorsAndSearch(searchContext);
@@ -1009,7 +1009,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         BooleanQuery booleanQuery = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
             .add(new TermQuery(new Term("filter", "f1")), Occur.SHOULD)
             .build();
-        TestSearchContext context = createContext(newContextSearcher(reader), booleanQuery);
+        TestSearchContext context = createContext(createContextSearcher(reader), booleanQuery);
         context.minimumScore(0.01f);
         context.setSize(1);
         context.trackTotalHitsUpTo(5);
@@ -1030,7 +1030,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         reader = DirectoryReader.open(dir);
         PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"), MultiTermQuery.SCORING_BOOLEAN_REWRITE);
-        TestSearchContext context = createContext(newContextSearcher(reader), prefixQuery);
+        TestSearchContext context = createContext(createContextSearcher(reader), prefixQuery);
         SearchShardTask task = new SearchShardTask(randomLong(), "transport", "", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
         TaskCancelHelper.cancel(task, "simulated");
         context.setTask(task);
@@ -1051,19 +1051,25 @@ public class QueryPhaseTests extends IndexShardTestCase {
         reader = DirectoryReader.open(dir);
 
         final List<Query> executed = new ArrayList<>();
-        ContextIndexSearcher searcher = new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            true
-        ) {
-            @Override
-            public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
-                executed.add(query);
-                return super.search(query, collectorManager);
-            }
-        };
+        ContextIndexSearcher searcher = new ContextIndexSearcherBuilder(reader)
+            .wrapWithExitableDirectoryReader(true)
+            .instantiation((builderValues) -> new ContextIndexSearcher(
+                    builderValues.reader(),
+                    builderValues.similarity(),
+                    builderValues.queryCache(),
+                    builderValues.queryCachingPolicy(),
+                    builderValues.wrapWithExitableDirectoryReader(),
+                    builderValues.executor(),
+                    builderValues.maximumNumberOfSlices(),
+                    builderValues.minimumDocsPerSlice()
+                ) {
+                    @Override
+                    public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
+                        executed.add(query);
+                        return super.search(query, collectorManager);
+                    }
+                }
+            ).build();
 
         SearchContext context = new TestSearchContext(null, indexShard, searcher) {
             @Override
@@ -1110,7 +1116,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
         @Override
-        public void onUse(Query query) {}
+        public void onUse(Query query) {
+        }
 
         @Override
         public boolean shouldCache(Query query) {
@@ -1118,49 +1125,53 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
     };
 
-    private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
-        return new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            NEVER_CACHE_POLICY,
-            true
-        );
+    private ContextIndexSearcher createContextSearcher(IndexReader reader) throws IOException {
+        return new ContextIndexSearcherBuilder(reader)
+            .queryCachingPolicy(NEVER_CACHE_POLICY)
+            .wrapWithExitableDirectoryReader(true)
+            .build();
     }
 
-    private static ContextIndexSearcher noCollectionContextSearcher(IndexReader reader) throws IOException {
+    private ContextIndexSearcher noCollectionContextSearcher(IndexReader reader) throws IOException {
         return earlyTerminationContextSearcher(reader, 0);
     }
 
-    private static ContextIndexSearcher earlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
-        return new ContextIndexSearcher(
-            reader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            NEVER_CACHE_POLICY,
-            true
-        ) {
-
-            @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                final Collector in = new FilterCollector(collector) {
+    private ContextIndexSearcher earlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
+        return new ContextIndexSearcherBuilder(reader)
+            .queryCachingPolicy(NEVER_CACHE_POLICY)
+            .wrapWithExitableDirectoryReader(true)
+            .instantiation((builderValues) -> new ContextIndexSearcher(
+                    builderValues.reader(),
+                    builderValues.similarity(),
+                    builderValues.queryCache(),
+                    builderValues.queryCachingPolicy(),
+                    builderValues.wrapWithExitableDirectoryReader(),
+                    builderValues.executor(),
+                    builderValues.maximumNumberOfSlices(),
+                    builderValues.minimumDocsPerSlice()
+                ) {
                     @Override
-                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                        final LeafCollector in = super.getLeafCollector(context);
-                        return new FilterLeafCollector(in) {
-                            int collected;
-
+                    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                        final Collector in = new FilterCollector(collector) {
                             @Override
-                            public void collect(int doc) throws IOException {
-                                assert collected <= size : "should not collect more than " + size + " doc per segment, got " + collected;
-                                ++collected;
-                                super.collect(doc);
+                            public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                                final LeafCollector in = super.getLeafCollector(context);
+                                return new FilterLeafCollector(in) {
+                                    int collected;
+
+                                    @Override
+                                    public void collect(int doc) throws IOException {
+                                        assert collected <= size : "should not collect more than " + size + " doc per segment, got " + collected;
+                                        ++collected;
+                                        super.collect(doc);
+                                    }
+                                };
                             }
                         };
+                        super.search(leaves, weight, in);
                     }
-                };
-                super.search(leaves, weight, in);
-            }
-        };
+                }
+            )
+            .build();
     }
 }

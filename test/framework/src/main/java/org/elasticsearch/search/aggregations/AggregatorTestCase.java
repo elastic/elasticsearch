@@ -59,8 +59,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -138,8 +136,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.After;
@@ -157,7 +153,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -197,21 +192,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
-    ThreadPool threadPool;
-    ThreadPoolExecutor threadPoolExecutor;
 
     @Before
     public final void initPlugins() {
-        int numThreads = randomIntBetween(2, 4);
-        threadPool = new TestThreadPool(AggregatorTestCase.class.getName());
-        threadPoolExecutor = EsExecutors.newFixed(
-            "test",
-            numThreads,
-            10,
-            EsExecutors.daemonThreadFactory("test"),
-            threadPool.getThreadContext(),
-            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
-        );
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
@@ -447,13 +430,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         SearchContext ctx = mock(SearchContext.class);
         try {
             when(ctx.searcher()).thenReturn(
-                new ContextIndexSearcher(
-                    searchExecutionContext.searcher().getIndexReader(),
-                    searchExecutionContext.searcher().getSimilarity(),
-                    DisabledQueryCache.INSTANCE,
-                    TrivialQueryCachingPolicy.NEVER,
-                    false
-                )
+                new ContextIndexSearcherBuilder(searchExecutionContext.searcher().getIndexReader())
+                    .similarity(searchExecutionContext.searcher().getSimilarity())
+                    .queryCache(DisabledQueryCache.INSTANCE)
+                    .queryCachingPolicy(TrivialQueryCachingPolicy.NEVER)
+                    .build()
             );
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -954,17 +935,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     /**
      * Creates a {@link ContextIndexSearcher} that supports concurrency running each segment in a different thread.
      */
-    private IndexSearcher newIndexSearcher(IndexReader indexReader) throws IOException {
-        return new ContextIndexSearcher(
-            indexReader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            indexReader instanceof DirectoryReader ? randomBoolean() : false, // we can only wrap DirectoryReader instances
-            this.threadPoolExecutor,
-            this.threadPoolExecutor.getMaximumPoolSize(),
-            1 // forces multiple slices
-        );
+    private IndexSearcher newIndexSearcher(IndexReader indexReader) throws IOException { // here? Similar to newContextSearcher
+        return newContextSearcher(indexReader);
     }
 
     /**
@@ -1273,8 +1245,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
     public void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
-        threadPoolExecutor.shutdown();
-        terminate(threadPool);
     }
 
     /**

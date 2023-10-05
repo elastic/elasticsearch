@@ -180,6 +180,8 @@ include::types/search-as-you-type.asciidoc[]
 
 include::types/shape.asciidoc[]
 
+include::types/sparse-vector.asciidoc[]
+
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]

@@ -2959,6 +2959,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, e -> {
                 try {
                     shardContainer.deleteBlobsIgnoringIfNotExists(
+                        OperationPurpose.SNAPSHOT,
                         Iterators.flatMap(fileToCleanUp.get().iterator(), f -> Iterators.forRange(0, f.numberOfParts(), f::partName))
                     );
                 } catch (Exception innerException) {

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.List;
@@ -44,12 +45,12 @@ public class LocalSourceOperator extends SourceOperator {
 
     boolean finished;
 
-    public LocalSourceOperator(ObjectSupplier objectSupplier) {
-        this(() -> fromListRow(objectSupplier.get()));
+    public LocalSourceOperator(BlockFactory blockFactory, ObjectSupplier objectSupplier) {
+        this(() -> fromListRow(blockFactory, objectSupplier.get()));
     }
 
-    public LocalSourceOperator(ListSupplier listSupplier) {
-        this(() -> fromList(listSupplier.get()));
+    public LocalSourceOperator(BlockFactory blockFactory, ListSupplier listSupplier) {
+        this(() -> fromList(blockFactory, listSupplier.get()));
     }
 
     public LocalSourceOperator(BlockSupplier blockSupplier) {
@@ -81,5 +82,7 @@ public class LocalSourceOperator extends SourceOperator {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+
+    }
 }

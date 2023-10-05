@@ -204,6 +204,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100291")
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
         if (upgradeState != UpgradeState.ALL) {
             return;

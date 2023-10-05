@@ -109,7 +109,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             String nodeName = "node_" + i;
             int nodePort = 9300 + i;
             Settings nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
-            nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
+            nodes.add(
+                DiscoveryNodeUtils.builder(nodeId)
+                    .applySettings(nodeSettings)
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .build()
+            );
             validNodeIds.add(nodeId);
         }
 
@@ -142,7 +147,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
                 .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr.getKey(), nodeAttr.getValue())
                 .build();
-            nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
+            nodes.add(
+                DiscoveryNodeUtils.builder(nodeId)
+                    .applySettings(nodeSettings)
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .build()
+            );
             validNodeIds.add(nodeId);
         }
 
@@ -178,11 +188,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 nodeSettingsBuilder.put(invalidNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName);
             }
             nodes.add(
-                DiscoveryNode.createLocal(
-                    nodeSettingsBuilder.build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
-                    nodeId
-                )
+                DiscoveryNodeUtils.builder(nodeId)
+                    .applySettings(nodeSettingsBuilder.build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .build()
             );
         }
 
@@ -203,7 +212,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         int nodePort = 9300;
         Builder nodeSettingsBuilder = Settings.builder();
         nodes.add(
-            DiscoveryNode.createLocal(nodeSettingsBuilder.build(), new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId)
+            DiscoveryNodeUtils.builder(nodeId)
+                .applySettings(nodeSettingsBuilder.build())
+                .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                .build()
         );
 
         Settings clusterSettings = Settings.builder().put("cluster.routing.allocation.exclude._id", "node_id_0").build();
@@ -246,11 +258,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             int nodePort = 9300 + i;
             Builder nodeSettingsBuilder = Settings.builder().put(invalidNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName);
             nodes.add(
-                DiscoveryNode.createLocal(
-                    nodeSettingsBuilder.build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
-                    nodeId
-                )
+                DiscoveryNodeUtils.builder(nodeId)
+                    .applySettings(nodeSettingsBuilder.build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .build()
             );
         }
 
@@ -283,7 +294,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
                 .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr.getKey(), nodeAttr.getValue())
                 .build();
-            nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
+            nodes.add(
+                DiscoveryNodeUtils.builder(nodeId)
+                    .applySettings(nodeSettings)
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .build()
+            );
             validNodeIds.add(nodeId);
         }
 
@@ -352,7 +368,12 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
                 .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr.getKey(), nodeAttr.getValue())
                 .build();
-            nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
+            nodes.add(
+                DiscoveryNodeUtils.builder(nodeId)
+                    .applySettings(nodeSettings)
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .build()
+            );
         }
 
         Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
@@ -422,14 +443,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             Settings nodeSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
             oldNodeIds.add(nodeId);
             nodes.add(
-                new DiscoveryNode(
-                    Node.NODE_NAME_SETTING.get(nodeSettings),
-                    nodeId,
-                    new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
-                    Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
-                    DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    oldVersion
-                )
+                DiscoveryNodeUtils.builder(nodeId)
+                    .name(Node.NODE_NAME_SETTING.get(nodeSettings))
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .attributes(Node.NODE_ATTRIBUTES.getAsMap(nodeSettings))
+                    .roles(DiscoveryNode.getRolesFromSettings(nodeSettings))
+                    .version(oldVersion)
+                    .build()
             );
         }
 
@@ -502,14 +522,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 .build();
             oldNodeIds.add(nodeId);
             nodes.add(
-                new DiscoveryNode(
-                    Node.NODE_NAME_SETTING.get(nodeSettings),
-                    nodeId,
-                    new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
-                    Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
-                    DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    oldVersion
-                )
+                DiscoveryNodeUtils.builder(nodeId)
+                    .name(Node.NODE_NAME_SETTING.get(nodeSettings))
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .attributes(Node.NODE_ATTRIBUTES.getAsMap(nodeSettings))
+                    .roles(DiscoveryNode.getRolesFromSettings(nodeSettings))
+                    .version(oldVersion)
+                    .build()
             );
         }
         Set<String> nodeIds = new HashSet<>();
@@ -580,14 +599,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 .build();
             oldNodeIds.add(nodeId);
             nodes.add(
-                new DiscoveryNode(
-                    Node.NODE_NAME_SETTING.get(nodeSettings),
-                    nodeId,
-                    new TransportAddress(TransportAddress.META_ADDRESS, nodePort),
-                    Node.NODE_ATTRIBUTES.getAsMap(nodeSettings),
-                    DiscoveryNode.getRolesFromSettings(nodeSettings),
-                    oldVersion
-                )
+                DiscoveryNodeUtils.builder(nodeId)
+                    .name(Node.NODE_NAME_SETTING.get(nodeSettings))
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, nodePort))
+                    .attributes(Node.NODE_ATTRIBUTES.getAsMap(nodeSettings))
+                    .roles(DiscoveryNode.getRolesFromSettings(nodeSettings))
+                    .version(oldVersion)
+                    .build()
             );
         }
         Set<String> nodeIds = new HashSet<>();

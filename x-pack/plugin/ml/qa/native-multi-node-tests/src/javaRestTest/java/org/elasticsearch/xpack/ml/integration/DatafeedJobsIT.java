@@ -823,6 +823,38 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(e.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
     }
 
+    public void testStartDatafeed_GivenNegativeStartTime_Returns408() throws Exception {
+        client().admin().indices().prepareCreate("data-1").setMapping("time", "type=date").get();
+        long numDocs = 100;
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        long negativeStartTime = -1000;
+        indexDocs(logger, "data-1", numDocs, oneWeekAgo, now);
+
+        String jobId = "job-for-start-datafeed-timeout";
+        String datafeedId = jobId + "-datafeed";
+
+        Job.Builder job = createScheduledJob(jobId);
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(
+            job.getId() + "-datafeed",
+            job.getId(),
+            Collections.singletonList("data-1")
+        );
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+        putDatafeed(datafeedConfig);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new StartDatafeedAction.Request(datafeedId, negativeStartTime)
+        );
+
+        assertThat(e.getMessage(), equalTo("[start] must not be negative [-1000]."));
+    }
+
     public void testStart_GivenAggregateMetricDoubleWithoutAggs() throws Exception {
         final String index = "index-with-aggregate-metric-double";
         String mapping = """

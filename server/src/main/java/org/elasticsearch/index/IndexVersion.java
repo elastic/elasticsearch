@@ -117,7 +117,6 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_8_9_0 = registerIndexVersion(8_09_00_99, Version.LUCENE_9_7_0, "32f6dbab-cc24-4f5b-87b5-015a848480d9");
     public static final IndexVersion V_8_9_1 = registerIndexVersion(8_09_01_99, Version.LUCENE_9_7_0, "955a80ac-f70c-40a5-9399-1d8a1e5d342d");
     public static final IndexVersion V_8_10_0 = registerIndexVersion(8_10_00_99, Version.LUCENE_9_7_0, "2e107286-12ad-4c51-9a6f-f8943663b6e7");
-    public static final IndexVersion V_8_11_0 = registerIndexVersion(8_11_00_99, Version.LUCENE_9_7_0, "f08382c0-06ab-41f4-a56a-cf5397275627");
 
     /*
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW INDEX VERSIONS
@@ -126,6 +125,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
     public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
     public static final IndexVersion V_8_500_002 = registerIndexVersion(8_500_002, Version.LUCENE_9_7_0, "50b39bf8-6c6a-443e-a5e5-069438d843c1");
+    public static final IndexVersion V_8_500_003 = registerIndexVersion(8_500_003, Version.LUCENE_9_8_0, "82bb022a-7ca2-463f-9c58-67821e24b72f");
 
     public static final IndexVersion UPGRADE_TO_LUCENE_9_9 = registerIndexVersion(8_500_010, Version.LUCENE_9_9_0, "ee5ab2e6-4d8f-11ee-be56-0242ac120002");
     /*

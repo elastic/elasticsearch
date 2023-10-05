@@ -88,14 +88,9 @@ public class ClusterSettingsUpdateWithFaultyMasterIT extends ESIntegTestCase {
             if (blockOnce.compareAndSet(false, true)) {
                 logger.debug("--> setting validation is now blocking cluster state update");
                 blockLatch.countDown();
-                try {
-                    logger.debug("--> setting validation is now waiting for release");
-                    releaseLatch.await();
-                    logger.debug("--> setting validation is done");
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(e);
-                }
+                logger.debug("--> setting validation is now waiting for release");
+                safeAwait(releaseLatch);
+                logger.debug("--> setting validation is done");
             }
         }, Setting.Property.NodeScope, Setting.Property.Dynamic);
 

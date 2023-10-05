@@ -43,11 +43,6 @@ public interface BlobContainer {
      */
     boolean blobExists(OperationPurpose purpose, String blobName) throws IOException;
 
-    @Deprecated(forRemoval = true)
-    default boolean blobExists(String blobName) throws IOException {
-        return blobExists(OperationPurpose.SNAPSHOT, blobName);
-    }
-
     /**
      * Creates a new {@link InputStream} for the given blob name.
      *
@@ -58,11 +53,6 @@ public interface BlobContainer {
      * @throws IOException         if the blob can not be read.
      */
     InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException;
-
-    @Deprecated(forRemoval = true)
-    default InputStream readBlob(String blobName) throws IOException {
-        return readBlob(OperationPurpose.SNAPSHOT, blobName);
-    }
 
     /**
      * Creates a new {@link InputStream} that can be used to read the given blob starting from
@@ -78,11 +68,6 @@ public interface BlobContainer {
      * @throws IOException         if the blob can not be read.
      */
     InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException;
-
-    @Deprecated(forRemoval = true)
-    default InputStream readBlob(String blobName, long position, long length) throws IOException {
-        return readBlob(OperationPurpose.SNAPSHOT, blobName, position, length);
-    }
 
     /**
      * Provides a hint to clients for a suitable length to use with {@link BlobContainer#readBlob(OperationPurpose, String, long, long)}.
@@ -119,11 +104,6 @@ public interface BlobContainer {
     void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException;
 
-    @Deprecated(forRemoval = true)
-    default void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(OperationPurpose.SNAPSHOT, blobName, inputStream, blobSize, failIfAlreadyExists);
-    }
-
     /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name.
      *
@@ -137,11 +117,6 @@ public interface BlobContainer {
     default void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         writeBlob(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
-    }
-
-    @Deprecated(forRemoval = true)
-    default void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(OperationPurpose.SNAPSHOT, blobName, bytes, failIfAlreadyExists);
     }
 
     /**
@@ -164,16 +139,6 @@ public interface BlobContainer {
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException;
 
-    @Deprecated(forRemoval = true)
-    default void writeMetadataBlob(
-        String blobName,
-        boolean failIfAlreadyExists,
-        boolean atomic,
-        CheckedConsumer<OutputStream, IOException> writer
-    ) throws IOException {
-        writeMetadataBlob(OperationPurpose.SNAPSHOT, blobName, failIfAlreadyExists, atomic, writer);
-    }
-
     /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,
      * using an atomic write operation if the implementation supports it.
@@ -187,11 +152,6 @@ public interface BlobContainer {
      */
     void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException;
 
-    @Deprecated(forRemoval = true)
-    default void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-        writeBlobAtomic(OperationPurpose.SNAPSHOT, blobName, bytes, failIfAlreadyExists);
-    }
-
     /**
      * Deletes this container and all its contents from the repository.
      *
@@ -200,11 +160,6 @@ public interface BlobContainer {
      * @throws IOException on failure
      */
     DeleteResult delete(OperationPurpose purpose) throws IOException;
-
-    @Deprecated(forRemoval = true)
-    default DeleteResult delete() throws IOException {
-        return delete(OperationPurpose.SNAPSHOT);
-    }
 
     /**
      * Deletes the blobs with given names. This method will not throw an exception
@@ -216,11 +171,6 @@ public interface BlobContainer {
      */
     void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException;
 
-    @Deprecated(forRemoval = true)
-    default void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobNames);
-    }
-
     /**
      * Lists all blobs in the container.
      *
@@ -229,11 +179,6 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException;
-
-    @Deprecated(forRemoval = true)
-    default Map<String, BlobMetadata> listBlobs() throws IOException {
-        return listBlobs(OperationPurpose.SNAPSHOT);
-    }
 
     /**
      * Lists all child containers under this container. A child container is defined as a container whose {@link #path()} method returns
@@ -246,11 +191,6 @@ public interface BlobContainer {
      */
     Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException;
 
-    @Deprecated(forRemoval = true)
-    default Map<String, BlobContainer> children() throws IOException {
-        return children(OperationPurpose.SNAPSHOT);
-    }
-
     /**
      * Lists all blobs in the container that match the specified prefix.
      *
@@ -261,11 +201,6 @@ public interface BlobContainer {
      * @throws IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException;
-
-    @Deprecated(forRemoval = true)
-    default Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        return listBlobsByPrefix(OperationPurpose.SNAPSHOT, blobNamePrefix);
-    }
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
@@ -285,16 +220,6 @@ public interface BlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     );
-
-    @Deprecated(forRemoval = true)
-    default void compareAndExchangeRegister(
-        String key,
-        BytesReference expected,
-        BytesReference updated,
-        ActionListener<OptionalBytesReference> listener
-    ) {
-        compareAndExchangeRegister(OperationPurpose.SNAPSHOT, key, expected, updated, listener);
-    }
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
@@ -323,11 +248,6 @@ public interface BlobContainer {
         );
     }
 
-    @Deprecated(forRemoval = true)
-    default void compareAndSetRegister(String key, BytesReference expected, BytesReference updated, ActionListener<Boolean> listener) {
-        compareAndSetRegister(OperationPurpose.SNAPSHOT, key, expected, updated, listener);
-    }
-
     /**
      * Gets the value set by {@link #compareAndSetRegister} or {@link #compareAndExchangeRegister} for a given key.
      * If a key has not yet been used, the initial value is an empty {@link BytesReference}.
@@ -339,11 +259,6 @@ public interface BlobContainer {
      */
     default void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         compareAndExchangeRegister(purpose, key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
-    }
-
-    @Deprecated(forRemoval = true)
-    default void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
-        getRegister(OperationPurpose.SNAPSHOT, key, listener);
     }
 
 }

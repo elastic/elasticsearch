@@ -1,0 +1,5 @@
+pr: 100278
+summary: "ESQL: Do not leak filtered blocks"
+area: ES|QL
+type: bug
+issues: []

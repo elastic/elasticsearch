@@ -170,6 +170,7 @@ class MutableSearchResponse {
         if (cancelledExc != null) {
             this.frozen = State.FROZEN_RETURN_EARLY;
             logger.warn("JJJ MSR.updateWithFailure cancelledException/then: f->FROZEN_RETURN_EARLY");
+            /// MP: TODO: should we just return here
         } else {
             failIfFrozen();
             this.frozen = failImmediately ? State.FROZEN_RETURN_EARLY : State.FROZEN_NORMAL;
@@ -182,7 +183,7 @@ class MutableSearchResponse {
         // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
         this.failure = exc;
-        if (failImmediately && clusters != null) {
+        if (failImmediately && clusters != null) {  // TODO: can we remove the clusters != null check?
             logger.warn("JJJ MutableSearchResponse updateWithFailure: notifySearchCancelled");
             clusters.notifySearchCancelled();
         }

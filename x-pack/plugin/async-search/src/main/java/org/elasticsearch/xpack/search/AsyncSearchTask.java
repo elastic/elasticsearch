@@ -496,6 +496,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onFailure(Exception exc) {
+            // TODO: IDEA keep state here of whether onFailure has been called - probably need a synchronized block in here to handle
+            //       multiple failures at the same time (or a CAS swap where if returns false, ignore the Exception)
             // handles the case where a failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
 

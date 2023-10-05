@@ -1524,6 +1524,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         private void maybeFinish(boolean failImmediately) {
+            // TODO: put in logic to only call onFailure once (secondary calls should be ignored)
             if (countDown.countDown() || failImmediately) {
                 Exception exception = exceptions.get();
                 assert failImmediately == false || exception != null : "If 'failImmediately' is true, exception must not be null";

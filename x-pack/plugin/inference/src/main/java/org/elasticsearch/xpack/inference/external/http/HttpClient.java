@@ -143,6 +143,7 @@ public class HttpClient implements Closeable {
 
     @Override
     public void close() throws IOException {
+        status.set(Status.STOPPED);
         client.close();
         connectionEvictor.shutdownNow();
     }

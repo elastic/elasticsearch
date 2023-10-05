@@ -13,6 +13,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
@@ -48,6 +49,9 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class HttpClientTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -144,6 +148,23 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testStart_MultipleCallsOnlyStartTheClientOnce() throws Exception {
+        var asyncClient = mock(CloseableHttpAsyncClient.class);
+        when(asyncClient.execute(any(), any())).thenReturn(mock(Future.class));
+
+        var evictor = createEvictor(threadPool);
+        var httpPost = createHttpPost(webServer.getPort(), "a", "b");
+
+        try (var client = new HttpClient(Settings.EMPTY, asyncClient, evictor, threadPool)) {
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            client.send(httpPost, listener);
+            client.send(httpPost, listener);
+
+            verify(asyncClient, times(1)).start();
+        }
+    }
+
     public void testSend_FailsWhenMaxBytesReadIsExceeded() throws Exception {
         int responseCode = randomIntBetween(200, 203);
         String body = randomAlphaOfLengthBetween(10, 8096);
@@ -174,7 +195,10 @@ public class HttpClientTests extends ESTestCase {
 
         HttpPost httpPost = new HttpPost(uri);
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8));
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
+        );
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());

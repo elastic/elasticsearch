@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.apache.http.nio.conn.NHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -25,7 +26,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 /**
  * Starts a monitoring thread to remove expired and idle connections from the HTTP connection pool.
- * This is modeled off of <a href="https://github.com/apache/httpcomponents-client/blob/master/httpclient5/src/main/java/org/apache/hc/client5/http/impl/IdleConnectionEvictor.java">the code here</a>.
+ * This is modeled off of https://github.com/apache/httpcomponents-client/blob/master/httpclient5/
+ * src/main/java/org/apache/hc/client5/http/impl/IdleConnectionEvictor.java
  *
  * NOTE: This class should be removed once the apache async client is upgraded to 5.x because that version of the library
  * includes this already.
@@ -94,7 +96,8 @@ public class IdleConnectionEvictor {
         shutdown();
 
         if (threadFuture != null) {
-            threadFuture.cancel(true);
+            FutureUtils.cancel(threadFuture);
+            // threadFuture.cancel(true);
         }
     }
 

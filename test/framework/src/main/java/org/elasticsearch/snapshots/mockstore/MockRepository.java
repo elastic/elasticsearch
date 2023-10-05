@@ -170,7 +170,7 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blocked = false;
 
-    private volatile boolean failOnDelete = false;
+    private volatile boolean failOnDeleteContainer = false;
 
     public MockRepository(
         RepositoryMetadata metadata,
@@ -355,10 +355,10 @@ public class MockRepository extends FsRepository {
     }
 
     /**
-     * Sets the fail-on-delete flag, which if {@code true} throws an exception when deleting a blob.
+     * Sets the fail-on-delete-container flag, which if {@code true} throws an exception when deleting a {@link BlobContainer}.
      */
-    public void setFailOnDelete(boolean failOnDelete) {
-        this.failOnDelete = failOnDelete;
+    public void setFailOnDeleteContainer(boolean failOnDeleteContainer) {
+        this.failOnDeleteContainer = failOnDeleteContainer;
     }
 
     public boolean blocked() {
@@ -559,8 +559,8 @@ public class MockRepository extends FsRepository {
 
             @Override
             public DeleteResult delete(OperationPurpose purpose) throws IOException {
-                if (failOnDelete) {
-                    throw new IOException("simulated delete failure");
+                if (failOnDeleteContainer) {
+                    throw new IOException("simulated delete-container failure");
                 }
                 DeleteResult deleteResult = DeleteResult.ZERO;
                 for (BlobContainer child : children(purpose).values()) {

@@ -334,13 +334,13 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         // This will make sure stale indices stay in repository after snapshot delete
         final var repository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
             .repository(repositoryName);
-        repository.setFailOnDelete(true);
+        repository.setFailOnDeleteContainer(true);
 
         logger.info("--> delete the second snapshot");
         client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot2Name).get();
 
         // Make repository work normally
-        repository.setFailOnDelete(false);
+        repository.setFailOnDeleteContainer(false);
 
         // This snapshot should delete last snapshot's residual stale indices as well
         logger.info("--> delete snapshot one");

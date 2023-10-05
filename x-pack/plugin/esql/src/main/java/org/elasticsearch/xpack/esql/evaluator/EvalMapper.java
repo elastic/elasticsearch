@@ -105,7 +105,7 @@ public final class EvalMapper {
                  */
                 private Block eval(Block lhs, Block rhs) {
                     int positionCount = lhs.getPositionCount();
-                    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
+                    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, lhs.blockFactory());
                     for (int p = 0; p < positionCount; p++) {
                         if (lhs.getValueCount(p) > 1) {
                             result.appendNull();
@@ -131,7 +131,7 @@ public final class EvalMapper {
 
                 private Block eval(BooleanVector lhs, BooleanVector rhs) {
                     int positionCount = lhs.getPositionCount();
-                    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
+                    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, lhs.blockFactory());
                     for (int p = 0; p < positionCount; p++) {
                         result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
                     }

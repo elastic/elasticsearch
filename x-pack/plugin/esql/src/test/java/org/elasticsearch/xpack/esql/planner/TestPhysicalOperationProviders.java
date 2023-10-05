@@ -259,7 +259,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 aggregators,
                 () -> BlockHash.build(
                     List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
-                    bigArrays,
+                    driverContext,
                     pageSize,
                     false
                 ),

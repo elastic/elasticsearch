@@ -393,11 +393,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action)) {
                 phase1ReadyBlocked.countDown();
-                try {
-                    allowToCompletePhase1Latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(allowToCompletePhase1Latch);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -406,7 +402,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().restartNode(nodeB, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                phase1ReadyBlocked.await();
+                safeAwait(phase1ReadyBlocked);
                 // nodeB stopped, peer recovery from nodeA to nodeC, it will be cancelled after nodeB get started.
                 RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
@@ -439,6 +435,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99941")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -902,11 +899,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         transport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action) && blockRecovery.tryAcquire()) {
                 phase1ReadyBlocked.countDown();
-                try {
-                    allowToCompletePhase1Latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(allowToCompletePhase1Latch);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -918,7 +911,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica),
                 indexName
             );
-            phase1ReadyBlocked.await();
+            safeAwait(phase1ReadyBlocked);
             internalCluster().restartNode(
                 clusterService().state().nodes().getMasterNode().getName(),
                 new InternalTestCluster.RestartCallback()

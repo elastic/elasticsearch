@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -294,7 +295,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limitWithMinimum = randomIntBetween(0, numberOfLimits - 1);
 
         var fa = getFieldAttribute("a", INTEGER);
-        var relation = localSource(singletonList(fa), singletonList(1));
+        var relation = localSource(BlockFactory.getNonBreakingInstance(), singletonList(fa), singletonList(1));
         LogicalPlan plan = relation;
 
         for (int i = 0; i < numberOfLimits; i++) {

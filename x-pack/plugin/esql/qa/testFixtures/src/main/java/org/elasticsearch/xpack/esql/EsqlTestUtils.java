@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -80,6 +81,11 @@ public final class EsqlTestUtils {
         public byte[] max(String field, DataType dataType) {
             return null;
         }
+
+        @Override
+        public boolean isSingleValue(String field) {
+            return false;
+        }
     }
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
@@ -119,8 +125,8 @@ public final class EsqlTestUtils {
         return new LocalRelation(Source.EMPTY, emptyList(), LocalSupplier.EMPTY);
     }
 
-    public static LogicalPlan localSource(List<Attribute> fields, List<Object> row) {
-        return new LocalRelation(Source.EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(row)));
+    public static LogicalPlan localSource(BlockFactory blockFactory, List<Attribute> fields, List<Object> row) {
+        return new LocalRelation(Source.EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(blockFactory, row)));
     }
 
     public static <T> T as(Object node, Class<T> type) {

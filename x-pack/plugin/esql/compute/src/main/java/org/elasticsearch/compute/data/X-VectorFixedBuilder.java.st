@@ -55,10 +55,14 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
             throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
         }
         nextIndex = -1;
+        $Type$Vector vector;
         if (values.length == 1) {
-            return blockFactory.newConstant$Type$BlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, preAdjustedBytes).asVector();
+        } else {
+            vector = blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
         }
-        return blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
+        assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
+        return vector;
     }
 
     @Override
@@ -67,5 +71,9 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
             // If nextIndex < 0 we've already built the vector
             blockFactory.adjustBreaker(-preAdjustedBytes, false);
         }
+    }
+
+    boolean isReleased() {
+        return nextIndex < 0;
     }
 }

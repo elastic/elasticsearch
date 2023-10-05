@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -106,7 +107,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         NodeClient nodeClient,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new);
+        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
         this.clusterService = clusterService;
         this.transportService = transportService;

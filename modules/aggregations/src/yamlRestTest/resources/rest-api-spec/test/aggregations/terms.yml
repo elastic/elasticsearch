@@ -79,6 +79,10 @@ setup:
 
 ---
 "IP test":
+  - skip:
+      version: " - 8.11.99"
+      reason: "Changed rest status for error in 8.12"
+
   - do:
       index:
         index: test_1
@@ -144,7 +148,7 @@ setup:
   - match: { aggregations.ip_terms.buckets.0.key: "::1" }
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         rest_total_hits_as_int: true
         index: test_1

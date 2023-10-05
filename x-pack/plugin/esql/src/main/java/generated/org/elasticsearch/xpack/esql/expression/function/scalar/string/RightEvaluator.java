@@ -47,12 +47,12 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
       if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref lengthRef = length.eval(page)) {
         if (lengthRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         IntBlock lengthBlock = (IntBlock) lengthRef.block();
         BytesRefVector strVector = strBlock.asVector();
@@ -69,29 +69,31 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock lengthBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (lengthBlock.isNull(p) || lengthBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendBytesRef(Right.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
       }
-      if (lengthBlock.isNull(p) || lengthBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendBytesRef(Right.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector lengthVector) {
-    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendBytesRef(Right.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
+    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef strScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(Right.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

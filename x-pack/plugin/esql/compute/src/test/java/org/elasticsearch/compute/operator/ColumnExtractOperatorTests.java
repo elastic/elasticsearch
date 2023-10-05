@@ -29,7 +29,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new BytesRefBlockSourceOperator(input);
+        return new BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(int channelA) implements ColumnExtractOperator.Evaluator {
@@ -89,7 +89,6 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 }

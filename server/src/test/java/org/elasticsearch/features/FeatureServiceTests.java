@@ -11,6 +11,7 @@ package org.elasticsearch.features;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
@@ -18,7 +19,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
@@ -59,10 +59,6 @@ public class FeatureServiceTests extends ESTestCase {
         }));
     }
 
-    public void testServiceReadsFeatures() {
-        assertThat(FeatureService.readFeatures(), containsInAnyOrder("f1", "f2", "f1_v7"));
-    }
-
     public void testServiceRejectsDuplicates() {
         FeatureSpecification dupSpec = new FeatureSpecification() {
             @Override
@@ -87,7 +83,7 @@ public class FeatureServiceTests extends ESTestCase {
         FeatureSpecification dupSpec = new FeatureSpecification() {
             @Override
             public Map<NodeFeature, Version> getHistoricalFeatures() {
-                return Map.of(new NodeFeature("hf1", FeatureEra.V_7), Version.V_8_0_0);
+                return Map.of(new NodeFeature("hf1_era", FeatureEra.V_7), Version.V_8_0_0);
             }
         };
         var iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupSpec)));
@@ -125,5 +121,35 @@ public class FeatureServiceTests extends ESTestCase {
         assertThat(FeatureService.nodeHasFeature(Version.V_8_0_0, Set.of(), ELIDED_HISTORICAL_FEATURE), is(true));
         assertThat(FeatureService.nodeHasFeature(Version.V_7_0_0, Set.of(), ELIDED_FEATURE), is(true));
         assertThat(FeatureService.nodeHasFeature(Version.V_7_0_0, Set.of(), ELIDED_HISTORICAL_FEATURE), is(true));
+    }
+
+    public void testLoadingNewSpecsChangesOutputs() {
+        assertThat(FeatureService.readFeatures(), contains("f1", "f1_v7", "f2"));
+        assertThat(FeatureService.readHistoricalFeatures(Version.CURRENT), contains("hf1", "hf2", "hf3"));
+
+        FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(new NodeFeature("new_feature", FeatureEra.V_8));
+            }
+
+            @Override
+            public Map<NodeFeature, Version> getHistoricalFeatures() {
+                return Map.of(new NodeFeature("new_hist_feature", FeatureEra.V_7), Version.V_7_5_0);
+            }
+        }));
+
+        assertThat(FeatureService.readFeatures(), contains("f1", "f1_v7", "f2", "new_feature"));
+        assertThat(FeatureService.readHistoricalFeatures(Version.CURRENT), contains("hf1", "hf2", "hf3", "new_hist_feature"));
+    }
+
+    public void testSpecificFeaturesOverridesSpecs() {
+        Set<String> features = Set.of("nf1", "nf2", "nf3");
+        assertThat(new FeatureService(features).readPublishableFeatures(), contains(features.toArray()));
+    }
+
+    @After
+    public void resetSpecs() {
+        FeatureService.resetSpecs();
     }
 }

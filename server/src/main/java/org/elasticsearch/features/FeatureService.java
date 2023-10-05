@@ -36,6 +36,10 @@ public class FeatureService {
     private static volatile NavigableMap<Version, Set<String>> HISTORICAL_FEATURES;
 
     static {
+        resetSpecs();
+    }
+
+    static void resetSpecs() {
         // load all the ones accessible on the immediate classpath here
         // in unit tests, this will pick everything up. In a real ES node, this will miss instances from plugins
         FEATURE_SPECS = ServiceLoader.load(FeatureSpecification.class)
@@ -71,7 +75,6 @@ public class FeatureService {
             checkFeatureSpecs(existingSpecs.values());
         }
         FEATURE_SPECS = Collections.unmodifiableMap(existingSpecs);
-
     }
 
     private static void checkFeatureSpecs(Collection<FeatureSpecification> specs) {

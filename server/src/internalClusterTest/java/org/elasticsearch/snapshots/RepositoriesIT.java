@@ -21,10 +21,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.nio.file.Path;
@@ -294,5 +296,59 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> wait until snapshot deletion is finished");
         assertAcked(future.actionGet());
+    }
+
+    public void testLeakedStaleIndicesAreDeletedBySubsequentDelete() throws Exception {
+        Client client = client();
+        Path repositoryPath = randomRepoPath();
+        final String repositoryName = "test-repo";
+        final String snapshot1Name = "test-snap-1";
+        final String snapshot2Name = "test-snap-2";
+
+        logger.info("-->  creating repository at {}", repositoryPath.toAbsolutePath());
+        createRepository(repositoryName, "mock", repositoryPath);
+
+        logger.info("--> creating index-1 and ingest data");
+        createIndex("test-idx-1");
+        ensureGreen();
+        for (int j = 0; j < 10; j++) {
+            indexDoc("test-idx-1", Integer.toString(10 + j), "foo", "bar" + 10 + j);
+        }
+        refresh();
+
+        logger.info("--> creating first snapshot");
+        createFullSnapshot(repositoryName, snapshot1Name);
+
+        logger.info("--> creating index-2 and ingest data");
+        createIndex("test-idx-2");
+        ensureGreen();
+        for (int j = 0; j < 10; j++) {
+            indexDoc("test-idx-2", Integer.toString(10 + j), "foo", "bar" + 10 + j);
+        }
+        refresh();
+
+        logger.info("--> creating second snapshot");
+        createFullSnapshot(repositoryName, snapshot2Name);
+
+        // Make repository throw exceptions when trying to delete stale indices
+        // This will make sure stale indices stay in repository after snapshot delete
+        final var repository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+            .repository(repositoryName);
+        repository.setFailOnDelete(true);
+
+        logger.info("--> delete the second snapshot");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot2Name).get();
+
+        // Make repository work normally
+        repository.setFailOnDelete(false);
+
+        // This snapshot should delete last snapshot's residual stale indices as well
+        logger.info("--> delete snapshot one");
+        client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot1Name).get();
+
+        logger.info("--> check no leftover files");
+        assertFileCount(repositoryPath, 2); // just the index-N and index.latest blobs
+
+        logger.info("--> done");
     }
 }

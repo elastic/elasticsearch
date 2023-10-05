@@ -208,7 +208,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
 
         assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
-        assertThat(msg, response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
+        // TODO: Build.current().unqualifiedVersion() -- or Build.current().version() if/when we move NodeInfo to Build version(s)
+        assertThat(msg, response.nodesStats.getVersions().contains(Version.CURRENT.toString()), Matchers.equalTo(true));
         assertThat(msg, response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
 
         assertThat(msg, response.nodesStats.getProcess().count, Matchers.greaterThan(0));

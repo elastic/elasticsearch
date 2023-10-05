@@ -1,5 +1,5 @@
 pr: 99711
-summary: "ESQL: Date math for negatives"
+summary: "Date math for negatives"
 area: ES|QL
 type: enhancement
 issues: []

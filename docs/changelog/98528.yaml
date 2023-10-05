@@ -1,5 +1,5 @@
 pr: 98528
-summary: "ESQL: Add support for TEXT fields in comparison operators and SORT"
+summary: "Add support for TEXT fields in comparison operators and SORT"
 area: ES|QL
 type: enhancement
 issues:

@@ -1,5 +1,5 @@
 pr: 99382
-summary: "ESQL: create a Vector when needed for IN"
+summary: "Create a Vector when needed for IN"
 area: ES|QL
 type: bug
 issues:

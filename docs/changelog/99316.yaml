@@ -1,5 +1,5 @@
 pr: 99316
-summary: "ESQL: Compact topn"
+summary: "Compact topn"
 area: ES|QL
 type: enhancement
 issues: []

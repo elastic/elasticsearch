@@ -1,5 +1,5 @@
 pr: 99601
-summary: "ESQL: continue resolving attributes for Eval"
+summary: "Continue resolving attributes for Eval"
 area: ES|QL
 type: bug
 issues:

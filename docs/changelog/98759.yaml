@@ -1,5 +1,5 @@
 pr: 98759
-summary: "ESQL: Support queries that don't return underlying fields"
+summary: "Support queries that don't return underlying fields"
 area: ES|QL
 type: bug
 issues:

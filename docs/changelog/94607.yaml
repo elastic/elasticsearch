@@ -15,4 +15,4 @@ highlight:
     changed, from picking the shard that uses the most RAM to going over shards in a round-robin
     fashion. This approach has proved to work significantly better in practice.
 
-  notable: true
+  notable: false

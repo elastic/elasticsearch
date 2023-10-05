@@ -1,5 +1,5 @@
 pr: 99470
-summary: "ESQL: Improve log messages"
+summary: "Improve log messages"
 area: ES|QL
 type: enhancement
 issues: []

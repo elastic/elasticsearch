@@ -41,7 +41,8 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProfilingLicenseChecker licenseChecker
     ) {
         super(
             GetStatusAction.NAME,
@@ -54,7 +55,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             GetStatusAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.resolver = new StatusResolver(clusterService);
+        this.resolver = new StatusResolver(clusterService, licenseChecker);
     }
 
     @Override
@@ -128,9 +129,11 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
 
     private static class StatusResolver {
         private final ClusterService clusterService;
+        private final ProfilingLicenseChecker licenseChecker;
 
-        private StatusResolver(ClusterService clusterService) {
+        private StatusResolver(ClusterService clusterService, ProfilingLicenseChecker licenseChecker) {
             this.clusterService = clusterService;
+            this.licenseChecker = licenseChecker;
         }
 
         private GetStatusAction.Response getResponse(ClusterState state) {
@@ -149,8 +152,9 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             boolean indicesPre891 = ProfilingIndexManager.isAnyResourceTooOld(state, indexStateResolver);
             boolean dataStreamsPre891 = ProfilingDataStreamManager.isAnyResourceTooOld(state, indexStateResolver);
             boolean anyPre891Data = indicesPre891 || dataStreamsPre891;
+            boolean validLicense = licenseChecker.isSupportedLicense();
 
-            return new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data);
+            return new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, validLicense);
         }
 
         private boolean getValue(ClusterState state, Setting<Boolean> setting) {

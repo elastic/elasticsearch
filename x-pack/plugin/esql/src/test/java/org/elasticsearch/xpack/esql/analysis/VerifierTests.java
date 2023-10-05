@@ -87,6 +87,10 @@ public class VerifierTests extends ESTestCase {
             "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = percentile(languages, languages) by emp_no")
         );
+        assertEquals(
+            "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
+            error("from test | stats x = count_distinct(languages, languages) by emp_no")
+        );
     }
 
     public void testDoubleRenamingField() {

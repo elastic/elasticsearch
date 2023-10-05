@@ -149,3 +149,10 @@ from employees | stats p50 = percentile(salary_change, 25*2);
 p50:double
 0.75
 ;
+
+medianViaComplexExpression
+from employees | stats p50 = percentile(salary_change, -(50-1)+99);
+
+p50:double
+0.75
+;

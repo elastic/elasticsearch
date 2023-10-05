@@ -132,7 +132,7 @@ public final class EvalMapper {
 
                 private Block eval(BooleanVector lhs, BooleanVector rhs) {
                     int positionCount = lhs.getPositionCount();
-                    try (BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, lhs.blockFactory())) {
+                    try (var result = BooleanVector.newVectorFixedBuilder(positionCount, lhs.blockFactory())) {
                         for (int p = 0; p < positionCount; p++) {
                             result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
                         }

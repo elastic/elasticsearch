@@ -1150,6 +1150,23 @@ public final class RepositoryData {
             return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, slmPolicy);
         }
 
+        public static SnapshotDetails fromSnapshotInfo(SnapshotInfo snapshotInfo) {
+            return new SnapshotDetails(
+                snapshotInfo.state(),
+                snapshotInfo.version(),
+                snapshotInfo.startTime(),
+                snapshotInfo.endTime(),
+                slmPolicy(snapshotInfo.userMetadata())
+            );
+        }
+
+        private static String slmPolicy(Map<String, Object> userMetadata) {
+            if (userMetadata != null && userMetadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String policyId) {
+                return policyId;
+            } else {
+                return "";
+            }
+        }
     }
 
 }

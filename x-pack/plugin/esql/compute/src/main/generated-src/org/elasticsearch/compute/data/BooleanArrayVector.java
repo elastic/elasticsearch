@@ -17,18 +17,25 @@ import java.util.Arrays;
  */
 public final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class);
 
     private final boolean[] values;
 
+    private final BooleanBlock block;
+
     public BooleanArrayVector(boolean[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
     public BooleanBlock asBlock() {
-        return new BooleanVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -78,8 +85,4 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
 
-    @Override
-    public void close() {
-        // no-op
-    }
 }

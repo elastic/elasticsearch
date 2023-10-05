@@ -31,7 +31,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -58,6 +58,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     private final LicensedFeature.Momentary JDBC_FEATURE = LicensedFeature.momentary("sql", "jdbc", License.OperationMode.PLATINUM);
     private final LicensedFeature.Momentary ODBC_FEATURE = LicensedFeature.momentary("sql", "odbc", License.OperationMode.PLATINUM);
 
+    @SuppressWarnings("this-escape")
     private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker((mode) -> {
         XPackLicenseState licenseState = getLicenseState();
         switch (mode) {
@@ -99,7 +100,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {

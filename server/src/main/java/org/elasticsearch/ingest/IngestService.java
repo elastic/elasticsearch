@@ -172,6 +172,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    @SuppressWarnings("this-escape")
     public IngestService(
         ClusterService clusterService,
         ThreadPool threadPool,

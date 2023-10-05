@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneCountOperator;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -26,6 +30,7 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
+import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -42,7 +47,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -53,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -83,8 +89,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -95,7 +99,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.lucene.LuceneOperator.NO_LIMIT;
 import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 
@@ -108,6 +114,7 @@ public class LocalExecutionPlanner {
     private final String sessionId;
     private final CancellableTask parentTask;
     private final BigArrays bigArrays;
+    private final BlockFactory blockFactory;
     private final EsqlConfiguration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
@@ -118,6 +125,7 @@ public class LocalExecutionPlanner {
         String sessionId,
         CancellableTask parentTask,
         BigArrays bigArrays,
+        BlockFactory blockFactory,
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
@@ -127,6 +135,7 @@ public class LocalExecutionPlanner {
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
+        this.blockFactory = blockFactory;
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
@@ -144,14 +153,21 @@ public class LocalExecutionPlanner {
             configuration.pragmas().taskConcurrency(),
             configuration.pragmas().dataPartitioning(),
             configuration.pragmas().pageSize(),
-            bigArrays
+            bigArrays,
+            blockFactory
+        );
+
+        // workaround for https://github.com/elastic/elasticsearch/issues/99782
+        node = node.transformUp(
+            AggregateExec.class,
+            a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
 
         PhysicalOperation physicalOperation = plan(node, context);
 
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(context.bigArrays, physicalOperation, configuration.pragmas().statusInterval()),
+                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, configuration.pragmas().statusInterval()),
                 context.driverParallelism().get()
             )
         );
@@ -186,6 +202,8 @@ public class LocalExecutionPlanner {
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
+        } else if (node instanceof EsStatsQueryExec statsQuery) {
+            return planEsStats(statsQuery, context);
         } else if (node instanceof RowExec row) {
             return planRow(row, context);
         } else if (node instanceof LocalSourceExec localSource) {
@@ -214,19 +232,39 @@ public class LocalExecutionPlanner {
         return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
     }
 
-    private PhysicalOperation planEsQueryNode(EsQueryExec esQuery, LocalExecutionPlannerContext context) {
-        if (esQuery.query() == null) {
-            esQuery = new EsQueryExec(
-                esQuery.source(),
-                esQuery.index(),
-                esQuery.output(),
-                new MatchAllQueryBuilder(),
-                esQuery.limit(),
-                esQuery.sorts(),
-                esQuery.estimatedRowSize()
-            );
+    private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
+        return physicalOperationProviders.sourcePhysicalOperation(esQueryExec, context);
+    }
+
+    private PhysicalOperation planEsStats(EsStatsQueryExec statsQuery, LocalExecutionPlannerContext context) {
+        if (physicalOperationProviders instanceof EsPhysicalOperationProviders == false) {
+            throw new EsqlIllegalArgumentException("EsStatsQuery should only occur against a Lucene backend");
         }
-        return physicalOperationProviders.sourcePhysicalOperation(esQuery, context);
+        if (statsQuery.stats().size() > 1) {
+            throw new EsqlIllegalArgumentException("EsStatsQuery currently supports only one field statistic");
+        }
+
+        // for now only one stat is supported
+        EsStatsQueryExec.Stat stat = statsQuery.stats().get(0);
+
+        EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
+        Function<SearchContext, Query> querySupplier = EsPhysicalOperationProviders.querySupplier(stat.filter(statsQuery.query()));
+
+        Expression limitExp = statsQuery.limit();
+        int limit = limitExp != null ? (Integer) limitExp.fold() : NO_LIMIT;
+        final LuceneOperator.Factory luceneFactory = new LuceneCountOperator.Factory(
+            esProvider.searchContexts(),
+            querySupplier,
+            context.dataPartitioning(),
+            context.taskConcurrency(),
+            limit
+        );
+
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(statsQuery.outputSet());
+        int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
+        return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
     private PhysicalOperation planFieldExtractNode(LocalExecutionPlannerContext context, FieldExtractExec fieldExtractExec) {
@@ -296,6 +334,7 @@ public class LocalExecutionPlanner {
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = p.getBlock(mappedPosition[i]);
             }
+            ProjectOperator.closeUnused(p, blocks);
             return new Page(blocks);
         } : Function.identity();
 
@@ -308,11 +347,11 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkHandler, "ExchangeSinkHandler wasn't provided");
-        PhysicalOperation source = plan(exchangeSink.child(), context);
+        var child = exchangeSink.child();
+        PhysicalOperation source = plan(child, context);
 
-        Function<Page, Page> transformer = exchangeSink.child() instanceof AggregateExec
-            ? Function.identity()
-            : alignPageToAttributes(exchangeSink.output(), source.layout);
+        boolean isAgg = child instanceof AggregateExec || child instanceof EsStatsQueryExec;
+        Function<Page, Page> transformer = isAgg ? Function.identity() : alignPageToAttributes(exchangeSink.output(), source.layout);
 
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkHandler::createExchangeSink, transformer), source.layout);
     }
@@ -380,8 +419,8 @@ public class LocalExecutionPlanner {
         return source.with(
             new TopNOperatorFactory(
                 limit,
-                Arrays.asList(elementTypes),
-                Arrays.asList(encoders),
+                asList(elementTypes),
+                asList(encoders),
                 orders,
                 context.pageSize(2000 + topNExec.estimatedRowSize())
             ),
@@ -501,9 +540,14 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
+        List<? extends NamedExpression> projections = project.projections();
+        List<Integer> projectionList = new ArrayList<>(projections.size());
 
+        Layout.Builder layout = new Layout.Builder();
         Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
-        for (NamedExpression ne : project.projections()) {
+        for (int index = 0, size = projections.size(); index < size; index++) {
+            NamedExpression ne = projections.get(index);
+
             NameId inputId;
             if (ne instanceof Alias a) {
                 inputId = ((NamedExpression) a.child()).id();
@@ -519,26 +563,12 @@ public class LocalExecutionPlanner {
                 throw new IllegalArgumentException("type mismatch for aliases");
             }
             channelSet.nameIds().add(ne.id());
+
+            layout.append(channelSet);
+            projectionList.add(input.channel());
         }
 
-        BitSet mask = new BitSet();
-        Layout.Builder layout = new Layout.Builder();
-
-        for (int inChannel = 0; inChannel < source.layout.numberOfChannels(); inChannel++) {
-            Layout.ChannelSet outputSet = inputChannelToOutputIds.get(inChannel);
-
-            if (outputSet != null) {
-                mask.set(inChannel);
-                layout.append(outputSet);
-            }
-        }
-
-        if (mask.cardinality() == source.layout.numberOfChannels()) {
-            // all columns are retained, project operator is not needed but the layout needs to be updated
-            return source.with(layout.build());
-        } else {
-            return source.with(new ProjectOperatorFactory(mask), layout.build());
-        }
+        return source.with(new ProjectOperatorFactory(projectionList), layout.build());
     }
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
@@ -659,7 +689,8 @@ public class LocalExecutionPlanner {
         int taskConcurrency,
         DataPartitioning dataPartitioning,
         int configuredPageSize,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        BlockFactory blockFactory
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);
@@ -683,7 +714,7 @@ public class LocalExecutionPlanner {
         }
     }
 
-    record DriverSupplier(BigArrays bigArrays, PhysicalOperation physicalOperation, TimeValue statusInterval)
+    record DriverSupplier(BigArrays bigArrays, BlockFactory blockFactory, PhysicalOperation physicalOperation, TimeValue statusInterval)
         implements
             Function<String, Driver>,
             Describable {
@@ -693,7 +724,7 @@ public class LocalExecutionPlanner {
             List<Operator> operators = new ArrayList<>();
             SinkOperator sink = null;
             boolean success = false;
-            var driverContext = new DriverContext(bigArrays);
+            var driverContext = new DriverContext(bigArrays, blockFactory);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

@@ -17,8 +17,8 @@ abstract class AbstractFilterVector extends AbstractVector {
 
     protected final int[] positions;
 
-    protected AbstractFilterVector(int[] positions) {
-        super(positions.length);
+    protected AbstractFilterVector(int[] positions, BlockFactory blockFactory) {
+        super(positions.length, blockFactory);
         this.positions = positions;
     }
 

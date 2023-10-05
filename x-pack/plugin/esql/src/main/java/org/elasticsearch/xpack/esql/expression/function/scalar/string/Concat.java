@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -75,19 +75,19 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var values = children().stream().map(toEvaluator).toList();
         return dvrCtx -> new ConcatEvaluator(
-            new BytesRefBuilder(),
+            new BreakingBytesRefBuilder(dvrCtx.breaker(), "concat"),
             values.stream().map(fac -> fac.get(dvrCtx)).toArray(EvalOperator.ExpressionEvaluator[]::new),
             dvrCtx
         );
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false) BytesRefBuilder scratch, BytesRef[] values) {
+    static BytesRef process(@Fixed(includeInToString = false) BreakingBytesRefBuilder scratch, BytesRef[] values) {
         scratch.clear();
         for (int i = 0; i < values.length; i++) {
             scratch.append(values[i]);
         }
-        return scratch.get();
+        return scratch.bytesRefView();
     }
 
     @Override

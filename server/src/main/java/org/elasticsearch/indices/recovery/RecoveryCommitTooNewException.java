@@ -15,6 +15,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 
 public class RecoveryCommitTooNewException extends ElasticsearchException {
+    @SuppressWarnings("this-escape")
     public RecoveryCommitTooNewException(ShardId shardId, String message) {
         super(message);
         setShard(shardId);

@@ -15,13 +15,20 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class ConstantLongVector extends AbstractVector implements LongVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
 
     private final long value;
 
+    private final LongBlock block;
+
     public ConstantLongVector(long value, int positionCount) {
-        super(positionCount);
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
+        this.block = new LongVectorBlock(this);
     }
 
     @Override
@@ -31,7 +38,7 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     @Override
     public LongBlock asBlock() {
-        return new LongVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -51,7 +58,7 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(long.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -73,6 +80,6 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     @Override
     public void close() {
-        // no-op
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

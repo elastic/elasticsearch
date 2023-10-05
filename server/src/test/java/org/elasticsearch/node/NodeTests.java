@@ -47,7 +47,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
@@ -454,7 +454,7 @@ public class NodeTests extends ESTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService
         ) {

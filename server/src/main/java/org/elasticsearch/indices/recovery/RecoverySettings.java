@@ -407,6 +407,7 @@ public class RecoverySettings {
     private final ByteSizeValue availableDiskReadBandwidth;
     private final ByteSizeValue availableDiskWriteBandwidth;
 
+    @SuppressWarnings("this-escape")
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);

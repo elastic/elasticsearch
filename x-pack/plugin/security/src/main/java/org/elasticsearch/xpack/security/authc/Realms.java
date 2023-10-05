@@ -79,6 +79,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     // the realms in current use. This list will change dynamically as the license changes
     private volatile List<Realm> activeRealms;
 
+    @SuppressWarnings("this-escape")
     public Realms(
         Settings settings,
         Environment env,

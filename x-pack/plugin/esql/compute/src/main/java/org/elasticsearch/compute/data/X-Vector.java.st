@@ -106,17 +106,18 @@ $endif$
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static $Type$Vector of(StreamInput in) throws IOException {
+    static $Type$Vector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new Constant$Type$Vector(in.read$Type$(), positions);
+            return blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
         } else {
-            var builder = $Type$Vector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.append$Type$(in.read$Type$());
+            try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.append$Type$(in.read$Type$());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 
@@ -142,21 +143,51 @@ $endif$
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newVectorBuilder(int estimatedSize) {
-        return new $Type$VectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
+
+$if(BytesRef)$
+    /**
+     * Creates a builder that grows as needed.
+     */
+$else$
+    /**
+     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
+     * if you know the size up front because it's faster.
+     */
+$endif$
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.new$Type$VectorBuilder(estimatedSize);
+    }
+
+$if(BytesRef)$
+$else$
+    /**
+     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
+     * if you know the size up front because it's faster.
+     */
+    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
+        return blockFactory.new$Type$VectorFixedBuilder(size);
+    }
+$endif$
 
 $if(int)$
     /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive) {
+    static IntVector range(int startInclusive, int endExclusive, BlockFactory blockFactory) {
         int[] values = new int[endExclusive - startInclusive];
         for (int i = 0; i < values.length; i++) {
             values[i] = startInclusive + i;
         }
-        return new IntArrayVector(values, values.length);
+        return blockFactory.newIntArrayVector(values, values.length);
     }
 $endif$
 
+    /**
+     * A builder that grows as needed.
+     */
     sealed interface Builder extends Vector.Builder permits $Type$VectorBuilder {
         /**
          * Appends a $type$ to the current entry.
@@ -166,4 +197,20 @@ $endif$
         @Override
         $Type$Vector build();
     }
+
+$if(BytesRef)$
+$else$
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Vector.Builder permits $Type$VectorFixedBuilder {
+        /**
+         * Appends a $type$ to the current entry.
+         */
+        FixedBuilder append$Type$($type$ value);
+
+        @Override
+        $Type$Vector build();
+    }
+$endif$
 }

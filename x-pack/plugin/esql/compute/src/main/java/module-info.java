@@ -6,6 +6,7 @@
  */
 
 module org.elasticsearch.compute {
+
     requires org.apache.lucene.core;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;

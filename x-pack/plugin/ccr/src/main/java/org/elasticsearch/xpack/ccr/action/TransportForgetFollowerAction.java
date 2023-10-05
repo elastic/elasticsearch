@@ -65,7 +65,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
             Objects.requireNonNull(actionFilters),
             Objects.requireNonNull(indexNameExpressionResolver),
             ForgetFollowerAction.Request::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.indicesService = Objects.requireNonNull(indicesService);

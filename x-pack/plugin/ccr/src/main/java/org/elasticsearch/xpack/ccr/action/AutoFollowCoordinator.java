@@ -596,7 +596,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final GroupedActionListener<Tuple<Index, Exception>> groupedListener = new GroupedActionListener<>(
                 leaderIndicesToFollow.size(),
                 ActionListener.wrap(rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))), e -> {
-                    throw new AssertionError("must never happen", e);
+                    final var illegalStateException = new IllegalStateException("must never happen", e);
+                    LOGGER.error("must never happen", illegalStateException);
+                    assert false : illegalStateException;
+                    throw illegalStateException;
                 })
             );
 

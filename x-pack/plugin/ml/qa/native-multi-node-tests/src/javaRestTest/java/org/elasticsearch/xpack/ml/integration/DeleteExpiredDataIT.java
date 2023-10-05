@@ -20,7 +20,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -290,7 +289,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Before we call the delete-expired-data action we need to make sure the unused state docs were indexed
-        assertThat(indexUnusedStateDocsResponse.get().status(), equalTo(RestStatus.OK));
+        assertFalse(indexUnusedStateDocsResponse.get().hasFailures());
 
         // Now call the action under test
         assertThat(deleteExpiredData(customThrottle).isDeleted(), is(true));

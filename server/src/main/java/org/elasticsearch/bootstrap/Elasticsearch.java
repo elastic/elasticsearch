@@ -15,8 +15,8 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
@@ -451,7 +451,7 @@ class Elasticsearch {
             } catch (InterruptedException e) {
                 // bail out
             }
-        }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
+        }, "elasticsearch[keepAlive/" + Build.current().version() + "]");
     }
 
     private void start() throws NodeValidationException {

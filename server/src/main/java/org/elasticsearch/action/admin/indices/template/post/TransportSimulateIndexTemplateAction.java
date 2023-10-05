@@ -29,6 +29,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -91,7 +92,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             SimulateIndexTemplateRequest::new,
             indexNameExpressionResolver,
             SimulateIndexTemplateResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
@@ -303,9 +304,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
         Settings settings = Settings.builder().put(templateSettings).put(additionalSettings.build()).build();
         DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
-        if (template.getDataStreamTemplate() != null && lifecycle == null) {
-            lifecycle = DataStreamLifecycle.DEFAULT;
-        }
         return new Template(settings, mergedMapping, aliasesByName, lifecycle);
     }
 }

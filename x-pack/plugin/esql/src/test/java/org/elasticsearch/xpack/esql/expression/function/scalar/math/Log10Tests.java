@@ -82,7 +82,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             0,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
+                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryLong(
@@ -94,7 +94,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             0L,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
+                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryUnsignedLong(
@@ -106,7 +106,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             BigInteger.ZERO,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
+                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -118,7 +118,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             0d,
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "java.lang.ArithmeticException: Log of non-positive number"
+                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
 

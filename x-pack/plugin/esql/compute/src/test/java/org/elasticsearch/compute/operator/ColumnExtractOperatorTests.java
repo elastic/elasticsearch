@@ -12,6 +12,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -24,11 +25,11 @@ import java.util.stream.LongStream;
 public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new BytesRefBlockSourceOperator(input);
+        return new BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(int channelA) implements ColumnExtractOperator.Evaluator {
@@ -47,7 +48,19 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         Supplier<ColumnExtractOperator.Evaluator> expEval = () -> new FirstWord(0);
-        return new ColumnExtractOperator.Factory(new ElementType[] { ElementType.BYTES_REF }, dvrCtx -> page -> page.getBlock(0), expEval);
+        return new ColumnExtractOperator.Factory(
+            new ElementType[] { ElementType.BYTES_REF },
+            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block.Ref eval(Page page) {
+                    return new Block.Ref(page.getBlock(0), page);
+                }
+
+                @Override
+                public void close() {}
+            },
+            expEval
+        );
     }
 
     @Override
@@ -76,7 +89,6 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 }

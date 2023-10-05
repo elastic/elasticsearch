@@ -36,33 +36,34 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
     @Override
     LongBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::of);
-
     @Override
     default String getWriteableName() {
         return "LongBlock";
     }
 
-    static LongBlock of(StreamInput in) throws IOException {
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "LongBlock", LongBlock::readFrom);
+
+    private static LongBlock readFrom(StreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return LongVector.of(in).asBlock();
+            return LongVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendLong(in.readLong());
+        try (LongBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newLongBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendLong(in.readLong());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
@@ -158,12 +159,24 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new LongBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newLongBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static LongBlock newConstantBlockWith(long value, int positions) {
-        return new ConstantLongVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static LongBlock newConstantBlockWith(long value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantLongBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits LongBlockBuilder {

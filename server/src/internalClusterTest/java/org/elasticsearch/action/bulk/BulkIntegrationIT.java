@@ -10,10 +10,10 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -164,7 +164,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        IndexResponse response = client().prepareIndex(index)
+                        DocWriteResponse response = client().prepareIndex(index)
                             .setId(id)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();

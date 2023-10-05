@@ -61,7 +61,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         DynamicFieldsBuilder getDynamicFieldsBuilder() {
             throw new UnsupportedOperationException("Cannot create dynamic fields when dynamic is set to [" + this + "]");
-        };
+        }
 
         /**
          * Get the root-level dynamic setting for a Mapping
@@ -198,6 +198,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             parserContext.incrementMappingObjectDepth(); // throws MapperParsingException if depth limit is exceeded
             Explicit<Boolean> subobjects = parseSubobjects(node);
             ObjectMapper.Builder builder = new Builder(name, subobjects);
+            parseObjectFields(node, parserContext, builder);
+            parserContext.decrementMappingObjectDepth();
+            return builder;
+        }
+
+        static void parseObjectFields(Map<String, Object> node, MappingParserContext parserContext, Builder builder) {
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -206,8 +212,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     iterator.remove();
                 }
             }
-            parserContext.decrementMappingObjectDepth();
-            return builder;
         }
 
         @SuppressWarnings({ "unchecked", "rawtypes" })

@@ -54,6 +54,12 @@ public class MapParsingUtils {
         return value;
     }
 
+    public static void throwIfNotEmptyMap(Map<String, Object> settingsMap, String serviceName) {
+        if (settingsMap.isEmpty() == false) {
+            throw MapParsingUtils.unknownSettingsError(settingsMap, serviceName);
+        }
+    }
+
     public static ElasticsearchStatusException unknownSettingsError(Map<String, Object> config, String serviceName) {
         // TOOD map as JSON
         return new ElasticsearchStatusException(

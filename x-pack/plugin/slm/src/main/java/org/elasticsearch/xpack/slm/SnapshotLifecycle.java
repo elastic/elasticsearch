@@ -37,7 +37,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -135,7 +135,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -234,6 +234,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
                 new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
+                new ActionHandler<>(SLMGetExpiredSnapshotsAction.INSTANCE, SLMGetExpiredSnapshotsAction.LocalAction.class),
                 new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
                 new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
                 new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)

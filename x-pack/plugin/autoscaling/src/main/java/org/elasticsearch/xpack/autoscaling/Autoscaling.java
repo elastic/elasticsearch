@@ -36,7 +36,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -97,10 +97,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
     private final SetOnce<ReservedAutoscalingPolicyAction> reservedAutoscalingPolicyAction = new SetOnce<>();
 
+    @SuppressWarnings("this-escape")
     public Autoscaling() {
         this(new AutoscalingLicenseChecker());
     }
 
+    @SuppressWarnings("this-escape")
     Autoscaling(final AutoscalingLicenseChecker autoscalingLicenseChecker) {
         this.autoscalingExtensions = new ArrayList<>(List.of(this));
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
@@ -119,7 +121,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {

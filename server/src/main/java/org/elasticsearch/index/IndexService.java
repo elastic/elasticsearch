@@ -160,6 +160,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
+    @SuppressWarnings("this-escape")
     public IndexService(
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,

@@ -225,6 +225,7 @@ public class ApiKeyService {
     private final AtomicLong lastEvictionCheckedAt = new AtomicLong(0);
     private final LongAdder evictionCounter = new LongAdder();
 
+    @SuppressWarnings("this-escape")
     public ApiKeyService(
         Settings settings,
         Clock clock,

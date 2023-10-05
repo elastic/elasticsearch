@@ -17,6 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -34,7 +35,7 @@ import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
@@ -74,7 +75,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         XPackLicenseState licenseState,
         TrainedModelProvider trainedModelProvider
     ) {
-        super(actionName, transportService, actionFilters, InferModelAction.Request::new);
+        super(actionName, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
         this.clusterService = clusterService;
@@ -348,15 +349,24 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             }
 
             private void sendResponse() {
-                if (results.nonNullLength() > 0) {
+                if (failure.get() != null) {
+                    finalListener.onFailure(failure.get());
+                } else {
                     for (int i = 0; i < results.length(); i++) {
-                        if (results.get(i) != null) {
-                            responseBuilder.addInferenceResults(results.get(i));
+                        var resultList = results.get(i);
+                        if (resultList != null) {
+                            for (var result : resultList) {
+                                if (result instanceof ErrorInferenceResults errorResult) {
+                                    // Any failure fails all requests
+                                    // TODO is this the correct behaviour for batched requests?
+                                    finalListener.onFailure(errorResult.getException());
+                                    return;
+                                }
+                            }
+                            responseBuilder.addInferenceResults(resultList);
                         }
                     }
                     finalListener.onResponse(responseBuilder.build());
-                } else {
-                    finalListener.onFailure(failure.get());
                 }
             }
         };

@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.ml.dataframe.steps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
@@ -65,7 +65,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
             listener::onFailure
         );
 
-        ActionListener<IndexResponse> dataCountsIndexedListener = ActionListener.wrap(
+        ActionListener<DocWriteResponse> dataCountsIndexedListener = ActionListener.wrap(
             indexResponse -> refreshIndices(refreshListener),
             listener::onFailure
         );
@@ -73,7 +73,7 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
         indexDataCounts(dataCountsIndexedListener);
     }
 
-    private void indexDataCounts(ActionListener<IndexResponse> listener) {
+    private void indexDataCounts(ActionListener<DocWriteResponse> listener) {
         DataCounts dataCounts = task.getStatsHolder().getDataCountsTracker().report();
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             dataCounts.toXContent(

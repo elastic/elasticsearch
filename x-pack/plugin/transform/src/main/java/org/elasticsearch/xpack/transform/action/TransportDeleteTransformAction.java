@@ -22,8 +22,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -69,7 +71,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             actionFilters,
             Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.transformConfigManager = transformServices.getConfigManager();
         this.auditor = transformServices.getAuditor();
@@ -135,6 +137,15 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         TimeValue timeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        // <3> Check if the error is "index not found" error. If so, just move on. The index is already deleted.
+        ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(listener::onResponse, e -> {
+            if (e instanceof IndexNotFoundException) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            } else {
+                listener.onFailure(e);
+            }
+        });
+
         // <2> Delete destination index
         ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> getTransformConfigurationListener = ActionListener.wrap(
             transformConfigAndVersion -> {
@@ -149,7 +160,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
                     client,
                     DeleteIndexAction.INSTANCE,
                     deleteDestIndexRequest,
-                    listener
+                    deleteDestIndexListener
                 );
             },
             listener::onFailure

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,14 +74,15 @@ public abstract class TransportNodesAction<
         ActionFilters actionFilters,
         Writeable.Reader<NodesRequest> request,
         Writeable.Reader<NodeRequest> nodeRequest,
-        String executor
+        Executor executor
     ) {
         // coordination can run on SAME because it's only O(#nodes) work
-        super(actionName, transportService, actionFilters, request, ThreadPool.Names.SAME);
-        assert executor.equals(ThreadPool.Names.SAME) == false : "TransportNodesAction must always fork off the transport thread";
+        super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
+            : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
-        this.finalExecutor = threadPool.executor(executor);
+        this.finalExecutor = executor;
         this.transportNodeAction = actionName + "[n]";
         transportService.registerRequestHandler(transportNodeAction, finalExecutor, nodeRequest, new NodeTransportHandler());
     }

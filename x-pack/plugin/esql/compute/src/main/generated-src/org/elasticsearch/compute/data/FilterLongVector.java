@@ -20,9 +20,12 @@ public final class FilterLongVector extends AbstractFilterVector implements Long
 
     private final LongVector vector;
 
+    private final LongBlock block;
+
     FilterLongVector(LongVector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
+        this.block = new LongVectorBlock(this);
     }
 
     @Override
@@ -32,7 +35,7 @@ public final class FilterLongVector extends AbstractFilterVector implements Long
 
     @Override
     public LongBlock asBlock() {
-        return new LongVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -88,6 +91,11 @@ public final class FilterLongVector extends AbstractFilterVector implements Long
             }
             sb.append(getLong(i));
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 
     @Override

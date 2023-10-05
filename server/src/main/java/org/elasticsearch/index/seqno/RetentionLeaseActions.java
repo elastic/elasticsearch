@@ -69,7 +69,7 @@ public class RetentionLeaseActions {
                 actionFilters,
                 indexNameExpressionResolver,
                 requestSupplier,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.indicesService = Objects.requireNonNull(indicesService);
         }

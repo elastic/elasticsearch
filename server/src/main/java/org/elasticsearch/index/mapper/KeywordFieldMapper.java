@@ -184,6 +184,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
 
+        @SuppressWarnings("this-escape")
         public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, IndexVersion indexCreatedVersion) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;

@@ -10,9 +10,11 @@ package org.elasticsearch.snapshots.mockstore;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 
 public class BlobStoreWrapper implements BlobStore {
 
@@ -28,13 +30,18 @@ public class BlobStoreWrapper implements BlobStore {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
-        delegate.deleteBlobsIgnoringIfNotExists(blobNames);
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
     }
 
     @Override
     public void close() throws IOException {
         delegate.close();
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        return delegate.stats();
     }
 
     protected BlobStore delegate() {

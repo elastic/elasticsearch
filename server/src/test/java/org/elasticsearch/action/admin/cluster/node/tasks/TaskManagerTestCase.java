@@ -154,7 +154,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 request,
                 nodeRequest,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 

@@ -77,7 +77,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -907,7 +907,7 @@ public class MachineLearning extends Plugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -1227,7 +1227,8 @@ public class MachineLearning extends Plugin
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
                 systemAuditor,
-                nodeAvailabilityZoneMapper
+                nodeAvailabilityZoneMapper,
+                client
             )
         );
 
@@ -1752,7 +1753,12 @@ public class MachineLearning extends Plugin
         // installs it if necessary
         List<String> templateNames = List.of(STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
-            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
+            allPresent = allPresent
+                && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(
+                    templateName,
+                    clusterState,
+                    MlIndexTemplateRegistry.ML_INDEX_TEMPLATE_VERSION
+                );
         }
 
         return allPresent;

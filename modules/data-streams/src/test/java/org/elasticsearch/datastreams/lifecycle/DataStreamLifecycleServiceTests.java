@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -80,7 +81,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -367,10 +367,66 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             metaBuilder.put(indexMetaBuilder.build(), true);
         }
         ClusterState updatedState = ClusterState.builder(state).metadata(metaBuilder).build();
+        setState(clusterService, updatedState);
 
         dataStreamLifecycleService.run(updatedState);
 
         for (Index index : dataStream.getIndices()) {
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), nullValue());
+        }
+    }
+
+    public void testBackingIndicesFromMultipleDataStreamsInErrorStore() {
+        String ilmManagedDataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        Metadata.Builder builder = Metadata.builder();
+        DataStream ilmManagedDataStream = createDataStream(
+            builder,
+            ilmManagedDataStreamName,
+            3,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            now
+        );
+        // all backing indices are in the error store
+        for (Index index : ilmManagedDataStream.getIndices()) {
+            dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("will be ILM managed soon"));
+        }
+        String dataStreamWithBackingIndicesInErrorState = randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
+        DataStream dslManagedDataStream = createDataStream(
+            builder,
+            dataStreamWithBackingIndicesInErrorState,
+            5,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
+            now
+        );
+        // put all backing indices in the error store
+        for (Index index : dslManagedDataStream.getIndices()) {
+            dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("dsl managed index"));
+        }
+        builder.put(ilmManagedDataStream);
+        builder.put(dslManagedDataStream);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+
+        Metadata metadata = state.metadata();
+        Metadata.Builder metaBuilder = Metadata.builder(metadata);
+
+        // update the backing indices to be ILM managed so they should be removed from the error store on the next DSL run
+        for (Index index : ilmManagedDataStream.getIndices()) {
+            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
+            indexMetaBuilder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"));
+            metaBuilder.put(indexMetaBuilder.build(), true);
+        }
+        ClusterState updatedState = ClusterState.builder(state).metadata(metaBuilder).build();
+        setState(clusterService, updatedState);
+
+        dataStreamLifecycleService.run(updatedState);
+
+        for (Index index : dslManagedDataStream.getIndices()) {
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), notNullValue());
+        }
+        for (Index index : ilmManagedDataStream.getIndices()) {
             assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), nullValue());
         }
     }
@@ -1238,17 +1294,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode getNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            nodeId,
-            nodeId,
-            "host",
-            "host_address",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE),
-            null
-        );
+        return DiscoveryNodeUtils.builder(nodeId)
+            .name(nodeId)
+            .ephemeralId(nodeId)
+            .address("host", "host_address", buildNewFakeTransportAddress())
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE))
+            .build();
     }
 
     /**

@@ -85,7 +85,8 @@ public class MultiSearchIT extends ESIntegTestCase {
     }
 
     /**
-     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
+     * TransportVersions.MINIMUM_CCS_VERSION works
      */
     public void testCCSCheckCompatibility() throws Exception {
         TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);

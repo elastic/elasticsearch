@@ -12,7 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.OptionalMatchers;
 import org.elasticsearch.threadpool.Scheduler;
@@ -60,28 +60,28 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testIsEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
         assertTrue(plugin.isEnabled());
         assertNotNull(plugin.extender());
     }
 
     public void testIsNotPackageDistribution() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomNonPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsImplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, null);
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
 
     public void testIsExplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.FALSE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
         assertFalse(plugin.isEnabled());
         assertNull(plugin.extender());
     }
@@ -169,7 +169,7 @@ public class SystemdPluginTests extends ESTestCase {
             }
 
         };
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
         if (Boolean.TRUE.toString().equals(esSDNotify)) {
             assertNotNull(plugin.extender());
         } else {

@@ -292,10 +292,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
+        @SuppressWarnings("this-escape")
         public Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
             this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info"));
         }
 
+        @SuppressWarnings("this-escape")
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
             this.countingPageCacheRecycler = new CountingPageCacheRecycler();
@@ -975,6 +977,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClearableRecycler clearableRecycler;
             private List<Runnable> blackholedRegisterOperations = new ArrayList<>();
 
+            @SuppressWarnings("this-escape")
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
                     nodeIndex,

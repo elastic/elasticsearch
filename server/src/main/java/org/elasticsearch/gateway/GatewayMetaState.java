@@ -505,6 +505,7 @@ public class GatewayMetaState implements Closeable {
         private final AtomicReference<PersistedClusterStateService.Writer> persistenceWriter = new AtomicReference<>();
         private boolean writeNextStateFully;
 
+        @SuppressWarnings("this-escape")
         public LucenePersistedState(
             PersistedClusterStateService persistedClusterStateService,
             long currentTerm,

@@ -73,17 +73,18 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static DoubleVector of(StreamInput in) throws IOException {
+    static DoubleVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantDoubleVector(in.readDouble(), positions);
+            return blockFactory.newConstantDoubleVector(in.readDouble(), positions);
         } else {
-            var builder = DoubleVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendDouble(in.readDouble());
+            try (var builder = blockFactory.newDoubleVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendDouble(in.readDouble());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 
@@ -101,15 +102,49 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
         }
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newVectorBuilder(int estimatedSize) {
-        return new DoubleVectorBuilder(estimatedSize);
+        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
+     * if you know the size up front because it's faster.
+     */
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newDoubleVectorBuilder(estimatedSize);
+    }
+
+    /**
+     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
+     * if you know the size up front because it's faster.
+     */
+    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
+        return blockFactory.newDoubleVectorFixedBuilder(size);
+    }
+
+    /**
+     * A builder that grows as needed.
+     */
     sealed interface Builder extends Vector.Builder permits DoubleVectorBuilder {
         /**
          * Appends a double to the current entry.
          */
         Builder appendDouble(double value);
+
+        @Override
+        DoubleVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Vector.Builder permits DoubleVectorFixedBuilder {
+        /**
+         * Appends a double to the current entry.
+         */
+        FixedBuilder appendDouble(double value);
 
         @Override
         DoubleVector build();

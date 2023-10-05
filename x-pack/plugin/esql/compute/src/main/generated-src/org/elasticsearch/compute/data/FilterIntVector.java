@@ -20,9 +20,12 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
 
     private final IntVector vector;
 
+    private final IntBlock block;
+
     FilterIntVector(IntVector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
+        this.block = new IntVectorBlock(this);
     }
 
     @Override
@@ -32,7 +35,7 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
 
     @Override
     public IntBlock asBlock() {
-        return new IntVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -88,6 +91,11 @@ public final class FilterIntVector extends AbstractFilterVector implements IntVe
             }
             sb.append(getInt(i));
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 
     @Override

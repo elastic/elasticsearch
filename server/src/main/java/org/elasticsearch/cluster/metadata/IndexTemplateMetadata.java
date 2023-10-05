@@ -248,6 +248,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
             aliases = new HashMap<>();
         }
 
+        @SuppressWarnings("this-escape")
         public Builder(IndexTemplateMetadata indexTemplateMetadata) {
             this.name = indexTemplateMetadata.name();
             order(indexTemplateMetadata.order());

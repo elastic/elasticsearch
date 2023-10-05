@@ -153,7 +153,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
                 actionFilters,
                 indexNameExpressionResolver,
                 Request::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.indicesService = indicesService;
         }

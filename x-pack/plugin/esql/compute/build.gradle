@@ -50,7 +50,7 @@ tasks.named('stringTemplates').configure {
   var longProperties     = prop("Long", "long", "LONG", "Long.BYTES")
   var doubleProperties   = prop("Double", "double", "DOUBLE", "Double.BYTES")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF")
-  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Boolean.BYTES")
+  var booleanProperties  = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES")
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
   template {
@@ -342,6 +342,27 @@ tasks.named('stringTemplates').configure {
     it.properties = booleanProperties
     it.inputFile =  vectorBuildersInputFile
     it.outputFile = "org/elasticsearch/compute/data/BooleanVectorBuilder.java"
+  }
+  File vectorFixedBuildersInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-VectorFixedBuilder.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntVectorFixedBuilder.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongVectorFixedBuilder.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleVectorFixedBuilder.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  vectorFixedBuildersInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanVectorFixedBuilder.java"
   }
   File stateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-State.java.st")
   template {

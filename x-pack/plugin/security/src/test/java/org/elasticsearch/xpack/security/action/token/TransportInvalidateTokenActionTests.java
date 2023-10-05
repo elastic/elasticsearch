@@ -66,11 +66,7 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
     @Before
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
-
-        // TODO: temporary, remove in #97879
         transportService = mock(TransportService.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-
         securityContext = new SecurityContext(Settings.EMPTY, threadPool.getThreadContext());
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);

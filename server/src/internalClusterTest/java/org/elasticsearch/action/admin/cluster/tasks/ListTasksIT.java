@@ -132,13 +132,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         var maxThreads = threadPool.info(executor).getMax();
         var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            threadPool.executor(executor).execute(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            threadPool.executor(executor).execute(() -> safeAwait(barrier));
         }
         barrier.await(10, TimeUnit.SECONDS);
     }

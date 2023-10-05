@@ -184,7 +184,6 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // operator that throws - fails. The primary motivation for this is to ensure that the driver
     // runner behaves correctly and also releases all resources (bigArrays) appropriately.
     // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100145")
     public final void testManyInitialManyPartialFinalRunnerThrowing() throws Exception {
         DriverContext driverContext = driverContext();
         BigArrays bigArrays = nonBreakingBigArrays();

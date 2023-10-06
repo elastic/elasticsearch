@@ -66,11 +66,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
     /**
      * This used to crash the node with an out of memory, but now it just trips a circuit breaker.
-     * <p>
-     *     AwaitsFix because we don't properly clear the breaker. Cranky should help here.
-     * </p>
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testSortByManyLongsTooMuchMemory() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> sortByManyLongs(5000));

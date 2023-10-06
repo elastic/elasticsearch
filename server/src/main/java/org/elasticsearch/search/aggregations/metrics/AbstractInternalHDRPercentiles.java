@@ -180,7 +180,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
      * @param histogram2 The second histogram to merge
      * @return One of the input histograms such that the one with higher numberOfSignificantValueDigits is used as the one for merging
      */
-    private DoubleHistogram merge(final DoubleHistogram histogram1, final DoubleHistogram histogram2) {
+    private static DoubleHistogram merge(final DoubleHistogram histogram1, final DoubleHistogram histogram2) {
         DoubleHistogram moreDigits = histogram1;
         DoubleHistogram lessDigits = histogram2;
         if (histogram2.getNumberOfSignificantValueDigits() > histogram1.getNumberOfSignificantValueDigits()) {

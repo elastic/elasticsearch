@@ -740,7 +740,7 @@ public class ApiKeyService {
      * @return `null` if the update is a noop, i.e., if no changes to `currentApiKeyDoc` are required
      */
     @Nullable
-    XContentBuilder maybeBuildUpdatedDocument(
+    static XContentBuilder maybeBuildUpdatedDocument(
         final String apiKeyId,
         final ApiKeyDoc currentApiKeyDoc,
         final Version targetDocVersion,
@@ -799,7 +799,7 @@ public class ApiKeyService {
         return builder.endObject();
     }
 
-    private boolean isNoop(
+    private static boolean isNoop(
         final String apiKeyId,
         final ApiKeyDoc apiKeyDoc,
         final Version targetDocVersion,
@@ -999,7 +999,7 @@ public class ApiKeyService {
         return parseRoleDescriptorsBytes(apiKeyId, bytesReference, roleType == RoleReference.ApiKeyRoleType.LIMITED_BY);
     }
 
-    private List<RoleDescriptor> parseRoleDescriptorsBytes(
+    private static List<RoleDescriptor> parseRoleDescriptorsBytes(
         final String apiKeyId,
         BytesReference bytesReference,
         final boolean replaceLegacySuperuserRoleDescriptor
@@ -1494,7 +1494,7 @@ public class ApiKeyService {
                 .request();
     }
 
-    private void addErrorsForNotFoundApiKeys(
+    private static void addErrorsForNotFoundApiKeys(
         final BulkUpdateApiKeyResponse.Builder responseBuilder,
         final Collection<VersionedApiKeyDoc> foundDocs,
         final List<String> requestedIds

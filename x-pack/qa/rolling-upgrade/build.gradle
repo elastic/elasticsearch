@@ -30,6 +30,7 @@ tasks.named("yamlRestTest") { enabled = false}
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
+    maxParallelForks = 2
     systemProperty('tests.upgrade_from_version', bwcVersion)
     systemProperty('tests.ml.skip', Boolean.toString(BwcVersions.isMlCompatible(bwcVersion) == false))
   }

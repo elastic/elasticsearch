@@ -152,17 +152,25 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void stopTransform(String id) throws IOException {
-        stopTransform(id, true, null, false);
+        stopTransform(id, true, null, false, false);
     }
 
-    protected void stopTransform(String id, boolean waitForCompletion, @Nullable TimeValue timeout, boolean waitForCheckpoint)
-        throws IOException {
+    protected void stopTransform(
+        String id,
+        boolean waitForCompletion,
+        @Nullable TimeValue timeout,
+        boolean waitForCheckpoint,
+        boolean force
+    ) throws IOException {
 
         final Request stopTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + id + "/_stop");
         stopTransformRequest.addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(waitForCompletion));
         stopTransformRequest.addParameter(TransformField.WAIT_FOR_CHECKPOINT.getPreferredName(), Boolean.toString(waitForCheckpoint));
         if (timeout != null) {
             stopTransformRequest.addParameter(TransformField.TIMEOUT.getPreferredName(), timeout.getStringRep());
+        }
+        if (force) {
+            stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
         }
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -219,6 +227,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             request.addParameter("force", "true");
         }
         assertOK(adminClient().performRequest(request));
+        createdTransformIds.remove(id);
     }
 
     protected void putTransform(String id, String config, RequestOptions options) throws IOException {

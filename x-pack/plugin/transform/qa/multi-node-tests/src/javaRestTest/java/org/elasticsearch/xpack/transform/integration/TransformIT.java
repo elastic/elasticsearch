@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
@@ -29,20 +30,26 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
@@ -332,7 +339,7 @@ public class TransformIT extends TransformRestTestCase {
         });
 
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
-        stopTransform(transformId, false, null, true);
+        stopTransform(transformId, false, null, true, false);
 
         // Wait until the first checkpoint
         waitUntilCheckpoint(config.getId(), 1L);
@@ -354,7 +361,7 @@ public class TransformIT extends TransformRestTestCase {
             startTransformWithRetryOnConflict(config.getId(), RequestOptions.DEFAULT);
 
             boolean waitForCompletion = randomBoolean();
-            stopTransform(transformId, waitForCompletion, null, true);
+            stopTransform(transformId, waitForCompletion, null, true, false);
 
             assertBusy(() -> {
                 var stateAndStats = getTransformStats(config.getId());
@@ -491,6 +498,85 @@ public class TransformIT extends TransformRestTestCase {
             assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.REQUEST_TIMEOUT.getStatus()));
             assertThat(e2.getMessage(), containsString("Could not stop the transforms [" + transformId + "] as they timed out [30s]."));
             stopTransform(transformId);
+        }
+    }
+
+    public void testForceStop() throws Exception {
+        String sourceIndex = "continuous-crud-reviews";
+        createReviewsIndex(sourceIndex, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        String transformId = "transform-continuous-crud";
+        String destIndex = transformId + "-dest";
+        TransformConfig config = createTransformConfigForForceStopTest(transformId, sourceIndex, destIndex);
+
+        for (int i = 0; i < 10; ++i) {
+            try {
+                putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
+                assertThatListOfTransformPersistentTasks(is(empty()));
+
+                startTransform(config.getId(), RequestOptions.DEFAULT);
+                assertThatListOfTransformPersistentTasks(hasSize(1));
+
+                Exception e = expectThrows(Exception.class, () -> deleteTransform(transformId));
+                assertThat(
+                    e.getMessage(),
+                    containsString("Cannot delete transform [" + transformId + "] as the task is running. Stop the task first")
+                );
+                assertThatListOfTransformPersistentTasks(hasSize(1));
+
+                stopTransform(transformId);
+
+                if (randomBoolean()) {  // Either force-stop and then delete OR just force-delete
+                    stopTransform(transformId, true, null, false, true);
+                    deleteTransform(transformId);
+                } else {
+                    deleteTransform(transformId, true);
+                }
+                assertThatListOfTransformPersistentTasks(is(empty()));
+            } catch (AssertionError | Exception e) {
+                fail("Failure at iteration " + i + ": " + e.getMessage());
+            }
+        }
+    }
+
+    private TransformConfig createTransformConfigForForceStopTest(String transformId, String sourceIndex, String destIndex)
+        throws Exception {
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
+        groups.put("by-user", new TermsGroupSource("user_id", null, false));
+        groups.put("by-business", new TermsGroupSource("business_id", null, false));
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        return createTransformConfigBuilder(transformId, destIndex, QueryConfig.matchAll(), sourceIndex).setPivotConfig(
+            createPivotConfig(groups, aggs)
+        )
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
+            .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertThatListOfTransformPersistentTasks(Matcher<Collection<?>> matcher) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_tasks");
+        Map<String, String> parameters = Map.of(
+            "actions",
+            "data_frame/transforms[c]",
+            "group_by",
+            "none",
+            "timeout",
+            TimeValue.timeValueSeconds(10).getStringRep()
+        );
+        request.addParameters(parameters);
+        try {
+            Response response = adminClient().performRequest(request);
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<Object> tasksAsList = (List<Object>) responseAsMap.get("tasks");
+            assertThat("Tasks were: " + tasksAsList, tasksAsList, matcher);
+        } catch (Exception e) {
+            throw new AssertionError("Failed to get pending tasks", e);
         }
     }
 

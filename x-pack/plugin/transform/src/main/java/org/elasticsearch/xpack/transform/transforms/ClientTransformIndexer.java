@@ -527,6 +527,8 @@ class ClientTransformIndexer extends TransformIndexer {
                     logger.trace("point in time handle has changed; request [{}]", name);
                 }
 
+                Thread.sleep(360_000);
+
                 listener.onResponse(response);
             }, e -> {
                 // check if the error has been caused by a missing search context, which could be a timed out pit

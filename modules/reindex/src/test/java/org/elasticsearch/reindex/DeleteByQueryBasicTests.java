@@ -244,6 +244,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             if (diskAllocationDeciderEnabled == false) {
                 // Disable the disk allocation decider to ensure the read_only_allow_delete block cannot be released
                 setDiskAllocationDeciderEnabled(false);
+                refreshClusterInfo(); // ensures the logic for removing blocks upon disabling the decider is executed once
             }
             // When a read_only_allow_delete block is set on the index,
             // it will trigger a retry policy in the delete by query request because the rest status of the block is 429

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
@@ -25,6 +26,7 @@ import org.opensaml.saml.saml2.encryption.Decrypter;
 import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.X509Credential;
+import org.opensaml.xmlsec.algorithm.AlgorithmSupport;
 import org.opensaml.xmlsec.crypto.XMLSigningUtil;
 import org.opensaml.xmlsec.encryption.support.ChainingEncryptedKeyResolver;
 import org.opensaml.xmlsec.encryption.support.EncryptedKeyResolver;
@@ -170,6 +172,21 @@ public class SamlObjectHandler {
 
         checkIdpSignature(credential -> {
             try {
+                final String signatureAlg = AlgorithmSupport.getKeyAlgorithm(signature.getSignatureAlgorithm());
+                final String keyAlg = credential.getPublicKey().getAlgorithm();
+                if (signatureAlg != null && signatureAlg.equals(keyAlg) == false) {
+                    if (logger.isDebugEnabled()) {
+                        String keyFingerprint = "SHA265:"
+                            + MessageDigests.toHexString(MessageDigests.sha256().digest(credential.getPublicKey().getEncoded()));
+                        logger.debug(
+                            "Skipping [{}] key [{}] because it is not compatible with signature algorithm [{}]",
+                            keyAlg,
+                            keyFingerprint,
+                            signatureAlg
+                        );
+                    }
+                    return false;
+                }
                 return AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
                     try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
                         SignatureValidator.validate(signature, credential);

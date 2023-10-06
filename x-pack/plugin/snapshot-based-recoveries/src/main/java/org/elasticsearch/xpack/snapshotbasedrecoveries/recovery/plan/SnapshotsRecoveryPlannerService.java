@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery.plan;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -55,7 +54,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         Store.MetadataSnapshot targetMetadata,
         long startingSeqNo,
         int translogOps,
-        Version targetVersion,
+        IndexVersion targetVersion,
         boolean useSnapshots,
         boolean primaryRelocation,
         ActionListener<ShardRecoveryPlan> listener
@@ -63,7 +62,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         // Fallback to source only recovery if the target node is in an incompatible version
         boolean canUseSnapshots = isLicenseActive.getAsBoolean()
             && useSnapshots
-            && targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION);
+            && targetVersion.onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION);
 
         fetchLatestSnapshotsIgnoringErrors(
             shardId,
@@ -182,7 +181,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
     }
 
     private static boolean isSnapshotVersionCompatible(ShardSnapshot snapshot) {
-        Version commitVersion = snapshot.getCommitVersion();
+        IndexVersion commitVersion = snapshot.getCommitVersion();
         // if the snapshotVersion == null that means that the snapshot was taken in a version <= 7.15,
         // therefore we can safely use that snapshot. Since this runs on the shard primary and
         // NodeVersionAllocationDecider ensures that we only recover to a node that has newer or
@@ -191,7 +190,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             assert SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
             return IndexVersion.current().luceneVersion().onOrAfter(snapshot.getCommitLuceneVersion());
         }
-        return commitVersion.onOrBefore(Version.CURRENT);
+        return commitVersion.onOrBefore(IndexVersion.current());
     }
 
     private static ShardRecoveryPlan getRecoveryPlanUsingSourceNode(

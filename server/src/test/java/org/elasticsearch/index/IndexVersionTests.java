@@ -9,11 +9,14 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -154,14 +157,22 @@ public class IndexVersionTests extends ESTestCase {
         }
     }
 
+    public void testMinimumCompatibleVersion() {
+        assertThat(IndexVersion.getMinimumCompatibleIndexVersion(7170099), equalTo(IndexVersion.fromId(6000099)));
+        assertThat(IndexVersion.getMinimumCompatibleIndexVersion(8000099), equalTo(IndexVersion.fromId(7000099)));
+        assertThat(IndexVersion.getMinimumCompatibleIndexVersion(10000000), equalTo(IndexVersion.fromId(9000000)));
+    }
+
     public void testVersionConstantPresent() {
         Set<IndexVersion> ignore = Set.of(IndexVersion.ZERO, IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE);
         assertThat(IndexVersion.current(), sameInstance(IndexVersion.fromId(IndexVersion.current().id())));
+        assertThat(IndexVersion.current().luceneVersion(), equalTo(org.apache.lucene.util.Version.LATEST));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             IndexVersion version = IndexVersionUtils.randomVersion(ignore);
 
             assertThat(version, sameInstance(IndexVersion.fromId(version.id())));
+            assertThat(version.luceneVersion(), sameInstance(IndexVersion.fromId(version.id()).luceneVersion()));
         }
     }
 
@@ -175,5 +186,33 @@ public class IndexVersionTests extends ESTestCase {
         assertEquals("1000099", IndexVersion.fromId(1_00_00_99).toString());
         assertEquals("2000099", IndexVersion.fromId(2_00_00_99).toString());
         assertEquals("5000099", IndexVersion.fromId(5_00_00_99).toString());
+    }
+
+    public void testParseLenient() {
+        // note this is just a silly sanity check, we test it in lucene
+        for (IndexVersion version : IndexVersionUtils.allReleasedVersions()) {
+            org.apache.lucene.util.Version luceneVersion = version.luceneVersion();
+            String string = luceneVersion.toString().toUpperCase(Locale.ROOT).replaceFirst("^LUCENE_(\\d+)_(\\d+)$", "$1.$2");
+            assertThat(luceneVersion, Matchers.equalTo(Lucene.parseVersionLenient(string, null)));
+        }
+    }
+
+    public void testLuceneVersionOnUnknownVersions() {
+        // between two known versions, should use the lucene version of the previous version
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion();
+        IndexVersion currentVersion = IndexVersion.current();
+        int intermediateVersionId = previousVersion.id() + randomInt(currentVersion.id() - previousVersion.id() - 1);
+        IndexVersion intermediateVersion = IndexVersion.fromId(intermediateVersionId);
+        // the version is either the previous version or between the previous version and the current version excluded, so it is assumed to
+        // use the same Lucene version as the previous version
+        assertThat(intermediateVersion.luceneVersion(), equalTo(previousVersion.luceneVersion()));
+
+        // too old version, major should be the oldest supported lucene version minus 1
+        IndexVersion oldVersion = IndexVersion.fromId(5020199);
+        assertThat(oldVersion.luceneVersion().major, equalTo(IndexVersionUtils.getFirstVersion().luceneVersion().major - 1));
+
+        // future version, should be the same version as today
+        IndexVersion futureVersion = IndexVersion.fromId(currentVersion.id() + 100);
+        assertThat(futureVersion.luceneVersion(), equalTo(currentVersion.luceneVersion()));
     }
 }

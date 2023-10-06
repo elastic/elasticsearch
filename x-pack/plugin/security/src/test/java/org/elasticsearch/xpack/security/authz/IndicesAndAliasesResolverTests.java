@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -52,6 +51,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
@@ -138,7 +138,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     @Before
     public void setup() {
-        Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 2), randomIntBetween(0, 1)).put(
+        Settings settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 2), randomIntBetween(0, 1)).put(
             "cluster.remote.remote.seeds",
             "127.0.0.1:" + randomIntBetween(9301, 9350)
         ).put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399)).build();

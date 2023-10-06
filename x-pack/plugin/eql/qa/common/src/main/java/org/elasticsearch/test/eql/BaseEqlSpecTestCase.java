@@ -244,10 +244,10 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         final long[] ids = new long[len];
         for (int i = 0; i < len; i++) {
             Map<String, Object> event = events.get(i);
-            Map<String, Object> source = (Map<String, Object>) event.get("_source");
-            if (source == null) {
+            if (Boolean.TRUE.equals(event.get("missing"))) {
                 ids[i] = -1;
             } else {
+                Map<String, Object> source = (Map<String, Object>) event.get("_source");
                 Object field = source.get(idField());
                 ids[i] = ((Number) field).longValue();
             }

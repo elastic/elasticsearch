@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -48,34 +49,17 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     /**
      * Check if {@link #STATELESS_ENABLED_SETTING_NAME} is present and set to {@code true}, indicating that the node is
-     * part of a stateless deployment. When no settings are provided this method falls back to the value of the stateless feature flag;
-     * this is convenient for testing purpose as well as all behaviors that rely on node roles to be enabled/disabled by default when no
-     * settings are provided.
+     * part of a stateless deployment.
      *
      * @param settings the node settings
      * @return true if {@link #STATELESS_ENABLED_SETTING_NAME} is present and set
      */
     public static boolean isStateless(final Settings settings) {
-        if (settings.isEmpty() == false) {
-            return settings.getAsBoolean(STATELESS_ENABLED_SETTING_NAME, false);
-        } else {
-            // Fallback on stateless feature flag when no settings are provided
-            return DiscoveryNodeRole.hasStatelessFeatureFlag();
-        }
-    }
-
-    /**
-     * Check if the serverless feature flag is present and set to {@code true}, indicating that the node is
-     * part of a serverless deployment.
-     *
-     * @return true if the serverless feature flag is present and set
-     */
-    public static boolean isServerless() {
-        return DiscoveryNodeRole.hasServerlessFeatureFlag();
+        return settings.getAsBoolean(STATELESS_ENABLED_SETTING_NAME, false);
     }
 
     static final String COORDINATING_ONLY = "coordinating_only";
-    public static final TransportVersion EXTERNAL_ID_VERSION = TransportVersion.V_8_3_0;
+    public static final TransportVersion EXTERNAL_ID_VERSION = TransportVersions.V_8_3_0;
     public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
         .thenComparing(DiscoveryNode::getId);
 
@@ -307,7 +291,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         if (version.before(Version.V_8_10_0)) {
             return new VersionInformation(
                 version,
-                IndexVersion.fromId(version.minimumIndexCompatibilityVersion().id),
+                IndexVersion.getMinimumCompatibleIndexVersion(version.id),
                 IndexVersion.fromId(version.id)
             );
         } else {
@@ -351,7 +335,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_024)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             versionInfo = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
         } else {
             versionInfo = inferVersionInformation(Version.readVersion(in));
@@ -382,13 +366,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(attributes, StreamOutput::writeString);
         out.writeCollection(roles, (o, role) -> {
             o.writeString(role.roleName());
             o.writeString(role.roleNameAbbreviation());
             o.writeBoolean(role.canContainData());
         });
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_024)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             Version.writeVersion(versionInfo.nodeVersion(), out);
             IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
             IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);

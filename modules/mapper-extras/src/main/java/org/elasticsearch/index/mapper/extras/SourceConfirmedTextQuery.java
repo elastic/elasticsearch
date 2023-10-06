@@ -9,7 +9,9 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
@@ -25,6 +27,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafSimScorer;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -244,8 +247,13 @@ public final class SourceConfirmedTextQuery extends Query {
                     termStats.add(new TermStatistics(term.bytes(), 1, 1L));
                 }
             }
-            simScorer = searcher.getSimilarity().scorer(boost, collectionStatistics, termStats.toArray(TermStatistics[]::new));
-            approximationWeight = searcher.createWeight(approximate(in), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            if (termStats.size() > 0) {
+                simScorer = searcher.getSimilarity().scorer(boost, collectionStatistics, termStats.toArray(TermStatistics[]::new));
+                approximationWeight = searcher.createWeight(approximate(in), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            } else {
+                simScorer = null;
+                approximationWeight = null;
+            }
         }
         return new Weight(this) {
 
@@ -288,6 +296,25 @@ public final class SourceConfirmedTextQuery extends Query {
                 return new RuntimePhraseScorer(this, approximation, leafSimScorer, valueFetcher, field, in);
             }
 
+            @Override
+            public Matches matches(LeafReaderContext context, int doc) throws IOException {
+                FieldInfo fi = context.reader().getFieldInfos().fieldInfo(field);
+                if (fi == null) {
+                    return null;
+                }
+                // Some highlighters will already have reindexed the source with positions and offsets,
+                // so rather than doing it again we check to see if this data is available on the
+                // current context and if so delegate directly to the inner query
+                if (fi.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) > 0) {
+                    Weight innerWeight = in.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
+                    return innerWeight.matches(context, doc);
+                }
+                RuntimePhraseScorer scorer = scorer(context);
+                if (scorer == null || scorer.iterator().advance(doc) != doc) {
+                    return null;
+                }
+                return scorer.matches();
+            }
         };
     }
 
@@ -379,6 +406,20 @@ public final class SourceConfirmedTextQuery extends Query {
                 index.reset();
             }
             return frequency;
+        }
+
+        private Matches matches() throws IOException {
+            MemoryIndex index = new MemoryIndex(true, false);
+            List<Object> values = valueFetcher.apply(docID());
+            for (Object value : values) {
+                if (value == null) {
+                    continue;
+                }
+                index.addField(field, value.toString(), indexAnalyzer);
+            }
+            IndexSearcher searcher = index.createSearcher();
+            Weight w = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1);
+            return w.matches(searcher.getLeafContexts().get(0), 0);
         }
     }
 

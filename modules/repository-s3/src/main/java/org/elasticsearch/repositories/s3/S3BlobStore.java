@@ -8,31 +8,51 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
 import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.core.Strings.format;
 
 class S3BlobStore implements BlobStore {
+
+    /**
+     * Maximum number of deletes in a {@link DeleteObjectsRequest}.
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
+     */
+    private static final int MAX_BULK_DELETES = 1000;
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
@@ -53,6 +73,7 @@ class S3BlobStore implements BlobStore {
     private final RepositoryMetadata repositoryMetadata;
 
     private final ThreadPool threadPool;
+    private final Executor snapshotExecutor;
 
     private final Stats stats = new Stats();
 
@@ -60,6 +81,8 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector listMetricCollector;
     final RequestMetricCollector putMetricCollector;
     final RequestMetricCollector multiPartUploadMetricCollector;
+    final RequestMetricCollector deleteMetricCollector;
+    final RequestMetricCollector abortPartUploadMetricCollector;
 
     S3BlobStore(
         S3Service service,
@@ -81,6 +104,7 @@ class S3BlobStore implements BlobStore {
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
+        this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
@@ -109,6 +133,28 @@ class S3BlobStore implements BlobStore {
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
+        this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
+            @Override
+            public void collectMetrics(Request<?> request) {
+                assert request.getHttpMethod().name().equals("POST");
+                stats.deleteCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
+            @Override
+            public void collectMetrics(Request<?> request) {
+                assert request.getHttpMethod().name().equals("DELETE");
+                stats.abortCount.addAndGet(getRequestCount(request));
+            }
+        };
+    }
+
+    public Executor getSnapshotExecutor() {
+        return snapshotExecutor;
+    }
+
+    public TimeValue getCompareAndExchangeTimeToLive() {
+        return service.compareAndExchangeTimeToLive;
     }
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
@@ -166,6 +212,68 @@ class S3BlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new S3BlobContainer(path, this);
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        if (blobNames.hasNext() == false) {
+            return;
+        }
+
+        final List<String> partition = new ArrayList<>();
+        try (AmazonS3Reference clientReference = clientReference()) {
+            // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
+            final AtomicReference<Exception> aex = new AtomicReference<>();
+            SocketAccess.doPrivilegedVoid(() -> {
+                blobNames.forEachRemaining(key -> {
+                    partition.add(key);
+                    if (partition.size() == MAX_BULK_DELETES) {
+                        deletePartition(purpose, clientReference, partition, aex);
+                        partition.clear();
+                    }
+                });
+                if (partition.isEmpty() == false) {
+                    deletePartition(purpose, clientReference, partition, aex);
+                }
+            });
+            if (aex.get() != null) {
+                throw aex.get();
+            }
+        } catch (Exception e) {
+            throw new IOException("Failed to delete blobs " + partition.stream().limit(10).toList(), e);
+        }
+    }
+
+    private void deletePartition(
+        OperationPurpose purpose,
+        AmazonS3Reference clientReference,
+        List<String> partition,
+        AtomicReference<Exception> aex
+    ) {
+        try {
+            clientReference.client().deleteObjects(bulkDelete(purpose, this, partition));
+        } catch (MultiObjectDeleteException e) {
+            // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
+            // first remove all keys that were sent in the request and then add back those that ran into an exception.
+            logger.warn(
+                () -> format(
+                    "Failed to delete some blobs %s",
+                    e.getErrors().stream().map(err -> "[" + err.getKey() + "][" + err.getCode() + "][" + err.getMessage() + "]").toList()
+                ),
+                e
+            );
+            aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+        } catch (AmazonClientException e) {
+            // The AWS client threw any unexpected exception and did not execute the request at all so we do not
+            // remove any keys from the outstanding deletes set.
+            aex.set(ExceptionsHelper.useOrSuppress(aex.get(), e));
+        }
+    }
+
+    private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {
+        return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
+            .withQuiet(true)
+            .withRequestMetricCollector(blobStore.deleteMetricCollector);
     }
 
     @Override
@@ -234,12 +342,18 @@ class S3BlobStore implements BlobStore {
 
         final AtomicLong postCount = new AtomicLong();
 
+        final AtomicLong deleteCount = new AtomicLong();
+
+        final AtomicLong abortCount = new AtomicLong();
+
         Map<String, Long> toMap() {
             final Map<String, Long> results = new HashMap<>();
             results.put("GetObject", getCount.get());
             results.put("ListObjects", listCount.get());
             results.put("PutObject", putCount.get());
             results.put("PutMultipartObject", postCount.get());
+            results.put("DeleteObjects", deleteCount.get());
+            results.put("AbortMultipartObject", abortCount.get());
             return results;
         }
     }

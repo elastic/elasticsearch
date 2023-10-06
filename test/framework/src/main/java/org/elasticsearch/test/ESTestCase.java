@@ -39,7 +39,6 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -752,6 +751,30 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * The maximum value that can be represented as an unsigned long.
+     */
+    public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+
+    /**
+     * A unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
+     */
+    public static BigInteger randomUnsignedLongBetween(BigInteger min, BigInteger max) {
+        if (min.compareTo(BigInteger.ZERO) < 0) {
+            throw new IllegalArgumentException("Must be between [0] and [" + UNSIGNED_LONG_MAX + "]");
+        }
+        if (0 < max.compareTo(UNSIGNED_LONG_MAX)) {
+            throw new IllegalArgumentException("Must be between [0] and [" + UNSIGNED_LONG_MAX + "]");
+        }
+        // Shift the min and max down into the long range
+        long minShifted = min.add(BigInteger.valueOf(Long.MIN_VALUE)).longValueExact();
+        long maxShifted = max.add(BigInteger.valueOf(Long.MIN_VALUE)).longValueExact();
+        // Grab a random number in that range
+        long randomShifted = randomLongBetween(minShifted, maxShifted);
+        // Shift back up into long range
+        return BigInteger.valueOf(randomShifted).subtract(BigInteger.valueOf(Long.MIN_VALUE));
+    }
+
+    /**
      * Returns a "scaled" number of iterations for loops which can have a variable
      * iteration count. This method is effectively
      * an alias to {@link #scaledRandomIntBetween(int, int)}.
@@ -1294,21 +1317,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /** Return consistent index settings for the provided index version. */
-    @Deprecated
-    public static Settings.Builder settings(Version version) {
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-    }
-
-    /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(IndexVersion version) {
-        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id());
-    }
-
-    /** Return consistent index settings for the provided index version, shard- and replica-count. */
-    @Deprecated
-    public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
-        return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
     /** Return consistent index settings for the provided index version, shard- and replica-count. */
@@ -1536,7 +1546,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         Writeable.Reader<T> reader,
         TransportVersion version
     ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
+        return copyInstance(original, namedWriteableRegistry, StreamOutput::writeWriteable, reader, version);
     }
 
     /**
@@ -1737,7 +1747,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TestAnalysis createTestAnalysis(Index index, Settings nodeSettings, Settings settings, AnalysisPlugin... analysisPlugins)
         throws IOException {
-        Settings indexSettings = Settings.builder().put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder()
+            .put(settings)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
         return createTestAnalysis(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
     }
 
@@ -1860,7 +1873,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return MIN_PRIVATE_PORT + PORTS_PER_WORKER + effectiveWorkerId * PORTS_PER_WORKER;
     }
 
-    protected static InetAddress randomIp(boolean v4) {
+    public static InetAddress randomIp(boolean v4) {
         try {
             if (v4) {
                 byte[] ipv4 = new byte[4];
@@ -2021,5 +2034,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected static boolean isTurkishLocale() {
         return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
+
+    public static void fail(Throwable t, String msg, Object... args) {
+        throw new AssertionError(org.elasticsearch.common.Strings.format(msg, args), t);
     }
 }

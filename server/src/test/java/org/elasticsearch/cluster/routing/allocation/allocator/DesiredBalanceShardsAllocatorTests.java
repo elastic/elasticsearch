@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -229,7 +229,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var inSyncAllocationId = UUIDs.randomBase64UUID();
         var index = IndexMetadata.builder("test")
-            .settings(indexSettings(Version.CURRENT, 1, 1))
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
             .putInSyncAllocationIds(0, Set.of(inSyncAllocationId))
             .build();
         var shardId = new ShardId(index.getIndex(), 0);
@@ -627,7 +627,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static IndexMetadata createIndex(String name) {
-        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0)).build();
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
     }
 
     private static AllocationService createAllocationService(

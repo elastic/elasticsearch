@@ -5,7 +5,7 @@ You can test that your {es} node is running by sending an HTTPS request to port
 
 ["source","sh",subs="attributes"]
 ----
-curl --cacert {es-conf}{slash}certs{slash}http_ca.crt -u elastic https://localhost:9200 <1>
+curl --cacert {es-conf}{slash}certs{slash}http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200 <1>
 ----
 // NOTCONSOLE
 <1> Ensure that you use `https` in your call, or the request will fail.
@@ -13,8 +13,7 @@ curl --cacert {es-conf}{slash}certs{slash}http_ca.crt -u elastic https://localho
 `--cacert`::
 Path to the generated `http_ca.crt` certificate for the HTTP layer.
 
-Enter the password for the `elastic` user that was generated during
-installation, which should return a response like this:
+The call returns a response like this:
 
 ////
 The following hidden request is required before the response. Otherwise, you'll
@@ -40,10 +39,8 @@ GET /
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
     "lucene_version" : "{lucene_version}",
-    "index_version" : "67890",
     "minimum_wire_compatibility_version" : "1.2.3",
-    "minimum_index_compatibility_version" : "1.2.3",
-    "transport_version" : "12345"
+    "minimum_index_compatibility_version" : "1.2.3"
   },
   "tagline" : "You Know, for Search"
 }
@@ -56,6 +53,4 @@ GET /
 // TESTRESPONSE[s/"build_snapshot" : false,/"build_snapshot" : $body.version.build_snapshot,/]
 // TESTRESPONSE[s/"minimum_wire_compatibility_version" : "1.2.3"/"minimum_wire_compatibility_version" : $body.version.minimum_wire_compatibility_version/]
 // TESTRESPONSE[s/"minimum_index_compatibility_version" : "1.2.3"/"minimum_index_compatibility_version" : $body.version.minimum_index_compatibility_version/]
-// TESTRESPONSE[s/"transport_version" : "12345"/"transport_version" : $body.version.transport_version/]
-// TESTRESPONSE[s/"index_version" : "67890"/"index_version" : $body.version.index_version/]
 // So much s/// but at least we test that the layout is close to matching....

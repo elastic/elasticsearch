@@ -8,7 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -130,15 +129,11 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
             public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-                try {
-                    assertThat(indexId.getName(), equalTo(indexName));
-                    assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
-                    latch.await();
-                    getShardSnapshotStatusCount.incrementAndGet();
-                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                assertThat(indexId.getName(), equalTo(indexName));
+                assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
+                safeAwait(latch);
+                getShardSnapshotStatusCount.incrementAndGet();
+                return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
             }
         };
         when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
@@ -412,7 +407,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         assertThat(currentState.metadata().hasIndex(indexName), is(false));
 
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()));
+            .settings(indexSettings(IndexVersion.current(), numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()));
 
         for (int i = 0; i < numberOfShards; i++) {
             indexMetadataBuilder.putInSyncAllocationIds(i, Collections.singleton(AllocationId.newInitializing().getId()));
@@ -439,9 +434,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 .build()
         );
 
-        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
-            currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)
-        );
+        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(RestoreInProgress.get(currentState));
         final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             shards.put(new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));

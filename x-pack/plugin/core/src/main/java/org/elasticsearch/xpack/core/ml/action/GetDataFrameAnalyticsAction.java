@@ -31,10 +31,12 @@ public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalytic
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
+        @SuppressWarnings("this-escape")
         public Request() {
             setAllowNoResources(true);
         }
 
+        @SuppressWarnings("this-escape")
         public Request(String id) {
             setResourceId(id);
             setAllowNoResources(true);

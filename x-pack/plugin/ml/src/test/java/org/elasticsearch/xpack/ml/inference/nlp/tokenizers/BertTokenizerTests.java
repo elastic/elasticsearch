@@ -650,8 +650,8 @@ public class BertTokenizerTests extends ESTestCase {
             assertThat(
                 iae.getMessage(),
                 containsString(
-                    "Unable to do sequence pair tokenization: the combined first sequence and span length [4 + 5 = 9 tokens] "
-                        + "is longer than the max sequence length [8 tokens]. Reduce the size of the [span] window."
+                    "Unable to do sequence pair tokenization: the combined first sequence, span length and delimiting tokens "
+                        + "[4 + 5 + 3 = 12 tokens] is longer than the max sequence length [8 tokens]. Reduce the size of the [span] window."
                 )
             );
         }
@@ -781,5 +781,33 @@ public class BertTokenizerTests extends ESTestCase {
             Tokenizer preTokenizer = analyzer.createTokenizer();
             assertThat(preTokenizer, instanceOf(WhitespaceTokenizer.class));
         }
+    }
+
+    public void testDetectInfiniteLoop() {
+        // These settings are known to produce an infinite loop.
+        // question and context are longer than max sequence length
+        // so the input must be spanned. With a span setting of 4
+        // there is only 1 more token that can go into the context part:
+        // question = 5 tokens
+        // CLS & SEP = 3
+        // Span = 4
+        // total = 12 tokens.
+        // max sequence length = 13
+        //
+        // Because the word 'Elasticsearch' maps to more than 1 token
+        // it is not possible to fit it into the window so the term
+        // is taken out, the algorithm backs up and next time round
+        // the loop it is in the same situation.
+        String question = "is Elasticsearch fun?";
+        String context = "Pancake day is fun with Elasticsearch and little red car";
+        int span = 4;
+        int maxSequenceLength = 13;
+
+        BertTokenization tokenization = new BertTokenization(false, true, maxSequenceLength, Tokenization.Truncate.NONE, span);
+        BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, tokenization).build();
+
+        var e = expectThrows(IllegalStateException.class, () -> tokenizer.tokenize(question, context, Tokenization.Truncate.NONE, span, 0));
+        assertThat(e.getMessage(), containsString("Tokenization cannot be satisfied with the current span setting"));
+
     }
 }

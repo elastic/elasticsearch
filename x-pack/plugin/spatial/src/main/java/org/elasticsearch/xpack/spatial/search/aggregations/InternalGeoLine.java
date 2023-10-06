@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -88,7 +88,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         this.includeSorts = in.readBoolean();
         this.sortOrder = SortOrder.readFromStream(in);
         this.size = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             nonOverlapping = in.readBoolean();
             simplified = in.readBoolean();
         } else {
@@ -105,7 +105,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         out.writeBoolean(includeSorts);
         sortOrder.writeTo(out);
         out.writeVInt(size);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeBoolean(nonOverlapping);
             out.writeBoolean(simplified);
         }

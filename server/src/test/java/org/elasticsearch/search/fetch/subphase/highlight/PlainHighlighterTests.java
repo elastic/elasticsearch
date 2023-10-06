@@ -16,9 +16,14 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.DocReader;
+import org.elasticsearch.script.ScoreScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.HighlighterTestCase;
 
+import java.io.IOException;
 import java.util.Map;
 
 public class PlainHighlighterTests extends HighlighterTestCase {
@@ -95,5 +100,51 @@ public class PlainHighlighterTests extends HighlighterTestCase {
             );
 
         }
+    }
+
+    public void testScriptScoreQuery() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "text" : { "type" : "text" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "text" : "some text" }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(
+            QueryBuilders.scriptScoreQuery(
+                QueryBuilders.boolQuery().should(QueryBuilders.termQuery("text", "some")).must(QueryBuilders.existsQuery("text")),
+                new Script("foo")
+            )
+        ).highlighter(new HighlightBuilder().field("text").highlighterType("plain"));
+
+        assertHighlights(highlight(mapperService, doc, search), "text", "<em>some</em> text");
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        if (context == ScoreScript.CONTEXT) {
+            // Dummy script for testing ScriptScoreQuery highlighting
+            return (T) (ScoreScript.Factory) (params, lookup) -> new ScoreScript.LeafFactory() {
+                @Override
+                public boolean needs_score() {
+                    return true;
+                }
+
+                @Override
+                public ScoreScript newInstance(DocReader reader) throws IOException {
+                    return new ScoreScript(params, lookup, reader) {
+                        @Override
+                        public double execute(ExplanationHolder explanation) {
+                            return 0;
+                        }
+                    };
+                }
+            };
+        }
+        return super.compileScript(script, context);
     }
 }

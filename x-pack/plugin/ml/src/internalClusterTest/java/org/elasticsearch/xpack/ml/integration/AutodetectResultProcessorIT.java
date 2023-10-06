@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.ModelPlotTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
@@ -137,7 +138,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 

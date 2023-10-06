@@ -202,7 +202,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 new BytesArray(Base64.getDecoder().decode(BASE_64_ENCODED_MODEL)),
                 0,
                 RAW_MODEL_SIZE,
-                1
+                1,
+                false
             )
         ).actionGet();
         client().execute(
@@ -211,7 +212,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 TRAINED_MODEL_ID,
                 List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN),
                 List.of(),
-                List.of()
+                List.of(),
+                false
             )
         ).actionGet();
         client().execute(

@@ -18,8 +18,10 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -64,7 +66,7 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, actionFilters, FrozenCacheInfoAction.Request::new);
+            super(NAME, transportService, actionFilters, FrozenCacheInfoAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
         }
 
@@ -77,7 +79,7 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
                     nodeRequest,
                     task,
                     TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, FrozenCacheInfoResponse::new)
+                    new ActionListenerResponseHandler<>(listener, FrozenCacheInfoResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             } else {
                 listener.onResponse(new FrozenCacheInfoResponse(false));

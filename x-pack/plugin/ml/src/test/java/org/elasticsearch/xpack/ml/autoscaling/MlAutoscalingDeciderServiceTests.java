@@ -132,6 +132,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                 MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.ALLOCATED_PROCESSORS_SCALE,
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING
             )
         );

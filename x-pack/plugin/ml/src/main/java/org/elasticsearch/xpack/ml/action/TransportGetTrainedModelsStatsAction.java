@@ -25,6 +25,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
@@ -87,7 +88,13 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         TrainedModelProvider trainedModelProvider,
         Client client
     ) {
-        super(GetTrainedModelsStatsAction.NAME, transportService, actionFilters, GetTrainedModelsStatsAction.Request::new);
+        super(
+            GetTrainedModelsStatsAction.NAME,
+            transportService,
+            actionFilters,
+            GetTrainedModelsStatsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.clusterService = clusterService;
         this.trainedModelProvider = trainedModelProvider;
@@ -124,11 +131,14 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                     .stream()
                     .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()))
             );
+
+            int numberOfAllocations = deploymentStats.getStats().results().stream().mapToInt(AssignmentStats::getNumberOfAllocations).sum();
             modelSizeStats(
                 responseBuilder.getExpandedModelIdsWithAliases(),
                 request.isAllowNoResources(),
                 parentTaskId,
-                modelSizeStatsListener
+                modelSizeStatsListener,
+                numberOfAllocations
             );
         }));
 
@@ -273,7 +283,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         Map<String, Set<String>> expandedIdsWithAliases,
         boolean allowNoResources,
         TaskId parentTaskId,
-        ActionListener<Map<String, TrainedModelSizeStats>> listener
+        ActionListener<Map<String, TrainedModelSizeStats>> listener,
+        int numberOfAllocations
     ) {
         ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
             final List<String> pytorchModelIds = models.stream()
@@ -285,12 +296,27 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
                         long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
+                        long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
+                            ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                                model.getModelId(),
+                                totalDefinitionLength,
+                                model.getPerDeploymentMemoryBytes(),
+                                model.getPerAllocationMemoryBytes(),
+                                numberOfAllocations
+                            )
+                            : 0L;
                         modelSizeStatsByModelId.put(
                             model.getModelId(),
                             new TrainedModelSizeStats(
                                 totalDefinitionLength,
                                 totalDefinitionLength > 0L
-                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(model.getModelId(), totalDefinitionLength)
+                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                                        model.getModelId(),
+                                        totalDefinitionLength,
+                                        model.getPerDeploymentMemoryBytes(),
+                                        model.getPerAllocationMemoryBytes(),
+                                        numberOfAllocations
+                                    )
                                     : 0L
                             )
                         );

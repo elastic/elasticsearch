@@ -356,6 +356,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         );
         extractor.setNextResponse(goodResponse);
         extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
+        // goodResponse needs to be recreated because previous response is consumed (deleted/modified) while processing the response.
+        goodResponse = createSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
         extractor.setNextResponse(goodResponse);
         extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
 

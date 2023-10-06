@@ -767,6 +767,7 @@ currently supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
+* <<search-aggregations-metrics-boxplot-aggregation,Boxplot>>
 * <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
 * <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>

@@ -1,5 +1,0 @@
-pr: 96279
-summary: Improve cancellability in `TransportTasksAction`
-area: Task Management
-type: bug
-issues: []

@@ -1388,13 +1388,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized PrimaryContext startRelocationHandoff(String targetAllocationId) {
         assert invariant();
-        assert primaryMode;
         assert handoffInProgress == false;
         assert pendingInSync.isEmpty() : "relocation handoff started while there are still shard copies pending in-sync: " + pendingInSync;
         if (checkpoints.containsKey(targetAllocationId) == false) {
             // can happen if the relocation target was removed from cluster but the recovery process isn't aware of that.
             throw new IllegalStateException("relocation target [" + targetAllocationId + "] is no longer part of the replication group");
         }
+        assert primaryMode;
         handoffInProgress = true;
         // copy clusterStateVersion and checkpoints and return
         // all the entries from checkpoints that are inSync: the reason we don't need to care about initializing non-insync entries
@@ -1602,7 +1602,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(clusterStateVersion);
-            out.writeMap(checkpoints, (streamOutput, s) -> out.writeString(s), (streamOutput, cps) -> cps.writeTo(out));
+            out.writeMap(checkpoints, StreamOutput::writeWriteable);
             IndexShardRoutingTable.Builder.writeTo(routingTable, out);
         }
 

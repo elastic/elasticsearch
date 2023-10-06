@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
@@ -84,6 +83,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics-mappings";
     public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-settings";
+    public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-tsdb-settings";
     public static final String METRICS_ILM_POLICY_NAME = "metrics";
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
@@ -94,6 +94,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics-settings";
     public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics";
     public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
+
+    ///////////////////////////////////
+    // Kibana reporting template
+    ///////////////////////////////////
+    public static final String KIBANA_REPORTING_INDEX_TEMPLATE_NAME = ".kibana-reporting";
 
     public StackTemplateRegistry(
         Settings nodeSettings,
@@ -126,7 +131,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICY_CONFIGS = Stream.of(
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
         new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs-policy.json"),
         new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics-policy.json"),
         new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics-policy.json"),
@@ -135,12 +140,17 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/" + ILM_90_DAYS_POLICY_NAME + ".json"),
         new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/" + ILM_180_DAYS_POLICY_NAME + ".json"),
         new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/" + ILM_365_DAYS_POLICY_NAME + ".json")
-    ).map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
+    );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICY_CONFIGS;
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (stackTemplateEnabled) {
-            return LIFECYCLE_POLICY_CONFIGS;
+            return lifecyclePolicies;
         } else {
             return Collections.emptyList();
         }
@@ -188,6 +198,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
+                METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics-tsdb-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
                 SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/synthetics-mappings.json",
                 REGISTRY_VERSION,
@@ -224,7 +240,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
         new IndexTemplateConfig(LOGS_INDEX_TEMPLATE_NAME, "/logs-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(METRICS_INDEX_TEMPLATE_NAME, "/metrics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
+        new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IndexTemplateConfig(
+            KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
+            "/kibana-reporting-template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        )
     );
 
     @Override

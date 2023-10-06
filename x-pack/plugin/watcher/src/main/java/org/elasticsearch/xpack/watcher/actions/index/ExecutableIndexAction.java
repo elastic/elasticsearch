@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
@@ -116,7 +115,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
-        IndexResponse response = ClientHelper.executeWithHeaders(
+        DocWriteResponse response = ClientHelper.executeWithHeaders(
             ctx.watch().status().getHeaders(),
             ClientHelper.WATCHER_ORIGIN,
             client,
@@ -280,7 +279,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
     }
 
-    static void indexResponseToXContent(XContentBuilder builder, IndexResponse response) throws IOException {
+    static void indexResponseToXContent(XContentBuilder builder, DocWriteResponse response) throws IOException {
         builder.startObject()
             .field("created", response.getResult() == DocWriteResponse.Result.CREATED)
             .field("result", response.getResult().getLowercase())

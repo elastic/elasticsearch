@@ -149,6 +149,20 @@ POST /my-index-000001/_ilm/retry
 {ilm-init} subsequently attempts to re-run the step that failed. 
 You can use the <<ilm-explain-lifecycle,{ilm-init} Explain API>> to monitor the progress.
 
+
+[discrete]
+=== Common {ilm-init} setting issues
+
+[discrete]
+==== How `min_age` is calculated
+
+When setting up an <<set-up-lifecycle-policy,{ilm-init} policy>> or <<getting-started-index-lifecycle-management,automating rollover with {ilm-init}>>, be aware that `min_age` can be relative to either the rollover time or the index creation time.
+
+If you use <<ilm-rollover,{ilm-init} rollover>>, `min_age` is calculated relative to the time the index was rolled over. This is because the <<indices-rollover-index,rollover API>> generates a new index. The `creation_date` of the new index (retrievable via <<indices-get-settings>>) is used in the calculation. If you do not use rollover in the {ilm-init} policy, `min_age` is calculated relative to the `creation_date` of the original index.
+
+You can override how `min_age` is calculated using the `index.lifecycle.origination_date` and `index.lifecycle.parse_origination_date` <<ilm-settings,{ilm-init} settings>>.
+
+
 [discrete]
 === Common {ilm-init} errors
 

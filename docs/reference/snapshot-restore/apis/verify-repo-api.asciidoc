@@ -4,7 +4,7 @@
 <titleabbrev>Verify snapshot repository</titleabbrev>
 ++++
 
-Verifies that a snapshot repository is functional. See
+Checks for common misconfigurations in a snapshot repository. See
 <<snapshots-repository-verification>>.
 
 ////

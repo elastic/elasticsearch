@@ -21,6 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
@@ -139,8 +140,10 @@ public final class SearchPhaseController {
         }
 
         List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
+        List<SetOnce<String>> nestedPath = new ArrayList<>(request.source().knnSearch().size());
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
             topDocsLists.add(new ArrayList<>());
+            nestedPath.add(new SetOnce<>());
         }
 
         for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
@@ -152,13 +155,15 @@ public final class SearchPhaseController {
                     TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
                     setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
+                    nestedPath.get(i).trySet(knnResults.getNestedPath());
                 }
             }
         }
+
         List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
         for (int i = 0; i < request.source().knnSearch().size(); i++) {
             TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(mergedTopDocs.scoreDocs));
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;
     }
@@ -541,15 +546,25 @@ public final class SearchPhaseController {
             );
         }
         int total = queryResults.size();
-        queryResults = queryResults.stream().filter(res -> res.queryResult().isNull() == false).toList();
-        String errorMsg = "must have at least one non-empty search result, got 0 out of " + total;
-        assert queryResults.isEmpty() == false : errorMsg;
-        if (queryResults.isEmpty()) {
-            throw new IllegalStateException(errorMsg);
+        final Collection<SearchPhaseResult> nonNullResults = new ArrayList<>();
+        boolean hasSuggest = false;
+        boolean hasProfileResults = false;
+        for (SearchPhaseResult queryResult : queryResults) {
+            var res = queryResult.queryResult();
+            if (res.isNull()) {
+                continue;
+            }
+            hasSuggest |= res.suggest() != null;
+            hasProfileResults |= res.hasProfileResults();
+            nonNullResults.add(queryResult);
         }
+        queryResults = nonNullResults;
         validateMergeSortValueFormats(queryResults);
-        final boolean hasSuggest = queryResults.stream().anyMatch(res -> res.queryResult().suggest() != null);
-        final boolean hasProfileResults = queryResults.stream().anyMatch(res -> res.queryResult().hasProfileResults());
+        if (queryResults.isEmpty()) {
+            var ex = new IllegalStateException("must have at least one non-empty search result, got 0 out of " + total);
+            assert false : ex;
+            throw ex;
+        }
 
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
@@ -578,9 +593,7 @@ public final class SearchPhaseController {
                     }
                 }
             }
-            if (bufferedTopDocs.isEmpty() == false) {
-                assert result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
-            }
+            assert bufferedTopDocs.isEmpty() || result.hasConsumedTopDocs() : "firstResult has no aggs but we got non null buffered aggs?";
             if (hasProfileResults) {
                 String key = result.getSearchShardTarget().toString();
                 profileShardResults.put(key, result.consumeProfileResult());

@@ -30,6 +30,7 @@ public class BroadcastShardOperationFailedException extends ElasticsearchExcepti
         this(shardId, "", cause);
     }
 
+    @SuppressWarnings("this-escape")
     public BroadcastShardOperationFailedException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
         setShard(shardId);

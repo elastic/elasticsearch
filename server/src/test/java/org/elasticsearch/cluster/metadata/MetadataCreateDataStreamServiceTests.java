@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
@@ -345,7 +345,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                         IndexMetadata.builder(request.index())
                             .settings(
                                 Settings.builder()
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .put(request.settings())
                                     .build()
                             )

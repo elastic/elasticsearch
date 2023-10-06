@@ -705,10 +705,10 @@ public class PluginsServiceTests extends ESTestCase {
             .instance();
 
         // We shouldn't find the FooTestService implementation with PluginOther
-        assertThat(MockPluginsService.createExtensions(TestService.class, othPlugin), empty());
+        assertThat(MockPluginsService.createExtensions(TestService.class, othPlugin, e -> false), empty());
 
         // We should find the FooTestService implementation when we use FooPlugin, because it matches the constructor arg.
-        var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin);
+        var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin, e -> false);
 
         assertThat(providers, allOf(hasSize(1), everyItem(instanceOf(BarTestService.class))));
     }

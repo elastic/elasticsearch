@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -21,18 +20,18 @@ public class ResourcePrivilegesTests extends ESTestCase {
 
     public void testBuilder() {
         ResourcePrivileges instance = createInstance();
-        ResourcePrivileges expected = new ResourcePrivileges("*", mapBuilder().put("read", true).put("write", false).map());
+        ResourcePrivileges expected = new ResourcePrivileges("*", Map.of("read", true, "write", false));
         assertThat(instance, equalTo(expected));
     }
 
     public void testWhenSamePrivilegeExists() {
         ResourcePrivileges.Builder builder = ResourcePrivileges.builder("*").addPrivilege("read", true);
 
-        Map<String, Boolean> mapWhereReadIsAllowed = mapBuilder().put("read", true).map();
+        Map<String, Boolean> mapWhereReadIsAllowed = Map.of("read", true);
         builder.addPrivileges(mapWhereReadIsAllowed);
         assertThat(builder.build().isAllowed("read"), is(true));
 
-        Map<String, Boolean> mapWhereReadIsDenied = mapBuilder().put("read", false).map();
+        Map<String, Boolean> mapWhereReadIsDenied = Map.of("read", false);
         builder.addPrivileges(mapWhereReadIsDenied);
         assertThat(builder.build().isAllowed("read"), is(false));
     }
@@ -62,9 +61,5 @@ public class ResourcePrivilegesTests extends ESTestCase {
             case 1 -> ResourcePrivileges.builder(original.getResource()).addPrivileges(Collections.emptyMap()).build();
             default -> ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(Collections.emptyMap()).build();
         };
-    }
-
-    private static MapBuilder<String, Boolean> mapBuilder() {
-        return MapBuilder.newMapBuilder();
     }
 }

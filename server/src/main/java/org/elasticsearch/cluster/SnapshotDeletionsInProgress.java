@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
@@ -56,7 +57,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this(in.readImmutableList(Entry::new));
+        this(in.readCollectionAsImmutableList(Entry::new));
     }
 
     private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
@@ -68,6 +69,10 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
             }
         }
         return true;
+    }
+
+    public static SnapshotDeletionsInProgress get(ClusterState state) {
+        return state.custom(TYPE, EMPTY);
     }
 
     /**
@@ -149,7 +154,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(entries);
+        out.writeCollection(entries);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -158,14 +163,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startArray(TYPE)),
-            entries.stream().<ToXContent>map(entry -> (builder, params) -> {
+            Iterators.map(entries.iterator(), entry -> (builder, params) -> {
                 builder.startObject();
                 {
                     builder.field("repository", entry.repository());
@@ -180,7 +185,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 }
                 builder.endObject();
                 return builder;
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endArray())
         );
     }
@@ -224,7 +229,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         public Entry(StreamInput in) throws IOException {
             this.repoName = in.readString();
-            this.snapshots = in.readImmutableList(SnapshotId::new);
+            this.snapshots = in.readCollectionAsImmutableList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
             this.state = State.readFrom(in);

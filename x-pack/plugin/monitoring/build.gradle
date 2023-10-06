@@ -26,6 +26,7 @@ dependencies {
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:mapper-extras')
+  testImplementation project(path: xpackModule('wildcard'))
 }
 
 tasks.named("dependencyLicenses").configure {

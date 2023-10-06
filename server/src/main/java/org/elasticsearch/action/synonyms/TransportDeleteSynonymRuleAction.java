@@ -13,33 +13,34 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportDeleteSynonymRuleAction extends HandledTransportAction<
-    DeleteSynonymRuleAction.Request,
-    DeleteSynonymRuleAction.Response> {
+public class TransportDeleteSynonymRuleAction extends HandledTransportAction<DeleteSynonymRuleAction.Request, SynonymUpdateResponse> {
 
     private final SynonymsManagementAPIService synonymsManagementAPIService;
 
     @Inject
     public TransportDeleteSynonymRuleAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteSynonymRuleAction.NAME, transportService, actionFilters, DeleteSynonymRuleAction.Request::new);
+        super(
+            DeleteSynonymRuleAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteSynonymRuleAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
 
         this.synonymsManagementAPIService = new SynonymsManagementAPIService(client);
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        DeleteSynonymRuleAction.Request request,
-        ActionListener<DeleteSynonymRuleAction.Response> listener
-    ) {
+    protected void doExecute(Task task, DeleteSynonymRuleAction.Request request, ActionListener<SynonymUpdateResponse> listener) {
         synonymsManagementAPIService.deleteSynonymRule(
             request.synonymsSetId(),
             request.synonymRuleId(),
-            listener.map(dr -> new DeleteSynonymRuleAction.Response(dr.synonymsOperationResult(), dr.reloadAnalyzersResponse()))
+            listener.map(SynonymUpdateResponse::new)
         );
     }
 }

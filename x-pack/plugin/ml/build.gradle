@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
@@ -70,6 +72,7 @@ dependencies {
   testImplementation project(':modules:mapper-extras')
   // This should not be here
   testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(path: xpackModule('wildcard'))
   // ml deps
   api project(':libs:elasticsearch-grok')
   api "org.apache.commons:commons-math3:3.6.1"
@@ -77,13 +80,18 @@ dependencies {
   api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
   api "org.apache.lucene:lucene-analysis-kuromoji:${versions.lucene}"
   implementation 'org.ojalgo:ojalgo:51.2.0'
-  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:deps@zip") {
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${mlCppVersion()}:deps@zip") {
     changing = true
   }
-  nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}:nodeps@zip") {
+  nativeBundle("org.elasticsearch.ml:ml-cpp:${mlCppVersion()}:nodeps@zip") {
     changing = true
   }
   testImplementation 'org.ini4j:ini4j:0.5.2'
+}
+
+def mlCppVersion(){
+  return (project.gradle.parent != null && BuildParams.isSnapshotBuild() == false) ?
+      (project.version + "-SNAPSHOT") : project.version;
 }
 
 artifacts {

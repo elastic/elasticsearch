@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.optimizer;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -1241,13 +1242,9 @@ public final class OptimizerRules {
             if (found.isEmpty() == false) {
                 // combine equals alongside the existing ors
                 final ZoneId finalZoneId = zoneId;
-                found.forEach((k, v) -> {
-                    ors.add(
-                        v.size() == 1
-                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
-                            : createIn(k, new ArrayList<>(v), finalZoneId)
-                    );
-                });
+                found.forEach(
+                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
+                );
 
                 Expression combineOr = combineOr(ors);
                 // check the result semantically since the result might different in order
@@ -1259,6 +1256,10 @@ public final class OptimizerRules {
             }
 
             return e;
+        }
+
+        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
         }
 
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
@@ -1349,13 +1350,13 @@ public final class OptimizerRules {
             // Use symbol comp: SQL operations aren't available in this package (as dependencies)
             String opSymbol = operation.symbol();
             // Modulo can't be simplified.
-            if (opSymbol == MOD.symbol()) {
+            if (opSymbol.equals(MOD.symbol())) {
                 return comparison;
             }
             OperationSimplifier simplification = null;
             if (isMulOrDiv(opSymbol)) {
                 simplification = new MulDivSimplifier(comparison);
-            } else if (opSymbol == ADD.symbol() || opSymbol == SUB.symbol()) {
+            } else if (opSymbol.equals(ADD.symbol()) || opSymbol.equals(SUB.symbol())) {
                 simplification = new AddSubSimplifier(comparison);
             }
 
@@ -1363,7 +1364,7 @@ public final class OptimizerRules {
         }
 
         private static boolean isMulOrDiv(String opSymbol) {
-            return opSymbol == MUL.symbol() || opSymbol == DIV.symbol();
+            return opSymbol.equals(MUL.symbol()) || opSymbol.equals(DIV.symbol());
         }
 
         private static Expression foldNegation(BinaryComparison bc) {
@@ -1470,7 +1471,7 @@ public final class OptimizerRules {
                     return true;
                 }
 
-                if (operation.symbol() == SUB.symbol() && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
+                if (operation.symbol().equals(SUB.symbol()) && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
                     // if next simplification step would fail on overflow anyways, skip the optimisation already
                     return tryFolding(new Sub(EMPTY, opLeft, bcLiteral)) == null;
                 }
@@ -1486,7 +1487,7 @@ public final class OptimizerRules {
 
             MulDivSimplifier(BinaryComparison comparison) {
                 super(comparison);
-                isDiv = operation.symbol() == DIV.symbol();
+                isDiv = operation.symbol().equals(DIV.symbol());
                 opRightSign = sign(opRight);
             }
 
@@ -1666,6 +1667,35 @@ public final class OptimizerRules {
         }
     }
 
+    public static class FoldNull extends OptimizerExpressionRule<Expression> {
+
+        public FoldNull() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof IsNotNull isnn) {
+                if (isnn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof IsNull isn) {
+                if (isn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof In in) {
+                if (Expressions.isNull(in.value())) {
+                    return Literal.of(in, null);
+                }
+            } else if (e instanceof Alias == false
+                && e.nullable() == Nullability.TRUE
+                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                    return Literal.of(e, null);
+                }
+            return e;
+        }
+    }
+
     // a IS NULL AND a IS NOT NULL -> FALSE
     // a IS NULL AND a > 10 -> a IS NULL and FALSE
     // can be extended to handle null conditions where available
@@ -1685,10 +1715,10 @@ public final class OptimizerRules {
 
             // first find isNull/isNotNull
             for (Expression ex : splits) {
-                if (ex instanceof IsNull) {
-                    nullExpressions.add(((IsNull) ex).field());
-                } else if (ex instanceof IsNotNull) {
-                    notNullExpressions.add(((IsNotNull) ex).field());
+                if (ex instanceof IsNull isn) {
+                    nullExpressions.add(isn.field());
+                } else if (ex instanceof IsNotNull isnn) {
+                    notNullExpressions.add(isnn.field());
                 }
                 // the rest
                 else {
@@ -1746,7 +1776,7 @@ public final class OptimizerRules {
 
         // default implementation nullifies all nullable expressions
         protected Expression nullify(Expression exp, Expression nullExp) {
-            return exp.nullable() == Nullability.TRUE ? new Literal(exp.source(), null, DataTypes.NULL) : exp;
+            return exp.nullable() == Nullability.TRUE ? Literal.of(exp, null) : exp;
         }
 
         // placeholder for non-null

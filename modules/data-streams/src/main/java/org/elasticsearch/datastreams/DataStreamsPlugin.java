@@ -20,7 +20,6 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -71,8 +70,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -103,7 +102,18 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7),
         Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
+    );
+    public static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
+    public static final Setting<TimeValue> LOOK_BACK_TIME = Setting.timeSetting(
+        "index.look_back_time",
+        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(7),
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
     );
     // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
@@ -140,12 +150,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> pluginSettings = new ArrayList<>();
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
-
-        if (DataStreamLifecycle.isEnabled()) {
-            pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
-            pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
-            pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
-        }
+        pluginSettings.add(LOOK_BACK_TIME);
+        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
+        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
+        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         return pluginSettings;
     }
 
@@ -162,7 +170,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -171,24 +179,22 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         var updateTimeSeriesRangeService = new UpdateTimeSeriesRangeService(environment.settings(), threadPool, clusterService);
         this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
         components.add(this.updateTimeSeriesRangeService.get());
-
-        if (DataStreamLifecycle.isEnabled()) {
-            errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore());
-            dataLifecycleInitialisationService.set(
-                new DataStreamLifecycleService(
-                    settings,
-                    new OriginSettingClient(client, DATA_STREAM_LIFECYCLE_ORIGIN),
-                    clusterService,
-                    getClock(),
-                    threadPool,
-                    threadPool::absoluteTimeInMillis,
-                    errorStoreInitialisationService.get()
-                )
-            );
-            dataLifecycleInitialisationService.get().init();
-            components.add(errorStoreInitialisationService.get());
-            components.add(dataLifecycleInitialisationService.get());
-        }
+        errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore());
+        dataLifecycleInitialisationService.set(
+            new DataStreamLifecycleService(
+                settings,
+                new OriginSettingClient(client, DATA_STREAM_LIFECYCLE_ORIGIN),
+                clusterService,
+                getClock(),
+                threadPool,
+                threadPool::absoluteTimeInMillis,
+                errorStoreInitialisationService.get(),
+                allocationService
+            )
+        );
+        dataLifecycleInitialisationService.get().init();
+        components.add(errorStoreInitialisationService.get());
+        components.add(dataLifecycleInitialisationService.get());
         return components;
     }
 
@@ -202,13 +208,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionHandler<>(MigrateToDataStreamAction.INSTANCE, MigrateToDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsTransportAction.class));
-
-        if (DataStreamLifecycle.isEnabled()) {
-            actions.add(new ActionHandler<>(PutDataStreamLifecycleAction.INSTANCE, TransportPutDataStreamLifecycleAction.class));
-            actions.add(new ActionHandler<>(GetDataStreamLifecycleAction.INSTANCE, TransportGetDataStreamLifecycleAction.class));
-            actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
-            actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
-        }
+        actions.add(new ActionHandler<>(PutDataStreamLifecycleAction.INSTANCE, TransportPutDataStreamLifecycleAction.class));
+        actions.add(new ActionHandler<>(GetDataStreamLifecycleAction.INSTANCE, TransportGetDataStreamLifecycleAction.class));
+        actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
+        actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
         return actions;
     }
 
@@ -234,13 +237,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         handlers.add(new RestMigrateToDataStreamAction());
         handlers.add(new RestPromoteDataStreamAction());
         handlers.add(new RestModifyDataStreamsAction());
-
-        if (DataStreamLifecycle.isEnabled()) {
-            handlers.add(new RestPutDataStreamLifecycleAction());
-            handlers.add(new RestGetDataStreamLifecycleAction());
-            handlers.add(new RestDeleteDataStreamLifecycleAction());
-            handlers.add(new RestExplainDataStreamLifecycleAction());
-        }
+        handlers.add(new RestPutDataStreamLifecycleAction());
+        handlers.add(new RestGetDataStreamLifecycleAction());
+        handlers.add(new RestDeleteDataStreamLifecycleAction());
+        handlers.add(new RestExplainDataStreamLifecycleAction());
         return handlers;
     }
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.qa.verify_version_constants;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -24,6 +25,7 @@ import java.text.ParseException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97736")
 public class VerifyVersionConstantsIT extends ESRestTestCase {
 
     public void testLuceneVersionConstant() throws IOException, ParseException {

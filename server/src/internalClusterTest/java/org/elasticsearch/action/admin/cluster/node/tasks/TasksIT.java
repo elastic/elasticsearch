@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
@@ -25,7 +26,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -43,7 +43,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -455,7 +454,7 @@ public class TasksIT extends ESIntegTestCase {
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
-                IndexResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
+                DocWriteResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
                 assertArrayEquals(ReplicationResponse.NO_FAILURES, indexResponse.getShardInfo().getFailures());
             });
             index.start();
@@ -606,18 +605,13 @@ public class TasksIT extends ESIntegTestCase {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                 ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                     @Override
-                    public void waitForTaskCompletion(Task task) {
-                        waitForWaitingToStart.countDown();
-                    }
+                    public void waitForTaskCompletion(Task task) {}
 
                     @Override
                     public void onTaskRegistered(Task task) {}
 
                     @Override
-                    public void onTaskUnregistered(Task task) {}
-
-                    @Override
-                    public void subscribeForRemovedTasks(RemovedTaskListener removedTaskListener) {
+                    public void onTaskUnregistered(Task task) {
                         waitForWaitingToStart.countDown();
                     }
                 });
@@ -867,6 +861,7 @@ public class TasksIT extends ESIntegTestCase {
                 new TaskInfo(
                     new TaskId("fake", 1),
                     "test",
+                    "fake",
                     "test",
                     "",
                     null,

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -54,6 +55,7 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
+import org.elasticsearch.test.BuildUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
@@ -235,7 +237,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
     public void testNodesHash() {
         final int nodeCount = randomIntBetween(0, 5);
-        final Map<String, String> emptyMap = emptyMap();
         final DiscoveryNode masterNode = masterNode();
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder()
             .add(masterNode)
@@ -244,17 +245,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         for (int i = 0; i < nodeCount; ++i) {
             builder.add(
-                new DiscoveryNode(
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(2 + i),
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(5),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
-                    randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                    singleton(randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))),
-                    null
-                )
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(2 + i))
+                    .name(randomAlphaOfLength(5))
+                    .ephemeralId(randomAlphaOfLength(5))
+                    .address(randomAlphaOfLength(5), randomAlphaOfLength(5), new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i))
+                    .attributes(randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap())
+                    .roles(
+                        singleton(
+                            randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))
+                        )
+                    )
+                    .build()
             );
         }
 
@@ -365,8 +366,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = new Build(Build.Type.DOCKER, "", "", false, "");
-        when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
+        when(mockNodeInfo.getBuild()).thenReturn(BuildUtils.newBuild(Build.current(), Map.of("type", Build.Type.DOCKER)));
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);
@@ -575,13 +575,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "built_in_char_filters": [],
                     "built_in_tokenizers": [],
                     "built_in_filters": [],
-                    "built_in_analyzers": []
+                    "built_in_analyzers": [],
+                    "synonyms": {}
                   },
                   "versions": [],
                   "search" : {
                     "total" : 0,
                     "queries" : {},
                     "sections" : {}
+                  },
+                  "dense_vector": {
+                    "value_count": 0
                   }
                 },
                 "nodes": {
@@ -764,7 +768,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "max_index_version":%s
                   }
                 },
-                "transport_versions": []
+                "nodes_versions": []
               },
               "cluster_settings": {
                 "cluster": {
@@ -790,17 +794,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     }
 
     private DiscoveryNode masterNode() {
-        return new DiscoveryNode(
-            "_node_name",
-            "_node_id",
-            "_ephemeral_id",
-            "_host_name",
-            "_host_address",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            singletonMap("attr", "value"),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
-            null
-        );
+        return DiscoveryNodeUtils.builder("_node_id")
+            .name("_node_name")
+            .ephemeralId("_ephemeral_id")
+            .address("_host_name", "_host_address", new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .attributes(singletonMap("attr", "value"))
+            .roles(singleton(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
     }
 
 }

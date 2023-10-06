@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -46,9 +47,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final TransportVersion LICENSED_PLUGINS_SUPPORT = TransportVersion.V_7_11_0;
-    private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersion.V_8_3_0;
-    private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersion.V_8_4_0;
+    private static final TransportVersion LICENSED_PLUGINS_SUPPORT = TransportVersions.V_7_11_0;
+    private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersions.V_8_3_0;
+    private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersions.V_8_4_0;
 
     private final String name;
     private final String description;
@@ -124,7 +125,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         } else {
             this.moduleName = null;
         }
-        extendedPlugins = in.readStringList();
+        extendedPlugins = in.readStringCollectionAsList();
         hasNativeController = in.readBoolean();
 
         if (in.getTransportVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
@@ -137,7 +138,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             isLicensed = false;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             isModular = in.readBoolean();
             isStable = in.readBoolean();
         } else {
@@ -167,7 +168,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
             }
             out.writeBoolean(isLicensed);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(isModular);
             out.writeBoolean(isStable);
         }

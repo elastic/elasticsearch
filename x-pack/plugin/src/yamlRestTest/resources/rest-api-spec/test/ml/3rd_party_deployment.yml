@@ -78,6 +78,125 @@ setup:
             "total_parts": 1
           }
 ---
+"Test getting and putting Fill Mask with two mask tokens, as well as exceptions caused by requests with the wrong token":
+  - do:
+      ml.put_trained_model:
+        model_id: "bert_fill_mask_model"
+        body: >
+          {
+            "description": "simple model for testing",
+            "model_type": "pytorch",
+            "inference_config": {
+              "fill_mask": {
+                "tokenization":{
+                  "bert": {
+                    "with_special_tokens": false
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      ml.put_trained_model:
+        model_id: "roberta_fill_mask_model"
+        body: >
+          {
+            "description": "simple model for testing",
+            "model_type": "pytorch",
+            "inference_config": {
+              "fill_mask": {
+                "tokenization":{
+                  "roberta": {
+                    "with_special_tokens": false
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      ml.put_trained_model:
+        model_id: "with_correct_mask_token"
+        body: >
+          {
+            "description": "simple model for testing",
+            "model_type": "pytorch",
+            "inference_config": {
+              "fill_mask": {
+                "tokenization":{
+                  "bert": {
+                    "with_special_tokens": false
+                  }
+                },
+                "mask_token": "[MASK]"
+              }
+            }
+          }
+  - do:
+      ml.put_trained_model:
+        model_id: "with_other_correct_mask_token"
+        body: >
+          {
+            "description": "simple model for testing",
+            "model_type": "pytorch",
+            "inference_config": {
+              "fill_mask": {
+                "tokenization":{
+                  "roberta": {
+                    "with_special_tokens": false
+                  }
+                },
+                "mask_token": "<mask>"
+              }
+            }
+          }
+  - do:
+      ml.get_trained_models:
+        model_id: "bert_fill_mask_model"
+  - match: {trained_model_configs.0.inference_config.fill_mask.mask_token: "[MASK]"}
+  - do:
+      ml.get_trained_models:
+        model_id: "roberta_fill_mask_model"
+  - match: {trained_model_configs.0.inference_config.fill_mask.mask_token: "<mask>"}
+  - do:
+      catch: /IllegalArgumentException. Mask token requested was \[<mask>\] but must be \[\[MASK\]\] for this model/
+      ml.put_trained_model:
+        model_id: "incorrect_mask_token"
+        body: >
+          {
+            "description": "simple model for testing",
+            "model_type": "pytorch",
+            "inference_config": {
+              "fill_mask": {
+                "tokenization":{
+                  "bert": {
+                    "with_special_tokens": false
+                  }
+                },
+                "mask_token": "<mask>"
+              }
+            }
+          }
+  - do:
+      catch: /IllegalArgumentException. Mask token requested was \[\[MASK\]\] but must be \[<mask>\] for this model/
+      ml.put_trained_model:
+        model_id: "incorrect_mask_token"
+        body: >
+          {
+            "description": "simple model for testing",
+            "model_type": "pytorch",
+            "inference_config": {
+              "fill_mask": {
+                "tokenization":{
+                  "roberta": {
+                    "with_special_tokens": false
+                  }
+                },
+                "mask_token": "[MASK]"
+              }
+            }
+          }
+---
 "Test start deployment fails with missing model definition":
 
   - do:

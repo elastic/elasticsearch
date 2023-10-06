@@ -48,6 +48,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
             force = in.readBoolean();
         }
 
+        @SuppressWarnings("this-escape")
         public Request() {
             timeout(DEFAULT_TIMEOUT);
         }

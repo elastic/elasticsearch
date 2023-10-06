@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.common.io;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -43,7 +44,7 @@ public class SqlStreamInput extends NamedWriteableAwareStreamInput {
      * using TransportVersion.
      */
     private static void validateStreamVersion(TransportVersion version, TransportVersion cursorVersion) {
-        if (cursorVersion.before(TransportVersion.V_8_8_0) && version.equals(cursorVersion) == false) {
+        if (cursorVersion.before(TransportVersions.V_8_8_0) && version.equals(cursorVersion) == false) {
             throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", cursorVersion, version);
         }
     }

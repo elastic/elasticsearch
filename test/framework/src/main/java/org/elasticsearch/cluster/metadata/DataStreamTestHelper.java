@@ -83,7 +83,7 @@ import static org.mockito.Mockito.when;
 public final class DataStreamTestHelper {
 
     private static final Version DATE_IN_BACKING_INDEX_VERSION = Version.V_7_11_0;
-    private static final Settings.Builder SETTINGS = ESTestCase.settings(Version.CURRENT).put("index.hidden", true);
+    private static final Settings.Builder SETTINGS = ESTestCase.settings(IndexVersion.current()).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 
@@ -256,7 +256,7 @@ public final class DataStreamTestHelper {
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? new DataStreamLifecycle(randomMillisUpToYear9999()) : null
+            randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null
         );
     }
 
@@ -411,7 +411,7 @@ public final class DataStreamTestHelper {
     private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
         Settings.Builder b = Settings.builder()
             .put(settings)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden);
 
         return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(replicas).build();
@@ -478,7 +478,7 @@ public final class DataStreamTestHelper {
             ScriptCompiler.NONE,
             false,
             IndexVersion.current()
-        ).build(MapperBuilderContext.root(false));
+        ).build(MapperBuilderContext.root(false, true));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
         when(env.sharedDataFile()).thenReturn(null);
@@ -500,7 +500,7 @@ public final class DataStreamTestHelper {
             );
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
-                root.build(MapperBuilderContext.root(false)),
+                root.build(MapperBuilderContext.root(false, true)),
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
@@ -523,7 +523,7 @@ public final class DataStreamTestHelper {
             false,
             new IndexSettingProviders(providers)
         );
-        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, null, registry);
+        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, registry);
         return new MetadataRolloverService(
             testThreadPool,
             createIndexService,
@@ -556,7 +556,7 @@ public final class DataStreamTestHelper {
             MapperService mapperService = mock(MapperService.class);
 
             RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-                MapperBuilderContext.root(false)
+                MapperBuilderContext.root(false, false)
             );
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);
             DocumentMapper documentMapper = mock(DocumentMapper.class);

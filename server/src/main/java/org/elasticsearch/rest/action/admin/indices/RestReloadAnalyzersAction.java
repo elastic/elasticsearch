@@ -39,6 +39,7 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(
             request.param("resource"),
+            request.paramAsBoolean("preview", false),
             Strings.splitStringByCommaToArray(request.param("index"))
         );
         reloadAnalyzersRequest.indicesOptions(IndicesOptions.fromRequest(request, reloadAnalyzersRequest.indicesOptions()));

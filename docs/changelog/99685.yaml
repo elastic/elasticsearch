@@ -1,0 +1,5 @@
+pr: 99685
+summary: Fix `advanceExact` for doc values from sources
+area: Search
+type: bug
+issues: []

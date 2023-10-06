@@ -128,7 +128,7 @@ public class SampleQueryRequest implements QueryRequest {
             }
         }
 
-        RuntimeUtils.replaceFilter(multipleKeyFilters, newFilters, searchSource);
+        RuntimeUtils.replaceFilter(searchSource, multipleKeyFilters, newFilters);
         multipleKeyFilters = newFilters;
     }
 
@@ -158,7 +158,7 @@ public class SampleQueryRequest implements QueryRequest {
         }
 
         SearchSourceBuilder newSource = copySource(searchSource);
-        RuntimeUtils.replaceFilter(singleKeyPairFilters, newFilters, newSource);
+        RuntimeUtils.replaceFilter(newSource, singleKeyPairFilters, newFilters);
         // ask for the minimum needed to get at least N samplese per key
         int minResultsNeeded = maxStages + maxSamplesPerKey - 1;
         newSource.size(minResultsNeeded)

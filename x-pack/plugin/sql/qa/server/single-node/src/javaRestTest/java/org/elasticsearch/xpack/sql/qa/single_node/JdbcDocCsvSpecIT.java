@@ -10,7 +10,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.DataLoader;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert;
 import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
@@ -21,9 +20,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.ql.SpecReader.Parser;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
-import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
 
 /**
  * CSV test specification for DOC examples.

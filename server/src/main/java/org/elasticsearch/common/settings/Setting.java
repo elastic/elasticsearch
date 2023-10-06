@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -47,6 +48,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -171,6 +173,7 @@ public class Setting<T> implements ToXContentObject {
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
+    @SuppressWarnings("this-escape")
     private Setting(
         Key key,
         @Nullable Setting<T> fallbackSetting,
@@ -244,6 +247,7 @@ public class Setting<T> implements ToXContentObject {
      * @param validator    a {@link Validator} for validating this setting
      * @param properties   properties for this setting
      */
+    @SuppressWarnings("this-escape")
     public Setting(
         Key key,
         Function<Settings, String> defaultValue,
@@ -315,6 +319,7 @@ public class Setting<T> implements ToXContentObject {
      * @param validator a {@link Validator} for validating this setting
      * @param properties properties for this setting like scope, filtering...
      */
+    @SuppressWarnings("this-escape")
     public Setting(String key, Setting<T> fallbackSetting, Function<String, T> parser, Validator<T> validator, Property... properties) {
         this(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, parser, validator, properties);
     }
@@ -326,6 +331,7 @@ public class Setting<T> implements ToXContentObject {
      * @param parser a parser that parses the string rep into a complex datatype.
      * @param properties properties for this setting like scope, filtering...
      */
+    @SuppressWarnings("this-escape")
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
         this(key, fallbackSetting, fallbackSetting::getRaw, parser, v -> {}, properties);
     }
@@ -1206,7 +1212,7 @@ public class Setting<T> implements ToXContentObject {
                     Settings previousSettings = get(previous);
                     try {
                         validator.accept(currentSettings);
-                    } catch (Exception | AssertionError e) {
+                    } catch (Exception e) {
                         String err = "illegal value can't update ["
                             + key
                             + "]"
@@ -1264,7 +1270,7 @@ public class Setting<T> implements ToXContentObject {
                 T inst = get(current);
                 accept.accept(inst);
                 return inst;
-            } catch (Exception | AssertionError e) {
+            } catch (Exception e) {
                 if (isFiltered()) {
                     throw new IllegalArgumentException("illegal value can't update [" + key + "]");
                 } else {
@@ -1283,17 +1289,22 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
-    public static Setting<Version> versionSetting(final String key, final Version defaultValue, Property... properties) {
-        return new Setting<>(key, Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
-    }
-
-    public static Setting<Version> versionSetting(
-        final String key,
-        Setting<Version> fallbackSetting,
-        Validator<Version> validator,
+    public static <T extends VersionId<T>> Setting<T> versionIdSetting(
+        String key,
+        T defaultValue,
+        IntFunction<T> parseVersion,
         Property... properties
     ) {
-        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), validator, properties);
+        return new Setting<>(key, Integer.toString(defaultValue.id()), s -> parseVersion.apply(Integer.parseInt(s)), properties);
+    }
+
+    public static <T extends VersionId<T>> Setting<T> versionIdSetting(
+        final String key,
+        Setting<T> fallbackSetting,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, fallbackSetting, fallbackSetting.parser, validator, properties);
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
@@ -1961,6 +1972,21 @@ public class Setting<T> implements ToXContentObject {
         Property... properties
     ) {
         return new Setting<>(key, defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), validator, properties);
+    }
+
+    public static Setting<TimeValue> timeSetting(
+        String key,
+        Function<Settings, TimeValue> defaultValue,
+        Validator<TimeValue> validator,
+        Property... properties
+    ) {
+        return new Setting<>(
+            key,
+            s -> defaultValue.apply(s).getStringRep(),
+            (s) -> TimeValue.parseTimeValue(s, key),
+            validator,
+            properties
+        );
     }
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {

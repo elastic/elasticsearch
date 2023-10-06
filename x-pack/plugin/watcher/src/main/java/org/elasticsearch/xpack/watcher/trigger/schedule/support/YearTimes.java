@@ -38,6 +38,7 @@ public class YearTimes implements Times {
         this(DEFAULT_MONTHS, DEFAULT_DAYS, DEFAULT_TIMES);
     }
 
+    @SuppressWarnings("this-escape")
     public YearTimes(EnumSet<Month> months, int[] days, DayTimes[] times) {
         this.months = months.isEmpty() ? DEFAULT_MONTHS : months;
         this.days = days.length == 0 ? DEFAULT_DAYS : days;

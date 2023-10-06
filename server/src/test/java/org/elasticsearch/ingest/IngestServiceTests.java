@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -50,8 +49,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -148,7 +149,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(DUMMY_PLUGIN),
             client,
-            null
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -167,7 +169,8 @@ public class IngestServiceTests extends ESTestCase {
                 null,
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
-                null
+                null,
+                () -> DocumentParsingObserver.EMPTY_INSTANCE
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -183,7 +186,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(DUMMY_PLUGIN),
             client,
-            null
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -427,7 +431,7 @@ public class IngestServiceTests extends ESTestCase {
             String indexName = "index" + i;
             defaultIndices.add(indexName);
             IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
-            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            Settings.Builder settingsBuilder = settings(IndexVersion.current());
             settingsBuilder.put(IndexSettings.DEFAULT_PIPELINE.getKey(), pipeline);
             builder.settings(settingsBuilder);
             IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
@@ -440,7 +444,7 @@ public class IngestServiceTests extends ESTestCase {
             String indexName = "index" + i;
             finalIndices.add(indexName);
             IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
-            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            Settings.Builder settingsBuilder = settings(IndexVersion.current());
             settingsBuilder.put(IndexSettings.FINAL_PIPELINE.getKey(), pipeline);
             builder.settings(settingsBuilder);
             IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
@@ -858,7 +862,7 @@ public class IngestServiceTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             builder.put(
-                IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
+                IndexMetadata.builder("test" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1).build(),
                 true
             );
         }
@@ -876,7 +880,7 @@ public class IngestServiceTests extends ESTestCase {
         {
             // delete pipeline which is in used of default_pipeline
             IndexMetadata indexMetadata = IndexMetadata.builder("pipeline-index")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id"))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -893,7 +897,7 @@ public class IngestServiceTests extends ESTestCase {
         {
             // delete pipeline which is in used of final_pipeline
             IndexMetadata indexMetadata = IndexMetadata.builder("pipeline-index")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "_id"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "_id"))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -1902,7 +1906,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(testPlugin),
             client,
-            null
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2064,7 +2069,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
         IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-            .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
@@ -2087,7 +2092,7 @@ public class IngestServiceTests extends ESTestCase {
         // index name matches with ITMD:
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
             .patterns(List.of("id*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
+            .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
         IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
@@ -2098,7 +2103,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testResolveFinalPipeline() {
         IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
@@ -2123,7 +2128,7 @@ public class IngestServiceTests extends ESTestCase {
         // index name matches with ITMD:
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
             .patterns(List.of("id*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
+            .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
         IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
@@ -2137,7 +2142,7 @@ public class IngestServiceTests extends ESTestCase {
         final long epochMillis = randomLongBetween(1, System.currentTimeMillis());
         final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
         IndexMetadata.Builder builder = IndexMetadata.builder("idx-" + dateFormatter.formatMillis(epochMillis))
-            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0);
         Metadata metadata = Metadata.builder().put(builder).build();
@@ -2175,7 +2180,7 @@ public class IngestServiceTests extends ESTestCase {
         // request pipeline with default pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2189,7 +2194,7 @@ public class IngestServiceTests extends ESTestCase {
         // request pipeline with final pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2230,7 +2235,17 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client, null);
+        IngestService ingestService = new IngestService(
+            clusterService,
+            threadPool,
+            null,
+            null,
+            null,
+            List.of(DUMMY_PLUGIN),
+            client,
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
+        );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -2393,7 +2408,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none default pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2407,7 +2422,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none default pipeline with request pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2421,7 +2436,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none request pipeline with default pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2435,7 +2450,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none request pipeline with final pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2450,7 +2465,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none final pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2512,7 +2527,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client, null);
+        }), client, null, () -> DocumentParsingObserver.EMPTY_INSTANCE);
     }
 
     private CompoundProcessor mockCompoundProcessor() {

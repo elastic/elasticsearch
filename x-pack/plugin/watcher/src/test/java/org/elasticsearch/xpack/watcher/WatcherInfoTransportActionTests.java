@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -55,20 +56,23 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
 
     private MockLicenseState licenseState;
     private Client client;
+    private ThreadPool threadPool;
+    private TransportService transportService;
 
     @Before
     public void init() throws Exception {
         licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
+        threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
+        transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
     }
 
     public void testAvailable() {
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -89,7 +93,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             settings.put("xpack.watcher.enabled", enabled);
         }
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             settings.build(),
             licenseState
@@ -130,9 +134,9 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(mockNode);
 
         var usageAction = new WatcherUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
             null,
             Settings.EMPTY,

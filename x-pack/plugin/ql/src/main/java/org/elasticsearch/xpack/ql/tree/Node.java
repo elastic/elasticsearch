@@ -41,7 +41,7 @@ public abstract class Node<T extends Node<T>> {
 
     public Node(Source source, List<T> children) {
         this.source = (source != null ? source : Source.EMPTY);
-        if (children.contains(null)) {
+        if (containsNull(children)) {
             throw new QlIllegalArgumentException("Null children are not allowed");
         }
         this.children = children;
@@ -429,5 +429,16 @@ public abstract class Node<T extends Node<T>> {
         } else {
             sb.append(Objects.toString(obj));
         }
+    }
+
+    private <U> boolean containsNull(List<U> us) {
+        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList) throw
+        // a NPE if any of the elements is null.
+        for (U u : us) {
+            if (u == null) {
+                return true;
+            }
+        }
+        return false;
     }
 }

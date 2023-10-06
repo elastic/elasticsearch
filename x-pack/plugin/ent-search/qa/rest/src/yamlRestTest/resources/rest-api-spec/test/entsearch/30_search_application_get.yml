@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      features: warnings
+
   - do:
       indices.create:
         index: test-index1
@@ -9,6 +12,7 @@ setup:
               number_of_replicas: 0
 
   - do:
+
       indices.create:
         index: test-index2
         body:
@@ -34,6 +38,8 @@ setup:
                 type: string
 
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.put:
         name: test-search-application-2
         body:
@@ -85,8 +91,13 @@ teardown:
   - gte: { updated_at_millis: 0 }
 
 ---
-"Get Search Application with no template specified returns default template":
+"Get Search Application with no template specified returns default template with warning header":
+  - skip:
+      features: warnings
+
   - do:
+      warnings:
+        - "Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes."
       search_application.get:
         name: test-search-application-2
 
@@ -96,10 +107,10 @@ teardown:
   - match: {
     template: {
       script: {
-        source:  "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
+        source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
         params: {
-            query_string: "*",
-            default_field: "*"
+          query_string: "*",
+          default_field: "*"
         },
         lang: "mustache"
       }
@@ -115,68 +126,12 @@ teardown:
         name: test-nonexistent-search-application
 
 ---
-"Get Search Application - Warning returned when indices and aliases are inconsistent":
+"Get search application fails for unprivileged user":
   - skip:
-      features: warnings
+      features: headers
 
   - do:
-      indices.create:
-        index: test-index3
-        body:
-          settings:
-            index:
-              number_of_shards: 1
-              number_of_replicas: 0
-
-  - do:
-      indices.update_aliases:
-        body:
-          actions:
-            - add:
-                index: test-index1
-                alias: test-search-application-1
-            - add:
-                index: test-index2
-                alias: test-search-application-1
-            - add:
-                index: test-index3
-                alias: test-search-application-1
-
-  - do:
-      indices.delete:
-        index: test-index2
-        ignore: 404
-
-  - do:
-      warnings:
-        - "test-index2 index is in search application but not in associated alias"
-        - "test-index3 index is in alias but not associcated with search application"
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
       search_application.get:
         name: test-search-application-1
-
-  - match: { name: "test-search-application-1" }
-  - match: { indices: [ "test-index1", "test-index2" ] }
-  - match: { analytics_collection_name: "test-analytics" }
-  - match: {
-    template: {
-      script: {
-        source: {
-          query: {
-            query_string: {
-              query: "{{query_string}}"
-            }
-          }
-        },
-        lang: "mustache",
-        options: {
-          content_type: "application/json;charset=utf-8"
-        }
-      },
-      dictionary: {
-        query_string: {
-          type: string
-        }
-      }
-    }
-  }
-  - gte: { updated_at_millis: 0 }

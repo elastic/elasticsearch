@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
@@ -44,7 +44,7 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
     public void testStepCompleteIfTargetShardsCountIsValid() {
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(10)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -63,7 +63,7 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(10)
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();

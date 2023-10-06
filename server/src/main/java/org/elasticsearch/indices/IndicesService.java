@@ -127,6 +127,7 @@ import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -169,6 +170,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -230,6 +232,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
@@ -258,12 +261,13 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     protected void doStart() {
         // Start thread that will manage cleaning the field data cache periodically
-        threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
+        threadPool.schedule(this.cacheCleaner, this.cleanInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // Start watching for timestamp fields
         clusterService.addStateApplier(timestampFieldMapperService);
     }
 
+    @SuppressWarnings("this-escape")
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,
@@ -287,7 +291,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-        CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator
+        CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -303,6 +308,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         indexingMemoryController = new IndexingMemoryController(
             settings,
             threadPool,
@@ -641,7 +647,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                     // we finish loading analyzers from resources here
                                     // during shard recovery in the generic thread pool,
                                     // as this may require longer running operations and blocking calls
-                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null);
+                                    indexShard.mapperService().reloadSearchAnalyzers(getAnalysis(), null, false);
                                 }
                                 reloaded = true;
                             }
@@ -756,7 +762,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            documentParsingObserverSupplier
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -832,7 +839,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            documentParsingObserverSupplier
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -872,7 +880,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    public IndexShard createShard(
+    public void createShard(
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -881,7 +889,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
-        final DiscoveryNode sourceNode
+        final DiscoveryNode sourceNode,
+        long clusterStateVersion
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -904,8 +913,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     .masterNodeTimeout(TimeValue.MAX_VALUE),
                 new ThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
             );
-        }, this);
-        return indexShard;
+        }, this, clusterStateVersion);
     }
 
     @Override
@@ -1477,7 +1485,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
-                threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
+                threadPool.scheduleUnlessShuttingDown(interval, EsExecutors.DIRECT_EXECUTOR_SERVICE, this);
             }
         }
 
@@ -1835,5 +1843,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public IndexScopedSettings getIndexScopedSettings() {
         return indexScopedSettings;
+    }
+
+    // TODO move this?
+    public BigArrays getBigArrays() {
+        return bigArrays;
     }
 }

@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Stack;
 
 import static org.elasticsearch.action.ActionListener.runAfter;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest.COMPOSITE_AGG_NAME;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
@@ -147,7 +146,7 @@ public class SampleIterator implements Executable {
     }
 
     private void queryForCompositeAggPage(ActionListener<Payload> listener, final SampleQueryRequest request) {
-        client.query(request, wrap(r -> {
+        client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
             Aggregation a = r.getAggregations().get(COMPOSITE_AGG_NAME);
             if (a instanceof InternalComposite == false) {
                 throw new EqlIllegalArgumentException("Unexpected aggregation result type returned [{}]", a.getClass());
@@ -158,15 +157,15 @@ public class SampleIterator implements Executable {
             Page nextPage = new Page(composite, request);
             if (nextPage.size > 0) {
                 pushToStack(nextPage);
-                advance(listener);
+                advance(delegate);
             } else {
                 if (stack.size() > 0) {
-                    nextPage(listener, stack.pop());
+                    nextPage(delegate, stack.pop());
                 } else {
-                    payload(listener);
+                    payload(delegate);
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     protected void pushToStack(Page nextPage) {
@@ -210,7 +209,7 @@ public class SampleIterator implements Executable {
         }
 
         int initialSize = samples.size();
-        client.multiQuery(searches, ActionListener.wrap(r -> {
+        client.multiQuery(searches, listener.delegateFailureAndWrap((delegate, r) -> {
             List<List<SearchHit>> sample = new ArrayList<>(maxCriteria);
             MultiSearchResponse.Item[] response = r.getResponses();
             int docGroupsCounter = 1;
@@ -228,7 +227,7 @@ public class SampleIterator implements Executable {
                             samples.add(new Sample(sampleKeys.get(responseIndex / maxCriteria), match));
                         }
                         if (samples.size() == limit.limit()) {
-                            payload(listener);
+                            payload(delegate);
                             return;
                         }
                     }
@@ -244,8 +243,8 @@ public class SampleIterator implements Executable {
             // or it's just not the last page and we should advance
             var next = page.size == fetchSize ? page : stack.pop();
             log.trace("Final step... getting next page of the " + (next == page ? "current" : "previous") + " page");
-            nextPage(listener, next);
-        }, listener::onFailure));
+            nextPage(delegate, next);
+        }));
     }
 
     private void updateMemoryUsage() {

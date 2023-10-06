@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.jwt.JwtUtil;
 
 import java.io.IOException;
 import java.net.URI;
@@ -293,14 +294,18 @@ public class OpenIdConnectAuthenticator {
                     .triggerReload(ActionListener.wrap(v -> {
                         getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
                     }, ex -> {
-                        LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                        LOGGER.debug("Attempted and failed to refresh JWK cache upon token validation failure", e);
                         claimsListener.onFailure(ex);
                     }));
             } else {
+                LOGGER.debug("Failed to parse or validate the ID Token", e);
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
         } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
-            LOGGER.debug("ID Token: [{}], Nonce: [{}]", idToken.getParsedString(), expectedNonce);
+            LOGGER.debug(
+                () -> format("ID Token: [%s], Nonce: [%s]", JwtUtil.toStringRedactSignature(idToken).get(), expectedNonce.toString()),
+                e
+            );
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }

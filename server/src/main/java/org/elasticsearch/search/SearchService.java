@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -113,12 +114,14 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.tracing.SpanId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -130,6 +133,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -202,6 +207,28 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    // This setting is only registered on tests to force concurrent search even when segments contains very few documents.
+    public static final Setting<Integer> MINIMUM_DOCS_PER_SLICE = Setting.intSetting(
+        "search.minimum_docs_per_slice",
+        50_000,
+        1,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> SEARCH_WORKER_THREADS_ENABLED = Setting.boolSetting(
+        "search.worker_threads_enabled",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Boolean> QUERY_PHASE_PARALLEL_COLLECTION_ENABLED = Setting.boolSetting(
+        "search.query_phase_parallel_collection_enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT = Setting.intSetting(
         "search.max_open_scroll_context",
         500,
@@ -244,12 +271,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final DfsPhase dfsPhase = new DfsPhase();
 
     private final FetchPhase fetchPhase;
+    private volatile boolean enableSearchWorkerThreads;
+    private volatile boolean enableQueryPhaseParallelCollection;
 
     private volatile long defaultKeepAlive;
 
     private volatile long maxKeepAlive;
 
     private volatile TimeValue defaultSearchTimeout;
+
+    private final int minimumDocsPerSlice;
 
     private volatile boolean defaultAllowPartialSearchResults;
 
@@ -311,10 +342,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchService::validateKeepAlives
             );
 
-        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
+        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, threadPool.executor(Names.SEARCH));
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
+
+        minimumDocsPerSlice = MINIMUM_DOCS_PER_SLICE.get(settings);
 
         defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
         clusterService.getClusterSettings()
@@ -329,6 +362,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableRewriteAggsToFilterByFilter = ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
+
+        enableSearchWorkerThreads = SEARCH_WORKER_THREADS_ENABLED.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
+
+        enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
+    }
+
+    private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
+        this.enableSearchWorkerThreads = enableSearchWorkerThreads;
+    }
+
+    private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
+        this.enableQueryPhaseParallelCollection = enableQueryPhaseParallelCollection;
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -444,8 +492,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
         ReaderContext readerContext = createOrGetReaderContext(request);
-        try (
-            Releasable scope = tracer.withScope(task);
+        try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
+        Releasable scope = tracer.withScope(SpanId.forTask(task));
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.DFS, false)
         ) {
@@ -524,7 +572,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         new ElasticsearchTimeoutException("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout)
                     );
                 }
-            }, timeout, Names.SAME);
+            }, timeout, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
             // allow waiting for not-yet-issued sequence number if shard isn't promotable to primary and the timeout is less than or equal
             // to 30s
@@ -543,7 +591,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     shard.addGlobalCheckpointListener(waitForCheckpoint, new GlobalCheckpointListeners.GlobalCheckpointListener() {
                         @Override
                         public Executor executor() {
-                            return threadPool.executor(Names.SAME);
+                            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
                         }
 
                         @Override
@@ -611,8 +659,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request);
+        SpanId spanId = SpanId.forTask(task);
         try (
-            Releasable scope = tracer.withScope(task);
+            Releasable scope = tracer.withScope(spanId);
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
             SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
         ) {
@@ -625,7 +674,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 afterQueryTime = executor.success();
             } finally {
-                tracer.stopTrace();
+                tracer.stopTrace(spanId);
             }
             if (request.numberOfShards() == 1 && (request.source() == null || request.source().rankBuilder() == null)) {
                 // we already have query results, but we can run fetch at the same time
@@ -655,7 +704,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
         try (
-            Releasable scope = tracer.withScope(context.getTask());
+            Releasable scope = tracer.withScope(SpanId.forTask(context.getTask()));
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
             shortcutDocIdsToLoad(context);
@@ -982,7 +1031,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         boolean includeAggregations
     ) throws IOException {
         checkCancelled(task);
-        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout);
+        final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
         resultsType.addResultsObject(context);
         try {
             if (request.scroll() != null) {
@@ -1014,15 +1063,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
-            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout);
+            DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.NONE);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
         }
     }
 
     @SuppressWarnings("unchecked")
-    private DefaultSearchContext createSearchContext(ReaderContext reader, ShardSearchRequest request, TimeValue timeout)
-        throws IOException {
+    private DefaultSearchContext createSearchContext(
+        ReaderContext reader,
+        ShardSearchRequest request,
+        TimeValue timeout,
+        ResultsType resultsType
+    ) throws IOException {
         boolean success = false;
         DefaultSearchContext searchContext = null;
         try {
@@ -1031,6 +1084,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 reader.indexShard().shardId(),
                 request.getClusterAlias()
             );
+            ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
+            int maximumNumberOfSlices = determineMaximumNumberOfSlices(executor, request, resultsType);
             searchContext = new DefaultSearchContext(
                 reader,
                 request,
@@ -1038,7 +1093,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 threadPool::relativeTimeInMillis,
                 timeout,
                 fetchPhase,
-                lowLevelCancellation
+                lowLevelCancellation,
+                executor,
+                maximumNumberOfSlices,
+                minimumDocsPerSlice
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1056,6 +1114,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
+    }
+
+    int determineMaximumNumberOfSlices(ExecutorService executor, ShardSearchRequest request, ResultsType resultsType) {
+        return executor instanceof ThreadPoolExecutor tpe
+            && isParallelCollectionSupportedForResults(resultsType, request.source(), this.enableQueryPhaseParallelCollection)
+                ? tpe.getMaximumPoolSize()
+                : 1;
+    }
+
+    static boolean isParallelCollectionSupportedForResults(
+        ResultsType resultsType,
+        SearchSourceBuilder source,
+        boolean isQueryPhaseParallelismEnabled
+    ) {
+        if (resultsType == ResultsType.DFS) {
+            return true;
+        }
+        if (resultsType == ResultsType.QUERY && isQueryPhaseParallelismEnabled) {
+            return source == null || source.supportsParallelCollection();
+        }
+        return false;
     }
 
     private void freeAllContextForIndex(Index index) {
@@ -1226,6 +1305,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 indicesService.getAnalysis(),
                 context.getSearchExecutionContext(),
                 bigArrays,
+                clusterService.getClusterSettings(),
                 source.aggregations().bytesToPreallocate(),
                 /*
                  * The query on the search context right now doesn't include
@@ -1246,8 +1326,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             );
             context.addQuerySearchResultReleasable(aggContext);
             try {
-                AggregatorFactories factories = source.aggregations().build(aggContext, null);
-                context.aggregations(new SearchContextAggregations(factories));
+                final AggregatorFactories factories = source.aggregations().build(aggContext, null);
+                final Supplier<AggregationReduceContext.Builder> supplier = () -> aggReduceContextBuilder(
+                    context::isCancelled,
+                    source.aggregations()
+                );
+                context.aggregations(new SearchContextAggregations(factories, supplier));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
             }
@@ -1491,6 +1575,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     class Reaper implements Runnable {
         @Override
         public void run() {
+            assert Transports.assertNotTransportThread("closing contexts may do IO, e.g. deleting dangling files")
+                && ThreadPool.assertNotScheduleThread("closing contexts may do IO, e.g. deleting dangling files");
             for (ReaderContext context : activeReaders.values()) {
                 if (context.isExpired()) {
                     logger.debug("freeing search context [{}]", context.id());

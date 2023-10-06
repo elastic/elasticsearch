@@ -324,7 +324,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             nodes
         );
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getPolicyConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLifecyclePolicies().size())));
     }
 
     public void testPolicyAlreadyExists() {
@@ -332,7 +332,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -364,7 +364,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -416,7 +416,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String priorPolicyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 

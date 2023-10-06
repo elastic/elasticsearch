@@ -111,12 +111,12 @@ Refer to <<security-clients-integrations,Securing clients and integrations>>.
 [role="exclude",id="cross-cluster-configuring"]
 === {ccs-cap} and security
 
-Refer to <<remote-clusters-security,configure remote clusters with security>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="cross-cluster-kibana"]
 ==== {ccs-cap} and {kib}
 
-Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="ccr-getting-started"]
 === Configure {ccr}
@@ -1902,32 +1902,103 @@ Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
 
 Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
 
-[role="exclude",id="get-synonym-rule"]
-=== Get synonym rule API
-
-coming::[8.10.0]
-
 [role="exclude",id="get-synonyms"]
-=== Get synonym set API
+=== Get synonyms set API
 
-coming::[8.10.0]
-
-[role="exclude",id="list-synonyms"]
-=== List synonym sets API
-
-coming::[8.10.0]
-
-[role="exclude",id="put-synonym-rule"]
-=== Create or update synonym rule API
-
-coming::[8.10.0]
+See <<get-synonyms-set>>
 
 [role="exclude",id="delete-synonyms"]
-=== Delete synonym sets API
+=== Delete synonyms sets API
 
-coming::[8.10.0]
+See <<delete-synonyms-set>>
 
 [role="exclude",id="put-synonyms"]
-=== Create or update synonym sets API
+=== Create or delete synonyms sets API
 
-coming::[8.10.0]
+See <<put-synonyms-set>>
+
+[role="exclude",id="remote-clusters-connect"]
+=== Remote clusters
+
+Refer to <<remote-clusters>>
+
+[float]
+[[configure-remote-clusters-dynamic]]
+==== Dynamically configure remote clusters
+
+Refer to <<remote-clusters>>.
+
+[role="exclude",id="remote-clusters-privileges"]
+=== Configure roles and users for remote clusters
+
+Refer to <<remote-clusters>>.
+
+[role="exclude",id="ingest-pipeline-search"]
+=== Ingest pipelines for Search indices
+
+coming::[8.11.0]
+
+[role="exclude",id="ingest-pipeline-search-inference"]
+=== Inference processing for Search indices
+
+coming::[8.11.0]
+
+[id="ingest-pipeline-search-inference-update-mapping"]
+==== Update mapping
+
+coming::[8.11.0]
+
+[role="exclude",id="nlp-example"]
+=== Tutorial: Natural language processing (NLP)
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-overview"]
+=== Elastic Behavioral Analytics
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-start"]
+=== Get started with Behavioral Analytics
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-api"]
+=== Behavioral Analytics APIs
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-event"]
+=== View Behavioral Analytics Events
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-event-reference"]
+=== Behavioral Analytics events reference
+
+coming::[8.11.0]
+
+[role="exclude",id="behavioral-analytics-cors"]
+=== Set up CORS for Behavioral Analytics
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-overview"]
+=== Elastic Search Applications
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-api"]
+=== Search Applications search API and templates
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-client"]
+=== Search Applications client
+
+coming::[8.11.0]
+
+[role="exclude",id="search-application-security"]
+=== Search Applications security
+
+coming::[8.11.0]

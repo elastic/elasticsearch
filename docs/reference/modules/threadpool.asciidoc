@@ -13,9 +13,15 @@ There are several thread pools, but the important ones include:
 
 [[search-threadpool]]
 `search`::
-    For count/search/suggest operations. Thread pool type is
-    `fixed` with a size of `int((`<<node.processors,
+    For coordination of count/search operations at the shard level whose computation
+    is offloaded to the search_worker thread pool. Used also by fetch and other search
+    related operations  Thread pool type is `fixed` with a size of `int((`<<node.processors,
     `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and queue_size of `1000`.
+
+`search_worker`::
+    For the heavy workload of count/search operations that may be executed concurrently
+    across segments within the same shard when possible. Thread pool type is `fixed`
+    with a size of `int((`<<node.processors, `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and unbounded queue_size .
 
 [[search-throttled]]`search_throttled`::
     For count/search/suggest/get operations on `search_throttled indices`.
@@ -23,8 +29,8 @@ There are several thread pools, but the important ones include:
 
 `search_coordination`::
     For lightweight search-related coordination operations. Thread pool type is
-    `fixed` with a size of a max of `min(5, (`<<node.processors,
-`# of allocated processors`>>`) / 2)`, and queue_size of `1000`.
+    `fixed` with a size of `(`<<node.processors, `# of allocated processors`>>`) / 2`,
+    and queue_size of `1000`.
 
 `get`::
     For get operations. Thread pool type is
@@ -36,7 +42,7 @@ There are several thread pools, but the important ones include:
     size of `16`.
 
 `write`::
-    For single-document index/delete/update and bulk requests. Thread pool type
+    For single-document index/delete/update, ingest processors, and bulk requests. Thread pool type
     is `fixed` with a size of <<node.processors, `# of allocated processors`>>,
     queue_size of `10000`. The maximum size for this pool is
     `pass:[1 + ]`<<node.processors, `# of allocated processors`>>.

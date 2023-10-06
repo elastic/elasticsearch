@@ -876,7 +876,7 @@ process where null == (exit_code > -1)
 isNull
 process where pid != null
 ;
-{"bool":{"must_not":[{"bool":{"must_not":[{"exists":{"field":"pid"
+"must":[{"term":{"event.category":{"value":"process"}}},{"exists":{"field":"pid","boost":1.0}}]
 ;
 
 disjunctionOfFunctionAndNegatedFunction

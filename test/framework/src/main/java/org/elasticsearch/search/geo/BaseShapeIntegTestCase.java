@@ -424,7 +424,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
         IndexVersion version = randomSupportedVersion();
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version.id()).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("_doc")

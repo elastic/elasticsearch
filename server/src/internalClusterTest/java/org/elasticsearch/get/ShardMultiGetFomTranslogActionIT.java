@@ -162,7 +162,11 @@ public class ShardMultiGetFomTranslogActionIT extends ESIntegTestCase {
             node,
             TransportShardMultiGetFomTranslogAction.NAME,
             request,
-            new ActionListenerResponseHandler<>(response, TransportShardMultiGetFomTranslogAction.Response::new, ThreadPool.Names.GET)
+            new ActionListenerResponseHandler<>(
+                response,
+                TransportShardMultiGetFomTranslogAction.Response::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.GET)
+            )
         );
         return response.get();
     }

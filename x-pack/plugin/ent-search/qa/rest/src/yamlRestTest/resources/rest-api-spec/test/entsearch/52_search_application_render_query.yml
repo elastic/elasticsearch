@@ -152,3 +152,17 @@ teardown:
           params:
             field_name: field3
             field_value: value3
+
+---
+"Render search application query fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.render_query:
+        name: test-search-application
+        body:
+          params:
+            field_value: puggles

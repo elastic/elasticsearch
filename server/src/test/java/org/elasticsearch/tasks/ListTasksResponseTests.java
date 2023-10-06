@@ -56,6 +56,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         TaskInfo info = new TaskInfo(
             new TaskId("node1", 1),
             "dummy-type",
+            "node1",
             "dummy-action",
             "dummy-description",
             null,

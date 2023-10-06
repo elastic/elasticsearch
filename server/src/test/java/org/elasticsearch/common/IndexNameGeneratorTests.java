@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -105,7 +105,7 @@ public class IndexNameGeneratorTests extends ESTestCase {
             // generated index already exists as a standalone index
             String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
             IndexMetadata indexMetadata = IndexMetadata.builder(generatedIndexName)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(1, 5))
                 .build();
@@ -125,7 +125,7 @@ public class IndexNameGeneratorTests extends ESTestCase {
             // generated index name already exists as an index (cluster state routing table is also populated)
             String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
             IndexMetadata indexMetadata = IndexMetadata.builder(generatedIndexName)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(1, 5))
                 .build();
@@ -147,7 +147,7 @@ public class IndexNameGeneratorTests extends ESTestCase {
             // generated index name already exists as an alias to another index
             String generatedIndexName = generateValidIndexName(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 150));
             IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(1, 5))
                 .putAlias(AliasMetadata.builder(generatedIndexName).build())

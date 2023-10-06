@@ -61,6 +61,19 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Abstracts the logic of managing versioned index templates, ingest pipelines and lifecycle policies for plugins that require such things.
  */
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
+    public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
+
+    /**
+     * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
+     * we're running in a cluster configuration that is only expecting to use data streams lifecycles.
+     *
+     * @param settings the node settings
+     * @return true if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set
+     */
+    public static boolean isDataStreamsLifecycleOnlyMode(final Settings settings) {
+        return settings.getAsBoolean(DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, false);
+    }
+
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
 
     protected final Settings settings;
@@ -71,7 +84,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> policyCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> pipelineCreationsInProgress = new ConcurrentHashMap<>();
+    protected final List<LifecyclePolicy> lifecyclePolicies;
 
+    @SuppressWarnings("this-escape")
     public IndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -84,6 +99,28 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.clusterService = clusterService;
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false) {
+            this.lifecyclePolicies = getLifecycleConfigs().stream()
+                .map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
+                .toList();
+        } else {
+            this.lifecyclePolicies = List.of();
+        }
+    }
+
+    /**
+     * Returns the configured configurations for the lifecycle policies. Subclasses should provide
+     * the ILM configurations and they will be loaded if we're not running data stream only mode (controlled via
+     * {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME}).
+     *
+     * The loaded lifecycle configurations will be installed if returned by {@link #getLifecyclePolicies()}. Child classes
+     * have a chance to override {@link #getLifecyclePolicies()} in case they want additional control over if these
+     * policies should be installed or not (say, if they belong to functionalities that can be enabled/disabled via a flag).
+     *
+     * @return The lifecycle policies configurations that pertain to this template registry.
+     */
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of();
     }
 
     /**
@@ -125,10 +162,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Retrieves a list of {@link LifecyclePolicy} that represents the ILM
      * policies that should be installed and managed. Only called if ILM is enabled.
-     * @return The configurations for the lifecycle policies that should be installed.
+     * @return The lifecycle policies that should be installed.
      */
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return Collections.emptyList();
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        return lifecyclePolicies;
     }
 
     /**
@@ -225,6 +262,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addLegacyTemplatesIfMissing(ClusterState state) {
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings())) {
+            // data stream lifecycle cannot be configured via legacy templates
+            return;
+        }
         final List<IndexTemplateConfig> indexTemplates = getLegacyTemplateConfigs();
         for (IndexTemplateConfig newTemplate : indexTemplates) {
             final String templateName = newTemplate.getTemplateName();
@@ -500,8 +541,12 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
+        if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings())) {
+            logger.trace("running in data stream lifecycle only mode. skipping the installation of ILM policies.");
+            return;
+        }
         IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        for (LifecyclePolicy policy : getPolicyConfigs()) {
+        for (LifecyclePolicy policy : getLifecyclePolicies()) {
             final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(
                 policy.getName(),
                 key -> new AtomicBoolean(false)

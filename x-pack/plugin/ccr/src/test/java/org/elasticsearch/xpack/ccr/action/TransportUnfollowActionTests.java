@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -34,7 +34,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
     public void testUnfollow() {
         final long settingsVersion = randomNonNegativeLong();
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .settingsVersion(settingsVersion)
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -54,7 +54,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
 
     public void testUnfollowIndexOpen() {
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
@@ -71,7 +71,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
 
     public void testUnfollowRunningShardFollowTasks() {
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE)
@@ -121,7 +121,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
 
     public void testUnfollowMissingIndex() {
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE)
@@ -135,7 +135,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
 
     public void testUnfollowNoneFollowIndex() {
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE);

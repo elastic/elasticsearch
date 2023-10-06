@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,7 +48,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
     public void testRegularIndex() {
         String index = "test-index";
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1);
         List<DiscoveryNode> nodes = new ArrayList<>();
@@ -98,7 +97,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
     public void testAlreadyBootstrappedFollowerIndex() {
         String index = "test-index";
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(1);
         List<DiscoveryNode> nodes = new ArrayList<>();
@@ -142,7 +141,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
     public void testBootstrappingFollowerIndex() {
         String index = "test-index";
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(1);
         DiscoveryNode dataOnlyNode = newNode("d1", Set.of(DiscoveryNodeRole.DATA_ROLE));

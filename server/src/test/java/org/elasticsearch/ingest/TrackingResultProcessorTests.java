@@ -27,6 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_MESSAGE_FIELD;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TAG_FIELD;
 import static org.elasticsearch.ingest.CompoundProcessor.ON_FAILURE_PROCESSOR_TYPE_FIELD;
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.elasticsearch.ingest.PipelineProcessorTests.createIngestService;
 import static org.elasticsearch.ingest.TrackingResultProcessor.decorate;
 import static org.hamcrest.Matchers.containsString;
@@ -66,7 +67,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(actualProcessor.getInvokedCounter(), equalTo(1));
         assertThat(resultList.size(), equalTo(1));
 
-        assertThat(resultList.get(0).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertIngestDocument(resultList.get(0).getIngestDocument(), expectedResult.getIngestDocument());
         assertThat(resultList.get(0).getFailure(), nullValue());
         assertThat(resultList.get(0).getProcessorTag(), equalTo(expectedResult.getProcessorTag()));
     }
@@ -222,7 +223,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         );
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
         assertThat(resultList.size(), equalTo(1));
-        assertThat(resultList.get(0).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertIngestDocument(resultList.get(0).getIngestDocument(), expectedResult.getIngestDocument());
         assertThat(resultList.get(0).getFailure(), sameInstance(exception));
         assertThat(resultList.get(0).getProcessorTag(), equalTo(expectedResult.getProcessorTag()));
     }
@@ -281,7 +282,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertFalse(resultList.get(2).getIngestDocument().hasField(key2));
         assertTrue(resultList.get(2).getIngestDocument().hasField(key3));
 
-        assertThat(resultList.get(2).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertIngestDocument(resultList.get(2).getIngestDocument(), expectedResult.getIngestDocument());
         assertThat(resultList.get(2).getFailure(), nullValue());
         assertThat(resultList.get(2).getProcessorTag(), nullValue());
     }
@@ -335,7 +336,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertTrue(resultList.get(2).getIngestDocument().hasField(key2));
         assertFalse(resultList.get(2).getIngestDocument().hasField(key3));
 
-        assertThat(resultList.get(3).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertIngestDocument(resultList.get(3).getIngestDocument(), expectedResult.getIngestDocument());
         assertThat(resultList.get(3).getFailure(), nullValue());
         assertThat(resultList.get(3).getProcessorTag(), nullValue());
     }
@@ -425,7 +426,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertTrue(resultList.get(3).getIngestDocument().hasField(key2));
         assertFalse(resultList.get(3).getIngestDocument().hasField(key3));
 
-        assertThat(resultList.get(4).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertIngestDocument(resultList.get(4).getIngestDocument(), expectedResult.getIngestDocument());
         assertThat(resultList.get(4).getFailure(), nullValue());
         assertThat(resultList.get(4).getProcessorTag(), nullValue());
     }
@@ -511,7 +512,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(resultList.get(2).getConditionalWithResult().v1(), equalTo(scriptName));
         assertThat(resultList.get(2).getConditionalWithResult().v2(), is(Boolean.FALSE));
 
-        assertThat(resultList.get(3).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertIngestDocument(resultList.get(3).getIngestDocument(), expectedResult.getIngestDocument());
         assertThat(resultList.get(3).getFailure(), nullValue());
         assertThat(resultList.get(3).getProcessorTag(), nullValue());
     }
@@ -577,7 +578,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertTrue(resultList.get(3).getIngestDocument().hasField(key2));
         assertFalse(resultList.get(3).getIngestDocument().hasField(key3));
 
-        assertThat(resultList.get(4).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertIngestDocument(resultList.get(4).getIngestDocument(), expectedResult.getIngestDocument());
         assertThat(resultList.get(4).getFailure(), nullValue());
         assertThat(resultList.get(4).getProcessorTag(), nullValue());
     }
@@ -710,14 +711,17 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertNull(resultList.get(0).getConditionalWithResult());
         assertThat(resultList.get(0).getType(), equalTo("pipeline"));
 
-        assertThat(resultList.get(1).getIngestDocument(), not(equalTo(expectedResult.getIngestDocument())));
+        assertThat(
+            resultList.get(1).getIngestDocument().getFieldValue(key1, Integer.class),
+            not(equalTo(expectedResult.getIngestDocument().getFieldValue(key1, Integer.class)))
+        );
         assertThat(resultList.get(1).getFailure(), nullValue());
         assertThat(resultList.get(1).getProcessorTag(), nullValue());
 
         assertNull(resultList.get(2).getConditionalWithResult());
         assertThat(resultList.get(2).getType(), equalTo("pipeline"));
 
-        assertThat(resultList.get(3).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
+        assertIngestDocument(resultList.get(3).getIngestDocument(), expectedResult.getIngestDocument());
         assertThat(resultList.get(3).getFailure(), nullValue());
         assertThat(resultList.get(3).getProcessorTag(), nullValue());
 

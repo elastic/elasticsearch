@@ -9,20 +9,25 @@ package org.elasticsearch.xpack.ql.session;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Objects;
 
 public class Configuration {
 
-    private final String clusterName;
-    private final String username;
-    private final ZonedDateTime now;
-    private final ZoneId zoneId;
+    protected final String clusterName;
+    protected final String username;
+    protected final ZonedDateTime now;
+    protected final ZoneId zoneId;
 
     public Configuration(ZoneId zi, String username, String clusterName) {
+        this(zi, null, username, clusterName);
+    }
+
+    protected Configuration(ZoneId zi, Instant now, String username, String clusterName) {
         this.zoneId = zi.normalized();
-        Clock clock = Clock.system(zoneId);
-        this.now = ZonedDateTime.now(Clock.tick(clock, Duration.ofNanos(1)));
+        this.now = now != null ? now.atZone(zi) : ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
         this.username = username;
         this.clusterName = clusterName;
     }
@@ -41,5 +46,21 @@ public class Configuration {
 
     public String username() {
         return username;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Configuration that = (Configuration) o;
+        return Objects.equals(zoneId, that.zoneId)
+            && Objects.equals(now, that.now)
+            && Objects.equals(username, that.username)
+            && Objects.equals(clusterName, that.clusterName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(zoneId, now, username, clusterName);
     }
 }

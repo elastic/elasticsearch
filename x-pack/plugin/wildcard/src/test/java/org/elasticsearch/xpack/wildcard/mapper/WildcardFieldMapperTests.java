@@ -42,10 +42,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
@@ -125,16 +123,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(MapperBuilderContext.root(false));
+        wildcardFieldType = builder.build(MapperBuilderContext.root(false, false));
 
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.V_7_9_0);
-        wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false));
+        wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false, false));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
             IndexVersion.current()
         );
-        keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false));
+        keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false, false));
 
         rewriteDir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
@@ -897,7 +895,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         int numRewrites = 0;
         int maxNumRewrites = 100;
         for (; numRewrites < maxNumRewrites; numRewrites++) {
-            Query newApprox = approximationQuery.rewrite(new IndexSearcher(rewriteReader));
+            Query newApprox = approximationQuery.rewrite(newSearcher(rewriteReader));
             if (newApprox == approximationQuery) {
                 break;
             }
@@ -1080,7 +1078,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
@@ -1092,7 +1090,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             0,
             0,
             idxSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
             bitsetFilterCache,
             indexFieldDataLookup,
             null,
@@ -1140,18 +1137,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             doc.add(field);
         }
         iw.addDocument(doc);
-    }
-
-    protected IndexSettings createIndexSettings(Version version) {
-        return new IndexSettings(
-            IndexMetadata.builder("_index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .creationDate(System.currentTimeMillis())
-                .build(),
-            Settings.EMPTY
-        );
     }
 
     static String randomABString(int minLength) {

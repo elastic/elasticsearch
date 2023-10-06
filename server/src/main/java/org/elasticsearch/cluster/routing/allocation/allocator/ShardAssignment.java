@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
-import static java.util.stream.Collectors.toCollection;
 
 public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, int ignored) {
 
@@ -24,17 +23,15 @@ public record ShardAssignment(Set<String> nodeIds, int total, int unassigned, in
         assert nodeIds.size() + unassigned == total : "Shard assignment should account for all shards";
     }
 
-    public boolean isIgnored(boolean primary) {
-        return primary ? total == ignored : ignored > 0;
-    }
-
     public int assigned() {
         return nodeIds.size();
     }
 
     public static ShardAssignment ofAssignedShards(List<ShardRouting> routings) {
-        assert routings.stream().allMatch(ShardRouting::started) : routings;
-        var nodeIds = routings.stream().map(ShardRouting::currentNodeId).collect(toCollection(LinkedHashSet::new));
+        var nodeIds = new LinkedHashSet<String>();
+        for (ShardRouting routing : routings) {
+            nodeIds.add(routing.currentNodeId());
+        }
         return new ShardAssignment(unmodifiableSet(nodeIds), routings.size(), 0, 0);
     }
 }

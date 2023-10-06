@@ -338,7 +338,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private void scheduleNextRun(TimeValue time) {
         if (threadPool.scheduler().isShutdown() == false) {
-            scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
+            scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
         }
     }
 

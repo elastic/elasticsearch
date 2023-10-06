@@ -1,0 +1,5 @@
+pr: 98635
+summary: Fix NPE in `StableMasterHealthIndicatorService`
+area: Health
+type: bug
+issues: []

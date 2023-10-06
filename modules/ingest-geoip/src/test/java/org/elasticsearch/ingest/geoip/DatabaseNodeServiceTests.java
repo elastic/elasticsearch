@@ -12,7 +12,6 @@ import com.maxmind.db.InvalidDatabaseException;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -42,6 +41,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
@@ -359,7 +359,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             : GeoIpDownloader.DATABASES_INDEX;
         Index index = new Index(indexName, UUID.randomUUID().toString());
         IndexMetadata.Builder idxMeta = IndexMetadata.builder(index.getName())
-            .settings(indexSettings(Version.CURRENT, 1, 0).put("index.uuid", index.getUUID()));
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.uuid", index.getUUID()));
         if (aliasGeoipDatabase) {
             idxMeta.putAlias(AliasMetadata.builder(GeoIpDownloader.DATABASES_INDEX));
         }

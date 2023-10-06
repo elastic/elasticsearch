@@ -126,12 +126,12 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
 
         @Override
         protected List<CacheInfo> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(CacheInfo::new);
+            return in.readCollectionAsList(CacheInfo::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<CacheInfo> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override

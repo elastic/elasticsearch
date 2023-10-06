@@ -27,6 +27,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 /**
@@ -144,8 +145,8 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias, true);
+    public Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias, responseExecutor, true);
     }
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {

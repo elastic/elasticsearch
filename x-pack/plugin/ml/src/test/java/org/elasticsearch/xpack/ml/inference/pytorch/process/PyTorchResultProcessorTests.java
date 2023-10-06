@@ -19,6 +19,8 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -81,6 +83,24 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertTrue(errorListener.hasResponse);
     }
 
+    public void testAwaitCompletion() {
+        var inferenceResult = new PyTorchInferenceResult(null);
+        var inferenceListener = new AssertingResultListener(r -> assertEquals(inferenceResult, r.inferenceResult()));
+
+        var processor = new PyTorchResultProcessor("foo", s -> {});
+        processor.registerRequest("a", inferenceListener);
+
+        processor.process(mockNativeProcess(List.of(new PyTorchResult("a", true, 1000L, inferenceResult, null, null, null)).iterator()));
+
+        try {
+            processor.awaitCompletion(5, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            fail("Timed out waiting for the processor to complete");
+        }
+
+        assertTrue(inferenceListener.hasResponse);
+    }
+
     public void testPendingRequest() {
         var processor = new PyTorchResultProcessor("foo", s -> {});
 
@@ -131,6 +151,23 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         for (var l : listeners) {
             assertTrue(l.hasResponse);
         }
+    }
+
+    public void testsHandleUnknownResult() {
+        var processor = new PyTorchResultProcessor("deployment-foo", settings -> {});
+        var listener = new AssertingResultListener(
+            r -> assertThat(
+                r.errorResult().error(),
+                containsString("[deployment-foo] pending result listener cannot handle unknown result type")
+            )
+        );
+
+        processor.registerRequest("no-result-content", listener);
+
+        processor.process(
+            mockNativeProcess(List.of(new PyTorchResult("no-result-content", null, null, null, null, null, null)).iterator())
+        );
+        assertTrue(listener.hasResponse);
     }
 
     private static class AssertingResultListener implements ActionListener<PyTorchResult> {

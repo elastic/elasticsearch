@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
   - do:
       query_ruleset.put:
         ruleset_id: test-query-ruleset-3
@@ -12,7 +12,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: elastic
+                  values: [elastic]
               actions:
                 ids:
                   - 'id1'
@@ -22,7 +22,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: kibana
+                  values: [kibana]
               actions:
                 ids:
                   - 'id3'
@@ -38,7 +38,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: elastic
+                  values: [elastic]
               actions:
                 ids:
                   - 'id1'
@@ -48,7 +48,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: kibana
+                  values: [kibana]
               actions:
                 ids:
                   - 'id3'
@@ -58,7 +58,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: logstash
+                  values: [logstash]
               actions:
                 ids:
                   - 'id5'
@@ -74,7 +74,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: elastic
+                  values: [elastic]
               actions:
                 ids:
                   - 'id1'
@@ -84,7 +84,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: kibana
+                  values: [kibana]
               actions:
                 ids:
                   - 'id3'
@@ -94,7 +94,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: logstash
+                  values: [logstash]
               actions:
                 ids:
                   - 'id5'
@@ -104,7 +104,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: beats
+                  values: [beats]
               actions:
                 ids:
                   - 'id7'
@@ -119,13 +119,16 @@ setup:
 
   # Alphabetical order by ruleset_id for results
   - match: { results.0.ruleset_id: "test-query-ruleset-1" }
-  - match: { results.0.rules_count: 3 }
+  - match: { results.0.rule_total_count: 3 }
+  - match: { results.0.rule_criteria_types_counts: { exact: 3 } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.1.rules_count: 4 }
+  - match: { results.1.rule_total_count: 4 }
+  - match: { results.1.rule_criteria_types_counts: { exact: 4 } }
 
   - match: { results.2.ruleset_id: "test-query-ruleset-3" }
-  - match: { results.2.rules_count: 2 }
+  - match: { results.2.rule_total_count: 2 }
+  - match: { results.2.rule_criteria_types_counts: { exact: 2 } }
 
 ---
 "List Query Rulesets - with from":
@@ -137,10 +140,12 @@ setup:
 
   # Alphabetical order by ruleset_id for results
   - match: { results.0.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.0.rules_count: 4 }
+  - match: { results.0.rule_total_count: 4 }
+  - match: { results.0.rule_criteria_types_counts: { exact: 4 } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-3" }
-  - match: { results.1.rules_count: 2 }
+  - match: { results.1.rule_total_count: 2 }
+  - match: { results.1.rule_criteria_types_counts: { exact: 2 } }
 
 ---
 "List Query Rulesets - with size":
@@ -152,10 +157,12 @@ setup:
 
   # Alphabetical order by ruleset_id for results
   - match: { results.0.ruleset_id: "test-query-ruleset-1" }
-  - match: { results.0.rules_count: 3 }
+  - match: { results.0.rule_total_count: 3 }
+  - match: { results.0.rule_criteria_types_counts: { exact: 3 } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-2" }
-  - match: { results.1.rules_count: 4 }
+  - match: { results.1.rule_total_count: 4 }
+  - match: { results.1.rule_criteria_types_counts: { exact: 4 } }
 
 ---
 "List Query Rulesets - empty":
@@ -175,3 +182,84 @@ setup:
       query_ruleset.list: { }
 
   - match: { count: 0 }
+
+---
+"List Query Rulesets with multiple rules":
+  - do:
+      query_ruleset.put:
+        ruleset_id: a-test-query-ruleset-with-lots-of-criteria
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ puggles ]
+                - type: gt
+                  metadata: year
+                  values: [ 2023 ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ pug ]
+              actions:
+                ids:
+                  - 'id3'
+                  - 'id4'
+            - rule_id: query-rule-id3
+              type: pinned
+              criteria:
+                - type: fuzzy
+                  metadata: query_string
+                  values: [ puggles ]
+              actions:
+                ids:
+                  - 'id5'
+                  - 'id6'
+            - rule_id: query-rule-id4
+              type: pinned
+              criteria:
+                - type: always
+              actions:
+                ids:
+                  - 'id7'
+                  - 'id8'
+            - rule_id: query-rule-id5
+              type: pinned
+              criteria:
+                - type: prefix
+                  metadata: query_string
+                  values: [ pug ]
+                - type: suffix
+                  metadata: query_string
+                  values: [ gle ]
+              actions:
+                ids:
+                  - 'id9'
+                  - 'id10'
+
+  - do:
+      query_ruleset.list:
+        from: 0
+        size: 1
+
+  - match: { count: 4 }
+
+  # Alphabetical order by ruleset_id for results
+  - match: { results.0.ruleset_id: "a-test-query-ruleset-with-lots-of-criteria" }
+  - match: { results.0.rule_total_count: 5 }
+  - match:
+      results.0.rule_criteria_types_counts:
+        exact: 2
+        gt: 1
+        fuzzy: 1
+        prefix: 1
+        suffix: 1
+        always: 1

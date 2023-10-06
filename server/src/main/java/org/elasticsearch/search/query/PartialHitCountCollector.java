@@ -16,6 +16,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TotalHitCountCollector;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Extension of {@link TotalHitCountCollector} that supports early termination of total hits counting based on a provided threshold.
@@ -24,45 +25,59 @@ import java.io.IOException;
  */
 class PartialHitCountCollector extends TotalHitCountCollector {
 
-    private final int totalHitsThreshold;
-    // we could reuse the counter that TotalHitCountCollector has and exposes through getTotalHits(),
-    // but that would make us early terminate also when retrieving count from Weight#count and would
-    // cause a behaviour that's difficult to explain and test.
-    private int numCollected = 0;
+    private final HitsThresholdChecker hitsThresholdChecker;
     private boolean earlyTerminated;
 
-    PartialHitCountCollector(int totalHitsThreshold) {
-        this.totalHitsThreshold = totalHitsThreshold;
+    PartialHitCountCollector(HitsThresholdChecker hitsThresholdChecker) {
+        this.hitsThresholdChecker = hitsThresholdChecker;
     }
 
     @Override
     public ScoreMode scoreMode() {
-        // Does not need scores like TotalHitCountCollector (COMPLETE_NO_SCORES), but not exhaustive as it early terminates.
-        return ScoreMode.TOP_DOCS;
+        return hitsThresholdChecker.totalHitsThreshold == Integer.MAX_VALUE ? super.scoreMode() : ScoreMode.TOP_DOCS;
     }
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        if (numCollected >= totalHitsThreshold) {
-            earlyTerminateIfNeeded();
+        if (hitsThresholdChecker.totalHitsThreshold == Integer.MAX_VALUE) {
+            return super.getLeafCollector(context);
         }
+        earlyTerminateIfNeeded();
         return new FilterLeafCollector(super.getLeafCollector(context)) {
             @Override
             public void collect(int doc) throws IOException {
-                if (++numCollected > totalHitsThreshold) {
-                    earlyTerminateIfNeeded();
-                }
+                earlyTerminateIfNeeded();
+                hitsThresholdChecker.incrementHitCount();
                 super.collect(doc);
             }
         };
     }
 
     private void earlyTerminateIfNeeded() {
-        earlyTerminated = true;
-        throw new CollectionTerminatedException();
+        if (hitsThresholdChecker.isThresholdReached()) {
+            earlyTerminated = true;
+            throw new CollectionTerminatedException();
+        }
     }
 
     boolean hasEarlyTerminated() {
         return earlyTerminated;
+    }
+
+    static class HitsThresholdChecker {
+        private final int totalHitsThreshold;
+        private final AtomicInteger numCollected = new AtomicInteger();
+
+        HitsThresholdChecker(int totalHitsThreshold) {
+            this.totalHitsThreshold = totalHitsThreshold;
+        }
+
+        void incrementHitCount() {
+            numCollected.incrementAndGet();
+        }
+
+        boolean isThresholdReached() {
+            return numCollected.getAcquire() >= totalHitsThreshold;
+        }
     }
 }

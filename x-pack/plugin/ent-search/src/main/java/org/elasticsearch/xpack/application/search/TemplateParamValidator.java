@@ -17,15 +17,17 @@ import com.networknt.schema.ValidationMessage;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -82,10 +84,10 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        try (InputStream stream = new BytesArray(getSchemaPropertiesAsString()).streamInput()) {
-            builder.rawValue(stream, builder.contentType());
+        final XContent xContent = XContentType.JSON.xContent();
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, getSchemaPropertiesAsString());) {
+            builder.copyCurrentStructure(parser);
         }
-
         return builder;
     }
 

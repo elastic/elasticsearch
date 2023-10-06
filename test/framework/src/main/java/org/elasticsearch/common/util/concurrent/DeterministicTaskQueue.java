@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -354,7 +355,7 @@ public class DeterministicTaskQueue {
             }
 
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 final int NOT_STARTED = 0;
                 final int STARTED = 1;
                 final int CANCELLED = 2;
@@ -397,11 +398,6 @@ public class DeterministicTaskQueue {
                     }
 
                 };
-            }
-
-            @Override
-            public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-                return super.scheduleWithFixedDelay(command, interval, executor);
             }
 
             @Override

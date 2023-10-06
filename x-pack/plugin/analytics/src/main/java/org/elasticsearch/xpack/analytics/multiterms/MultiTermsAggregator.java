@@ -177,7 +177,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      */
     static List<Object> unpackTerms(BytesRef termsBytes) {
         try (StreamInput input = new BytesArray(termsBytes).streamInput()) {
-            return input.readList(StreamInput::readGenericValue);
+            return input.readCollectionAsList(StreamInput::readGenericValue);
         } catch (IOException ex) {
             throw ExceptionsHelper.convertToRuntime(ex);
         }

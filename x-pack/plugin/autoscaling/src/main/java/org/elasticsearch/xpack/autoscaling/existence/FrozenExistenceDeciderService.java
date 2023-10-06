@@ -81,7 +81,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
         }
 
         public FrozenExistenceReason(StreamInput in) throws IOException {
-            this.indices = in.readStringList();
+            this.indices = in.readStringCollectionAsList();
         }
 
         @Override

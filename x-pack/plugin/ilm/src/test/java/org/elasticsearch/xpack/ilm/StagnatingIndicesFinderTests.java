@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
@@ -230,7 +230,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
     }
 
     private static IndexMetadata indexMetadataFrom(IndexMetadataTestCase indexMetadataTestCase) {
-        var settings = settings(Version.CURRENT);
+        var settings = settings(IndexVersion.current());
         var indexMetadataBuilder = IndexMetadata.builder(indexMetadataTestCase.indexName);
 
         if (indexMetadataTestCase.ilmState != null) {

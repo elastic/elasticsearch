@@ -266,6 +266,7 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/write/reindex":
             case "indices:data/read/sql":
             case "indices:data/read/sql/translate":
+            case "indices:data/read/esql":
                 if (request instanceof BulkShardRequest) {
                     return false;
                 }
@@ -968,7 +969,7 @@ public class RBACEngine implements AuthorizationEngine {
         private final Predicate<String> isAuthorizedPredicate;
 
         AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, Predicate<String> isAuthorizedPredicate) {
-            this.allAuthorizedAndAvailableSupplier = new CachedSupplier<>(allAuthorizedAndAvailableSupplier);
+            this.allAuthorizedAndAvailableSupplier = CachedSupplier.wrap(allAuthorizedAndAvailableSupplier);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 

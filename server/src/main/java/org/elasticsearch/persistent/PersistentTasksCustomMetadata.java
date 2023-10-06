@@ -10,6 +10,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -199,7 +200,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -542,7 +543,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             .stream()
             .filter(t -> VersionedNamedWriteable.shouldSerialize(out, t.getParams()))
             .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
-        out.writeMap(filteredTasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
+        out.writeMap(filteredTasks, StreamOutput::writeWriteable);
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {

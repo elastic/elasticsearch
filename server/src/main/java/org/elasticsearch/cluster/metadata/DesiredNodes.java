@@ -163,7 +163,7 @@ public class DesiredNodes implements Writeable, ToXContentObject, Iterable<Desir
     public static DesiredNodes readFrom(StreamInput in) throws IOException {
         final var historyId = in.readString();
         final var version = in.readLong();
-        final var nodesWithStatus = in.readList(DesiredNodeWithStatus::readFrom);
+        final var nodesWithStatus = in.readCollectionAsList(DesiredNodeWithStatus::readFrom);
         return create(historyId, version, nodesWithStatus);
     }
 

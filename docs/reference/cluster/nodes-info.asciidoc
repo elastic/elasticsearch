@@ -136,6 +136,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 `transport_version`::
 		The most recent transport version that this node can communicate with.
 
+`index_version`::
+		The most recent index version that this node can read.
+
+`component_versions`::
+		The version numbers of individual components loaded in this node.
+
 The `os` flag can be set to retrieve information that concern the operating
 system:
 
@@ -232,6 +238,11 @@ The API returns the following response:
       "ip": "192.168.17",
       "version": "{version}",
       "transport_version": 100000298,
+      "index_version": 100000074,
+      "component_versions": {
+        "ml_config_version": 100000162,
+        "transform_config_version": 100000096
+      },
       "build_flavor": "default",
       "build_type": "{build_type}",
       "build_hash": "587409e",
@@ -271,6 +282,8 @@ The API returns the following response:
 // TESTRESPONSE[s/"host": "node-0.elastic.co"/"host": $body.$_path/]
 // TESTRESPONSE[s/"ip": "192.168.17"/"ip": $body.$_path/]
 // TESTRESPONSE[s/"transport_version": 100000298/"transport_version": $body.$_path/]
+// TESTRESPONSE[s/"index_version": 100000074/"index_version": $body.$_path/]
+// TESTRESPONSE[s/"component_versions": \{[^\}]*\}/"component_versions": $body.$_path/]
 // TESTRESPONSE[s/"build_hash": "587409e"/"build_hash": $body.$_path/]
 // TESTRESPONSE[s/"roles": \[[^\]]*\]/"roles": $body.$_path/]
 // TESTRESPONSE[s/"attributes": \{[^\}]*\}/"attributes": $body.$_path/]
@@ -305,6 +318,11 @@ The API returns the following response:
       "ip": "192.168.17",
       "version": "{version}",
       "transport_version": 100000298,
+      "index_version": 100000074,
+      "component_versions": {
+        "ml_config_version": 100000162,
+        "transform_config_version": 100000096
+      },
       "build_flavor": "default",
       "build_type": "{build_type}",
       "build_hash": "587409e",
@@ -368,6 +386,8 @@ The API returns the following response:
 // TESTRESPONSE[s/"host": "node-0.elastic.co"/"host": $body.$_path/]
 // TESTRESPONSE[s/"ip": "192.168.17"/"ip": $body.$_path/]
 // TESTRESPONSE[s/"transport_version": 100000298/"transport_version": $body.$_path/]
+// TESTRESPONSE[s/"index_version": 100000074/"index_version": $body.$_path/]
+// TESTRESPONSE[s/"component_versions": \{[^\}]*\}/"component_versions": $body.$_path/]
 // TESTRESPONSE[s/"build_hash": "587409e"/"build_hash": $body.$_path/]
 // TESTRESPONSE[s/"roles": \[[^\]]*\]/"roles": $body.$_path/]
 // TESTRESPONSE[s/"attributes": \{[^\}]*\}/"attributes": $body.$_path/]

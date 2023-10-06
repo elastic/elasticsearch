@@ -9,6 +9,7 @@
 package org.elasticsearch.health.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -62,7 +63,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_5_0;
+        return TransportVersions.V_8_5_0;
     }
 
     @Override
@@ -161,7 +162,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         private static final String TYPE = "shard_limits";
         private static final ParseField MAX_SHARDS_PER_NODE = new ParseField("max_shards_per_node");
         private static final ParseField MAX_SHARDS_PER_NODE_FROZEN = new ParseField("max_shards_per_node_frozen");
-        static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersion.V_8_8_0;
+        static final TransportVersion VERSION_SUPPORTING_SHARD_LIMIT_FIELDS = TransportVersions.V_8_8_0;
 
         static ShardLimits readFrom(StreamInput in) throws IOException {
             return new ShardLimits(in.readInt(), in.readInt());
@@ -230,7 +231,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     ) implements ToXContentFragment, Writeable {
 
         public static final String TYPE = "disk";
-        public static final TransportVersion VERSION_SUPPORTING_HEADROOM_FIELDS = TransportVersion.V_8_5_0;
+        public static final TransportVersion VERSION_SUPPORTING_HEADROOM_FIELDS = TransportVersions.V_8_5_0;
 
         private static final ParseField HIGH_WATERMARK_FIELD = new ParseField("high_watermark");
         private static final ParseField HIGH_MAX_HEADROOM_FIELD = new ParseField("high_max_headroom");

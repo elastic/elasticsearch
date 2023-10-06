@@ -12,13 +12,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -88,6 +89,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
+    private static final int ASYNC_TASK_INDEX_MAPPINGS_VERSION = 0;
 
     // Usually the settings, mappings and system index descriptor below
     // would be co-located with the SystemIndexPlugin implementation,
@@ -110,6 +112,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
                 .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, ASYNC_TASK_INDEX_MAPPINGS_VERSION)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")
@@ -211,7 +214,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Currently for EQL we don't set limit for a stored async response
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
-    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener) {
+    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener) {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
@@ -236,7 +239,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
      */
-    public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
+    public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener)
         throws IOException {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(
@@ -567,7 +570,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         os = Streams.noCloseStream(os);
         TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
         TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
+        if (minNodeVersion.onOrAfter(TransportVersions.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
@@ -592,7 +595,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
-        if (version.onOrAfter(TransportVersion.V_7_15_0)) {
+        if (version.onOrAfter(TransportVersions.V_7_15_0)) {
             encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {

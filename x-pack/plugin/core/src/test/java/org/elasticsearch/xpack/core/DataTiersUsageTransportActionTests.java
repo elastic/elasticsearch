@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
@@ -705,7 +705,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {
-        Settings.Builder settingsBuilder = indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
+        Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas).put(
             SETTING_CREATION_DATE,
             System.currentTimeMillis()
         );

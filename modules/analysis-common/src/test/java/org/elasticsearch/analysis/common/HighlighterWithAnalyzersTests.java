@@ -258,7 +258,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(new SearchRequest("first_test_index").source(source)).actionGet();
-        assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+        assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The <x>quick brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field1");
         source = searchSource().query(
@@ -293,8 +293,8 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             0,
             1,
             anyOf(
-                equalTo("The <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
-                equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog")
+                equalTo("The <x>quick browse</x> button is a fancy thing, right bro?"),
+                equalTo("The <x>quick brown</x> fox jumps over the lazy dog")
             )
         );
         assertHighlight(
@@ -304,8 +304,8 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             0,
             1,
             anyOf(
-                equalTo("The <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
-                equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog")
+                equalTo("The <x>quick browse</x> button is a fancy thing, right bro?"),
+                equalTo("The <x>quick brown</x> fox jumps over the lazy dog")
             )
         );
 
@@ -343,7 +343,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
 
         searchResponse = client().search(new SearchRequest("second_test_index").source(source)).actionGet();
 
-        assertHighlight(searchResponse, 0, "field3", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+        assertHighlight(searchResponse, 0, "field3", 0, 1, equalTo("The <x>quick brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field4");
         source = searchSource().postFilter(termQuery("type", "type2"))
@@ -358,8 +358,8 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             0,
             1,
             anyOf(
-                equalTo("<x>The</x> <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
-                equalTo("<x>The</x> <x>quick</x> <x>brown</x> fox jumps over the lazy dog")
+                equalTo("<x>The quick browse</x> button is a fancy thing, right bro?"),
+                equalTo("<x>The quick brown</x> fox jumps over the lazy dog")
             )
         );
         assertHighlight(
@@ -369,8 +369,8 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             0,
             1,
             anyOf(
-                equalTo("<x>The</x> <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
-                equalTo("<x>The</x> <x>quick</x> <x>brown</x> fox jumps over the lazy dog")
+                equalTo("<x>The quick browse</x> button is a fancy thing, right bro?"),
+                equalTo("<x>The quick brown</x> fox jumps over the lazy dog")
             )
         );
 

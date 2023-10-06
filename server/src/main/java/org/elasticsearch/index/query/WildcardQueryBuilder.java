@@ -13,6 +13,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,7 +84,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         fieldName = in.readString();
         value = in.readString();
         rewrite = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
         }
     }
@@ -93,7 +94,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         out.writeString(fieldName);
         out.writeString(value);
         out.writeOptionalString(rewrite);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
         }
     }
@@ -198,28 +199,24 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null) {
-            MappedFieldType fieldType = context.getFieldType(this.fieldName);
-            if (fieldType == null) {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(this.fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query  is against a field that does not exist");
+        } else if (fieldType instanceof ConstantFieldType constantFieldType) {
+            // This logic is correct for all field types, but by only applying it to constant
+            // fields we also have the guarantee that it doesn't perform I/O, which is important
+            // since rewrites might happen on a network thread.
+            Query query = constantFieldType.wildcardQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            if (query instanceof MatchAllDocsQuery) {
+                return new MatchAllQueryBuilder();
+            } else if (query instanceof MatchNoDocsQuery) {
                 return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
-            } else if (fieldType instanceof ConstantFieldType) {
-                // This logic is correct for all field types, but by only applying it to constant
-                // fields we also have the guarantee that it doesn't perform I/O, which is important
-                // since rewrites might happen on a network thread.
-                Query query = fieldType.wildcardQuery(value, null, caseInsensitive, context); // the rewrite method doesn't matter
-                if (query instanceof MatchAllDocsQuery) {
-                    return new MatchAllQueryBuilder();
-                } else if (query instanceof MatchNoDocsQuery) {
-                    return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
-                } else {
-                    assert false : "Constant fields must produce match-all or match-none queries, got " + query;
-                }
+            } else {
+                assert false : "Constant fields must produce match-all or match-none queries, got " + query;
             }
         }
-
-        return super.doRewrite(queryRewriteContext);
+        return this;
     }
 
     @Override
@@ -249,6 +246,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

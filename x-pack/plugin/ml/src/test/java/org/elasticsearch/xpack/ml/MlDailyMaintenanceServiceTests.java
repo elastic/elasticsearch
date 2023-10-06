@@ -177,6 +177,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
         TaskInfo taskInfo = new TaskInfo(
             new TaskId("test", 123),
             "test",
+            "test",
             DeleteJobAction.NAME,
             "delete-job-" + jobId,
             null,

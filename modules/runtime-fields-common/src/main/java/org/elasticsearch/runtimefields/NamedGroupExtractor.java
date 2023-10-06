@@ -74,7 +74,7 @@ public interface NamedGroupExtractor {
                     interval.millis(),
                     maxExecutionTime.millis(),
                     threadPool::relativeTimeInMillis,
-                    (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC)
+                    (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic())
                 );
             })::getOrCompute;
         }

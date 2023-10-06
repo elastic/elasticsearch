@@ -277,7 +277,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeBlockSet(global, out);
-        out.writeMap(indicesBlocks, StreamOutput::writeString, (o, s) -> writeBlockSet(s, o));
+        out.writeMap(indicesBlocks, (o, s) -> writeBlockSet(s, o));
     }
 
     private static void writeBlockSet(Set<ClusterBlock> blocks, StreamOutput out) throws IOException {
@@ -294,7 +294,7 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
     }
 
     private static Set<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
-        return in.readImmutableSet(ClusterBlock::new);
+        return in.readCollectionAsImmutableSet(ClusterBlock::new);
     }
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {

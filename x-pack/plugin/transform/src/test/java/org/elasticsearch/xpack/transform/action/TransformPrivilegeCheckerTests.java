@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -184,7 +184,12 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(DEST_INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                    .put(
+                        IndexMetadata.builder(DEST_INDEX_NAME)
+                            .settings(settings(IndexVersion.current()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                    )
             )
             .build();
         TransformPrivilegeChecker.checkPrivileges(
@@ -218,7 +223,12 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(DEST_INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                    .put(
+                        IndexMetadata.builder(DEST_INDEX_NAME)
+                            .settings(settings(IndexVersion.current()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                    )
             )
             .build();
         TransformConfig config = new TransformConfig.Builder(TRANSFORM_CONFIG).setSource(new SourceConfig(REMOTE_SOURCE_INDEX_NAME))
@@ -250,7 +260,12 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(DEST_INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                    .put(
+                        IndexMetadata.builder(DEST_INDEX_NAME)
+                            .settings(settings(IndexVersion.current()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                    )
             )
             .build();
         TransformConfig config = new TransformConfig.Builder(TRANSFORM_CONFIG).setRetentionPolicyConfig(
@@ -287,7 +302,12 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(DEST_INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                    .put(
+                        IndexMetadata.builder(DEST_INDEX_NAME)
+                            .settings(settings(IndexVersion.current()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                    )
             )
             .build();
         TransformConfig config = new TransformConfig.Builder(TRANSFORM_CONFIG).setDest(
@@ -331,7 +351,12 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(DEST_INDEX_NAME_2).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                    .put(
+                        IndexMetadata.builder(DEST_INDEX_NAME_2)
+                            .settings(settings(IndexVersion.current()))
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                    )
             )
             .build();
         TransformConfig config = new TransformConfig.Builder(TRANSFORM_CONFIG).setSource(new SourceConfig(SOURCE_INDEX_NAME_2))

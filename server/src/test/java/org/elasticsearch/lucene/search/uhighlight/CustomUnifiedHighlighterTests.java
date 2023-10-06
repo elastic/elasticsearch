@@ -134,21 +134,23 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
                 assertThat(topDocs.totalHits.value, equalTo(1L));
                 String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
+                UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+                builder.withBreakIterator(() -> breakIterator);
+                builder.withFieldMatcher(name -> "text".equals(name));
+                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    searcher,
-                    analyzer,
+                    builder,
                     offsetSource,
-                    new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
                     locale,
-                    breakIterator,
                     "index",
                     "text",
                     query,
                     noMatchSize,
                     expectedPassages.length,
-                    name -> "text".equals(name),
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset
+                    queryMaxAnalyzedOffset,
+                    true,
+                    true
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
                 assertEquals(snippets.length, expectedPassages.length);
@@ -218,7 +220,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
 
     public void testMultiPhrasePrefixQuery() throws Exception {
         final String[] inputs = { "The quick brown fox." };
-        final String[] outputs = { "The <b>quick</b> <b>brown</b> <b>fox</b>." };
+        final String[] outputs = { "The <b>quick brown fox</b>." };
         MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("text");
         query.add(new Term("text", "quick"));
         query.add(new Term("text", "brown"));
@@ -241,7 +243,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         final String[] outputs = {
             "The <b>quick</b> <b>brown</b>",
             "<b>fox</b> in a long",
-            "with another <b>quick</b>",
+            "another <b>quick</b>",
             "<b>brown</b> <b>fox</b>.",
             "sentence with <b>brown</b>",
             "<b>fox</b>.", };
@@ -277,7 +279,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         );
     }
 
-    public void testRepeat() throws Exception {
+    public void testRepeatTerm() throws Exception {
         final String[] inputs = { "Fun  fun fun  fun  fun  fun  fun  fun  fun  fun" };
         final String[] outputs = {
             "<b>Fun</b>  <b>fun</b> <b>fun</b>",
@@ -295,8 +297,12 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             0,
             outputs
         );
+    }
 
-        query = new PhraseQuery.Builder().add(new Term("text", "fun")).add(new Term("text", "fun")).build();
+    public void testRepeatPhrase() throws Exception {
+        final String[] inputs = { "Fun  fun fun  fun  fun  fun  fun  fun  fun  fun" };
+        final String[] outputs = { "<b>Fun  fun fun</b>", "<b>fun  fun  </b>", "<b>fun  fun  fun</b>", "<b>fun  fun</b>" };
+        Query query = new PhraseQuery.Builder().add(new Term("text", "fun")).add(new Term("text", "fun")).build();
         assertHighlightOneDoc(
             "text",
             inputs,

@@ -114,7 +114,7 @@ public class GrokProcessorTests extends ESTestCase {
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
-        assertThat(doc, equalTo(originalDoc));
+        assertIngestDocument(doc, originalDoc);
     }
 
     public void testNullField() {

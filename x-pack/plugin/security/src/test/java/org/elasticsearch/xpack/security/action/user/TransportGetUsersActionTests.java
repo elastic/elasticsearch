@@ -83,6 +83,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
     private boolean hasAnonymousProfile;
     private boolean hasReservedProfile;
     private boolean hasNativeProfile;
+    private boolean profileIndexExists;
 
     @Before
     public void maybeEnableAnonymous() {
@@ -96,6 +97,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         hasAnonymousProfile = randomBoolean();
         hasReservedProfile = randomBoolean();
         hasNativeProfile = randomBoolean();
+        profileIndexExists = randomBoolean();
     }
 
     @After
@@ -108,7 +110,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
     public void testAnonymousUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         AnonymousUser anonymousUser = new AnonymousUser(settings);
         ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
         reservedRealm.initRealmRef(
@@ -163,7 +166,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         } else {
             assertThat("expected an empty array but got: " + Arrays.toString(users), users, emptyArray());
         }
-        if (withProfileUid) {
+        if (profileIndexExists && withProfileUid) {
             assertThat(
                 responseRef.get().getProfileUidLookup(),
                 equalTo(
@@ -181,7 +184,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
     public void testReservedUsersOnly() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
 
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(
@@ -248,7 +252,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(users, arrayContaining(reservedUsers.toArray(new User[reservedUsers.size()])));
-        if (withProfileUid) {
+        if (profileIndexExists && withProfileUid) {
             assertThat(responseRef.get().getProfileUidLookup(), equalTo(reservedUsers.stream().filter(user -> {
                 if (user instanceof AnonymousUser) {
                     return hasAnonymousProfile;
@@ -270,7 +274,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
         );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(
             mock(Environment.class),
@@ -340,7 +345,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
-        if (withProfileUid) {
+        if (profileIndexExists && withProfileUid) {
             assertThat(responseRef.get().getProfileUidLookup(), equalTo(expectedList.stream().filter(user -> {
                 if (user instanceof AnonymousUser) {
                     return hasAnonymousProfile;
@@ -375,7 +380,8 @@ public class TransportGetUsersActionTests extends ESTestCase {
         );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         ReservedRealm reservedRealm = new ReservedRealm(
             mock(Environment.class),
@@ -399,6 +405,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
+        profileIndexExists = true; // profile index must exist to simulate exception on search
         TransportGetUsersAction action = new TransportGetUsersAction(
             Settings.EMPTY,
             mock(ActionFilters.class),
@@ -496,7 +503,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().users(), arrayContaining(expectedList.toArray(new User[expectedList.size()])));
-        if (withProfileUid) {
+        if (profileIndexExists && withProfileUid) {
             assertThat(
                 responseRef.get().getProfileUidLookup(),
                 equalTo(
@@ -611,8 +618,12 @@ public class TransportGetUsersActionTests extends ESTestCase {
     private ProfileService mockProfileService(boolean randomException) {
         final ProfileService profileService = mock(ProfileService.class);
         doAnswer(invocation -> {
-            final List<Subject> subjects = (List<Subject>) invocation.getArguments()[0];
             final var listener = (ActionListener<SubjectSearchResultsAndErrors<Profile>>) invocation.getArguments()[1];
+            if (false == profileIndexExists) {
+                listener.onResponse(null);
+                return null;
+            }
+            final List<Subject> subjects = (List<Subject>) invocation.getArguments()[0];
             List<Tuple<Subject, Profile>> results = subjects.stream().map(subject -> {
                 final User user = subject.getUser();
                 if (user instanceof AnonymousUser) {

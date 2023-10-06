@@ -233,7 +233,8 @@ class SignificanceLookup {
         if (backgroundFilter != null) {
             query = new BooleanQuery.Builder().add(query, Occur.FILTER).add(backgroundFilter, Occur.FILTER).build();
         }
-        return context.searcher().count(query);
+        // use a brand new index searcher as we want to run this query on the current thread
+        return new IndexSearcher(context.searcher().getIndexReader()).count(query);
     }
 
     private TermsEnum getTermsEnum(String field) throws IOException {

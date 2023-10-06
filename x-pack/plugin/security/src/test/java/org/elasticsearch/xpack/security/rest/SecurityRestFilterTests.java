@@ -102,7 +102,6 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            new WorkflowService(),
             restHandler,
             privilegesService
         );
@@ -171,15 +170,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(
-            false,
-            threadContext,
-            secondaryAuthenticator,
-            mock(AuditTrailService.class),
-            mock(WorkflowService.class),
-            restHandler,
-            null
-        );
+        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), restHandler, null);
         assertEquals(NOOP_OPERATOR_PRIVILEGES_SERVICE, filter.getOperatorPrivilegesService());
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
@@ -231,7 +222,6 @@ public class SecurityRestFilterTests extends ESTestCase {
             threadContext,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
-            new WorkflowService(),
             restHandler,
             NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
@@ -298,15 +288,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         restHandler = new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers()));
 
         final WorkflowService workflowService = new WorkflowService();
-        filter = new SecurityRestFilter(
-            true,
-            threadContext,
-            secondaryAuthenticator,
-            new AuditTrailService(null, null),
-            workflowService,
-            restHandler,
-            null
-        );
+        filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), restHandler, null);
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
@@ -325,15 +307,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         }
 
         final WorkflowService workflowService = new WorkflowService();
-        filter = new SecurityRestFilter(
-            true,
-            threadContext,
-            secondaryAuthenticator,
-            new AuditTrailService(null, null),
-            workflowService,
-            restHandler,
-            null
-        );
+        filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), restHandler, null);
 
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);

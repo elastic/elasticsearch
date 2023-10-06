@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -17,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -76,7 +76,7 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
         String policyName = "test-ilm-policy";
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -108,7 +108,7 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
         Map<String, String> ilmCustom = Map.of("shrink_index_name", shrinkIndexName);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
@@ -138,7 +138,7 @@ public class CleanupTargetIndexStepTests extends AbstractStepTestCase<CleanupTar
 
         IndexMetadata.Builder shrunkIndexMetadataBuilder = IndexMetadata.builder(shrinkIndexName)
             .settings(
-                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex)
             )
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)

@@ -1,8 +1,8 @@
 
 setup:
   - skip:
-      version: " - 8.8.99"
-      reason: Introduced in 8.9.0
+      version: " - 8.9.99"
+      reason: Introduced in 8.10.0
 
 ---
 'Create Query Ruleset':
@@ -16,7 +16,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: elastic
+                  values: [elastic]
               actions:
                 ids:
                   - 'id1'
@@ -26,7 +26,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  value: kibana
+                  values: [kibana]
               actions:
                 docs:
                   - '_index': 'test-index1'
@@ -47,7 +47,7 @@ setup:
           criteria:
             - type: exact
               metadata: query_string
-              value: elastic
+              values: [elastic]
           actions:
             ids:
               - 'id1'
@@ -57,7 +57,7 @@ setup:
           criteria:
             - type: exact
               metadata: query_string
-              value: kibana
+              values: [kibana]
           actions:
             docs:
               - '_index': 'test-index1'
@@ -77,7 +77,7 @@ setup:
             criteria:
               type: 'exact'
               metadata: 'query_string'
-              value: 'elastic'
+              values: ['elastic']
             actions:
               ids:
                 - 'id1'
@@ -94,7 +94,7 @@ setup:
             criteria:
               type: 'exact'
               metadata: 'query_string'
-              value: 'elastic'
+              values: ['elastic']
             actions:
               ids:
                 - 'id2'
@@ -118,7 +118,7 @@ setup:
             criteria:
               type: 'exact'
               metadata: 'query_string'
-              value: 'elastic'
+              values: ['elastic']
             actions:
               ids:
                 - 'id1'

@@ -110,12 +110,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
 
     private static void ensureRequiredHeaderInContext(ThreadContext threadContext, String requiredHeader) {
         if (threadContext.getHeader(requiredHeader) == null) {
-            throw new IllegalArgumentException(
-                "Cross cluster requests through the dedicated remote cluster server port require transport header ["
-                    + requiredHeader
-                    + "] but none found. "
-                    + "Please ensure you have configured remote cluster credentials on the cluster originating the request."
-            );
+            throw CrossClusterAccessAuthenticationService.requiredHeaderMissingException(requiredHeader);
         }
     }
 

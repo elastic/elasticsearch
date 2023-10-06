@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -32,6 +34,8 @@ import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Response;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
+import java.util.concurrent.Executor;
+
 /**
  * Internal (no-REST) transport to retrieve metrics for serverless autoscaling.
  */
@@ -39,6 +43,8 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
 
     private final Client client;
     private final MlMemoryTracker mlMemoryTracker;
+    private final Settings settings;
+    private final Executor timeoutExecutor;
 
     @Inject
     public TransportGetMlAutoscalingStats(
@@ -48,6 +54,7 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
+        Settings settings,
         MlMemoryTracker mlMemoryTracker
     ) {
         super(
@@ -59,10 +66,12 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.mlMemoryTracker = mlMemoryTracker;
+        this.settings = settings;
+        this.timeoutExecutor = threadPool.generic();
     }
 
     @Override
@@ -73,9 +82,11 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
         if (mlMemoryTracker.isRecentlyRefreshed()) {
             MlAutoscalingResourceTracker.getMlAutoscalingStats(
                 state,
+                clusterService.getClusterSettings(),
                 parentTaskAssigningClient,
                 request.timeout(),
                 mlMemoryTracker,
+                settings,
                 ActionListener.wrap(autoscalingResources -> listener.onResponse(new Response(autoscalingResources)), listener::onFailure)
             );
         } else {
@@ -87,13 +98,15 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
                 ListenerTimeouts.wrapWithTimeout(
                     threadPool,
                     request.timeout(),
-                    ThreadPool.Names.GENERIC,
+                    timeoutExecutor,
                     ActionListener.wrap(
                         ignored -> MlAutoscalingResourceTracker.getMlAutoscalingStats(
                             state,
+                            clusterService.getClusterSettings(),
                             parentTaskAssigningClient,
                             request.timeout(),
                             mlMemoryTracker,
+                            settings,
                             ActionListener.wrap(
                                 autoscalingResources -> listener.onResponse(new Response(autoscalingResources)),
                                 listener::onFailure

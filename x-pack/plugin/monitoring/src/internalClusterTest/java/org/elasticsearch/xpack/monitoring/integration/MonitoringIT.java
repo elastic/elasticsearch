@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.test.MockIngestPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.lang.Thread.State;
@@ -92,7 +93,13 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(LocalStateMonitoring.class, MockIngestPlugin.class, CommonAnalysisPlugin.class, MapperExtrasPlugin.class);
+        return List.of(
+            LocalStateMonitoring.class,
+            MockIngestPlugin.class,
+            CommonAnalysisPlugin.class,
+            MapperExtrasPlugin.class,
+            Wildcard.class
+        );
     }
 
     private String createBulkEntity() {

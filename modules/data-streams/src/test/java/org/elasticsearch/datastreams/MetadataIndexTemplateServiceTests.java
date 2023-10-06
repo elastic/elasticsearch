@@ -156,35 +156,48 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         // One lifecycle results to this lifecycle as the final
         {
-            DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomRetention(), randomDownsampling());
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomRetention())
+                .downsampling(randomDownsampling())
+                .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+            // Defaults to true
+            assertThat(result.isEnabled(), equalTo(true));
             assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
-        // If the last lifecycle is missing a property we keep the latest from the previous ones
+        // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
+        // Enabled is always true unless it's explicitly set to false
         {
-            DataStreamLifecycle lifecycle = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
+            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+                .enabled(false)
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle, new DataStreamLifecycle());
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+            assertThat(result.isEnabled(), equalTo(true));
             assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {
-            DataStreamLifecycle lifecycle1 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
-            DataStreamLifecycle lifecycle2 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
+            DataStreamLifecycle lifecycle1 = DataStreamLifecycle.newBuilder()
+                .enabled(false)
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
+            DataStreamLifecycle lifecycle2 = DataStreamLifecycle.newBuilder()
+                .enabled(true)
+                .dataRetention(randomNonEmptyRetention())
+                .downsampling(randomNonEmptyDownsampling())
+                .build();
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+            assertThat(result.isEnabled(), equalTo(lifecycle2.isEnabled()));
             assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle2.getEffectiveDataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle2.getDownsamplingRounds()));
-        }
-        // If the last lifecycle is explicitly null, the result is also null
-        {
-            DataStreamLifecycle lifecycle1 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
-            DataStreamLifecycle lifecycle2 = new DataStreamLifecycle(randomNonEmptyRetention(), randomNonEmptyDownsampling());
-            List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2, Template.NO_LIFECYCLE);
-            assertThat(composeDataLifecycles(lifecycles), nullValue());
         }
     }
 

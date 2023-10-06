@@ -74,7 +74,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             MonitoringMigrateAlertsRequest::new,
             indexNameExpressionResolver,
             MonitoringMigrateAlertsResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
         this.migrationCoordinator = migrationCoordinator;

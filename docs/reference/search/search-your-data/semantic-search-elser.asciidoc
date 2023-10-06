@@ -1,5 +1,5 @@
 [[semantic-search-elser]]
-== Tutorial: semantic search with ELSER
+=== Tutorial: semantic search with ELSER
 ++++
 <titleabbrev>Semantic search with ELSER</titleabbrev>
 ++++
@@ -14,14 +14,14 @@ The instructions in this tutorial shows you how to use ELSER to perform semantic
 search on your data.
 
 NOTE: Only the first 512 extracted tokens per field are considered during 
-semantic search with ELSER v1. Refer to 
+semantic search with ELSER. Refer to 
 {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[this page] for more 
 information.
 
 
 [discrete]
 [[requirements]]
-=== Requirements
+==== Requirements
 
 To perform semantic search by using ELSER, you must have the NLP model deployed 
 in your cluster. Refer to the 
@@ -40,18 +40,20 @@ you must provide suitably sized nodes yourself.
 
 [discrete]
 [[elser-mappings]]
-=== Create the index mapping
+==== Create the index mapping
 
 First, the mapping of the destination index - the index that contains the tokens 
 that the model created based on your text - must be created.  The destination 
-index must have a field with the <<rank-features, `rank_features`>> field type 
-to index the ELSER output.
+index must have a field with the 
+<<rank-features, `sparse_vector` or `rank_features`>> field type to index the 
+ELSER output.
 
-NOTE: ELSER output must be ingested into a field with the `rank_features` field 
-type. Otherwise, {es} interprets the token-weight pairs as a massive amount of 
-fields in a document. If you get an error similar to this `"Limit of total fields [1000] has been exceeded while adding
-new fields"` then the ELSER output field is not mapped properly and it has a 
-field type different than `rank_features`.
+NOTE: ELSER output must be ingested into a field with the `sparse_vector` or 
+`rank_features` field type. Otherwise, {es} interprets the token-weight pairs as 
+a massive amount of fields in a document. If you get an error similar to this 
+`"Limit of total fields [1000] has been exceeded while adding new fields"` then 
+the ELSER output field is not mapped properly and it has a field type different 
+than `sparse_vector` or `rank_features`.
 
 [source,console]
 ----
@@ -59,26 +61,29 @@ PUT my-index
 {
   "mappings": {
     "properties": {
-      "ml.tokens": {
-        "type": "rank_features" <1>
+      "ml.tokens": { <1>
+        "type": "sparse_vector" <2>
       },
-      "text": { <2>
-        "type": "text" <3>
+      "text": { <3>
+        "type": "text" <4>
       }
     }
   }
 }
 ----
 // TEST[skip:TBD]
-<1> The field that contains the prediction is a `rank_features` field.
-<2> The name of the field from which to create the sparse vector representation. 
+<1> The name of the field to contain the generated tokens.
+<2> The field to contain the tokens is a `sparse_vector` field.
+<3> The name of the field from which to create the sparse vector representation. 
 In this example, the name of the field is `text`.
-<3> The field type which is text in this example.
+<4> The field type which is text in this example.
+
+To learn how to optimize space, refer to the <<save-space>> section. 
 
 
 [discrete]
 [[inference-ingest-pipeline]]
-=== Create an ingest pipeline with an inference processor
+==== Create an ingest pipeline with an inference processor
 
 Create an <<ingest,ingest pipeline>> with an 
 <<inference-processor,{infer} processor>> to use ELSER to infer against the data 
@@ -86,12 +91,12 @@ that is being ingested in the pipeline.
 
 [source,console]
 ----
-PUT _ingest/pipeline/elser-v1-test
+PUT _ingest/pipeline/elser-v2-test
 {
   "processors": [
     {
       "inference": {
-        "model_id": ".elser_model_1",
+        "model_id": ".elser_model_2",
         "target_field": "ml",
         "field_map": { <1>
           "text": "text_field"
@@ -116,7 +121,7 @@ processor.
 
 [discrete]
 [[load-data]]
-=== Load data
+==== Load data
 
 In this step, you load the data that you later use in the {infer} ingest 
 pipeline to extract tokens from it.
@@ -136,7 +141,7 @@ can see an index named `test-data` with 182469 documents.
 
 [discrete]
 [[reindexing-data-elser]]
-=== Ingest the data through the {infer} ingest pipeline
+==== Ingest the data through the {infer} ingest pipeline
 
 Create the tokens from the text by reindexing the data throught the {infer} 
 pipeline that uses ELSER as the inference model.
@@ -151,7 +156,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "my-index",
-    "pipeline": "elser-v1-test"
+    "pipeline": "elser-v2-test"
   }
 }
 ----
@@ -169,16 +174,17 @@ GET _tasks/<task_id>
 // TEST[skip:TBD]
 
 You can also open the Trained Models UI, select the Pipelines tab under ELSER to 
-follow the progress. It may take a couple of minutes to complete the process.
+follow the progress.
 
 
 [discrete]
 [[text-expansion-query]]
-=== Semantic search by using the `text_expansion` query
+==== Semantic search by using the `text_expansion` query
 
-To perform semantic search, use the `text_expansion` query, 
-and provide the query text and the ELSER model ID. The example below uses 
-the query text "How to avoid muscle soreness after running?":
+To perform semantic search, use the `text_expansion` query, and provide the 
+query text and the ELSER model ID. The example below uses the query text "How to 
+avoid muscle soreness after running?", the `ml.tokens` field contains the 
+generated ELSER output:
 
 [source,console]
 ----
@@ -187,7 +193,7 @@ GET my-index/_search
    "query":{
       "text_expansion":{
          "ml.tokens":{
-            "model_id":".elser_model_1",
+            "model_id":".elser_model_2",
             "model_text":"How to avoid muscle soreness after running?"
          }
       }
@@ -231,7 +237,7 @@ weights.
                "exercises":0.36694175,
                (...)
             },
-            "model_id":".elser_model_1"
+            "model_id":".elser_model_2"
          }
       }
    },
@@ -240,10 +246,13 @@ weights.
 ----
 // NOTCONSOLE
 
+To learn about optimizing your `text_expansion` query, refer to 
+<<optimizing-text-expansion>>.
+
 
 [discrete]
 [[text-expansion-compound-query]]
-=== Combining semantic search with other queries
+==== Combining semantic search with other queries
 
 You can combine `text_expansion` with other queries in a 
 <<compound-queries,compound query>>. For example using a filter clause in a 
@@ -268,7 +277,7 @@ GET my-index/_search
           "text_expansion": { 
             "ml.tokens": {
               "model_text": "How to avoid muscle soreness after running?",
-              "model_id": ".elser_model_1",
+              "model_id": ".elser_model_2",
               "boost": 1 <2>
             }
           }
@@ -298,9 +307,64 @@ search results.
 
 
 [discrete]
+[[optimization]]
+=== Optimizing performance
+
+[discrete]
+[[save-space]]
+==== Saving disk space by excluding the ELSER tokens from document source
+
+The tokens generated by ELSER must be indexed for use in the 
+<<query-dsl-text-expansion-query, text_expansion query>>. However, it is not 
+necessary to retain those terms in the document source. You can save disk space 
+by using the <<include-exclude,source exclude>> mapping to remove the ELSER 
+terms from the document source. 
+
+WARNING: Reindex uses the document source to populate the destination index. 
+Once the ELSER terms have been excluded from the source, they cannot be 
+recovered through reindexing. Excluding the tokens from the source is a 
+space-saving optimsation that should only be applied if you are certain that 
+reindexing will not be required in the future! It's important to carefully 
+consider this trade-off and make sure that excluding the ELSER terms from the 
+source aligns with your specific requirements and use case.
+
+The mapping that excludes `ml.tokens` from the  `_source` field can be created 
+by the following API call: 
+
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "_source": {
+      "excludes": [
+        "ml.tokens"
+      ]
+    },
+    "properties": {
+      "ml.tokens": {
+        "type": "sparse_vector" 
+      },
+      "text": { 
+        "type": "text" 
+      }
+    }
+  }
+}
+----
+// TEST[skip:TBD]
+
+
+[discrete]
 [[further-reading]]
-=== Further reading
+==== Further reading
 
 * {ml-docs}/ml-nlp-elser.html[How to download and deploy ELSER]
-* {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[ELSER v1 limitation]
-// TO DO: refer to the ELSER blog post
+* {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[ELSER limitation]
+* https://www.elastic.co/blog/may-2023-launch-information-retrieval-elasticsearch-ai-model[Improving information retrieval in the Elastic Stack: Introducing Elastic Learned Sparse Encoder, our new retrieval model]
+
+[discrete]
+[[interactive-example]]
+==== Interactive example
+
+* The `elasticsearch-labs` repo has an interactive example of running https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/03-ELSER.ipynb[ELSER-powered semantic search] using the {es} Python client.

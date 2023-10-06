@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -102,7 +103,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             InternalSettingsPlugin.class,
             PercolatorPlugin.class,
             SpatialPlugin.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 

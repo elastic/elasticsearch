@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
+    private static final TimeValue DEFAULT_LOOK_BACK_TIME = TimeValue.timeValueHours(2); // default
     private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2); // default
 
     DataStreamIndexSettingsProvider provider;
@@ -83,7 +84,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent(mapping))
         );
         assertThat(result.size(), equalTo(3));
-        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("field3"));
     }
@@ -235,8 +236,29 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             List.of(new CompressedXContent("{}"))
         );
         assertThat(result.size(), equalTo(2));
-        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+    }
+
+    public void testGetAdditionalIndexSettingsLookBackTime() throws Exception {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookBackTime = TimeValue.timeValueHours(12);
+        Settings settings = builder().put("index.mode", "time_series").put("index.look_back_time", lookBackTime.getStringRep()).build();
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            true,
+            metadata,
+            now,
+            settings,
+            List.of(new CompressedXContent("{}"))
+        );
+        assertThat(result.size(), equalTo(2));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookBackTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
     }
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() throws Exception {
@@ -358,7 +380,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             List.of()
         );
         assertThat(result.size(), equalTo(2));
-        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
     }
 

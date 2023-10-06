@@ -12,6 +12,12 @@ setup:
         name: test-search-application-to-delete
         body:
           indices: [ "test-index" ]
+          template:
+            script:
+              source:
+                query:
+                  query_string:
+                    query: "{{query_string}}"
 
 ---
 teardown:
@@ -19,6 +25,21 @@ teardown:
       search_application.delete:
         name: test-search-application-to-delete
         ignore: 404
+
+---
+"Delete search application fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: unauthorized
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXVzZXI=" }  # unprivileged
+      search_application.delete:
+        name: test-search-application-to-delete
+
+  - do:
+      search_application.get:
+        name: test-search-application-to-delete
 
 ---
 "Delete Search Application":

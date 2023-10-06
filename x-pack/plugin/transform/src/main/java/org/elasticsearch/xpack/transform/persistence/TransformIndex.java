@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -23,12 +22,12 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
@@ -106,6 +105,7 @@ public final class TransformIndex {
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
         TransformConfig config,
+        Settings destIndexSettings,
         Map<String, String> destIndexMappings,
         ActionListener<Boolean> listener
     ) {
@@ -137,6 +137,7 @@ public final class TransformIndex {
 
         if (dest.length == 0) {
             TransformDestIndexSettings generatedDestIndexSettings = createTransformDestIndexSettings(
+                destIndexSettings,
                 destIndexMappings,
                 config.getId(),
                 Clock.systemUTC()
@@ -248,12 +249,15 @@ public final class TransformIndex {
         );
     }
 
-    public static TransformDestIndexSettings createTransformDestIndexSettings(Map<String, String> mappings, String id, Clock clock) {
+    public static TransformDestIndexSettings createTransformDestIndexSettings(
+        Settings settings,
+        Map<String, String> mappings,
+        String id,
+        Clock clock
+    ) {
         Map<String, Object> indexMappings = new HashMap<>();
         indexMappings.put(PROPERTIES, createMappingsFromStringMap(mappings));
         indexMappings.put(META, createMetadata(id, clock));
-
-        Settings settings = createSettings();
 
         // transform does not create aliases, however the user might customize this in future
         Set<Alias> aliases = null;
@@ -261,14 +265,14 @@ public final class TransformIndex {
     }
 
     /*
-     * Return meta data that stores some useful information about the transform index, stored as "_meta":
+     * Return metadata that stores some useful information about the transform index, stored as "_meta":
      *
      * {
      *   "created_by" : "transform",
      *   "_transform" : {
      *     "transform" : "id",
      *     "version" : {
-     *       "created" : "8.0.0"
+     *       "created" : "10.0.0"
      *     },
      *     "creation_date_in_millis" : 1584025695202
      *   }
@@ -281,22 +285,14 @@ public final class TransformIndex {
 
         Map<String, Object> transformMetadata = new HashMap<>();
         transformMetadata.put(TransformField.CREATION_DATE_MILLIS, clock.millis());
-        transformMetadata.put(TransformField.VERSION.getPreferredName(), Map.of(TransformField.CREATED, Version.CURRENT.toString()));
+        transformMetadata.put(
+            TransformField.VERSION.getPreferredName(),
+            Map.of(TransformField.CREATED, TransformConfigVersion.CURRENT.toString())
+        );
         transformMetadata.put(TransformField.TRANSFORM, id);
 
         metadata.put(TransformField.META_FIELDNAME, transformMetadata);
         return metadata;
-    }
-
-    /**
-     * creates generated index settings, hardcoded at the moment, in future this might be customizable or generation could
-     * be based on source settings.
-     */
-    private static Settings createSettings() {
-        return Settings.builder() // <1>
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .build();
     }
 
     /**

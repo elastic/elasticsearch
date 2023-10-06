@@ -144,7 +144,7 @@ public class EsExecutors {
                 threadFactory,
                 new EsAbortPolicy(),
                 contextHolder,
-                config.getEwmaAlpha()
+                config
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -393,22 +393,28 @@ public class EsExecutors {
         public static double DEFAULT_EWMA_ALPHA = 0.3;
 
         private final boolean trackExecutionTime;
+        private final boolean trackOngoingTasks;
         private final double ewmaAlpha;
 
-        public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, DEFAULT_EWMA_ALPHA);
-        public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA);
+        public static TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, false, DEFAULT_EWMA_ALPHA);
+        public static TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, false, DEFAULT_EWMA_ALPHA);
 
-        public TaskTrackingConfig(double ewmaAlpha) {
-            this(true, ewmaAlpha);
+        public TaskTrackingConfig(boolean trackOngoingTasks, double ewmaAlpha) {
+            this(true, trackOngoingTasks, ewmaAlpha);
         }
 
-        private TaskTrackingConfig(boolean trackExecutionTime, double EWMAAlpha) {
+        private TaskTrackingConfig(boolean trackExecutionTime, boolean trackOngoingTasks, double EWMAAlpha) {
             this.trackExecutionTime = trackExecutionTime;
+            this.trackOngoingTasks = trackOngoingTasks;
             this.ewmaAlpha = EWMAAlpha;
         }
 
         public boolean trackExecutionTime() {
             return trackExecutionTime;
+        }
+
+        public boolean trackOngoingTasks() {
+            return trackOngoingTasks;
         }
 
         public double getEwmaAlpha() {

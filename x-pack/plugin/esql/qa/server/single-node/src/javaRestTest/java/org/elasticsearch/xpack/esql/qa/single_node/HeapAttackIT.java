@@ -167,6 +167,7 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testHugeConcat() throws IOException {
         initSingleDocIndex();
         assertCircuitBreaks(() -> concat(10));

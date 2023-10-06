@@ -115,22 +115,13 @@ teardown:
             ]
           }
   - match: { acknowledged: true }
-  - do:
-      allowed_warnings:
-        - "index template [logs-nginx] has index patterns [logs-nginx-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-nginx] will take precedence during new index creation"
-      indices.put_index_template:
-        name: logs-nginx
-        body:
-          index_patterns: [ "logs-nginx-*" ]
-          template:
-            settings:
-              index.default_pipeline: "logs-nginx"
 
   - do:
       index:
         refresh: true
         index: logs-nginx-default
         id: "example-log"
+        pipeline: "logs-nginx"
         op_type: create
         body:
           "@timestamp": "2022-04-13"
@@ -141,6 +132,7 @@ teardown:
 
   - do:
       search:
+        index: logs-nginx.error-default
         body:
           query:
             match: {"_id": "example-log"}

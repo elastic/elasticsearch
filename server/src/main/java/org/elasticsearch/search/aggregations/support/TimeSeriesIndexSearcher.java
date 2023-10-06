@@ -284,14 +284,10 @@ public class TimeSeriesIndexSearcher {
         void collectAllValidDocs(BytesRef tsid) throws IOException {
             do {
                 BytesRef currentTsid = getTsid();
-                if (tsid != null) {
-                    if (tsid.compareTo(currentTsid) != 0) {
-                        return;
-                    }
-                } else {
-                    // Update the tsid ordinal that is used in the AggregationExecutionContext.
-                    tsidGlobalOrd[0] = tsidOrd;
+                if (tsid != null && tsid.compareTo(currentTsid) != 0) {
+                    return;
                 }
+                tsidGlobalOrd[0] = tsidOrd;
                 collector.collect(docId);
                 docId = nextDoc();
             } while (docId != DocIdSetIterator.NO_MORE_DOCS);

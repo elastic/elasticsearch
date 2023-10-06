@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.zip.Inflater;
@@ -245,25 +246,29 @@ public class SamlObjectHandler {
      * Constructs a SAML specific exception with a consistent message regarding SAML Signature validation failures
      */
     private ElasticsearchSecurityException samlSignatureException(List<Credential> credentials, String signature, Exception cause) {
-        logger.warn(
-            "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML"
-                + "metadata file/URL for this Identity Provider"
-        );
-        final String msg = "SAML Signature [{}] could not be validated against [{}]";
+        if (credentials.isEmpty()) {
+            logger.warn(
+                "The XML Signature of this SAML message cannot be validated "
+                    + "because signing credentials could not be found in SAML metadata. "
+                    + "Please verify that the saml realm uses the correct and syntactically valid SAML "
+                    + "metadata file/URL for this Identity Provider."
+            );
+        } else {
+            logger.warn(
+                "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML "
+                    + "metadata file/URL for this Identity Provider."
+            );
+        }
+        final String msg = "SAML Signature [{}] could not be validated against credentials [{}]";
         return samlException(msg, cause, signature, describeCredentials(credentials));
     }
 
     private ElasticsearchSecurityException samlSignatureException(List<Credential> credentials, String signature) {
-        logger.warn(
-            "The XML Signature of this SAML message cannot be validated. Please verify that the saml realm uses the correct SAML"
-                + "metadata file/URL for this Identity Provider"
-        );
-        final String msg = "SAML Signature [{}] could not be validated against [{}]";
-        return samlException(msg, signature, describeCredentials(credentials));
+        return samlSignatureException(credentials, signature, null);
     }
 
     private String describeCredentials(List<Credential> credentials) {
-        return credentials.stream().map(c -> {
+        final String result = credentials.stream().map(c -> {
             if (c == null) {
                 return "<null>";
             }
@@ -279,6 +284,7 @@ public class SamlObjectHandler {
             }
             return Base64.getEncoder().encodeToString(encoded).substring(0, 64) + "...";
         }).collect(Collectors.joining(","));
+        return Optional.of(result).filter(String::isEmpty).orElse("<empty>");
     }
 
     protected void checkIssuer(Issuer issuer, XMLObject parent) {

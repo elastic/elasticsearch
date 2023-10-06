@@ -105,37 +105,39 @@ public final class EvalMapper {
                  */
                 private Block eval(Block lhs, Block rhs) {
                     int positionCount = lhs.getPositionCount();
-                    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-                    for (int p = 0; p < positionCount; p++) {
-                        if (lhs.getValueCount(p) > 1) {
-                            result.appendNull();
-                            continue;
+                    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, lhs.blockFactory())) {
+                        for (int p = 0; p < positionCount; p++) {
+                            if (lhs.getValueCount(p) > 1) {
+                                result.appendNull();
+                                continue;
+                            }
+                            if (rhs.getValueCount(p) > 1) {
+                                result.appendNull();
+                                continue;
+                            }
+                            Boolean v = bl.function()
+                                .apply(
+                                    lhs.isNull(p) ? null : ((BooleanBlock) lhs).getBoolean(lhs.getFirstValueIndex(p)),
+                                    rhs.isNull(p) ? null : ((BooleanBlock) rhs).getBoolean(rhs.getFirstValueIndex(p))
+                                );
+                            if (v == null) {
+                                result.appendNull();
+                                continue;
+                            }
+                            result.appendBoolean(v);
                         }
-                        if (rhs.getValueCount(p) > 1) {
-                            result.appendNull();
-                            continue;
-                        }
-                        Boolean v = bl.function()
-                            .apply(
-                                lhs.isNull(p) ? null : ((BooleanBlock) lhs).getBoolean(lhs.getFirstValueIndex(p)),
-                                rhs.isNull(p) ? null : ((BooleanBlock) rhs).getBoolean(rhs.getFirstValueIndex(p))
-                            );
-                        if (v == null) {
-                            result.appendNull();
-                            continue;
-                        }
-                        result.appendBoolean(v);
+                        return result.build();
                     }
-                    return result.build();
                 }
 
                 private Block eval(BooleanVector lhs, BooleanVector rhs) {
                     int positionCount = lhs.getPositionCount();
-                    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-                    for (int p = 0; p < positionCount; p++) {
-                        result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+                    try (var result = BooleanVector.newVectorFixedBuilder(positionCount, lhs.blockFactory())) {
+                        for (int p = 0; p < positionCount; p++) {
+                            result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+                        }
+                        return result.build().asBlock();
                     }
-                    return result.build().asBlock();
                 }
 
                 @Override

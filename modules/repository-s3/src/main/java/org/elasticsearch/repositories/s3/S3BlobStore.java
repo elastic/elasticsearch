@@ -117,21 +117,46 @@ class S3BlobStore implements BlobStore {
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
     // issue
-    private abstract static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+    private static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
 
-        protected final LongAdder counter = new LongAdder();
+        private final LongAdder counter = new LongAdder();
+        private final Operation operation;
+
+        private IgnoreNoResponseMetricsCollector(Operation operation) {
+            this.operation = operation;
+        }
 
         @Override
         public final void collectMetrics(Request<?> request, Response<?> response) {
             if (response != null) {
-                collectMetrics(request);
+                assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
+                counter.add(getRequestCount(request));
             }
         }
 
-        protected abstract void collectMetrics(Request<?> request);
+        private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
+            switch (operation) {
+                case GET_OBJECT, LIST_OBJECTS -> {
+                    return request.getHttpMethod().name().equals("GET");
+                }
+                case PUT_OBJECT -> {
+                    return request.getHttpMethod().name().equals("PUT");
+                }
+                case PUT_MULTIPART_OBJECT -> {
+                    return request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
+                }
+                case DELETE_OBJECTS -> {
+                    return request.getHttpMethod().name().equals("POST");
+                }
+                case ABORT_MULTIPART_OBJECT -> {
+                    return request.getHttpMethod().name().equals("DELETE");
+                }
+                default -> throw new AssertionError("unknown operation [" + operation + "]");
+            }
+        }
     }
 
-    private long getRequestCount(Request<?> request) {
+    private static long getRequestCount(Request<?> request) {
         Number requestCount = request.getAWSRequestMetrics().getTimingInfo().getCounter(AWSRequestMetrics.Field.RequestCount.name());
         if (requestCount == null) {
             logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
@@ -318,7 +343,7 @@ class S3BlobStore implements BlobStore {
 
     record StatsKey(Operation operation, OperationPurpose purpose) {}
 
-    class StatsCollectors {
+    static class StatsCollectors {
         final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
 
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
@@ -332,34 +357,7 @@ class S3BlobStore implements BlobStore {
         }
 
         IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {
-            return new IgnoreNoResponseMetricsCollector() {
-                @Override
-                public void collectMetrics(Request<?> request) {
-                    assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
-                    counter.add(getRequestCount(request));
-                }
-            };
-        }
-
-        private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
-            switch (operation) {
-                case GET_OBJECT, LIST_OBJECTS -> {
-                    return request.getHttpMethod().name().equals("GET");
-                }
-                case PUT_OBJECT -> {
-                    return request.getHttpMethod().name().equals("PUT");
-                }
-                case PUT_MULTIPART_OBJECT -> {
-                    return request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-                }
-                case DELETE_OBJECTS -> {
-                    return request.getHttpMethod().name().equals("POST");
-                }
-                case ABORT_MULTIPART_OBJECT -> {
-                    return request.getHttpMethod().name().equals("DELETE");
-                }
-                default -> throw new AssertionError("unknown operation [" + operation + "]");
-            }
+            return new IgnoreNoResponseMetricsCollector(operation);
         }
     }
 }

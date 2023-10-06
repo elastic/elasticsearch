@@ -48,12 +48,16 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", BytesRefBlock::readFrom);
 
     private static BytesRefBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return BytesRefVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
+            return BytesRefVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (BytesRefBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newBytesRefBlockBuilder(positions)) {
+        try (BytesRefBlock.Builder builder = in.blockFactory().newBytesRefBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();

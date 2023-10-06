@@ -345,7 +345,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_024)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             versionInfo = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
         } else {
             versionInfo = inferVersionInformation(Version.readVersion(in));
@@ -387,7 +387,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             o.writeString(role.roleNameAbbreviation());
             o.writeBoolean(role.canContainData());
         });
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_024)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             Version.writeVersion(versionInfo.nodeVersion(), out);
             IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
             IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);

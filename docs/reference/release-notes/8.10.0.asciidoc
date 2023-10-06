@@ -3,6 +3,35 @@
 
 Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
 
+[[known-issues-8.10.0]]
+[float]
+=== Known issues
+
+// tag::repositorydata-format-change[]
+* Snapshot-based downgrades
++
+In 8.10.0 the snapshot repository format changed in a manner that makes it
+impossible for earlier versions of Elasticsearch to read its contents once it
+contains snapshots from a newer version. This will prevent you from upgrading,
+taking a snapshot in this version, downgrading Elasticsearch to a version before
+8.10.0 and restoring a snapshot from before the upgrade.
++
+Snapshot repositories written by clusters running versions 8.11.0 and later are
+compatible with all earlier versions. The cluster will automatically fix the
+repository format the first time it writes to the repository to take or delete a
+snapshot. Alternatively, use the <<snapshots-repository-cleanup>> API to rewrite
+the repository metadata in the correct format.
++
+If you wish to downgrade to a version prior to 8.9.0, use a cluster running
+version 8.11.0 or later to fix the repository format. If you cannot fix the
+repository format in this way, first delete all the snapshots in the repository
+taken with version 8.9.0 or later. To do this will require using a cluster
+running version 8.10.0 or later.
++
+The only way to downgrade to a cluster running any release in the 8.9 series is
+to use a cluster running version 8.11.0 or later to fix the repository format.
+// end::repositorydata-format-change[]
+
 [[breaking-8.10.0]]
 [float]
 === Breaking changes

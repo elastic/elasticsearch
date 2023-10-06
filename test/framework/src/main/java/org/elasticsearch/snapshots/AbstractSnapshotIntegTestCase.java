@@ -392,11 +392,19 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryData repositoryData = getRepositoryData(repoName, version);
         final XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(jsonBuilder, version);
+        final var currentVersionString = Strings.toString(jsonBuilder);
+        final String oldVersionString;
+        if (version.onOrAfter(IndexVersion.V_8_500_000)) {
+            oldVersionString = currentVersionString.replace(
+                ",\"index_version\":" + IndexVersion.current(),
+                ",\"index_version\":" + version
+            );
+        } else {
+            oldVersionString = currentVersionString.replace(",\"index_version\":" + IndexVersion.current(), "")
+                .replace(",\"version\":\"8.11.0\"", ",\"version\":\"" + Version.fromId(version.id()) + "\"");
+        }
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
-            JsonXContent.jsonXContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                Strings.toString(jsonBuilder).replace(IndexVersion.current().toString(), versionString(version))
-            ),
+            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, oldVersionString),
             repositoryData.getGenId(),
             randomBoolean()
         );

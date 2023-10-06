@@ -1,0 +1,5 @@
+pr: 100405
+summary: Reinstate `RepositoryData` BwC
+area: Snapshot/Restore
+type: bug
+issues: []

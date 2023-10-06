@@ -31,17 +31,24 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
 
     protected int from = SearchService.DEFAULT_FROM;
     protected int size = SearchService.DEFAULT_SIZE;
-    protected QueryBuilder filter;
+    protected QueryBuilder preFilterQueryBuilder;
     protected String _name;
 
     public RetrieverBuilder() {
 
     }
 
+    public RetrieverBuilder(RetrieverBuilder<?> original) {
+        from = original.from;
+        size = original.size;
+        preFilterQueryBuilder = original.preFilterQueryBuilder;
+        _name = original._name;
+    }
+
     public RetrieverBuilder(StreamInput in) throws IOException {
         from = in.readVInt();
         size = in.readVInt();
-        filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        preFilterQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         _name = in.readOptionalString();
     }
 
@@ -49,7 +56,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(from);
         out.writeVInt(size);
-        out.writeOptionalNamedWriteable(filter);
+        out.writeOptionalNamedWriteable(preFilterQueryBuilder);
         out.writeOptionalString(_name);
         doWriteTo(out);
     }
@@ -61,8 +68,8 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
         builder.startObject();
         builder.field(FROM_FIELD.getPreferredName(), from);
         builder.field(SIZE_FIELD.getPreferredName(), size);
-        if (filter != null) {
-            builder.field(FILTER_FIELD.getPreferredName(), filter);
+        if (preFilterQueryBuilder != null) {
+            builder.field(FILTER_FIELD.getPreferredName(), preFilterQueryBuilder);
         }
         if (_name != null) {
             builder.field(_NAME_FIELD.getPreferredName(), _name);
@@ -76,35 +83,20 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
     protected abstract void doToXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    public final RB rewrite(QueryRewriteContext ctx) throws IOException {
-        RB rewrittenRetriever = doRewrite(ctx);
-        QueryBuilder rewrittenFilter = filter;
-        if (filter != null) {
-            rewrittenFilter = filter.rewrite(ctx);
-        }
-        if (rewrittenFilter != filter) {
-            if (rewrittenRetriever == this) {
-                rewrittenRetriever = copy();
+    @SuppressWarnings("unchecked")
+    public RB rewrite(QueryRewriteContext ctx) throws IOException {
+        if (preFilterQueryBuilder != null) {
+            QueryBuilder rewrittenFilter = preFilterQueryBuilder.rewrite(ctx);
+
+            if (rewrittenFilter != preFilterQueryBuilder) {
+                return (RB) shallowCopyInstance().preFilterQueryBuilder(preFilterQueryBuilder);
             }
         }
-        rewrittenRetriever.filter = filter;
-        return rewrittenRetriever;
+
+        return (RB) this;
     }
 
-    protected abstract RB doRewrite(QueryRewriteContext ctx) throws IOException;
-
-    public final RB copy() {
-        return doCopy(null);
-    }
-
-    protected RB doCopy(RB copy) {
-        Objects.requireNonNull(copy);
-        copy.from = this.from;
-        copy.size = this.size;
-        copy.filter = this.filter;
-        copy._name = this._name;
-        return copy;
-    }
+    protected abstract RB shallowCopyInstance();
 
     @Override
     public final boolean equals(Object obj) {
@@ -116,15 +108,55 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
         }
         @SuppressWarnings("unchecked")
         RB other = (RB) obj;
-        return from == other.from && size == other.size && Objects.equals(filter, other.filter) && Objects.equals(_name, other._name) && doEquals(other);
+        return from == other.from && size == other.size && Objects.equals(preFilterQueryBuilder, other.preFilterQueryBuilder) && Objects.equals(_name, other._name) && doEquals(other);
     }
 
     protected abstract boolean doEquals(RB other);
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), from, size, filter, _name, doHashCode());
+        return Objects.hash(getClass(), from, size, preFilterQueryBuilder, _name, doHashCode());
     }
 
     protected abstract int doHashCode();
+
+    public int from() {
+        return from;
+    }
+
+    @SuppressWarnings("unchecked")
+    public RB from(int from) {
+        this.from = from;
+        return (RB) this;
+    }
+
+    public int size() {
+        return size;
+    }
+
+    @SuppressWarnings("unchecked")
+    public RB size(int size) {
+        this.size = size;
+        return (RB) this;
+    }
+
+    public QueryBuilder preFilterQueryBuilder() {
+        return preFilterQueryBuilder;
+    }
+
+    @SuppressWarnings("unchecked")
+    public RB preFilterQueryBuilder(QueryBuilder preFilter) {
+        this.preFilterQueryBuilder = preFilter;
+        return (RB) this;
+    }
+
+    public String _name() {
+        return _name;
+    }
+
+    @SuppressWarnings("unchecked")
+    public RB _name(String _name) {
+        this._name = _name;
+        return (RB) this;
+    }
 }

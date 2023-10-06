@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.profiling;
+package org.elasticsearch.xpack.core.application;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;

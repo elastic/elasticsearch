@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
+import org.elasticsearch.xpack.core.application.ProfilingUsage;
 
 public class ProfilingUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final ProfilingLicenseChecker licenseChecker;

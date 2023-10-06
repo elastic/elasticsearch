@@ -284,6 +284,7 @@ public final class RepositoryData {
         final SnapshotDetails snapshotDetails = getSnapshotDetails(snapshotId);
         return snapshotDetails == null
             || snapshotDetails.getVersion() == null
+            || snapshotDetails.getVersion().id() == NUMERIC_INDEX_VERSION_MARKER.id()
             || snapshotDetails.getStartTimeMillis() == -1
             || snapshotDetails.getEndTimeMillis() == -1
             || snapshotDetails.getSlmPolicy() == null;
@@ -639,6 +640,7 @@ public final class RepositoryData {
     private static final String CLUSTER_UUID = "cluster_id";
     private static final String STATE = "state";
     private static final String VERSION = "version";
+    private static final String INDEX_VERSION = "index_version";
     private static final String MIN_VERSION = "min_version";
     private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String END_TIME_MILLIS = "end_time_millis";
@@ -650,6 +652,13 @@ public final class RepositoryData {
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final IndexVersion repoMetaVersion) throws IOException {
         return snapshotsToXContent(builder, repoMetaVersion, false);
     }
+
+    /**
+     * From 8.11.0 onwards we use numeric index versions, but leave the string "8.11.0" in the old version field for bwc.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/98454">#98454</a> for details.
+     */
+    private static final IndexVersion NUMERIC_INDEX_VERSION_MARKER = new IndexVersion(8_11_00_99, IndexVersion.current().luceneVersion());
+    private static final String NUMERIC_INDEX_VERSION_MARKER_STRING = "8.11.0";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -739,11 +748,13 @@ public final class RepositoryData {
                 builder.endObject();
             }
             final IndexVersion version = snapshotDetails.getVersion();
-            if (version != null) {
-                if (version.before(IndexVersion.V_8_9_0)) {
-                    builder.field(VERSION, Version.fromId(version.id()).toString());
+            if (version != null && version.id() != NUMERIC_INDEX_VERSION_MARKER.id()) {
+                if (version.onOrAfter(IndexVersion.V_8_500_000)) {
+                    builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
+                    builder.field(INDEX_VERSION, version.id());
                 } else {
-                    builder.field(VERSION, version.id());
+                    assert version.id() < NUMERIC_INDEX_VERSION_MARKER.id() : version; // versions between 8.10.last and 8_500_000 invalid
+                    builder.field(VERSION, Version.fromId(version.id()).toString());
                 }
             }
 
@@ -915,6 +926,7 @@ public final class RepositoryData {
             SnapshotState state = null;
             Map<String, String> metaGenerations = null;
             IndexVersion version = null;
+            IndexVersion indexVersion = null;
             long startTimeMillis = -1;
             long endTimeMillis = -1;
             String slmPolicy = null;
@@ -930,6 +942,7 @@ public final class RepositoryData {
                         p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity())
                     );
                     case VERSION -> version = parseIndexVersion(token, parser);
+                    case INDEX_VERSION -> indexVersion = IndexVersion.fromId(parser.intValue());
                     case START_TIME_MILLIS -> {
                         assert startTimeMillis == -1;
                         startTimeMillis = parser.longValue();
@@ -943,8 +956,11 @@ public final class RepositoryData {
             }
             assert (startTimeMillis == -1) == (endTimeMillis == -1) : "unexpected: " + startTimeMillis + ", " + endTimeMillis + ", ";
             final SnapshotId snapshotId = new SnapshotId(name, uuid);
-            if (state != null || version != null) {
-                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis, slmPolicy));
+            if (indexVersion == null) {
+                indexVersion = version;
+            }
+            if (state != null || indexVersion != null) {
+                snapshotsDetails.put(uuid, new SnapshotDetails(state, indexVersion, startTimeMillis, endTimeMillis, slmPolicy));
             }
             snapshots.put(uuid, snapshotId);
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {
@@ -958,9 +974,7 @@ public final class RepositoryData {
             return IndexVersion.fromId(parser.intValue());
         } else {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
-            Version v = Version.fromString(parser.text());
-            assert v.before(Version.V_8_10_0);
-            return IndexVersion.fromId(v.id);
+            return IndexVersion.fromId(Version.fromString(parser.text()).id());
         }
     }
 

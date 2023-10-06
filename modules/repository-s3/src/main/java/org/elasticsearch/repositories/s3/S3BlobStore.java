@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -74,6 +75,7 @@ class S3BlobStore implements BlobStore {
 
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
+    private final Meter meter;
 
     private final Stats stats = new Stats();
 
@@ -93,7 +95,8 @@ class S3BlobStore implements BlobStore {
         String storageClass,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Meter meter
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -105,46 +108,54 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        this.meter = meter;
+
         this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
-                stats.getCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                stats.getCount.addAndGet(requestCount);
             }
         };
         this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
-                stats.listCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                stats.listCount.addAndGet(requestCount);
             }
         };
         this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT");
-                stats.putCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                stats.putCount.addAndGet(requestCount);
             }
         };
         this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-                stats.postCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                stats.postCount.addAndGet(requestCount);
             }
         };
         this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("POST");
-                stats.deleteCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                stats.deleteCount.addAndGet(requestCount);
             }
         };
         this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("DELETE");
-                stats.abortCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                stats.abortCount.addAndGet(requestCount);
             }
         };
     }

@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
 
@@ -131,7 +132,7 @@ public class TimeSeriesIndexSearcher {
                 if (minimumScore != null) {
                     scorer = new MinScoreScorer(weight, scorer, minimumScore);
                 }
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, tsidOrd);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -142,10 +143,6 @@ public class TimeSeriesIndexSearcher {
                 // to know all leaves
                 bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null, null, null));
             }
-        }
-        if (leafWalkers.size() == 1) {
-            leafWalkers.get(0).collectAllValidDocs(null);
-            return;
         }
 
         PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
@@ -164,11 +161,6 @@ public class TimeSeriesIndexSearcher {
         // we refill it with walkers positioned on the next TSID. Within the queue
         // walkers are ordered by timestamp.
         while (populateQueue(leafWalkers, queue)) {
-            if (queue.size() == 1) {
-                LeafWalker leafWalker = queue.pop();
-                leafWalker.collectAllValidDocs(leafWalker.getTsid());
-                continue;
-            }
             do {
                 if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                     checkCancelled();
@@ -252,24 +244,15 @@ public class TimeSeriesIndexSearcher {
 
         int docId = -1;
         int tsidOrd;
-
-        // Tracks the current tsid ordinal across all leaf walkers.
-        int[] tsidGlobalOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, int[] tsidGlobalOrd) throws IOException {
-            AggregationExecutionContext aggCtx = new AggregationExecutionContext(
-                context,
-                scratch::get,
-                () -> timestamp,
-                () -> tsidGlobalOrd[0]
-            );
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, IntSupplier tsidOrdSupplier)
+            throws IOException {
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, tsidOrdSupplier);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             this.scorer = scorer;
-            this.tsidGlobalOrd = tsidGlobalOrd;
-
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TIMESTAMP_FIELD_NAME);
@@ -279,18 +262,6 @@ public class TimeSeriesIndexSearcher {
             assert tsids.docID() == docId;
             assert timestamps.docID() == docId;
             collector.collect(docId);
-        }
-
-        void collectAllValidDocs(BytesRef tsid) throws IOException {
-            do {
-                BytesRef currentTsid = getTsid();
-                if (tsid != null && tsid.compareTo(currentTsid) != 0) {
-                    return;
-                }
-                tsidGlobalOrd[0] = tsidOrd;
-                collector.collect(docId);
-                docId = nextDoc();
-            } while (docId != DocIdSetIterator.NO_MORE_DOCS);
         }
 
         int nextDoc() throws IOException {

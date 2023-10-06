@@ -2168,7 +2168,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static boolean isMlEnabled() {
         try {
-            adminClient().performRequest(new Request("GET", "_ml/info"));
+            final var response = adminClient().performRequest(new Request("GET", "_ml/info"));
+            LOGGER.info("GET /_ml/info returned {}", response);
+            LOGGER.info("GET /_ml/info returned {}", ObjectPath.createFromResponse(response));
+            assertOK(response);
             return true;
         } catch (IOException e) {
             // do nothing, ML is disabled

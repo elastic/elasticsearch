@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -506,7 +508,8 @@ public class InferenceProcessorTests extends ESTestCase {
             "description",
             modelId,
             new RegressionConfigUpdate("foo", null),
-            inputs
+            inputs,
+            randomBoolean()
         );
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
@@ -535,7 +538,8 @@ public class InferenceProcessorTests extends ESTestCase {
             "description",
             modelId,
             new RegressionConfigUpdate("foo", null),
-            inputs
+            inputs,
+            randomBoolean()
         );
 
         IngestDocument document = TestIngestDocument.emptyIngestDocument();
@@ -544,6 +548,8 @@ public class InferenceProcessorTests extends ESTestCase {
         var teResult2 = TextExpansionResultsTests.createRandomResults();
         InferModelAction.Response response = new InferModelAction.Response(List.of(teResult1, teResult2), modelId, true);
         inferenceProcessor.mutateDocument(response, document);
+
+        assertEquals(modelId, document.getFieldValue("ml.results.model_id", String.class));
 
         var bodyTokens = document.getFieldValue("ml.results.body_tokens", HashMap.class);
         assertEquals(teResult1.getWeightedTokens().size(), bodyTokens.entrySet().size());
@@ -562,6 +568,107 @@ public class InferenceProcessorTests extends ESTestCase {
                 teResult2.getWeightedTokens().get(0).weight(),
                 0.001
             );
+        }
+    }
+
+    public void testBuildRequestWithInputFields() {
+        String modelId = "elser";
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("body.text", "ml.results", "body_tokens", Map.of()));
+        inputs.add(new InferenceProcessor.Factory.InputConfig("title.text", "ml.results", "title_tokens", Map.of()));
+
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+            client,
+            auditor,
+            "my_processor_tag",
+            "description",
+            modelId,
+            new EmptyConfigUpdate(),
+            inputs,
+            randomBoolean()
+        );
+
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        document.setFieldValue("body.text", "body_text");
+        document.setFieldValue("title.text", "title_text");
+        document.setFieldValue("unrelated", "text");
+
+        var request = inferenceProcessor.buildRequest(document);
+        assertTrue(request.getObjectsToInfer().isEmpty());
+        var requestInputs = request.getTextInput();
+        assertThat(requestInputs, contains("body_text", "title_text"));
+    }
+
+    public void testBuildRequestWithInputFields_WrongType() {
+        String modelId = "elser";
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("not_a_string", "ml.results", "tokens", Map.of()));
+
+        InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+            client,
+            auditor,
+            "my_processor_tag",
+            "description",
+            modelId,
+            new EmptyConfigUpdate(),
+            inputs,
+            randomBoolean()
+        );
+
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
+        document.setFieldValue("not_a_string", Boolean.TRUE);
+        document.setFieldValue("unrelated", "text");
+
+        var e = expectThrows(IllegalArgumentException.class, () -> inferenceProcessor.buildRequest(document));
+        assertThat(e.getMessage(), containsString("input field [not_a_string] cannot be processed because it is not a text field"));
+    }
+
+    public void testBuildRequestWithInputFields_MissingField() {
+        String modelId = "elser";
+        List<InferenceProcessor.Factory.InputConfig> inputs = new ArrayList<>();
+        inputs.add(new InferenceProcessor.Factory.InputConfig("body.text", "ml.results", "body_tokens", Map.of()));
+        inputs.add(new InferenceProcessor.Factory.InputConfig("title.text", "ml.results", "title_tokens", Map.of()));
+
+        {
+            InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+                client,
+                auditor,
+                "my_processor_tag",
+                "description",
+                modelId,
+                new EmptyConfigUpdate(),
+                inputs,
+                false
+            );
+
+            IngestDocument document = TestIngestDocument.emptyIngestDocument();
+            document.setFieldValue("body.text", "body_text");
+            document.setFieldValue("unrelated", "text");
+
+            var e = expectThrows(IllegalArgumentException.class, () -> inferenceProcessor.buildRequest(document));
+            assertThat(e.getMessage(), containsString("field [title] not present as part of path [title.text]"));
+        }
+
+        // same test with ignore_missing == true
+        {
+            InferenceProcessor inferenceProcessor = InferenceProcessor.fromInputFieldConfiguration(
+                client,
+                auditor,
+                "my_processor_tag",
+                "description",
+                modelId,
+                new EmptyConfigUpdate(),
+                inputs,
+                true
+            );
+
+            IngestDocument document = TestIngestDocument.emptyIngestDocument();
+            document.setFieldValue("body.text", "body_text");
+            document.setFieldValue("unrelated", 1.0);
+
+            var request = inferenceProcessor.buildRequest(document);
+            var requestInputs = request.getTextInput();
+            assertThat(requestInputs, contains("body_text", ""));
         }
     }
 }

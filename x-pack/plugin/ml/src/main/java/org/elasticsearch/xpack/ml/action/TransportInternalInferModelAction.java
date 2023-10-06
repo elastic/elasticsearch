@@ -354,17 +354,19 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 } else {
                     for (int i = 0; i < results.length(); i++) {
                         var resultList = results.get(i);
-                        if (resultList != null) {
-                            for (var result : resultList) {
-                                if (result instanceof ErrorInferenceResults errorResult) {
-                                    // Any failure fails all requests
-                                    // TODO is this the correct behaviour for batched requests?
-                                    finalListener.onFailure(errorResult.getException());
-                                    return;
-                                }
-                            }
-                            responseBuilder.addInferenceResults(resultList);
+                        if (resultList == null) {
+                            continue;
                         }
+
+                        for (var result : resultList) {
+                            if (result instanceof ErrorInferenceResults errorResult) {
+                                // Any failure fails all requests
+                                // TODO is this the correct behaviour for batched requests?
+                                finalListener.onFailure(errorResult.getException());
+                                return;
+                            }
+                        }
+                        responseBuilder.addInferenceResults(resultList);
                     }
                     finalListener.onResponse(responseBuilder.build());
                 }

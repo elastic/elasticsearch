@@ -29,7 +29,7 @@ import java.util.Objects;
  */
 // TODO: Remove deprecated methods and ctors.
 public final class Page implements Writeable {
-    private final BlockRef[] blocks;
+    private final Block.Ref[] blocks;
     private final int positionCount;
 
     /**
@@ -45,7 +45,7 @@ public final class Page implements Writeable {
      *
      * @param blocks the blocks
      * @throws IllegalArgumentException if all blocks do not have the same number of positions
-     * @deprecated use {@link Page#Page(BlockRef...)} instead
+     * @deprecated use {@link Page#Page(Block.Ref...)} instead
      */
     @Deprecated
     public Page(Block... blocks) {
@@ -59,7 +59,7 @@ public final class Page implements Writeable {
      *
      * @param positionCount the block position count
      * @param blocks the blocks
-     * @deprecated use {@link Page#Page(int, BlockRef...)} instead
+     * @deprecated use {@link Page#Page(int, Block.Ref...)} instead
      */
     @Deprecated
     public Page(int positionCount, Block... blocks) {
@@ -72,7 +72,7 @@ public final class Page implements Writeable {
      * @param blocks the blocks
      * @throws IllegalArgumentException if all blocks do not have the same number of positions
      */
-    public Page(BlockRef... blocks) {
+    public Page(Block.Ref... blocks) {
         this(determinePositionCount(blocks), blocks);
     }
 
@@ -84,13 +84,13 @@ public final class Page implements Writeable {
      * @param positionCount the block position count
      * @param blocks the blocks
      */
-    public Page(int positionCount, BlockRef... blocks) {
+    public Page(int positionCount, Block.Ref... blocks) {
         Objects.requireNonNull(blocks, "blocks is null");
         // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
         this.blocks = blocks.clone();
-        for (BlockRef bRef : blocks) {
-            Block b = bRef.get();
+        for (Block.Ref bRef : blocks) {
+            Block b = bRef.block();
             assert b.getPositionCount() == positionCount : "expected positionCount=" + positionCount + " but was " + b;
             if (b.isReleased()) {
                 throw new IllegalArgumentException("can't build page out of released blocks but [" + b + "] was released");
@@ -101,9 +101,9 @@ public final class Page implements Writeable {
     /**
      * Appending ctor, see {@link #appendBlocks}.
      */
-    private Page(Page prev, BlockRef[] toAdd) {
-        for (BlockRef blockRef : toAdd) {
-            if (prev.positionCount != blockRef.get().getPositionCount()) {
+    private Page(Page prev, Block.Ref[] toAdd) {
+        for (Block.Ref blockRef : toAdd) {
+            if (prev.positionCount != blockRef.block().getPositionCount()) {
                 throw new IllegalArgumentException("Block does not have same position count");
             }
         }
@@ -118,11 +118,11 @@ public final class Page implements Writeable {
     public Page(StreamInput in) throws IOException {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
-        BlockRef[] blocks = new BlockRef[blockPositions];
+        Block.Ref[] blocks = new Block.Ref[blockPositions];
         boolean success = false;
         try {
             for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-                blocks[blockIndex] = new BlockRef(in.readNamedWriteable(Block.class));
+                blocks[blockIndex] = new Block.Ref(in.readNamedWriteable(Block.class));
             }
             success = true;
         } finally {
@@ -134,12 +134,12 @@ public final class Page implements Writeable {
         this.blocks = blocks;
     }
 
-    private static int determinePositionCount(BlockRef... blocks) {
+    private static int determinePositionCount(Block.Ref... blocks) {
         Objects.requireNonNull(blocks, "blocks is null");
         if (blocks.length == 0) {
             throw new IllegalArgumentException("blocks is empty");
         }
-        return blocks[0].get().getPositionCount();
+        return blocks[0].block().getPositionCount();
     }
 
     /**
@@ -154,7 +154,7 @@ public final class Page implements Writeable {
         if (blocksReleased) {
             throw new IllegalStateException("can't read released page");
         }
-        return blocks[blockIndex].get();
+        return blocks[blockIndex].block();
     }
 
     /**
@@ -163,7 +163,7 @@ public final class Page implements Writeable {
      * @param blockIndex the block index
      * @return the block
      */
-    public BlockRef getBlockRef(int blockIndex) {
+    public Block.Ref getBlockRef(int blockIndex) {
         if (blocksReleased) {
             throw new IllegalStateException("can't read released page");
         }
@@ -177,11 +177,11 @@ public final class Page implements Writeable {
      * @return a new Page with the block appended
      * @throws IllegalArgumentException if the given block does not have the same number of
      *         positions as the blocks in this Page
-     * @deprecated use {@link Page#appendBlock(BlockRef)} instead
+     * @deprecated use {@link Page#appendBlock(Block.Ref)} instead
      */
     @Deprecated
     public Page appendBlock(Block block) {
-        return new Page(this, new BlockRef[] { block.asRef() });
+        return new Page(this, new Block.Ref[] { block.asRef() });
     }
 
     /**
@@ -191,7 +191,7 @@ public final class Page implements Writeable {
      * @return a new Page with the block appended
      * @throws IllegalArgumentException if one of the given blocks does not have the same number of
      *        positions as the blocks in this Page
-     * @deprecated use {@link Page#appendBlocks(BlockRef[])} instead
+     * @deprecated use {@link Page#appendBlocks(Block.Ref[])} instead
      */
     @Deprecated
     public Page appendBlocks(Block[] toAdd) {
@@ -206,8 +206,8 @@ public final class Page implements Writeable {
      * @throws IllegalArgumentException if the given block does not have the same number of
      *         positions as the blocks in this Page
      */
-    public Page appendBlock(BlockRef block) {
-        return new Page(this, new BlockRef[] { block });
+    public Page appendBlock(Block.Ref block) {
+        return new Page(this, new Block.Ref[] { block });
     }
 
     /**
@@ -218,7 +218,7 @@ public final class Page implements Writeable {
      * @throws IllegalArgumentException if one of the given blocks does not have the same number of
      *        positions as the blocks in this Page
      */
-    public Page appendBlocks(BlockRef[] toAdd) {
+    public Page appendBlocks(Block.Ref[] toAdd) {
         return new Page(this, toAdd);
     }
 
@@ -238,7 +238,7 @@ public final class Page implements Writeable {
     public int hashCode() {
         int result = Objects.hash(positionCount);
         for (int i = 0; i < blocks.length; i++) {
-            result = 31 * result + Objects.hashCode(blocks[i].get());
+            result = 31 * result + Objects.hashCode(blocks[i].block());
         }
         return result;
     }
@@ -252,7 +252,7 @@ public final class Page implements Writeable {
         if ((positionCount == page.positionCount) == false || (blocks.length == page.blocks.length) == false) return false;
         if (positionCount == 0) return true;
         for (int i = 0; i < blocks.length; i++) {
-            if (blocks[i].get().equals(page.blocks[i].get()) == false) return false;
+            if (blocks[i].block().equals(page.blocks[i].block()) == false) return false;
         }
         return true;
     }
@@ -285,8 +285,8 @@ public final class Page implements Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(positionCount);
         out.writeVInt(getBlockCount());
-        for (BlockRef block : blocks) {
-            out.writeNamedWriteable(block.get());
+        for (Block.Ref blockRef : blocks) {
+            out.writeNamedWriteable(blockRef.block());
         }
     }
 
@@ -298,7 +298,7 @@ public final class Page implements Writeable {
         Releasables.closeExpectNoException(blocks);
     }
 
-    private static BlockRef[] blockArrayToRefs(Block[] blocks) {
-        return Arrays.stream(blocks).map(Block::asRef).toArray(BlockRef[]::new);
+    private static Block.Ref[] blockArrayToRefs(Block[] blocks) {
+        return Arrays.stream(blocks).map(Block::asRef).toArray(Block.Ref[]::new);
     }
 }

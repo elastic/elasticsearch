@@ -119,7 +119,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        httpClient.set(HttpClient.create(settings, threadPool));
+        var httpSettings = new HttpSettings(settings, clusterService);
+        httpClient.set(HttpClient.create(httpSettings, threadPool));
+
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
     }
@@ -156,8 +158,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
             0,
-            // TODO pick a reasonable number here
-            2048,
+            1,
             TimeValue.timeValueMinutes(10),
             false,
             "xpack.inference.utility_thread_pool"

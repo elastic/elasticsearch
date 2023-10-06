@@ -20,6 +20,8 @@ import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -37,6 +39,7 @@ import org.junit.Before;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -89,7 +92,9 @@ public class HttpClientTests extends ESTestCase {
         String paramValue = randomAlphaOfLength(3);
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        try (var httpClient = HttpClient.create(Settings.EMPTY, threadPool)) {
+        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool)) {
+            httpClient.start();
+
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             httpClient.send(httpPost, listener);
 
@@ -117,7 +122,9 @@ public class HttpClientTests extends ESTestCase {
         var evictor = createEvictor(threadPool);
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(Settings.EMPTY, asyncClient, evictor, threadPool)) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, evictor, threadPool)) {
+            client.start();
+
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             client.send(httpPost, listener);
 
@@ -139,7 +146,9 @@ public class HttpClientTests extends ESTestCase {
         var evictor = createEvictor(threadPool);
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(Settings.EMPTY, asyncClient, evictor, threadPool)) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, evictor, threadPool)) {
+            client.start();
+
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             client.send(httpPost, listener);
 
@@ -156,7 +165,9 @@ public class HttpClientTests extends ESTestCase {
         var evictor = createEvictor(threadPool);
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(Settings.EMPTY, asyncClient, evictor, threadPool)) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, evictor, threadPool)) {
+            client.start();
+
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             client.send(httpPost, listener);
             client.send(httpPost, listener);
@@ -175,8 +186,11 @@ public class HttpClientTests extends ESTestCase {
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
         Settings settings = Settings.builder().put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.ONE).build();
+        var httpSettings = createHttpSettings(settings);
 
-        try (var httpClient = HttpClient.create(settings, threadPool)) {
+        try (var httpClient = HttpClient.create(httpSettings, threadPool)) {
+            httpClient.start();
+
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             httpClient.send(httpPost, listener);
 
@@ -207,15 +221,27 @@ public class HttpClientTests extends ESTestCase {
 
     private static IdleConnectionEvictor createEvictor(ThreadPool threadPool) throws IOReactorException {
         var manager = createConnectionManager();
-        return new IdleConnectionEvictor(
-            threadPool,
-            manager,
-            HttpSettings.CONNECTION_EVICTION_THREAD_SLEEP_TIME_SETTING.get(Settings.EMPTY),
-            HttpSettings.CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING.get(Settings.EMPTY)
-        );
+        return new IdleConnectionEvictor(threadPool, manager, new TimeValue(10, TimeUnit.SECONDS), new TimeValue(10, TimeUnit.SECONDS));
     }
 
     private static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {
         return new PoolingNHttpClientConnectionManager(new DefaultConnectingIOReactor());
+    }
+
+    private static HttpSettings emptyHttpSettings() {
+        return createHttpSettings(Settings.EMPTY);
+    }
+
+    private static HttpSettings createHttpSettings(Settings settings) {
+        return new HttpSettings(settings, mockClusterService(settings));
+    }
+
+    private static ClusterService mockClusterService(Settings settings) {
+        var clusterService = mock(ClusterService.class);
+
+        var cSettings = new ClusterSettings(settings, new HashSet<>(HttpSettings.getSettings()));
+        when(clusterService.getClusterSettings()).thenReturn(cSettings);
+
+        return clusterService;
     }
 }

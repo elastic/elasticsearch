@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
@@ -20,16 +19,14 @@ import java.util.Objects;
 
 public record HttpResult(HttpResponse response, byte[] body) {
 
-    public static HttpResult create(Settings settings, HttpResponse response) throws IOException {
-        return new HttpResult(response, limitBody(settings, response));
+    public static HttpResult create(ByteSizeValue maxResponseSize, HttpResponse response) throws IOException {
+        return new HttpResult(response, limitBody(maxResponseSize, response));
     }
 
-    private static byte[] limitBody(Settings settings, HttpResponse response) throws IOException {
+    private static byte[] limitBody(ByteSizeValue maxResponseSize, HttpResponse response) throws IOException {
         if (response.getEntity() == null) {
             return new byte[0];
         }
-
-        ByteSizeValue maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
 
         final byte[] body;
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {

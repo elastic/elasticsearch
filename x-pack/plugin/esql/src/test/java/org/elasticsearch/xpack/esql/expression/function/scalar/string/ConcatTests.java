@@ -124,7 +124,7 @@ public class ConcatTests extends AbstractFunctionTestCase {
         }
 
         int totalLength = testDataLength();
-        if (totalLength >= Concat.MAX_CONCAT_LENGTH || rarely() == false) {
+        if (totalLength >= Concat.MAX_CONCAT_LENGTH || rarely()) {
             boolean hasNulls = mix.stream().anyMatch(x -> x instanceof Literal l && l.value() == null)
                 || fieldValues.stream().anyMatch(Objects::isNull);
             if (hasNulls == false) {

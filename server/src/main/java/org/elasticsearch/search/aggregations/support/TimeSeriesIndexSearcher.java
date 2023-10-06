@@ -118,6 +118,7 @@ public class TimeSeriesIndexSearcher {
 
     private void search(BucketCollector bucketCollector, Weight weight) throws IOException {
         int seen = 0;
+        int[] tsidOrd = new int[1];
 
         // Create LeafWalker for each subreader
         List<LeafWalker> leafWalkers = new ArrayList<>();
@@ -130,7 +131,7 @@ public class TimeSeriesIndexSearcher {
                 if (minimumScore != null) {
                     scorer = new MinScoreScorer(weight, scorer, minimumScore);
                 }
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, tsidOrd);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
@@ -180,6 +181,7 @@ public class TimeSeriesIndexSearcher {
                     queue.updateTop();
                 }
             } while (queue.size() > 0);
+            tsidOrd[0]++;
         }
     }
 
@@ -250,14 +252,24 @@ public class TimeSeriesIndexSearcher {
 
         int docId = -1;
         int tsidOrd;
+
+        // Tracks the current tsid ordinal across all leaf walkers.
+        int[] tsidGlobalOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector) throws IOException {
-            AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, () -> tsidOrd);
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, int[] tsidGlobalOrd) throws IOException {
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(
+                context,
+                scratch::get,
+                () -> timestamp,
+                () -> tsidGlobalOrd[0]
+            );
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             this.scorer = scorer;
+            this.tsidGlobalOrd = tsidGlobalOrd;
+
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TIMESTAMP_FIELD_NAME);
@@ -271,15 +283,17 @@ public class TimeSeriesIndexSearcher {
 
         void collectAllValidDocs(BytesRef tsid) throws IOException {
             do {
-                if (isInvalidDoc(docId) == false) {
-                    BytesRef currentTsid = getTsid();
-                    if (tsid != null && tsid.compareTo(currentTsid) != 0) {
+                BytesRef currentTsid = getTsid();
+                if (tsid != null) {
+                    if (tsid.compareTo(currentTsid) != 0) {
                         return;
                     }
-                    timestamp = timestamps.nextValue();
-                    collector.collect(docId);
+                } else {
+                    // Update the tsid ordinal that is used in the AggregationExecutionContext.
+                    tsidGlobalOrd[0] = tsidOrd;
                 }
-                docId = iterator.nextDoc();
+                collector.collect(docId);
+                docId = nextDoc();
             } while (docId != DocIdSetIterator.NO_MORE_DOCS);
         }
 

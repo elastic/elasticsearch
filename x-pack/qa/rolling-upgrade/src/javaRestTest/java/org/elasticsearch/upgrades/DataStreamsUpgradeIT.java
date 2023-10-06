@@ -14,7 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;

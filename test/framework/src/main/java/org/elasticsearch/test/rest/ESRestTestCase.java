@@ -57,6 +57,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -1987,6 +1989,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
+    private static final Logger LOGGER = LogManager.getLogger(ESRestTestCase.class);
+
     /**
      * Returns the minimum node version among all nodes of the cluster
      */
@@ -1996,6 +2000,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         final Response response = adminClient().performRequest(request);
         final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
+        LOGGER.info("minimumNodeVersion() got [{}]", nodes);
 
         Version minVersion = null;
         for (Map.Entry<String, Object> node : nodes.entrySet()) {

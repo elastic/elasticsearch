@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Objects;
 
@@ -220,12 +221,16 @@ public final class Page implements Writeable {
      * Release all blocks in this page, decrementing any breakers accounting for these blocks.
      */
     public void releaseBlocks() {
+        if (blocksReleased) {
+            return;
+        }
+
         blocksReleased = true;
+
         // blocks can be used as multiple columns
-        var map = new IdentityHashMap<Block, Object>(mapSize(blocks.length));
-        var DUMMY = new Object();
+        var map = new IdentityHashMap<Block, Boolean>(mapSize(blocks.length));
         for (Block b : blocks) {
-            if (map.putIfAbsent(b, DUMMY) == null) {
+            if (map.putIfAbsent(b, Boolean.TRUE) == null) {
                 Releasables.closeExpectNoException(b);
             }
         }
@@ -237,19 +242,19 @@ public final class Page implements Writeable {
      * The current page should no longer be used and be considered closed.
      */
     public Page newPageAndRelease(Block... keep) {
+        if (blocksReleased) {
+            throw new IllegalStateException("can't create new page from already released page");
+        }
+
         blocksReleased = true;
 
         var newPage = new Page(positionCount, keep);
-        var map = new IdentityHashMap<Block, Object>(mapSize(keep.length));
-        var DUMMY = new Object();
+        var set = Collections.newSetFromMap(new IdentityHashMap<Block, Boolean>(mapSize(keep.length)));
+        set.addAll(Arrays.asList(keep));
 
-        // create identity set
-        for (Block b : keep) {
-            map.putIfAbsent(b, DUMMY);
-        }
         // close blocks that have been left out
         for (Block b : blocks) {
-            if (map.containsKey(b) == false) {
+            if (set.contains(b) == false) {
                 Releasables.closeExpectNoException(b);
             }
         }

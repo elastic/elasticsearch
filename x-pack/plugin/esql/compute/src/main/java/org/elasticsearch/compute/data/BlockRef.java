@@ -7,23 +7,38 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 public class BlockRef implements Releasable {
 
-    private static class RefCount {
+    private static class RefCount implements RefCounted {
         private int i = 1;
 
-        public int get() {
-            return i;
+        @Override
+        public void incRef() {
+            i++;
         }
 
-        public int getAndIncrement() {
-            return i++;
+        @Override
+        public boolean tryIncRef() {
+            if (i <= 0) {
+                return false;
+            }
+            incRef();
+            return true;
         }
 
-        public int getAndDecrement() {
-            return i--;
+        @Override
+        public boolean decRef() {
+            i--;
+
+            return i <= 0;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return i >= 1;
         }
     }
 
@@ -54,7 +69,9 @@ public class BlockRef implements Releasable {
     }
 
     public BlockRef shallowCopy() {
-        refs.getAndIncrement();
+        if (refs.tryIncRef() == false) {
+            throw new IllegalStateException("cannot copy already closed reference");
+        }
 
         return new BlockRef(block, refs);
     }
@@ -67,11 +84,10 @@ public class BlockRef implements Releasable {
     @Override
     public void close() {
         if (isReleased) {
-            throw new IllegalStateException("already released block reference");
+            throw new IllegalStateException("cannot release block reference twice");
         }
         isReleased = true;
-
-        if (refs.getAndDecrement() == 1) {
+        if (refs.decRef()) {
             block.close();
         }
     }

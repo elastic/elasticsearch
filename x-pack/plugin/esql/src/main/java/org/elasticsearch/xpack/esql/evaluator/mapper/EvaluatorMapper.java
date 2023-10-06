@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -49,6 +50,6 @@ public interface EvaluatorMapper {
                 // TODO maybe this should have a small fixed limit?
                 new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
             )
-        ).eval(new Page(1)).block(), 0);
+        ).eval(new Page(1, new BlockRef[0])).block(), 0);
     }
 }

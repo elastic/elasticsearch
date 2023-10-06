@@ -45,6 +45,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
     @Override
     protected Page process(Page page) {
         Block.Ref ref = evaluator.eval(page);
+        // TODO: do not deep copy, we can just use a BlockRef in the first place
         Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block(), blockFactory);
         return page.appendBlock(block);
     }

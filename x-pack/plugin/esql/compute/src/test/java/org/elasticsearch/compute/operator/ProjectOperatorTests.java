@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockRef;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -37,7 +38,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     public void testProjectionOnEmptyPage() {
-        var page = new Page(0);
+        var page = new Page(0, new BlockRef[] {});
         var projection = new ProjectOperator(randomProjection(10));
         projection.addInput(page);
         assertEquals(page, projection.getOutput());

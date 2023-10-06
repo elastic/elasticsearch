@@ -227,7 +227,10 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
      *
      * @param block the block referenced
      * @param containedIn the page containing it or null, if it is "free floating".
+     * @deprecated use {@link BlockRef} instead
      */
+    // TODO: Remove this once we use BlockRef
+    @Deprecated
     record Ref(Block block, @Nullable Page containedIn) implements Releasable {
         /**
          * Create a "free floating" {@link Ref}.
@@ -249,6 +252,10 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
                 block.close();
             }
         }
+    }
+
+    default BlockRef asRef() {
+        return new BlockRef(this);
     }
 
     static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

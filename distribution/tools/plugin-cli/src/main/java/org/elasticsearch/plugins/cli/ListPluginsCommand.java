@@ -68,7 +68,7 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
                     + "] was built for Elasticsearch version "
                     + info.getElasticsearchVersion()
                     + " but version "
-                    + Build.current().qualifiedVersion()
+                    + Build.current().version()
                     + " is required"
             );
         }

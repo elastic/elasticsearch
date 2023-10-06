@@ -373,7 +373,6 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public InferenceProcessor create(
             Map<String, Processor.Factory> processorFactories,
             String tag,
@@ -405,25 +404,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 inferenceConfigUpdate = inferenceConfigUpdateFromMap(inferenceConfigMap);
             }
 
-            Object inputOutputs = config.remove(INPUT_OUTPUT);
-            List<Map<String, Object>> inputs = null;
-            if (inputOutputs != null) {
-                // input_output may be a single map or a list of maps
-                if (inputOutputs instanceof List<?> inputOutputList) {
-                    if (inputOutputList.isEmpty() == false) {
-                        // check it is a list of maps
-                        if (inputOutputList.get(0) instanceof Map == false) {
-                            throw ConfigurationUtils.newConfigurationException(TYPE, tag, INPUT_FIELD, "property isn't a list of maps");
-                        }
-                    }
-                    inputs = (List<Map<String, Object>>) inputOutputList;
-                } else if (inputOutputs instanceof Map) {
-                    inputs = List.of((Map<String, Object>) inputOutputs);
-                } else {
-                    throw ConfigurationUtils.newConfigurationException(TYPE, tag, INPUT_FIELD, "property isn't a map or list of maps");
-                }
-            }
-
+            List<Map<String, Object>> inputs = readOptionalInputOutPutConfig(config, tag);
             boolean configuredWithInputFields = inputs != null;
             if (configuredWithInputFields) {
                 // new style input/output configuration
@@ -641,6 +622,29 @@ public class InferenceProcessor extends AbstractProcessor {
             }
 
             return parsedInputs;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> readOptionalInputOutPutConfig(Map<String, Object> config, String tag) {
+            Object inputOutputs = config.remove(INPUT_OUTPUT);
+            if (inputOutputs == null) {
+                return null;
+            }
+
+            // input_output may be a single map or a list of maps
+            if (inputOutputs instanceof List<?> inputOutputList) {
+                if (inputOutputList.isEmpty() == false) {
+                    // check it is a list of maps
+                    if (inputOutputList.get(0) instanceof Map == false) {
+                        throw ConfigurationUtils.newConfigurationException(TYPE, tag, INPUT_OUTPUT, "property isn't a list of maps");
+                    }
+                }
+                return (List<Map<String, Object>>) inputOutputList;
+            } else if (inputOutputs instanceof Map) {
+                return List.of((Map<String, Object>) inputOutputs);
+            } else {
+                throw ConfigurationUtils.newConfigurationException(TYPE, tag, INPUT_OUTPUT, "property isn't a map or list of maps");
+            }
         }
 
         private ElasticsearchException duplicatedFieldNameError(String property, String fieldName, String tag) {

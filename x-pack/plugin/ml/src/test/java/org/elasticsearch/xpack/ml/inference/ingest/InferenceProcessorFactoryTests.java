@@ -767,7 +767,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 ElasticsearchParseException.class,
                 () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
             );
-            assertThat(e.getMessage(), containsString("[input_field] property isn't a list of maps"));
+            assertThat(e.getMessage(), containsString("[input_output] property isn't a list of maps"));
         }
         {
             Map<String, Object> config = new HashMap<>();
@@ -778,7 +778,20 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 ElasticsearchParseException.class,
                 () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
             );
-            assertThat(e.getMessage(), containsString("[input_field] property isn't a map or list of maps"));
+            assertThat(e.getMessage(), containsString("[input_output] property isn't a map or list of maps"));
+        }
+        {
+            Map<Boolean, String> badMap = new HashMap<>();
+            badMap.put(Boolean.TRUE, "foo");
+            Map<String, Object> config = new HashMap<>();
+            config.put(InferenceProcessor.MODEL_ID, "my_model");
+            config.put(InferenceProcessor.INPUT_OUTPUT, badMap);
+
+            var e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> processorFactory.create(Collections.emptyMap(), "processor_with_bad_config", null, config)
+            );
+            assertThat(e.getMessage(), containsString("[input_field] required property is missing"));
         }
         {
             // empty list

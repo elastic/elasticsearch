@@ -44,12 +44,16 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "IntBlock", IntBlock::readFrom);
 
     private static IntBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return IntVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
+            return IntVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (IntBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newIntBlockBuilder(positions)) {
+        try (IntBlock.Builder builder = in.blockFactory().newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();

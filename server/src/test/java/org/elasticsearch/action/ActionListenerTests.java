@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -353,11 +352,7 @@ public class ActionListenerTests extends ESTestCase {
         final var startBarrier = new CyclicBarrier(threads.length);
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    startBarrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startBarrier);
                 if (randomBoolean()) {
                     listener.onResponse(null);
                 } else {

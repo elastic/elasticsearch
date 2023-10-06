@@ -309,10 +309,10 @@ public class HeapAttackIT extends ESRestTestCase {
         initMvLongsIndex(1, 3, fieldValues);
         Response response = aggMvLongs(3);
         Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
-        ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(f0)").entry("type", "long"))
-            .item(matchesMap().entry("name", "f0").entry("type", "long"))
-            .item(matchesMap().entry("name", "f1").entry("type", "long"))
-            .item(matchesMap().entry("name", "f2").entry("type", "long"));
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(f00)").entry("type", "long"))
+            .item(matchesMap().entry("name", "f00").entry("type", "long"))
+            .item(matchesMap().entry("name", "f01").entry("type", "long"))
+            .item(matchesMap().entry("name", "f02").entry("type", "long"));
         assertMap(map, matchesMap().entry("columns", columns));
     }
 
@@ -322,9 +322,9 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private Response aggMvLongs(int fields) throws IOException {
-        StringBuilder builder = new StringBuilder("{\"query\": \"FROM mv_longs | STATS MAX(f0) BY f0");
+        StringBuilder builder = new StringBuilder("{\"query\": \"FROM mv_longs | STATS MAX(f00) BY f00");
         for (int f = 1; f < fields; f++) {
-            builder.append(", f").append(f);
+            builder.append(", f").append(String.format("%02d", f));
         }
         return query(builder.append("\"}").toString(), "columns");
     }

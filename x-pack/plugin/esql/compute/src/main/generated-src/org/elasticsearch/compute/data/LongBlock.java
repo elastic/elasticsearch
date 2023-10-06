@@ -112,6 +112,9 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
      * equals method works properly across different implementations of the LongBlock interface.
      */
     static boolean equals(LongBlock block1, LongBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

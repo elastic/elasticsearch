@@ -31,6 +31,8 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -44,7 +46,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -111,21 +112,17 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meter = meter;
 
-        Stream.of("GetObject", "ListObjects", "PutObject", "PutMultipartObject", "DeleteObjects", "AbortMultipartObject")
-            .forEach(operation -> {
-                this.meter.registerLongCounter("request_counter/" + operation, "request count counter", "unit");
-                this.meter.registerLongGauge("request_gauge/" + operation, "request count gauge", "unit");
-                this.meter.registerLongHistogram("request_histogram/" + operation, "request count histogram", "unit");
-            });
+        final LongCounter requestCounter = this.meter.getLongCounter(repositoryMetadata.type() + "_request_counter");
+        final LongGauge requestGauge = this.meter.getLongGauge(repositoryMetadata.type() + "_request_gauge");
 
         this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 final long requestCount = getRequestCount(request);
-                meter.getLongCounter("request_counter/GetObject").incrementBy(requestCount, Map.of("operation", "GetObject"));
-                meter.getLongGauge("request_gauge/GetObject").record(requestCount, Map.of("operation", "GetObject"));
-                meter.getLongHistogram("request_histogram/GetObject").record(requestCount, Map.of("operation", "GetObject"));
+                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "GetObject");
+                requestCounter.incrementBy(requestCount, attributes);
+                requestGauge.record(requestCount, attributes);
                 stats.getCount.addAndGet(requestCount);
             }
         };
@@ -134,9 +131,9 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 final long requestCount = getRequestCount(request);
-                meter.getLongCounter("request_counter/ListObjects").incrementBy(requestCount, Map.of("operation", "ListObjects"));
-                meter.getLongGauge("request_gauge/ListObjects").record(requestCount, Map.of("operation", "ListObjects"));
-                meter.getLongHistogram("request_histogram/ListObjects").record(requestCount, Map.of("operation", "ListObjects"));
+                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "ListObjects");
+                requestCounter.incrementBy(requestCount, attributes);
+                requestGauge.record(requestCount, attributes);
                 stats.listCount.addAndGet(requestCount);
             }
         };
@@ -145,9 +142,9 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT");
                 final long requestCount = getRequestCount(request);
-                meter.getLongCounter("request_counter/PutObject").incrementBy(requestCount, Map.of("operation", "PutObject"));
-                meter.getLongGauge("request_gauge/PutObject").record(requestCount, Map.of("operation", "PutObject"));
-                meter.getLongHistogram("request_histogram/PutObject").record(requestCount, Map.of("operation", "PutObject"));
+                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "PutObject");
+                requestCounter.incrementBy(requestCount, attributes);
+                requestGauge.record(requestCount, attributes);
                 stats.putCount.addAndGet(requestCount);
             }
         };
@@ -156,11 +153,9 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 final long requestCount = getRequestCount(request);
-                meter.getLongCounter("request_counter/PutMultipartObject")
-                    .incrementBy(requestCount, Map.of("operation", "PutMultipartObject"));
-                meter.getLongGauge("request_gauge/PutMultipartObject").record(requestCount, Map.of("operation", "PutMultipartObject"));
-                meter.getLongHistogram("request_histogram/PutMultipartObject")
-                    .record(requestCount, Map.of("operation", "PutMultipartObject"));
+                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "PutMultipartObject");
+                requestCounter.incrementBy(requestCount, attributes);
+                requestGauge.record(requestCount, attributes);
                 stats.postCount.addAndGet(requestCount);
             }
         };
@@ -169,9 +164,9 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("POST");
                 final long requestCount = getRequestCount(request);
-                meter.getLongCounter("request_counter/DeleteObjects").incrementBy(requestCount, Map.of("operation", "DeleteObjects"));
-                meter.getLongGauge("request_gauge/DeleteObjects").record(requestCount, Map.of("operation", "DeleteObjects"));
-                meter.getLongHistogram("request_histogram/DeleteObjects").record(requestCount, Map.of("operation", "DeleteObjects"));
+                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "DeleteObjects");
+                requestCounter.incrementBy(requestCount, attributes);
+                requestGauge.record(requestCount, attributes);
                 stats.deleteCount.addAndGet(requestCount);
             }
         };
@@ -180,11 +175,9 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("DELETE");
                 final long requestCount = getRequestCount(request);
-                meter.getLongCounter("request_counter/AbortMultipartObject")
-                    .incrementBy(requestCount, Map.of("operation", "AbortMultipartObject"));
-                meter.getLongGauge("request_gauge/AbortMultipartObject").record(requestCount, Map.of("operation", "AbortMultipartObject"));
-                meter.getLongHistogram("request_histogram/AbortMultipartObject")
-                    .record(requestCount, Map.of("operation", "AbortMultipartObject"));
+                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "AbortMultipartObject");
+                requestCounter.incrementBy(requestCount, attributes);
+                requestGauge.record(requestCount, attributes);
                 stats.abortCount.addAndGet(requestCount);
             }
         };

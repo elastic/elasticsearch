@@ -6,7 +6,6 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 dockerCompose {
   composeAdditionalArgs = ['--compatibility']
-  upAdditionalArgs = ["--wait"]
 }
 
 tasks.named("preProcessFixture").configure {

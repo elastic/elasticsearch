@@ -10,9 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -70,30 +68,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
             var block = page.getBlock(source);
             blocks[b++] = block;
         }
-        closeUnused(page, blocks);
-        return new Page(page.getPositionCount(), blocks);
-    }
-
-    /**
-     * Close all {@link Block}s that are in {@code page} but are not in {@code blocks}.
-     */
-    public static void closeUnused(Page page, Block[] blocks) {
-        List<Releasable> blocksToRelease = new ArrayList<>();
-
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            boolean used = false;
-            var current = page.getBlock(i);
-            for (int j = 0; j < blocks.length; j++) {
-                if (current == blocks[j]) {
-                    used = true;
-                    break;
-                }
-            }
-            if (used == false) {
-                blocksToRelease.add(current);
-            }
-        }
-        Releasables.close(blocksToRelease);
+        return page.newPageAndRelease(blocks);
     }
 
     @Override

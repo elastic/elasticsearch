@@ -489,9 +489,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.
 Defaults to `true`.
 
-`ignore_unavailable`::
-(Optional, Boolean) If false, the request returns an error if it targets a missing or closed index. Defaults to false.
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]

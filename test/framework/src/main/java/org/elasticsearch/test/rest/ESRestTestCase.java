@@ -561,8 +561,14 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected boolean resetFeatureStates() {
         try {
+            final Version minimumNodeVersion= minimumNodeVersion();
+            // Reset feature state API was introduced in 7.13.0
+            if (minimumNodeVersion.before(Version.V_7_13_0)) {
+                return false;
+            }
+
             // ML reset fails when ML is disabled in versions before 8.7
-            if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
+            if (isMlEnabled() == false && minimumNodeVersion.before(Version.V_8_7_0)) {
                 return false;
             }
         } catch (IOException e) {

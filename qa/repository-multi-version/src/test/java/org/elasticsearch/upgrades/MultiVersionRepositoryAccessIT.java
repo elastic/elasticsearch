@@ -95,12 +95,12 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         return true;
     }
 
-    public void testCreateAndRestoreSnapshot() throws IOException {
-        assumeTrue(
-            "test does not work for downgrades before 8.10.0, see https://github.com/elastic/elasticsearch/issues/98454",
-            OLD_CLUSTER_VERSION.onOrAfter(Version.V_8_10_0)
-        );
+    @Override
+    protected boolean resetFeatureStates() {
+        return false; // remove when https://github.com/elastic/elasticsearch/pull/100423 is merged
+    }
 
+    public void testCreateAndRestoreSnapshot() throws IOException {
         final String repoName = getTestName();
         try {
             final int shards = 3;
@@ -147,11 +147,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testReadOnlyRepo() throws IOException {
-        assumeTrue(
-            "test does not fully work for downgrades before 8.10.0, see https://github.com/elastic/elasticsearch/issues/98454",
-            OLD_CLUSTER_VERSION.onOrAfter(Version.V_8_10_0) || TEST_STEP != TestStep.STEP3_OLD_CLUSTER
-        );
-
         final String repoName = getTestName();
         final int shards = 3;
         final boolean readOnly = TEST_STEP.ordinal() > 1; // only restore from read-only repo in steps 3 and 4
@@ -185,11 +180,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     );
 
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
-        assumeTrue(
-            "test does not work for downgrades before 8.10.0, see https://github.com/elastic/elasticsearch/issues/98454",
-            OLD_CLUSTER_VERSION.onOrAfter(Version.V_8_10_0)
-        );
-
         final String repoName = getTestName();
         try {
             final int shards = 3;

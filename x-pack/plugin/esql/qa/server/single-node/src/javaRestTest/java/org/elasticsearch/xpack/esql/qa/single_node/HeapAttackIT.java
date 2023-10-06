@@ -324,7 +324,7 @@ public class HeapAttackIT extends ESRestTestCase {
     private Response aggMvLongs(int fields) throws IOException {
         StringBuilder builder = new StringBuilder("{\"query\": \"FROM mv_longs | STATS MAX(f00) BY f00");
         for (int f = 1; f < fields; f++) {
-            builder.append(", f").append(String.format("%02d", f));
+            builder.append(", f").append(String.format(Locale.ROOT, "%02d", f));
         }
         return query(builder.append("\"}").toString(), "columns");
     }

@@ -9,7 +9,6 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -77,8 +76,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     private static final TestStep TEST_STEP = TestStep.parse(System.getProperty("tests.rest.suite"));
-
-    private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
     @Override
     protected boolean preserveSnapshotsUponCompletion() {

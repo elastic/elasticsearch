@@ -212,7 +212,9 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
             var nodeCounts = new ArrayList<Tuple<String, Integer>>();
             for (int i = 0; i < counts.length; i++) {
-                nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+                if (counts[i] > 0) {
+                    nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+                }
             }
             return nodeCounts;
         }
@@ -231,7 +233,9 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
         var nodeCounts = new ArrayList<Tuple<String, Integer>>();
         for (int i = 0; i < counts.length; i++) {
-            nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+            if (counts[i] > 0) {
+                nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+            }
         }
         return nodeCounts;
     }

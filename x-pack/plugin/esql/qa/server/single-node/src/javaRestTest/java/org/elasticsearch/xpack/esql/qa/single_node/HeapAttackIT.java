@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,6 +34,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -61,7 +63,11 @@ public class HeapAttackIT extends ESRestTestCase {
 
     /**
      * This used to crash the node with an out of memory, but now it just trips a circuit breaker.
+     * <p>
+     *     AwaitsFix because we don't properly clear the breaker. Cranky should help here.
+     * </p>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testSortByManyLongsTooMuchMemory() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> sortByManyLongs(5000));
@@ -70,6 +76,7 @@ public class HeapAttackIT extends ESRestTestCase {
     private void assertCircuitBreaks(ThrowingRunnable r) throws IOException {
         ResponseException e = expectThrows(ResponseException.class, r);
         Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(e.getResponse().getEntity()), false);
+        logger.info("expected circuit breaker {}", map);
         assertMap(
             map,
             matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
@@ -86,6 +93,7 @@ public class HeapAttackIT extends ESRestTestCase {
         query.append("\\n| KEEP a, b | LIMIT 10000\"}");
         Request request = new Request("POST", "/_query");
         request.setJsonEntity(query.toString());
+        request.addParameter("error_trace", "");
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
@@ -133,6 +141,7 @@ public class HeapAttackIT extends ESRestTestCase {
         query.append("\\n| STATS MAX(a)\"}");
         Request request = new Request("POST", "/_query");
         request.setJsonEntity(query.toString());
+        request.addParameter("error_trace", "");
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
@@ -158,6 +167,7 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testHugeConcat() throws IOException {
         initSingleDocIndex();
         assertCircuitBreaks(() -> concat(10));
@@ -173,6 +183,65 @@ public class HeapAttackIT extends ESRestTestCase {
         }
         query.append("\"}");
         Request request = new Request("POST", "/_query");
+        request.addParameter("error_trace", "");
+        request.setJsonEntity(query.toString().replace("\n", "\\n"));
+        return client().performRequest(request);
+    }
+
+    /**
+     * Returns many moderately long strings.
+     */
+    public void testManyConcat() throws IOException {
+        initManyLongs();
+        Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(manyConcat(300).getEntity()), false);
+        ListMatcher columns = matchesList();
+        for (int s = 0; s < 300; s++) {
+            columns = columns.item(matchesMap().entry("name", "str" + s).entry("type", "keyword"));
+        }
+        assertMap(map, matchesMap().entry("columns", columns).entry("values", any(List.class)));
+    }
+
+    /**
+     * Hits a circuit breaker by building many moderately long strings.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
+    public void testHugeManyConcat() throws IOException {
+        initManyLongs();
+        assertCircuitBreaks(() -> manyConcat(2000));
+    }
+
+    /**
+     * Tests that generate many moderately long strings.
+     */
+    private Response manyConcat(int strings) throws IOException {
+        StringBuilder query = new StringBuilder();
+        query.append("{\"query\":\"FROM manylongs | EVAL str = CONCAT(");
+        query.append(
+            Arrays.stream(new String[] { "a", "b", "c", "d", "e" })
+                .map(f -> "TO_STRING(" + f + ")")
+                .collect(Collectors.joining(", \\\"  \\\", "))
+        );
+        query.append(")\n| EVAL ");
+        for (int s = 0; s < strings; s++) {
+            if (s != 0) {
+                query.append(",");
+            }
+            query.append("\nstr")
+                .append(s)
+                .append("=CONCAT(")
+                .append(IntStream.range(0, 30).mapToObj(i -> "str").collect(Collectors.joining(", ")))
+                .append(")");
+        }
+        query.append("\n|KEEP ");
+        for (int s = 0; s < strings; s++) {
+            if (s != 0) {
+                query.append(", ");
+            }
+            query.append("str").append(s);
+        }
+        query.append("\"}");
+        Request request = new Request("POST", "/_query");
+        request.addParameter("error_trace", "");
         request.setJsonEntity(query.toString().replace("\n", "\\n"));
         return client().performRequest(request);
     }
@@ -212,6 +281,7 @@ public class HeapAttackIT extends ESRestTestCase {
         }
         query.append("\n| LIMIT 10000\"}");
         Request request = new Request("POST", "/_query");
+        request.addParameter("error_trace", "");
         request.setJsonEntity(query.toString().replace("\n", "\\n"));
         return client().performRequest(request);
     }

@@ -57,7 +57,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator()) {
+        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator(driverContext())) {
             return agg.intermediateBlockCount();
         }
     }
@@ -549,14 +549,14 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     private AggregatorFunctionSupplier chunkGroups(int emitChunkSize, AggregatorFunctionSupplier supplier) {
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator() {
-                return supplier.aggregator();
+            public AggregatorFunction aggregator(DriverContext driverContext) {
+                return supplier.aggregator(driverContext);
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator() {
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
                 return new GroupingAggregatorFunction() {
-                    GroupingAggregatorFunction delegate = supplier.groupingAggregator();
+                    GroupingAggregatorFunction delegate = supplier.groupingAggregator(driverContext);
                     BitArray seenGroupIds = new BitArray(0, nonBreakingBigArrays());
 
                     @Override
@@ -640,8 +640,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-                        delegate.evaluateFinal(blocks, offset, selected);
+                    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext1) {
+                        delegate.evaluateFinal(blocks, offset, selected, driverContext);
                     }
 
                     @Override

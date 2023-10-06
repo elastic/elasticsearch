@@ -342,6 +342,7 @@ public final class CsvTestUtils {
             LOOKUP.put("BYTE", INTEGER);
 
             // add also the types with short names
+            LOOKUP.put("BOOL", BOOLEAN);
             LOOKUP.put("I", INTEGER);
             LOOKUP.put("L", LONG);
             LOOKUP.put("UL", UNSIGNED_LONG);

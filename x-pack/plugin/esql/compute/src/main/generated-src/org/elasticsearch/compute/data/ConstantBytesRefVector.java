@@ -57,9 +57,13 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
         return true;
     }
 
+    public static long ramBytesUsed(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    }
+
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+        return ramBytesUsed(value);
     }
 
     @Override

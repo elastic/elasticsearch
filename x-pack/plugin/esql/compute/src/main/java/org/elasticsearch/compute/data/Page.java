@@ -97,8 +97,16 @@ public final class Page implements Writeable {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
-        for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-            blocks[blockIndex] = in.readNamedWriteable(Block.class);
+        boolean success = false;
+        try {
+            for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
+                blocks[blockIndex] = in.readNamedWriteable(Block.class);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
+            }
         }
         this.positionCount = positionCount;
         this.blocks = blocks;
@@ -223,21 +231,5 @@ public final class Page implements Writeable {
     public void releaseBlocks() {
         blocksReleased = true;
         Releasables.closeExpectNoException(blocks);
-    }
-
-    public static class PageWriter implements Writeable.Writer<Page> {
-
-        @Override
-        public void write(StreamOutput out, Page value) throws IOException {
-            value.writeTo(out);
-        }
-    }
-
-    public static class PageReader implements Writeable.Reader<Page> {
-
-        @Override
-        public Page read(StreamInput in) throws IOException {
-            return new Page(in);
-        }
     }
 }

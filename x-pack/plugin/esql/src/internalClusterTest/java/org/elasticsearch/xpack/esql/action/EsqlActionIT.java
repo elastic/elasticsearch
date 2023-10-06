@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100365")
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     long epoch = System.currentTimeMillis();
@@ -862,6 +864,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testFromLimit() {
         try (EsqlQueryResponse results = run("from test | keep data | limit 2")) {
             logger.info(results);

@@ -877,7 +877,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testCrossClusterApiKeyUsageFailsWhenIndexNotAvailable() {
         securityIndex = SecurityMocks.mockSecurityIndexManager(".security", true, false);
         final ElasticsearchException expectedException = new ElasticsearchException("not available");
-        when(securityIndex.getUnavailableReason()).thenReturn(expectedException);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(expectedException);
         final ApiKeyService apiKeyService = createApiKeyService();
 
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();

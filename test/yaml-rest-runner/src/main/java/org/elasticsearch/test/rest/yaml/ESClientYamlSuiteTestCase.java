@@ -225,7 +225,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Create parameters for this parameterized test.
      */
-    public static Iterable<Object[]> createParameters(String[] testPaths) throws Exception {
+    public static Iterable<Object[]> createParameters(String... testPaths) throws Exception {
         return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths);
     }
 

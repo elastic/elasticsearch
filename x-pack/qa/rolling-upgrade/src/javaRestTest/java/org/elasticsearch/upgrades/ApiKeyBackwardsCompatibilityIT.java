@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -51,11 +54,19 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private RestClient oldVersionClient = null;
     private RestClient newVersionClient = null;
 
-    public void testCreatingAndUpdatingApiKeys() throws Exception {
+    public ApiKeyBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @BeforeClass
+    public static void testVersionCompatibility() {
         assumeTrue(
             "The remote_indices for API Keys are not supported before version " + API_KEY_SUPPORT_REMOTE_INDICES_VERSION,
             UPGRADE_FROM_VERSION.before(API_KEY_SUPPORT_REMOTE_INDICES_VERSION)
         );
+    }
+
+    public void testCreatingAndUpdatingApiKeys() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 // succeed when remote_indices are not provided

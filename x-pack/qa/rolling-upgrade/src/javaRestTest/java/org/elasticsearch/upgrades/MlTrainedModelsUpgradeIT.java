@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -40,6 +42,10 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     static final List<Integer> DISCRETE_NUMERICAL_FIELD_VALUES = List.of(10, 20);
     static final List<String> KEYWORD_FIELD_VALUES = List.of("cat", "dog");
     static final String INDEX_NAME = "created_index";
+
+    public MlTrainedModelsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     @BeforeClass
     public static void maybeSkip() {

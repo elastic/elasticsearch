@@ -1,5 +1,8 @@
 ---
 "Start scroll in mixed cluster on upgraded node that we will continue after upgrade":
+  - skip:
+      version: all
+      reason: 'AwaitsFix: https://github.com/elastic/elasticsearch/issues/100379'
   - do:
       indices.create:
         index: upgraded_scroll

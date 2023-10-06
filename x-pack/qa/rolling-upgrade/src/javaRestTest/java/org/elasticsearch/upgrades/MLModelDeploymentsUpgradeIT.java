@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -59,6 +61,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     static final long RAW_MODEL_SIZE; // size of the model before base64 encoding
     static {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
+    }
+
+    public MLModelDeploymentsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
     }
 
     @BeforeClass

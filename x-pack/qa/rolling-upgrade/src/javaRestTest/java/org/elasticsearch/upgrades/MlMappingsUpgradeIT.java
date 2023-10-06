@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -30,6 +32,10 @@ import static org.hamcrest.Matchers.is;
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
+
+    public MlMappingsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     @BeforeClass
     public static void maybeSkip() {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
@@ -28,6 +30,10 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
     private static final Version VERSION_INTRODUCING_TRANSPORT_VERSIONS = Version.V_8_8_0;
     private static final Version VERSION_INTRODUCING_NODES_VERSIONS = Version.V_8_11_0;
     private static final TransportVersion FIRST_TRANSPORT_VERSION = TransportVersions.V_8_8_0;
+
+    public TransportVersionClusterStateUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     public void testReadsInferredTransportVersions() throws Exception {
         assertEquals(VERSION_INTRODUCING_TRANSPORT_VERSIONS.id(), FIRST_TRANSPORT_VERSION.id());

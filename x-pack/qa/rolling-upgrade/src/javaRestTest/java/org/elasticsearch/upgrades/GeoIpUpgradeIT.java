@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -15,6 +17,10 @@ import org.hamcrest.Matchers;
 import java.nio.charset.StandardCharsets;
 
 public class GeoIpUpgradeIT extends AbstractUpgradeTestCase {
+
+    public GeoIpUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     public void testGeoIpDownloader() throws Exception {
         if (CLUSTER_TYPE == ClusterType.UPGRADED) {

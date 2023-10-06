@@ -32,7 +32,7 @@ public class RRFRankClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "rrf" });
+        return ESClientYamlSuiteTestCase.createParameters("rrf");
     }
 
     @Override

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
@@ -40,6 +42,10 @@ import static org.hamcrest.core.IsNot.not;
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Collection<RestClient> twoClients = null;
+
+    public TokenBackwardsCompatibilityIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     @Before
     private void collectClientsByVersion() throws IOException {

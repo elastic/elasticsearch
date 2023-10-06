@@ -7,6 +7,8 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -34,6 +36,10 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
+
+    public SearchableSnapshotsRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     public enum Storage {
 
@@ -421,7 +427,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     private static Settings repositorySettings(String repository) {
-        final String pathRepo = System.getProperty("tests.path.searchable.snapshots.repo");
+        final String pathRepo = repo.getRoot().getPath();
         assertThat("Searchable snapshots repository path is null", pathRepo, notNullValue());
         return Settings.builder().put("location", pathRepo + '/' + repository).build();
     }

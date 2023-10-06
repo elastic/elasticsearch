@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -31,6 +33,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+
+    public RollupDateHistoUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     public void testDateHistoIntervalUpgrade() throws Exception {
         assumeTrue("DateHisto interval changed in 7.2", UPGRADE_FROM_VERSION.before(Version.V_7_2_0));
@@ -116,7 +122,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
             assertThat(ids.toString(), ids, containsInAnyOrder("rollup-id-test$AuaduUZW8tgWmFP87DgzSA"));
         }
 
-        if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+        if (isFirstRound()) {
             final Request indexRequest = new Request("POST", "/target/_doc/2");
             indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(1).toString() + "\",\"value\":345}");
             client().performRequest(indexRequest);
@@ -132,7 +138,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
             );
         }
 
-        if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
+        if (isFirstRound() == false) {
             final Request indexRequest = new Request("POST", "/target/_doc/3");
             indexRequest.setJsonEntity("{\"timestamp\":\"" + timestamp.plusDays(2).toString() + "\",\"value\":456}");
             client().performRequest(indexRequest);

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -15,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,8 +27,16 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
-    public void testDataStreams() throws IOException {
+    public DataStreamsUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @BeforeClass
+    public static void testVersionCompatibility() {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
+    }
+
+    public void testDataStreams() throws IOException {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String requestBody = """
                 {
@@ -67,7 +78,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             Request index = new Request("POST", "/logs-foobar/_doc");
             index.addParameter("refresh", "true");
             index.addParameter("filter_path", "_index");
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            if (isFirstRound()) {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
                 var expectedIndices = List.of(
                     "{\"_index\":\"" + DataStreamTestHelper.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
@@ -96,7 +107,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
             expectedCount = 1000;
         } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            if (isFirstRound()) {
                 expectedCount = 1001;
             } else {
                 expectedCount = 1002;

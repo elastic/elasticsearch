@@ -1,17 +1,23 @@
 import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation testArtifact(project(xpackModule('core')))
-  testImplementation project(':x-pack:qa')
-  testImplementation project(':client:rest-high-level')
+  implementation project(':test:framework')
+  implementation project(':test:test-clusters')
+  implementation project(':x-pack:qa')
+  javaRestTestImplementation testArtifact(project(xpackModule('core')))
+  yamlRestTestImplementation testArtifact(project(xpackModule('core')))
+  javaRestTestImplementation project(':client:rest-high-level')
 }
+
+GradleUtils.extendSourceSet(project, "main", "yamlRestTest", tasks.named("yamlRestTest"))
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
 
 restResources {
   restApi {
@@ -19,191 +25,27 @@ restResources {
   }
 }
 
-tasks.named("forbiddenPatterns").configure {
-  exclude '**/system_key'
-}
-
-String outputDir = "${buildDir}/generated-resources/${project.name}"
-
-tasks.register("copyTestNodeKeyMaterial", Copy) {
-  from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
-  into outputDir
-}
+tasks.named("yamlRestTest") { enabled = false}
 
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
-  String oldVersion = bwcVersion.toString()
-
-  // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
-  String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
-
-  def baseCluster = testClusters.register(baseName) {
-    testDistribution = "DEFAULT"
-    versions = [oldVersion, project.version]
-    numberOfNodes = 3
-
-    systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
-    //we don't want to hit real service from each test
-    systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'
-    if (bwcVersion.onOrAfter('7.14.0')) {
-      setting 'ingest.geoip.downloader.endpoint', 'http://invalid.endpoint'
-    }
-
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.transport.ssl.enabled', 'true'
-    setting 'xpack.security.authc.token.enabled', 'true'
-    setting 'xpack.security.authc.token.timeout', '60m'
-    setting 'xpack.security.authc.api_key.enabled', 'true'
-    setting 'xpack.security.audit.enabled', 'true'
-    setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-    setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-    keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-
-    if (bwcVersion.onOrAfter('7.0.0')) {
-      setting 'xpack.security.authc.realms.file.file1.order', '0'
-      setting 'xpack.security.authc.realms.native.native1.order', '1'
-    } else {
-      setting 'xpack.security.authc.realms.file1.type', 'file'
-      setting 'xpack.security.authc.realms.file1.order', '0'
-      setting 'xpack.security.authc.realms.native1.type', 'native'
-      setting 'xpack.security.authc.realms.native1.order', '1'
-    }
-    if (bwcVersion.onOrAfter('6.6.0')) {
-      setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
-    }
-    if (bwcVersion.onOrAfter('7.11.0')) {
-      extraConfigFile 'operator_users.yml', file("${project.projectDir}/src/test/resources/operator_users.yml")
-      setting 'xpack.security.operator_privileges.enabled', "true"
-      user username: "non_operator", password: 'x-pack-test-password', role: "superuser"
-    }
-
-    user username: "test_user", password: "x-pack-test-password"
-
-    extraConfigFile 'testnode.pem', file("$outputDir/testnode.pem")
-    extraConfigFile 'testnode.crt', file("$outputDir/testnode.crt")
-
-    keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
-    setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-
-    // Old versions of the code contain an invalid assertion that trips
-    // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
-    // the assertion, but this is impossible for released versions.
-    // However, released versions run without assertions, so end users won't
-    // be suffering the effects.  This argument effectively removes the
-    // incorrect assertion from the older versions used in the BWC tests.
-    if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
-      jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
-    }
-    setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-
-    if (bwcVersion.onOrAfter('7.12.0')) {
-      setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
-      setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
-    }
+  def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty('tests.upgrade_from_version', bwcVersion)
+    systemProperty('tests.ml.skip', Boolean.toString(BwcVersions.isMlCompatible(bwcVersion) == false))
   }
 
-  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster
-    mustRunAfter("precommit")
-    dependsOn "copyTestNodeKeyMaterial"
-    doFirst {
-      delete("${buildDir}/cluster/shared/repo/${baseName}")
-      delete("${searchableSnapshotRepository}")
-    }
-
-    systemProperty 'tests.rest.suite', 'old_cluster'
-    systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
-    nonInputProperties.systemProperty('tests.clustername', baseName)
-
+  def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
+    testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+    classpath = sourceSets.yamlRestTest.runtimeClasspath
+    usesBwcDistribution(bwcVersion)
+    systemProperty('tests.upgrade_from_version', bwcVersion)
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'].join(',')
-    }
-  }
-
-  tasks.register("${baseName}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
-    dependsOn "${baseName}#oldClusterTest"
-    useCluster baseCluster
-    doFirst {
-      baseCluster.get().nextNodeToNextVersion()
-    }
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
-    nonInputProperties.systemProperty('tests.clustername', baseName)
-    systemProperty 'tests.rest.suite', 'mixed_cluster'
-    systemProperty 'tests.first_round', 'true'
-    systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-    // We only need to run these tests once so we may as well do it when we're two thirds upgraded
-    def excludeList = [
-      'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
-      'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
-      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
-      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
-      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
-      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with composite aggs in mixed cluster',
-      'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
-      'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
-      'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
-      'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
-      'mixed_cluster/120_api_key/Test API key authentication will work in a mixed cluster',
-      'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster',
-      'mixed_cluster/130_operator_privileges/Test operator privileges will work in the mixed cluster'
-    ]
-
-    // Disable ML tests for incompatible systems
-    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      systemProperty 'tests.ml.skip', 'true'
-      excludeList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
-    }
-    systemProperty 'tests.rest.blacklist', excludeList.join(',')
-  }
-
-  tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
-    dependsOn "${baseName}#oneThirdUpgradedTest"
-    useCluster baseCluster
-    doFirst {
-      baseCluster.get().nextNodeToNextVersion()
-    }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', baseName)
-    systemProperty 'tests.rest.suite', 'mixed_cluster'
-    systemProperty 'tests.first_round', 'false'
-    systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-
-    // Disable ML tests for incompatible systems
-    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'].join(',')
-    }
-  }
-
-  tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
-    dependsOn "${baseName}#twoThirdsUpgradedTest"
-    useCluster baseCluster
-    doFirst {
-      baseCluster.get().nextNodeToNextVersion()
-    }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.clustername', baseName)
-    systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    systemProperty 'tests.upgrade_from_version', oldVersion
-    systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-
-    // Disable ML tests for incompatible systems
-    if (BwcVersions.isMlCompatible(bwcVersion) == false) {
-      systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['*/30_ml_jobs_crud/*', '*/40_ml_datafeed_crud/*', '*/90_ml_data_frame_analytics_crud'].join(',')
     }
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#upgradedClusterTest"
+    dependsOn(javaRestTest, yamlRestTest)
   }
 }

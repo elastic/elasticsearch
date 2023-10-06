@@ -38,6 +38,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -79,43 +80,43 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
-    public static final ParseField FROM_FIELD = new ParseField("from");
-    public static final ParseField SIZE_FIELD = new ParseField("size");
-    public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
-    public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
-    public static final ParseField QUERY_FIELD = new ParseField("query");
-    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches");
-    public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
-    public static final ParseField KNN_FIELD = new ParseField("knn");
-    public static final ParseField RANK_FIELD = new ParseField("rank");
-    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
-    public static final ParseField VERSION_FIELD = new ParseField("version");
-    public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term");
-    public static final ParseField EXPLAIN_FIELD = new ParseField("explain");
-    public static final ParseField _SOURCE_FIELD = new ParseField("_source");
-    public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields");
-    public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields");
-    public static final ParseField FETCH_FIELDS_FIELD = new ParseField("fields");
-    public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields");
-    public static final ParseField SCRIPT_FIELD = new ParseField("script");
-    public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
-    public static final ParseField SORT_FIELD = new ParseField("sort");
-    public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores");
-    public static final ParseField TRACK_TOTAL_HITS_FIELD = new ParseField("track_total_hits");
-    public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost");
-    public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations");
-    public static final ParseField AGGS_FIELD = new ParseField("aggs");
-    public static final ParseField HIGHLIGHT_FIELD = new ParseField("highlight");
-    public static final ParseField SUGGEST_FIELD = new ParseField("suggest");
-    public static final ParseField RESCORE_FIELD = new ParseField("rescore");
-    public static final ParseField STATS_FIELD = new ParseField("stats");
-    public static final ParseField EXT_FIELD = new ParseField("ext");
-    public static final ParseField PROFILE_FIELD = new ParseField("profile");
-    public static final ParseField SEARCH_AFTER = new ParseField("search_after");
-    public static final ParseField COLLAPSE = new ParseField("collapse");
-    public static final ParseField SLICE = new ParseField("slice");
-    public static final ParseField POINT_IN_TIME = new ParseField("pit");
-    public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+    public static final ParseField FROM_FIELD = new ParseField("from"); // base
+    public static final ParseField SIZE_FIELD = new ParseField("size"); // base
+    public static final ParseField TIMEOUT_FIELD = new ParseField("timeout"); // global
+    public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after"); // retriever specific
+    public static final ParseField QUERY_FIELD = new ParseField("query"); // retriever specific
+    public static final ParseField SUB_SEARCHES_FIELD = new ParseField("sub_searches"); // retriever specific
+    public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter"); // retriever specific
+    public static final ParseField KNN_FIELD = new ParseField("knn"); // retriever specific
+    public static final ParseField RANK_FIELD = new ParseField("rank"); // retriever specific
+    public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score"); // retriever specific
+    public static final ParseField VERSION_FIELD = new ParseField("version"); // global
+    public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term"); // global
+    public static final ParseField EXPLAIN_FIELD = new ParseField("explain"); // global
+    public static final ParseField _SOURCE_FIELD = new ParseField("_source"); // global
+    public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields"); // global
+    public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields"); // global
+    public static final ParseField FETCH_FIELDS_FIELD = new ParseField("fields"); // global
+    public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields"); // global
+    public static final ParseField SCRIPT_FIELD = new ParseField("script"); // used by script fields
+    public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure"); // global
+    public static final ParseField SORT_FIELD = new ParseField("sort"); // retriever specific
+    public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores"); // global
+    public static final ParseField TRACK_TOTAL_HITS_FIELD = new ParseField("track_total_hits"); // global
+    public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost"); //global
+    public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations"); // global
+    public static final ParseField AGGS_FIELD = new ParseField("aggs"); // global
+    public static final ParseField HIGHLIGHT_FIELD = new ParseField("highlight"); // global
+    public static final ParseField SUGGEST_FIELD = new ParseField("suggest"); // global
+    public static final ParseField RESCORE_FIELD = new ParseField("rescore"); // retriever specific
+    public static final ParseField STATS_FIELD = new ParseField("stats"); // global
+    public static final ParseField EXT_FIELD = new ParseField("ext"); // global
+    public static final ParseField PROFILE_FIELD = new ParseField("profile"); // global
+    public static final ParseField SEARCH_AFTER = new ParseField("search_after"); // retriever specific
+    public static final ParseField COLLAPSE = new ParseField("collapse"); // retriever specific
+    public static final ParseField SLICE = new ParseField("slice"); // global
+    public static final ParseField POINT_IN_TIME = new ParseField("pit"); // global
+    public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings"); // global
 
     /**
      * A static factory method to construct a new search source.
@@ -130,6 +131,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static HighlightBuilder highlight() {
         return new HighlightBuilder();
     }
+
+    private RetrieverBuilder<?> retrieverBuilder;
 
     private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 

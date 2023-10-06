@@ -105,4 +105,26 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
         copy._name = this._name;
         return copy;
     }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        @SuppressWarnings("unchecked")
+        RB other = (RB) obj;
+        return from == other.from && size == other.size && Objects.equals(filter, other.filter) && Objects.equals(_name, other._name) && doEquals(other);
+    }
+
+    protected abstract boolean doEquals(RB other);
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), from, size, filter, _name, doHashCode());
+    }
+
+    protected abstract int doHashCode();
 }

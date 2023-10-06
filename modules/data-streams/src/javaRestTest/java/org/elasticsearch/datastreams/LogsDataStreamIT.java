@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
@@ -281,6 +282,134 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                 """);
             Map<String, Object> fields = ((Map<String, Map<String, Object>>) results.get(0)).get("fields");
             assertThat(fields.get("@timestamp"), is(List.of("2023-05-10T00:00:00.000Z")));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLogsMessagePipeline() throws Exception {
+        RestClient client = client();
+        waitForLogs(client);
+
+        {
+            Request request = new Request("PUT", "/_ingest/pipeline/logs@custom");
+            request.setJsonEntity("""
+                    {
+                      "processors": [
+                        {
+                          "pipeline" : {
+                            "name": "logs@json-message",
+                            "description": "A pipeline that automatically parses JSON log events into top-level fields if they are such"
+                          }
+                        }
+                      ]
+                    }
+                """);
+            assertOK(client.performRequest(request));
+        }
+
+        String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        {
+            indexDoc(client, dataStreamName, """
+                    {
+                      "@timestamp":"2023-05-09T16:48:34.135Z",
+                      "message":"json",
+                      "log.level": "INFO",
+                      "ecs.version": "1.6.0",
+                      "service.name":"my-app",
+                      "event.dataset":"my-app.RollingFile",
+                      "process.thread.name":"main",
+                      "log.logger":"root.pkg.MyApp"
+                    }
+                """);
+            List<Object> results = searchDocs(client, dataStreamName, """
+                {
+                  "query": {
+                    "term": {
+                      "message": {
+                        "value": "json"
+                      }
+                    }
+                  },
+                  "fields": ["message"]
+                }
+                """);
+            assertThat(results.size(), is(1));
+            Map<String, Object> source = ((Map<String, Map<String, Object>>) results.get(0)).get("_source");
+            Map<String, Object> fields = ((Map<String, Map<String, Object>>) results.get(0)).get("fields");
+
+            // root field parsed from JSON should win
+            assertThat(source.get("@timestamp"), is("2023-05-09T16:48:34.135Z"));
+            assertThat(source.get("message"), is("json"));
+            assertThat(((List<String>) fields.get("message")).get(0), is("json"));
+
+            // successful access to subfields verifies that dot expansion is part of the pipeline
+            assertThat(source.get("log.level"), is("INFO"));
+            assertThat(source.get("ecs.version"), is("1.6.0"));
+            assertThat(source.get("service.name"), is("my-app"));
+            assertThat(source.get("event.dataset"), is("my-app.RollingFile"));
+            assertThat(source.get("process.thread.name"), is("main"));
+            assertThat(source.get("log.logger"), is("root.pkg.MyApp"));
+            // _tmp_json_message should be removed by the pipeline
+            assertThat(source.get("_tmp_json_message"), is(nullValue()));
+        }
+
+        // test malformed-JSON parsing - parsing error should be ignored and the document should be indexed with original message
+        {
+            indexDoc(client, dataStreamName, """
+                    {
+                      "@timestamp":"2023-05-10",
+                      "test":"malformed_json",
+                      "message": "{\\"@timestamp\\":\\"2023-05-09T16:48:34.135Z\\", \\"message\\":\\"malformed_json\\"}}"
+                    }
+                """);
+            List<Object> results = searchDocs(client, dataStreamName, """
+                {
+                  "query": {
+                    "term": {
+                      "test": {
+                        "value": "malformed_json"
+                      }
+                    }
+                  }
+                }
+                """);
+            assertThat(results.size(), is(1));
+            Map<String, Object> source = ((Map<String, Map<String, Object>>) results.get(0)).get("_source");
+
+            // root field parsed from JSON should win
+            assertThat(source.get("@timestamp"), is("2023-05-10"));
+            assertThat(source.get("message"), is("{\"@timestamp\":\"2023-05-09T16:48:34.135Z\", \"message\":\"malformed_json\"}}"));
+            assertThat(source.get("_tmp_json_message"), is(nullValue()));
+        }
+
+        // test non-string message field
+        {
+            indexDoc(client, dataStreamName, """
+                    {
+                      "message": 42,
+                      "test": "numeric_message"
+                    }
+                """);
+            List<Object> results = searchDocs(client, dataStreamName, """
+                {
+                  "query": {
+                    "term": {
+                      "test": {
+                        "value": "numeric_message"
+                      }
+                    }
+                  },
+                  "fields": ["message"]
+                }
+                """);
+            assertThat(results.size(), is(1));
+            Map<String, Object> source = ((Map<String, Map<String, Object>>) results.get(0)).get("_source");
+            Map<String, Object> fields = ((Map<String, Map<String, Object>>) results.get(0)).get("fields");
+
+            assertThat(source.get("message"), is(42));
+            assertThat(((List<String>) fields.get("message")).get(0), is("42"));
         }
     }
 

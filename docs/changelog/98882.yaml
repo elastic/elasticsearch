@@ -1,0 +1,6 @@
+pr: 99983
+summary: Use non-deprecated URL: /api/security/callback/saml
+area: Authorization
+type: enhancement
+issues:
+ - 99985

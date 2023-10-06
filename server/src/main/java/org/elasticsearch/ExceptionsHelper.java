@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 
 public final class ExceptionsHelper {
 
+    // dummy change
     private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
     public static RuntimeException convertToRuntime(Exception e) {

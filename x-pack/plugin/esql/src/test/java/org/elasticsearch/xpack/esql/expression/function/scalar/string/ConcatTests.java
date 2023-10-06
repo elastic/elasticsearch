@@ -129,6 +129,7 @@ public class ConcatTests extends AbstractFunctionTestCase {
                 || fieldValues.stream().anyMatch(Objects::isNull);
             if (hasNulls == false) {
                 testOversized(totalLength, mix, fieldValues);
+                return;
             }
         }
 

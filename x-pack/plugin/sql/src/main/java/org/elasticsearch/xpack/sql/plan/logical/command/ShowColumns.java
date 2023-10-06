@@ -95,8 +95,7 @@ public class ShowColumns extends Command {
                         fillInRows(IndexCompatibility.compatible(indexResult, version).get().mapping(), null, rows);
                     }
                     l.onResponse(of(session, rows));
-                }),
-                (s, cap) -> null
+                })
             );
     }
 

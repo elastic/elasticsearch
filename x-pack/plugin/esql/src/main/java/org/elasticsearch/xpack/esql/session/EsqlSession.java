@@ -66,38 +66,6 @@ import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
-    public static final BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> SPECIFIC_VALIDITY_VERIFIER = (
-        name,
-        types) -> {
-        boolean hasUnmapped = types.containsKey(UNMAPPED);
-        boolean hasTypeConflicts = types.size() > (hasUnmapped ? 2 : 1);
-        String metricConflictsTypeName = null;
-        boolean hasMetricConflicts = false;
-
-        if (hasTypeConflicts == false) {
-            for (Map.Entry<String, FieldCapabilities> type : types.entrySet()) {
-                if (UNMAPPED.equals(type.getKey())) {
-                    continue;
-                }
-                if (type.getValue().metricConflictsIndices() != null && type.getValue().metricConflictsIndices().length > 0) {
-                    hasMetricConflicts = true;
-                    metricConflictsTypeName = type.getKey();
-                    break;
-                }
-            }
-        }
-
-        if (hasMetricConflicts) {
-            StringBuilder errorMessage = new StringBuilder();
-            errorMessage.append(
-                "mapped as different metric types in indices: ["
-                    + String.join(", ", types.get(metricConflictsTypeName).metricConflictsIndices())
-                    + "]"
-            );
-            return new InvalidMappedField(name, errorMessage.toString());
-        }
-        return null;
-    };
 
     private final String sessionId;
     private final EsqlConfiguration configuration;
@@ -208,7 +176,7 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed);
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), listener, SPECIFIC_VALIDITY_VERIFIER);
+            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), listener, EsqlSession::specificValidity);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -316,4 +284,36 @@ public class EsqlSession {
             return plan;
         }));
     }
+
+    public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {
+        boolean hasUnmapped = types.containsKey(UNMAPPED);
+        boolean hasTypeConflicts = types.size() > (hasUnmapped ? 2 : 1);
+        String metricConflictsTypeName = null;
+        boolean hasMetricConflicts = false;
+
+        if (hasTypeConflicts == false) {
+            for (Map.Entry<String, FieldCapabilities> type : types.entrySet()) {
+                if (UNMAPPED.equals(type.getKey())) {
+                    continue;
+                }
+                if (type.getValue().metricConflictsIndices() != null && type.getValue().metricConflictsIndices().length > 0) {
+                    hasMetricConflicts = true;
+                    metricConflictsTypeName = type.getKey();
+                    break;
+                }
+            }
+        }
+
+        InvalidMappedField result = null;
+        if (hasMetricConflicts) {
+            StringBuilder errorMessage = new StringBuilder();
+            errorMessage.append(
+                "mapped as different metric types in indices: ["
+                    + String.join(", ", types.get(metricConflictsTypeName).metricConflictsIndices())
+                    + "]"
+            );
+            result = new InvalidMappedField(fieldName, errorMessage.toString());
+        }
+        return result;
+    };
 }

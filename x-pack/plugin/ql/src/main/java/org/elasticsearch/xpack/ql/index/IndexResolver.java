@@ -326,10 +326,21 @@ public class IndexResolver {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            listener.delegateFailureAndWrap(
-                (l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response, (s, cap) -> null))
-            )
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
         );
+    }
+
+    /**
+     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
+     */
+    public void resolveAsMergedMapping(
+        String indexWildcard,
+        Set<String> fieldNames,
+        boolean includeFrozen,
+        Map<String, Object> runtimeMappings,
+        ActionListener<IndexResolution> listener
+    ) {
+        resolveAsMergedMapping(indexWildcard, fieldNames, includeFrozen, runtimeMappings, listener, (fieldName, types) -> null);
     }
 
     /**
@@ -364,8 +375,8 @@ public class IndexResolver {
         }
 
         // merge all indices onto the same one
-        List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, (n, types) -> {
-            InvalidMappedField f = specificValidityVerifier.apply(n, types);
+        List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, (fieldName, types) -> {
+            InvalidMappedField f = specificValidityVerifier.apply(fieldName, types);
             if (f != null) {
                 return f;
             }
@@ -394,7 +405,7 @@ public class IndexResolver {
 
                 errorMessage.insert(0, "mapped as [" + (types.size() - (hasUnmapped ? 1 : 0)) + "] incompatible types: ");
 
-                return new InvalidMappedField(n, errorMessage.toString());
+                return new InvalidMappedField(fieldName, errorMessage.toString());
             }
             // type is okay, check aggregation
             else {
@@ -414,7 +425,7 @@ public class IndexResolver {
                 }
 
                 if (errorMessage.length() > 0) {
-                    return new InvalidMappedField(n, errorMessage.toString());
+                    return new InvalidMappedField(fieldName, errorMessage.toString());
                 }
             }
 
@@ -436,6 +447,14 @@ public class IndexResolver {
             EsIndex idx = indices.get(0);
             return IndexResolution.valid(new EsIndex(idx.name(), idx.mapping(), Set.of(indexNames)));
         }
+    }
+
+    private static IndexResolution mergedMappings(
+        DataTypeRegistry typeRegistry,
+        String indexPattern,
+        FieldCapabilitiesResponse fieldCapsResponse
+    ) {
+        return mergedMappings(typeRegistry, indexPattern, fieldCapsResponse, (fieldName, types) -> null);
     }
 
     private static EsField createField(

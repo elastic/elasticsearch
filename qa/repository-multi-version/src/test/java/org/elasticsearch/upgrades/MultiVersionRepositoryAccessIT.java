@@ -92,11 +92,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         return true;
     }
 
-    @Override
-    protected boolean resetFeatureStates() {
-        return false; // remove when https://github.com/elastic/elasticsearch/pull/100423 is merged
-    }
-
     public void testCreateAndRestoreSnapshot() throws IOException {
         final String repoName = getTestName();
         try {

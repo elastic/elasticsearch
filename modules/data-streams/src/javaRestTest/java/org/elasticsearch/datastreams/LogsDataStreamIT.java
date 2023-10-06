@@ -410,6 +410,229 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testNoSubobjects() throws Exception {
+        RestClient client = client();
+        waitForLogs(client);
+        {
+            Request request = new Request("POST", "/_component_template/logs-test-subobjects-mappings");
+            request.setJsonEntity("""
+                {
+                  "template": {
+                    "settings": {
+                      "mapping": {
+                        "ignore_malformed": true
+                      }
+                    },
+                    "mappings": {
+                      "subobjects": false,
+                      "date_detection": false,
+                      "properties": {
+                        "data_stream.type": {
+                          "type": "constant_keyword",
+                          "value": "logs"
+                        },
+                        "data_stream.dataset": {
+                          "type": "constant_keyword"
+                        },
+                        "data_stream.namespace": {
+                          "type": "constant_keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+                """);
+            assertOK(client.performRequest(request));
+        }
+        {
+            Request request = new Request("POST", "/_index_template/logs-ecs-test-template");
+            request.setJsonEntity("""
+                {
+                  "priority": 200,
+                  "data_stream": {},
+                  "index_patterns": ["logs-*-*"],
+                  "composed_of": ["logs-test-subobjects-mappings", "ecs@dynamic_templates"]
+                }
+                """);
+            assertOK(client.performRequest(request));
+        }
+        String dataStream = "logs-ecs-test-subobjects";
+        createDataStream(client, dataStream);
+        String backingIndexName = getWriteBackingIndex(client, dataStream);
+
+        indexDoc(client, dataStream, """
+                          {
+                            "@timestamp": "2023-06-12",
+                            "start_timestamp": "2023-06-08",
+                            "location" : "POINT (-71.34 41.12)",
+                            "test": "flattened",
+                            "test.start_timestamp": "not a date",
+                            "test.start-timestamp": "not a date",
+                            "registry.data.strings": ["C:\\\\rta\\\\red_ttp\\\\bin\\\\myapp.exe"],
+                            "process.title": "ssh",
+                            "process.executable": "/usr/bin/ssh",
+                            "process.name": "ssh",
+                            "process.command_line": "/usr/bin/ssh -l user 10.0.0.16",
+                            "process.working_directory": "/home/ekoren",
+                            "process.io.text": "test",
+                            "url.path": "/page",
+                            "url.full": "https://mydomain.com/app/page",
+                            "url.original": "https://mydomain.com/app/original",
+                            "email.message_id": "81ce15$8r2j59@mail01.example.com",
+                            "parent.url.path": "/page",
+                            "parent.url.full": "https://mydomain.com/app/page",
+                            "parent.url.original": "https://mydomain.com/app/original",
+                            "parent.body.content": "Some content",
+                            "parent.file.path": "/path/to/my/file",
+                            "parent.file.target_path": "/path/to/my/file",
+                            "parent.registry.data.strings": ["C:\\\\rta\\\\red_ttp\\\\bin\\\\myapp.exe"],
+                            "error.stack_trace": "co.elastic.test.TestClass error:\\n at co.elastic.test.BaseTestClass",
+                            "error.message": "Error occurred",
+                            "file.path": "/path/to/my/file",
+                            "file.target_path": "/path/to/my/file",
+                            "os.full": "Mac OS Mojave",
+                            "user_agent.original": "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) AppleWebKit/605.1.15",
+                            "user.full_name": "John Doe",
+                            "vulnerability.score.base": 5.5,
+                            "vulnerability.score.temporal": 5.5,
+                            "vulnerability.score.version": "2.0",
+                            "vulnerability.textual_score": "bad",
+                            "host.cpu.usage": 0.68,
+                            "geo.location": [-73.614830, 45.505918],
+                            "data_stream.dataset": "nginx.access",
+                            "data_stream.namespace": "production",
+                            "data_stream.custom": "whatever",
+                            "structured_data": {"key1": "value1", "key2": ["value2", "value3"]},
+                            "exports": {"key": "value"},
+                            "top_level_imports": {"key": "value"},
+                            "nested.imports": {"key": "value"},
+                            "numeric_as_string": "42",
+                            "socket.ip": "127.0.0.1",
+                            "socket.remote_ip": "187.8.8.8"
+                          }
+                """);
+        List<Object> hits = searchDocs(client, dataStream, """
+                {
+                  "query": {
+                    "term": {
+                      "test": {
+                        "value": "flattened"
+                      }
+                    }
+                  },
+                  "fields": [
+                    "data_stream.type",
+                    "location",
+                    "geo.location",
+                    "test.start-timestamp",
+                    "test.start_timestamp",
+                    "vulnerability.textual_score"
+                  ]
+                }
+                """);
+        assertThat(hits.size(), is(1));
+        Map<String, Object> fields = ((Map<String, Map<String, Object>>) hits.get(0)).get("fields");
+        List<String> ignored = ((Map<String, List<String>>) hits.get(0)).get("_ignored");
+        Map<String, List<Object>> ignoredFieldValues = ((Map<String, Map<String, List<Object>>>) hits.get(0)).get("ignored_field_values");
+
+        // verify that data_stream.type has the correct constant_keyword value
+        assertThat(fields.get("data_stream.type"), is(List.of("logs")));
+        // verify geo_point subfields evaluation
+        assertThat(((List<Map<String, Object>>) fields.get("location")).get(0).get("type"), is("Point"));
+        List<Double> coordinates = ((List<Map<String, List<Double>>>) fields.get("location")).get(0).get("coordinates");
+        assertThat(coordinates.size(), is(2));
+        assertThat(coordinates.get(0), equalTo(-71.34));
+        assertThat(coordinates.get(1), equalTo( 41.12));
+        List<Object> geoLocation = (List<Object>) fields.get("geo.location");
+        assertThat(((Map<String, Object>) geoLocation.get(0)).get("type"), is("Point"));
+        coordinates = ((Map<String, List<Double>>) geoLocation.get(0)).get("coordinates");
+        assertThat(coordinates.size(), is(2));
+        assertThat(coordinates.get(0), equalTo(-73.614830));
+        assertThat(coordinates.get(1), equalTo( 45.505918));
+        // "start-timestamp" doesn't match the ECS dynamic mapping pattern "*_timestamp"
+        assertThat(fields.get("test.start-timestamp"), is(List.of("not a date")));
+        assertThat(ignored.size(), is(2));
+        assertThat(ignored.get(0), is("vulnerability.textual_score"));
+        // the ECS date dynamic template enforces mapping of "*_timestamp" fields to a date type
+        assertThat(ignored.get(1), is("test.start_timestamp"));
+        assertThat(ignoredFieldValues.get("test.start_timestamp").size(), is(1));
+        assertThat(ignoredFieldValues.get("test.start_timestamp"),is(List.of("not a date")));
+        assertThat(ignoredFieldValues.get("vulnerability.textual_score").size(), is(1));
+        assertThat(ignoredFieldValues.get("vulnerability.textual_score").get(0), is("bad"));
+
+        Map<String, Object> properties = getMappingProperties(client, backingIndexName);
+        assertThat(getValueFromPath(properties, List.of("error.message", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("registry.data.strings", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("parent.registry.data.strings", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("process.io.text", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("email.message_id", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("url.path", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("parent.url.path", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("url.full", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("url.full", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("parent.url.full", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("parent.url.full", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("url.original", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("url.original", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("parent.url.original", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("parent.url.original", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("parent.body.content", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("parent.body.content", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("process.command_line", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("process.command_line", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("error.stack_trace", "type")), is("wildcard"));
+        assertThat(getValueFromPath(properties, List.of("error.stack_trace", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("file.path", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("file.path", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("parent.file.path", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("parent.file.path", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("file.target_path", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("file.target_path", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("parent.file.target_path", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("parent.file.target_path", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("os.full", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("os.full", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("user_agent.original", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("user_agent.original", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("process.title", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("process.title", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("process.executable", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("process.executable", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("process.name", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("process.name", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("process.working_directory", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("process.working_directory", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("user.full_name", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("user.full_name", "fields", "text", "type")), is("match_only_text"));
+        assertThat(getValueFromPath(properties, List.of("start_timestamp", "type")), is("date"));
+        assertThat(getValueFromPath(properties, List.of("test.start_timestamp", "type")), is("date"));
+        // testing the default mapping of string input fields to keyword if not matching any pattern
+        assertThat(getValueFromPath(properties, List.of("test.start-timestamp", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("vulnerability.score.base", "type")), is("float"));
+        assertThat(getValueFromPath(properties, List.of("vulnerability.score.temporal", "type")), is("float"));
+        assertThat(getValueFromPath(properties, List.of("vulnerability.score.version", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("vulnerability.textual_score", "type")), is("float"));
+        assertThat(getValueFromPath(properties, List.of("host.cpu.usage", "type")), is("scaled_float"));
+        assertThat(getValueFromPath(properties, List.of("host.cpu.usage", "scaling_factor")), is(1000.0));
+        assertThat(getValueFromPath(properties, List.of("location", "type")), is("geo_point"));
+        assertThat(getValueFromPath(properties, List.of("geo.location", "type")), is("geo_point"));
+        assertThat(getValueFromPath(properties, List.of("data_stream.dataset", "type")), is("constant_keyword"));
+        assertThat(getValueFromPath(properties, List.of("data_stream.namespace", "type")), is("constant_keyword"));
+        assertThat(getValueFromPath(properties, List.of("data_stream.type", "type")), is("constant_keyword"));
+        // not one of the three data_stream fields that are explicitly mapped to constant_keyword
+        assertThat(getValueFromPath(properties, List.of("data_stream.custom", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("structured_data", "type")), is("flattened"));
+        assertThat(getValueFromPath(properties, List.of("exports", "type")), is("flattened"));
+        assertThat(getValueFromPath(properties, List.of("top_level_imports", "type")), is("flattened"));
+        assertThat(getValueFromPath(properties, List.of("nested.imports", "type")), is("flattened"));
+        // verifying the default mapping for strings into keyword, overriding the automatic numeric string detection
+        assertThat(getValueFromPath(properties, List.of("numeric_as_string", "type")), is("keyword"));
+        assertThat(getValueFromPath(properties, List.of("socket.ip", "type")), is("ip"));
+        assertThat(getValueFromPath(properties, List.of("socket.remote_ip", "type")), is("ip"));
+
+    }
+
     static void waitForLogs(RestClient client) throws Exception {
         assertBusy(() -> {
             try {

@@ -97,8 +97,16 @@ public final class Page implements Writeable {
         int positionCount = in.readVInt();
         int blockPositions = in.readVInt();
         Block[] blocks = new Block[blockPositions];
-        for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
-            blocks[blockIndex] = in.readNamedWriteable(Block.class);
+        boolean success = false;
+        try {
+            for (int blockIndex = 0; blockIndex < blockPositions; blockIndex++) {
+                blocks[blockIndex] = in.readNamedWriteable(Block.class);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
+            }
         }
         this.positionCount = positionCount;
         this.blocks = blocks;

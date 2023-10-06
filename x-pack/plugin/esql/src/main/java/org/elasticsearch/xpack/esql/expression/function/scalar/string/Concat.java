@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
  */
 public class Concat extends ScalarFunction implements EvaluatorMapper {
 
-    static final long MAX_CONCAT_LENGTH = MB.toBytes(10);
+    static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
     public Concat(Source source, Expression first, List<? extends Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());

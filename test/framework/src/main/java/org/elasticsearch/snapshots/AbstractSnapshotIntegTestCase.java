@@ -365,15 +365,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static String versionString(IndexVersion version) {
-        if (version.before(IndexVersion.V_8_9_0)) {
-            // add back the "" for a json String
-            return "\"" + Version.fromId(version.id()) + "\"";
-        } else {
-            return version.toString();
-        }
-    }
-
     /**
      * Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
      * generations (the existence of which would short-circuit checks for the repo containing old version snapshots)

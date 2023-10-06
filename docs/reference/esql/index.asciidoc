@@ -106,27 +106,6 @@ select *Try {esql}* to get started.
 NOTE: {esql} queries in Discover and Lens are subject to the time range selected
 with the time filter.
 
-[discrete]
-[[esql-limitations]]
-=== Limitations
-
-* {esql} currently supports the following <<mapping-types,field types>>:
-
-** `alias`
-** `boolean`
-** `date`
-** `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
-** `ip`
-** `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
-** `int` (`short` and `byte` are represented as `int`)
-** `long`
-** `null`
-** `text`
-** `unsigned_long`
-** `version`
-
-* A single query will not return more than 10,000 rows, regardless of the
-`LIMIT` command's value.
 --
 
 include::esql-get-started.asciidoc[]
@@ -146,6 +125,8 @@ include::multivalued-fields.asciidoc[]
 include::metadata-fields.asciidoc[]
 
 include::task-management.asciidoc[]
+
+include::esql-limitations.asciidoc[]
 
 :esql-tests!:
 :esql-specs!:

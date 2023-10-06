@@ -46,8 +46,8 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         // Extend the mapping and verify
         putMapping(client, backingIndex);
         Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
-        assertThat(((Map<String, Object>) mappingProperties.get("@timestamp")).get("ignore_malformed"), equalTo(false));
-        assertThat(((Map<String, Object>) mappingProperties.get("numeric_field")).get("type"), equalTo("integer"));
+        assertThat(getValueFromPath(mappingProperties, List.of("@timestamp", "ignore_malformed")), equalTo(false));
+        assertThat(getValueFromPath(mappingProperties, List.of("numeric_field", "type")), equalTo("integer"));
 
         // Insert valid doc and verify successful indexing
         {
@@ -150,11 +150,8 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         // Verify that the new field from the custom component template is applied
         putMapping(client, backingIndex);
         Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
-        assertThat(((Map<String, Object>) mappingProperties.get("numeric_field")).get("type"), equalTo("integer"));
-        assertThat(
-            ((Map<String, Object>) mappingProperties.get("socket")).get("properties"),
-            equalTo(Map.of("ip", Map.of("type", "keyword")))
-        );
+        assertThat(getValueFromPath(mappingProperties, List.of("numeric_field", "type")), equalTo("integer"));
+        assertThat(getValueFromPath(mappingProperties, List.of("socket", "properties", "ip", "type")), is("keyword"));
 
         // Insert valid doc and verify successful indexing
         {
@@ -228,7 +225,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
         // Verify mapping from custom logs
         Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
-        assertThat(((Map<String, Object>) mappingProperties.get("@timestamp")).get("type"), equalTo("date"));
+        assertThat(getValueFromPath(mappingProperties, List.of("@timestamp", "type")), equalTo("date"));
 
         // no timestamp - testing default pipeline's @timestamp set processor
         {
@@ -413,7 +410,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         }
     }
 
-    private static void waitForLogs(RestClient client) throws Exception {
+    static void waitForLogs(RestClient client) throws Exception {
         assertBusy(() -> {
             try {
                 Request request = new Request("GET", "_index_template/logs");
@@ -424,13 +421,13 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         });
     }
 
-    private static void createDataStream(RestClient client, String name) throws IOException {
+    static void createDataStream(RestClient client, String name) throws IOException {
         Request request = new Request("PUT", "_data_stream/" + name);
         assertOK(client.performRequest(request));
     }
 
     @SuppressWarnings("unchecked")
-    private static String getWriteBackingIndex(RestClient client, String name) throws IOException {
+    static String getWriteBackingIndex(RestClient client, String name) throws IOException {
         Request request = new Request("GET", "_data_stream/" + name);
         List<Object> dataStreams = (List<Object>) entityAsMap(client.performRequest(request)).get("data_streams");
         Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
@@ -439,12 +436,12 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> getSettings(RestClient client, String indexName) throws IOException {
+    static Map<String, Object> getSettings(RestClient client, String indexName) throws IOException {
         Request request = new Request("GET", "/" + indexName + "/_settings?flat_settings");
         return ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get("settings");
     }
 
-    private static void putMapping(RestClient client, String indexName) throws IOException {
+    static void putMapping(RestClient client, String indexName) throws IOException {
         Request request = new Request("PUT", "/" + indexName + "/_mapping");
         request.setJsonEntity("""
             {
@@ -459,24 +456,51 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> getMappingProperties(RestClient client, String indexName) throws IOException {
+    static Map<String, Object> getMappingProperties(RestClient client, String indexName) throws IOException {
         Request request = new Request("GET", "/" + indexName + "/_mapping");
         Map<String, Object> map = (Map<String, Object>) entityAsMap(client.performRequest(request)).get(indexName);
         Map<String, Object> mappings = (Map<String, Object>) map.get("mappings");
         return (Map<String, Object>) mappings.get("properties");
     }
 
-    private static void indexDoc(RestClient client, String dataStreamName, String doc) throws IOException {
+    static void indexDoc(RestClient client, String dataStreamName, String doc) throws IOException {
         Request request = new Request("POST", "/" + dataStreamName + "/_doc?refresh=true");
         request.setJsonEntity(doc);
         assertOK(client.performRequest(request));
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Object> searchDocs(RestClient client, String dataStreamName, String query) throws IOException {
+    static List<Object> searchDocs(RestClient client, String dataStreamName, String query) throws IOException {
         Request request = new Request("GET", "/" + dataStreamName + "/_search");
         request.setJsonEntity(query);
         Map<String, Object> hits = (Map<String, Object>) entityAsMap(client.performRequest(request)).get("hits");
         return (List<Object>) hits.get("hits");
+    }
+
+    @SuppressWarnings("unchecked")
+    static Object getValueFromPath(Map<String, Object> map, List<String> path) {
+        Map<String, Object> current = map;
+        for (int i = 0; i < path.size(); i++) {
+            Object value = current.get(path.get(i));
+            if (i == path.size() - 1) {
+                return value;
+            }
+            if (value == null) {
+                throw new IllegalStateException("Path " + String.join(".", path) + " was not found in " + map);
+            }
+            if (value instanceof Map<?, ?> next) {
+                current = (Map<String, Object>) next;
+            } else {
+                throw new IllegalStateException(
+                    "Failed to reach the end of the path "
+                        + String.join(".", path)
+                        + " last reachable field was "
+                        + path.get(i)
+                        + " in "
+                        + map
+                );
+            }
+        }
+        return current;
     }
 }

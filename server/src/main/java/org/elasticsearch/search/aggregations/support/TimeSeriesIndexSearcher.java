@@ -252,8 +252,7 @@ public class TimeSeriesIndexSearcher {
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector)
-            throws IOException {
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector) throws IOException {
             AggregationExecutionContext aggCtx = new AggregationExecutionContext(context, scratch::get, () -> timestamp, () -> tsidOrd);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();

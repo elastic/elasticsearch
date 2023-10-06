@@ -17,10 +17,16 @@ import java.util.Set;
  * Specifies one or more features that should be published by this node
  */
 public interface FeatureSpecification {
+    /**
+     * Returns a set of regular features that this node should publish
+     */
     default Set<NodeFeature> getFeatures() {
         return Set.of();
     }
 
+    /**
+     * Returns information on historical features that should be added to all nodes at or above the {@link Version} specified.
+     */
     default Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of();
     }

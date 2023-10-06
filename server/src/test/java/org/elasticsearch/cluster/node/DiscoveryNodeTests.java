@@ -16,12 +16,17 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.features.FeatureEra;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -171,6 +177,50 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertEquals(descriptionWithoutAttributes, node.descriptionWithoutAttributes());
     }
 
+    public void testDiscoveryNodeFeatures() {
+        DiscoveryNode node = DiscoveryNodeUtils.builder("node1").features(Set.of("f8", "f7")).build();
+
+        assertThat(node.hasFeature(new NodeFeature("f8", FeatureEra.V_8)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("f7", FeatureEra.V_7)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("f6", FeatureEra.V_6)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("nf8", FeatureEra.V_8)), is(false));
+
+        NodeFeature hf6 = new NodeFeature("hf6", FeatureEra.V_6);
+        NodeFeature hf7 = new NodeFeature("hf7", FeatureEra.V_7);
+        NodeFeature hf8 = new NodeFeature("hf8", FeatureEra.V_8);
+
+        FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification(){
+            @Override
+            public Map<NodeFeature, Version> getHistoricalFeatures() {
+                return Map.of(
+                    hf6, Version.fromString("6.8.0"),
+                    hf7, Version.V_7_17_0,
+                    hf8, Version.V_8_2_0);
+            }
+        }));
+
+        node = DiscoveryNodeUtils.builder("node1").features(Set.of()).version(Version.V_8_3_0).build();
+
+        assertThat(node.hasFeature(new NodeFeature("hf8", FeatureEra.V_8)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("hf7", FeatureEra.V_7)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("hf6", FeatureEra.V_6)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("nf8", FeatureEra.V_8)), is(false));
+
+        node = DiscoveryNodeUtils.builder("node1").features(Set.of()).version(Version.V_7_17_3).build();
+
+        assertThat(node.hasFeature(new NodeFeature("hf8", FeatureEra.V_8)), is(false));
+        assertThat(node.hasFeature(new NodeFeature("hf7", FeatureEra.V_7)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("hf6", FeatureEra.V_6)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("nf8", FeatureEra.V_8)), is(false));
+
+        node = DiscoveryNodeUtils.builder("node1").features(Set.of()).version(Version.V_7_15_0).build();
+
+        assertThat(node.hasFeature(new NodeFeature("hf8", FeatureEra.V_8)), is(false));
+        assertThat(node.hasFeature(new NodeFeature("hf7", FeatureEra.V_7)), is(false));
+        assertThat(node.hasFeature(new NodeFeature("hf6", FeatureEra.V_6)), is(true));
+        assertThat(node.hasFeature(new NodeFeature("nf8", FeatureEra.V_8)), is(false));
+    }
+
     public void testDiscoveryNodeToXContent() {
         final TransportAddress transportAddress = buildNewFakeTransportAddress();
         final boolean withExternalId = randomBoolean();
@@ -184,7 +234,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
             null,
-            Set.of("test-feature"),
+            Set.of("test-feature1", "test-feature2"),
             withExternalId ? "test-external-id" : null
         );
 
@@ -222,7 +272,8 @@ public class DiscoveryNodeTests extends ESTestCase {
                             "min_index_version" : %s,
                             "max_index_version" : %s,
                             "features" : [
-                              "test-feature"
+                              "test-feature1",
+                              "test-feature2"
                             ]
                           }
                         }""",

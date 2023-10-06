@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.features.FeatureEra;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -39,6 +41,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -436,6 +439,19 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertEquals(Version.fromString("2.1.0"), build.getSmallestNonClientNodeVersion());  // doesn't include 1.6.0 observer
         assertEquals(IndexVersion.fromId(2010099), build.getMaxDataNodeCompatibleIndexVersion());   // doesn't include 2000199 observer
         assertEquals(IndexVersion.fromId(2000099), build.getMinSupportedIndexVersion());            // also includes observers
+    }
+
+    public void testNodeFeatures() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder("node1").features(Set.of("f1", "f2", "f3")).build())
+            .add(DiscoveryNodeUtils.builder("node2").features(Set.of("f1", "f2")).build())
+            .add(DiscoveryNodeUtils.builder("node3").features(Set.of("f1", "f3")).build())
+            .build();
+
+        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f1", FeatureEra.V_8)), is(true));
+        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f2", FeatureEra.V_8)), is(false));
+        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f3", FeatureEra.V_7)), is(false));
+        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f4", FeatureEra.V_6)), is(true));
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

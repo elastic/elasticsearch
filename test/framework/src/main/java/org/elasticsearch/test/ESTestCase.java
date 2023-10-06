@@ -81,6 +81,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
@@ -454,6 +455,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
             this.headerWarningAppender = null;
         }
+    }
+
+    @BeforeClass
+    public static void resetFeatureSpecifications() {
+        // reset any modified specs back to what they should be
+        FeatureService.resetSpecs();
     }
 
     @Before

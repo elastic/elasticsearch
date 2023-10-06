@@ -35,20 +35,24 @@ public class FeatureService {
     private static volatile Set<String> NODE_FEATURES;
     private static volatile NavigableMap<Version, Set<String>> HISTORICAL_FEATURES;
 
-    static {
-        resetSpecs();
+    private static void readSpecs() {
+        if (FEATURE_SPECS == null) {
+            // load all the ones accessible on the immediate classpath here
+            // in unit tests, this will pick everything up. In a real ES node, this will miss instances from plugins
+            FEATURE_SPECS = ServiceLoader.load(FeatureSpecification.class)
+                .stream()
+                .collect(Collectors.toUnmodifiableMap(ServiceLoader.Provider::type, ServiceLoader.Provider::get));
+
+            if (Assertions.ENABLED) {
+                checkFeatureSpecs(FEATURE_SPECS.values());
+            }
+        }
     }
 
-    static void resetSpecs() {
-        // load all the ones accessible on the immediate classpath here
-        // in unit tests, this will pick everything up. In a real ES node, this will miss instances from plugins
-        FEATURE_SPECS = ServiceLoader.load(FeatureSpecification.class)
-            .stream()
-            .collect(Collectors.toUnmodifiableMap(ServiceLoader.Provider::type, ServiceLoader.Provider::get));
-
-        if (Assertions.ENABLED) {
-            checkFeatureSpecs(FEATURE_SPECS.values());
-        }
+    public static void resetSpecs() {
+        FEATURE_SPECS = null;
+        NODE_FEATURES = null;
+        HISTORICAL_FEATURES = null;
     }
 
     /**
@@ -61,9 +65,10 @@ public class FeatureService {
     /**
      * Registers additional {@link FeatureSpecification} implementations
      */
-    static void registerSpecificationsFrom(Collection<? extends FeatureSpecification> specs) {
+    public static void registerSpecificationsFrom(Collection<? extends FeatureSpecification> specs) {
         NODE_FEATURES = null;
         HISTORICAL_FEATURES = null;
+        readSpecs();
 
         // the class key is to ensure we only load one copy of each implementation
         // if we're registering the same things multiple times for tests etc
@@ -124,6 +129,8 @@ public class FeatureService {
     }
 
     private static NavigableMap<Version, Set<String>> calculateHistoricalFeaturesFromSpecs() {
+        readSpecs();
+
         // use sorted sets here so they're easier to look through in info & debug output
         NavigableMap<Version, NavigableSet<String>> declaredHistoricalFeatures = new TreeMap<>();
         for (FeatureSpecification spec : FEATURE_SPECS.values()) {
@@ -156,6 +163,8 @@ public class FeatureService {
     }
 
     private static Set<String> calculateFeaturesFromSpecs() {
+        readSpecs();
+
         Set<String> features = new TreeSet<>();
         for (FeatureSpecification spec : FEATURE_SPECS.values()) {
             for (NodeFeature f : spec.getFeatures()) {

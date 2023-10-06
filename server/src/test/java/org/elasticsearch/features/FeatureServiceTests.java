@@ -32,6 +32,8 @@ public class FeatureServiceTests extends ESTestCase {
 
     @Before
     public void loadTestSpecs() {
+        FeatureService.resetSpecs();
+
         FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
@@ -124,6 +126,7 @@ public class FeatureServiceTests extends ESTestCase {
     }
 
     public void testLoadingNewSpecsChangesOutputs() {
+        // does not contain elided features
         assertThat(FeatureService.readFeatures(), contains("f1", "f1_v7", "f2"));
         assertThat(FeatureService.readHistoricalFeatures(Version.CURRENT), contains("hf1", "hf2", "hf3"));
 
@@ -146,10 +149,5 @@ public class FeatureServiceTests extends ESTestCase {
     public void testSpecificFeaturesOverridesSpecs() {
         Set<String> features = Set.of("nf1", "nf2", "nf3");
         assertThat(new FeatureService(features).readPublishableFeatures(), contains(features.toArray()));
-    }
-
-    @After
-    public void resetSpecs() {
-        FeatureService.resetSpecs();
     }
 }

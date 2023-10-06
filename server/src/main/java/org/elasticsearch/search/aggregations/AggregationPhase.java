@@ -88,10 +88,7 @@ public class AggregationPhase {
         context.searcher().search(context.rewrittenQuery(), new Collector() {
             @Override
             public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                SortedNumericDocValues timestampField = DocValues.getSortedNumeric(
-                    context.reader(),
-                    DataStream.TIMESTAMP_FIELD_NAME
-                );
+                SortedNumericDocValues timestampField = DocValues.getSortedNumeric(context.reader(), DataStream.TIMESTAMP_FIELD_NAME);
                 SortedDocValues tsidField = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
                 Bits liveDocs = context.reader().getLiveDocs();
 
@@ -105,8 +102,7 @@ public class AggregationPhase {
                 return new FilterLeafCollector(inner) {
                     @Override
                     public void collect(int doc) throws IOException {
-                        if (tsidField.advanceExact(doc) && timestampField.advanceExact(doc) &&
-                            (liveDocs == null || liveDocs.get(doc))) {
+                        if (tsidField.advanceExact(doc) && timestampField.advanceExact(doc) && (liveDocs == null || liveDocs.get(doc))) {
                             tsidOrd[0] = tsidField.ordValue();
                             tsid[0] = tsidField.lookupOrd(tsidOrd[0]);
                             timestamp[0] = timestampField.nextValue();

@@ -561,7 +561,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected boolean resetFeatureStates() {
         try {
-            final Version minimumNodeVersion= minimumNodeVersion();
+            final Version minimumNodeVersion = minimumNodeVersion();
             // Reset feature state API was introduced in 7.13.0
             if (minimumNodeVersion.before(Version.V_7_13_0)) {
                 return false;

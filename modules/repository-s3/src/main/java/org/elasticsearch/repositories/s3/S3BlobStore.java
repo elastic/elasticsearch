@@ -323,20 +323,12 @@ class S3BlobStore implements BlobStore {
         StatsCollectors() {}
 
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-            final StatsKey statsKey = new StatsKey(operation, purpose);
-            if (false == collectors.containsKey(statsKey)) {
-                collectors.putIfAbsent(statsKey, buildMetricCollector(operation));
-            }
-            return collectors.get(statsKey);
+            return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation()));
         }
 
         Map<String, Long> statsMap() {
             final Map<String, Long> stats = Arrays.stream(Operation.values()).collect(Collectors.toMap(e -> e.key, e -> 0L));
-            collectors.forEach((statsKey, v) -> {
-                final String key = statsKey.operation.key;
-                assert stats.containsKey(key);
-                stats.put(key, stats.get(key) + v.counter.get());
-            });
+            collectors.forEach((k0, v) -> stats.compute(k0.operation().getKey(), (k1, c) -> Objects.requireNonNull(c) + v.counter.get()));
             return Map.copyOf(stats);
         }
 

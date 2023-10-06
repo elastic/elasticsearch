@@ -429,7 +429,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final PutObjectRequest putRequest = new PutObjectRequest(s3BlobStore.bucket(), blobName, input, md);
         putRequest.setStorageClass(s3BlobStore.getStorageClass());
         putRequest.setCannedAcl(s3BlobStore.getCannedACL());
-        putRequest.setRequestMetricCollector(blobStore.getMetricCollector(Operation.PUT_OBJECT, purpose));
+        putRequest.setRequestMetricCollector(s3BlobStore.getMetricCollector(Operation.PUT_OBJECT, purpose));
 
         try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> { clientReference.client().putObject(putRequest); });

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
@@ -147,7 +148,22 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        new AsyncBroadcastAction(task, request, listener).start();
+        ActionListener<TermsEnumResponse> loggingListener = listener.delegateResponse((l, e) -> {
+            int statusCode = ExceptionsHelper.status(e).getStatus();
+            if (statusCode >= 500) {
+                logger.debug(
+                    "{} Exception in TransportTermsEnumAction for task: [{}] and request: [{}]. Exception: {}. Stack trace: {}",
+                    statusCode,
+                    task,
+                    request,
+                    e.getMessage(),
+                    ExceptionsHelper.stackTrace(e)
+                );
+            }
+            l.onFailure(e);
+        });
+
+        new AsyncBroadcastAction(task, request, loggingListener).start();
     }
 
     protected NodeTermsEnumRequest newNodeRequest(

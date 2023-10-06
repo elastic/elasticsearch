@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -285,7 +286,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest((SearchTask) task, searchRequest, listener, AsyncSearchActionProvider::new);
+        ActionListener<SearchResponse> loggingListener = listener.delegateResponse((l, e) -> {
+            int statusCode = ExceptionsHelper.status(e).getStatus();
+            if (statusCode >= 500) {
+                logger.debug(
+                    "{} Exception in TransportSearchAction for task: [{}] and request: [{}]. Exception: {}. Stack trace: {}",
+                    statusCode,
+                    task,
+                    searchRequest,
+                    e.getMessage(),
+                    ExceptionsHelper.stackTrace(e)
+                );
+            }
+            l.onFailure(e);
+        });
+        executeRequest((SearchTask) task, searchRequest, loggingListener, AsyncSearchActionProvider::new);
     }
 
     void executeRequest(

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -189,9 +190,25 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
 
             private void finish() {
-                listener.onResponse(
-                    new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]), buildTookInMillis())
-                );
+                MultiSearchResponse.Item[] responsesArray = responses.toArray(new MultiSearchResponse.Item[responses.length()]);
+                for (MultiSearchResponse.Item item : responsesArray) {
+                    Exception failure = item.getFailure();
+                    if (failure != null) {
+                        int statusCode = ExceptionsHelper.status(failure).getStatus();
+                        if (statusCode >= 400) {
+                            // TODO: add deduplication logic and only log exception per msearch?
+                            logger.warn(
+                                "{} _msearch Exception. Request: {}. Exception: {}. Stack trace: {}",
+                                statusCode,
+                                request.request(),
+                                failure.getMessage(),
+                                ExceptionsHelper.stackTrace(failure)
+                            );
+                        }
+                    }
+                }
+
+                listener.onResponse(new MultiSearchResponse(responsesArray, buildTookInMillis()));
             }
 
             /**

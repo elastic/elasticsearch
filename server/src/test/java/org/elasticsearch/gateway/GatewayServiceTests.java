@@ -119,11 +119,10 @@ public class GatewayServiceTests extends ESTestCase {
 
     public void testNoActionWhenNodeIsNotMaster() {
         final String localNodeId = randomAlphaOfLength(10);
-        final DiscoveryNode localNode = DiscoveryNode.createLocal(
-            settings(IndexVersion.current()).put(masterNode()).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            localNodeId
-        );
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder(localNodeId)
+            .applySettings(settings(IndexVersion.current()).put(masterNode()).build())
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
 
         final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().localNodeId(localNodeId).add(localNode);
         if (randomBoolean()) {
@@ -147,11 +146,10 @@ public class GatewayServiceTests extends ESTestCase {
 
     public void testNoActionWhenStateIsAlreadyRecovered() {
         final String localNodeId = randomAlphaOfLength(10);
-        final DiscoveryNode localNode = DiscoveryNode.createLocal(
-            settings(IndexVersion.current()).put(masterNode()).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            localNodeId
-        );
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder(localNodeId)
+            .applySettings(settings(IndexVersion.current()).put(masterNode()).build())
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().masterNodeId(localNodeId).localNodeId(localNodeId).add(localNode).build())
             .build();

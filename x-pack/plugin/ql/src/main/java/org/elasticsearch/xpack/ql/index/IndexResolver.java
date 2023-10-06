@@ -449,7 +449,7 @@ public class IndexResolver {
         }
     }
 
-    private static IndexResolution mergedMappings(
+    public static IndexResolution mergedMappings(
         DataTypeRegistry typeRegistry,
         String indexPattern,
         FieldCapabilitiesResponse fieldCapsResponse

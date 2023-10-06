@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.is;
  * </ul>
  */
 @SuppressWarnings("removal")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98454")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {
@@ -98,6 +97,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         assumeTrue("testDoesTestSkippingWork", false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98454")
     public void testCreateAndRestoreSnapshot() throws IOException {
         final String repoName = getTestName();
         try {
@@ -144,6 +144,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98454")
     public void testReadOnlyRepo() throws IOException {
         final String repoName = getTestName();
         final int shards = 3;
@@ -177,6 +178,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         ElasticsearchStatusException.class
     );
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98454")
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
         final String repoName = getTestName();
         try {

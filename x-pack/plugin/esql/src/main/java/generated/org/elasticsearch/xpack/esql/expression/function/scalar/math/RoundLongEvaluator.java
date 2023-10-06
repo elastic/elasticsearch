@@ -36,12 +36,12 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       LongBlock valBlock = (LongBlock) valRef.block();
       try (Block.Ref decimalsRef = decimals.eval(page)) {
         if (decimalsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
         LongVector valVector = valBlock.asVector();
@@ -58,27 +58,29 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongBlock eval(int positionCount, LongBlock valBlock, LongBlock decimalsBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendLong(Round.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
       }
-      if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendLong(Round.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
-    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendLong(Round.process(valVector.getLong(p), decimalsVector.getLong(p)));
+    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendLong(Round.process(valVector.getLong(p), decimalsVector.getLong(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

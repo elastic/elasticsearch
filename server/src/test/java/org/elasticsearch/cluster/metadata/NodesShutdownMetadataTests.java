@@ -12,13 +12,11 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -90,7 +88,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
             );
 
             DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-            nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
+            nodes.add(DiscoveryNodeUtils.create("this_node"));
             nodes.localNodeId("this_node");
             nodes.masterNodeId("this_node");
 

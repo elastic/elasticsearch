@@ -312,11 +312,10 @@ public class GatewayServiceTests extends ESTestCase {
     private ClusterState buildClusterState(int numberOfNodes, long expectedTerm) {
         assert numberOfNodes >= 1;
         final String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            settings(IndexVersion.current()).put(masterNode()).build(),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(settings(IndexVersion.current()).put(masterNode()).build())
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .localNodeId(nodeId)
             .masterNodeId(nodeId)

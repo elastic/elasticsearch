@@ -19,7 +19,7 @@ import java.util.function.Consumer;
  */
 public class ResultPageSinkOperator extends PageConsumerOperator {
 
-    ResultPageSinkOperator(Consumer<Page> pageConsumer) {
+    public ResultPageSinkOperator(Consumer<Page> pageConsumer) {
         super(page -> {
             Page copy = BlockTestUtils.deepCopyOf(page, BlockFactory.getNonBreakingInstance());
             page.releaseBlocks();

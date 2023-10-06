@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.core.PathUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -67,7 +68,7 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     @SuppressWarnings("unchecked")
     public void testElasticAgentLogEcsMappings() throws Exception {
         {
-            Path path = Path.of(Thread.currentThread().getContextClassLoader().getResource("ecs-logs/es-agent-ecs-log.json").toURI());
+            Path path = PathUtils.get(Thread.currentThread().getContextClassLoader().getResource("ecs-logs/es-agent-ecs-log.json").toURI());
             String agentLog = Files.readString(path);
             indexDoc(client, DATA_STREAM_NAME, agentLog);
             List<Object> results = searchDocs(client, DATA_STREAM_NAME, """

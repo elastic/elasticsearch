@@ -462,75 +462,75 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         String backingIndexName = getWriteBackingIndex(client, dataStream);
 
         indexDoc(client, dataStream, """
-                          {
-                            "@timestamp": "2023-06-12",
-                            "start_timestamp": "2023-06-08",
-                            "location" : "POINT (-71.34 41.12)",
-                            "test": "flattened",
-                            "test.start_timestamp": "not a date",
-                            "test.start-timestamp": "not a date",
-                            "registry.data.strings": ["C:\\\\rta\\\\red_ttp\\\\bin\\\\myapp.exe"],
-                            "process.title": "ssh",
-                            "process.executable": "/usr/bin/ssh",
-                            "process.name": "ssh",
-                            "process.command_line": "/usr/bin/ssh -l user 10.0.0.16",
-                            "process.working_directory": "/home/ekoren",
-                            "process.io.text": "test",
-                            "url.path": "/page",
-                            "url.full": "https://mydomain.com/app/page",
-                            "url.original": "https://mydomain.com/app/original",
-                            "email.message_id": "81ce15$8r2j59@mail01.example.com",
-                            "parent.url.path": "/page",
-                            "parent.url.full": "https://mydomain.com/app/page",
-                            "parent.url.original": "https://mydomain.com/app/original",
-                            "parent.body.content": "Some content",
-                            "parent.file.path": "/path/to/my/file",
-                            "parent.file.target_path": "/path/to/my/file",
-                            "parent.registry.data.strings": ["C:\\\\rta\\\\red_ttp\\\\bin\\\\myapp.exe"],
-                            "error.stack_trace": "co.elastic.test.TestClass error:\\n at co.elastic.test.BaseTestClass",
-                            "error.message": "Error occurred",
-                            "file.path": "/path/to/my/file",
-                            "file.target_path": "/path/to/my/file",
-                            "os.full": "Mac OS Mojave",
-                            "user_agent.original": "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) AppleWebKit/605.1.15",
-                            "user.full_name": "John Doe",
-                            "vulnerability.score.base": 5.5,
-                            "vulnerability.score.temporal": 5.5,
-                            "vulnerability.score.version": "2.0",
-                            "vulnerability.textual_score": "bad",
-                            "host.cpu.usage": 0.68,
-                            "geo.location": [-73.614830, 45.505918],
-                            "data_stream.dataset": "nginx.access",
-                            "data_stream.namespace": "production",
-                            "data_stream.custom": "whatever",
-                            "structured_data": {"key1": "value1", "key2": ["value2", "value3"]},
-                            "exports": {"key": "value"},
-                            "top_level_imports": {"key": "value"},
-                            "nested.imports": {"key": "value"},
-                            "numeric_as_string": "42",
-                            "socket.ip": "127.0.0.1",
-                            "socket.remote_ip": "187.8.8.8"
-                          }
-                """);
-        List<Object> hits = searchDocs(client, dataStream, """
-                {
-                  "query": {
-                    "term": {
-                      "test": {
-                        "value": "flattened"
+                      {
+                        "@timestamp": "2023-06-12",
+                        "start_timestamp": "2023-06-08",
+                        "location" : "POINT (-71.34 41.12)",
+                        "test": "flattened",
+                        "test.start_timestamp": "not a date",
+                        "test.start-timestamp": "not a date",
+                        "registry.data.strings": ["C:\\\\rta\\\\red_ttp\\\\bin\\\\myapp.exe"],
+                        "process.title": "ssh",
+                        "process.executable": "/usr/bin/ssh",
+                        "process.name": "ssh",
+                        "process.command_line": "/usr/bin/ssh -l user 10.0.0.16",
+                        "process.working_directory": "/home/ekoren",
+                        "process.io.text": "test",
+                        "url.path": "/page",
+                        "url.full": "https://mydomain.com/app/page",
+                        "url.original": "https://mydomain.com/app/original",
+                        "email.message_id": "81ce15$8r2j59@mail01.example.com",
+                        "parent.url.path": "/page",
+                        "parent.url.full": "https://mydomain.com/app/page",
+                        "parent.url.original": "https://mydomain.com/app/original",
+                        "parent.body.content": "Some content",
+                        "parent.file.path": "/path/to/my/file",
+                        "parent.file.target_path": "/path/to/my/file",
+                        "parent.registry.data.strings": ["C:\\\\rta\\\\red_ttp\\\\bin\\\\myapp.exe"],
+                        "error.stack_trace": "co.elastic.test.TestClass error:\\n at co.elastic.test.BaseTestClass",
+                        "error.message": "Error occurred",
+                        "file.path": "/path/to/my/file",
+                        "file.target_path": "/path/to/my/file",
+                        "os.full": "Mac OS Mojave",
+                        "user_agent.original": "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) AppleWebKit/605.1.15",
+                        "user.full_name": "John Doe",
+                        "vulnerability.score.base": 5.5,
+                        "vulnerability.score.temporal": 5.5,
+                        "vulnerability.score.version": "2.0",
+                        "vulnerability.textual_score": "bad",
+                        "host.cpu.usage": 0.68,
+                        "geo.location": [-73.614830, 45.505918],
+                        "data_stream.dataset": "nginx.access",
+                        "data_stream.namespace": "production",
+                        "data_stream.custom": "whatever",
+                        "structured_data": {"key1": "value1", "key2": ["value2", "value3"]},
+                        "exports": {"key": "value"},
+                        "top_level_imports": {"key": "value"},
+                        "nested.imports": {"key": "value"},
+                        "numeric_as_string": "42",
+                        "socket.ip": "127.0.0.1",
+                        "socket.remote_ip": "187.8.8.8"
                       }
-                    }
-                  },
-                  "fields": [
-                    "data_stream.type",
-                    "location",
-                    "geo.location",
-                    "test.start-timestamp",
-                    "test.start_timestamp",
-                    "vulnerability.textual_score"
-                  ]
+            """);
+        List<Object> hits = searchDocs(client, dataStream, """
+            {
+              "query": {
+                "term": {
+                  "test": {
+                    "value": "flattened"
+                  }
                 }
-                """);
+              },
+              "fields": [
+                "data_stream.type",
+                "location",
+                "geo.location",
+                "test.start-timestamp",
+                "test.start_timestamp",
+                "vulnerability.textual_score"
+              ]
+            }
+            """);
         assertThat(hits.size(), is(1));
         Map<String, Object> fields = ((Map<String, Map<String, Object>>) hits.get(0)).get("fields");
         List<String> ignored = ((Map<String, List<String>>) hits.get(0)).get("_ignored");
@@ -543,13 +543,13 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         List<Double> coordinates = ((List<Map<String, List<Double>>>) fields.get("location")).get(0).get("coordinates");
         assertThat(coordinates.size(), is(2));
         assertThat(coordinates.get(0), equalTo(-71.34));
-        assertThat(coordinates.get(1), equalTo( 41.12));
+        assertThat(coordinates.get(1), equalTo(41.12));
         List<Object> geoLocation = (List<Object>) fields.get("geo.location");
         assertThat(((Map<String, Object>) geoLocation.get(0)).get("type"), is("Point"));
         coordinates = ((Map<String, List<Double>>) geoLocation.get(0)).get("coordinates");
         assertThat(coordinates.size(), is(2));
         assertThat(coordinates.get(0), equalTo(-73.614830));
-        assertThat(coordinates.get(1), equalTo( 45.505918));
+        assertThat(coordinates.get(1), equalTo(45.505918));
         // "start-timestamp" doesn't match the ECS dynamic mapping pattern "*_timestamp"
         assertThat(fields.get("test.start-timestamp"), is(List.of("not a date")));
         assertThat(ignored.size(), is(2));
@@ -557,7 +557,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         // the ECS date dynamic template enforces mapping of "*_timestamp" fields to a date type
         assertThat(ignored.get(1), is("test.start_timestamp"));
         assertThat(ignoredFieldValues.get("test.start_timestamp").size(), is(1));
-        assertThat(ignoredFieldValues.get("test.start_timestamp"),is(List.of("not a date")));
+        assertThat(ignoredFieldValues.get("test.start_timestamp"), is(List.of("not a date")));
         assertThat(ignoredFieldValues.get("vulnerability.textual_score").size(), is(1));
         assertThat(ignoredFieldValues.get("vulnerability.textual_score").get(0), is("bad"));
 

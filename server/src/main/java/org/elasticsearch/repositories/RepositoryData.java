@@ -19,6 +19,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -953,12 +955,19 @@ public final class RepositoryData {
         }
     }
 
+    private static final Logger logger = LogManager.getLogger(RepositoryData.class);
+
     private static IndexVersion parseIndexVersion(XContentParser.Token token, XContentParser parser) throws IOException {
         if (token == XContentParser.Token.VALUE_NUMBER) {
             return IndexVersion.fromId(parser.intValue());
         } else {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
-            return IndexVersion.fromId(Version.fromString(parser.text()).id);
+            final var versionStr = parser.text();
+            final var versionId = Version.fromString(versionStr).id;
+            if (versionId > 8_11_00_99 && versionId < 8_500_000) {
+                logger.error("found impossible string index version [{}] with id [{}]", versionStr, versionId);
+            }
+            return IndexVersion.fromId(versionId);
         }
     }
 

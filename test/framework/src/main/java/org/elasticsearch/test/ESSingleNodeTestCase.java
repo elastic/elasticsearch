@@ -270,7 +270,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(settings, plugins, List.of(), forbidPrivateIndexSettings());
         try {
             node.start();
         } catch (NodeValidationException e) {

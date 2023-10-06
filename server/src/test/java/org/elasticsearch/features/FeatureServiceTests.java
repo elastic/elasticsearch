@@ -11,7 +11,6 @@ package org.elasticsearch.features;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;

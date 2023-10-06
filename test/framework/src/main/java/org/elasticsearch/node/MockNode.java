@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -54,6 +55,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -69,22 +71,33 @@ import java.util.function.LongSupplier;
 public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
+    private final Collection<? extends FeatureSpecification> featureSpecs;
 
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
+        this(settings, classpathPlugins, List.of(), true);
+    }
+
+    public MockNode(
+        Settings settings,
+        Collection<Class<? extends Plugin>> classpathPlugins,
+        Collection<? extends FeatureSpecification> featureSpecs
+    ) {
+        this(settings, classpathPlugins, featureSpecs, null, true);
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
+        final Collection<? extends FeatureSpecification> featureSpecifications,
         final boolean forbidPrivateIndexSettings
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        this(settings, classpathPlugins, List.of(), null, forbidPrivateIndexSettings);
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
+        final Collection<? extends FeatureSpecification> featureSpecifications,
         final Path configPath,
         final boolean forbidPrivateIndexSettings
     ) {
@@ -96,17 +109,25 @@ public class MockNode extends Node {
                 () -> "mock_ node"
             ),
             classpathPlugins,
+            featureSpecifications,
             forbidPrivateIndexSettings
         );
     }
 
     private MockNode(
-        final Environment environment,
-        final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        Environment environment,
+        Collection<Class<? extends Plugin>> classpathPlugins,
+        Collection<? extends FeatureSpecification> featureSpecifications,
+        boolean forbidPrivateIndexSettings
     ) {
-        super(environment, settings -> new MockPluginsService(settings, environment, classpathPlugins), forbidPrivateIndexSettings);
+        super(
+            environment,
+            settings -> new MockPluginsService(settings, environment, classpathPlugins),
+            featureSpecifications,
+            forbidPrivateIndexSettings
+        );
         this.classpathPlugins = classpathPlugins;
+        this.featureSpecs = featureSpecifications;
     }
 
     /**
@@ -114,6 +135,10 @@ public class MockNode extends Node {
      */
     public Collection<Class<? extends Plugin>> getClasspathPlugins() {
         return classpathPlugins;
+    }
+
+    public Collection<? extends FeatureSpecification> getFeatureSpecifications() {
+        return featureSpecs;
     }
 
     @Override

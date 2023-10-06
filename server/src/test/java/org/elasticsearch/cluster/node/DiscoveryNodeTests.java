@@ -189,13 +189,10 @@ public class DiscoveryNodeTests extends ESTestCase {
         NodeFeature hf7 = new NodeFeature("hf7", FeatureEra.V_7);
         NodeFeature hf8 = new NodeFeature("hf8", FeatureEra.V_8);
 
-        FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification(){
+        FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification() {
             @Override
             public Map<NodeFeature, Version> getHistoricalFeatures() {
-                return Map.of(
-                    hf6, Version.fromString("6.8.0"),
-                    hf7, Version.V_7_17_0,
-                    hf8, Version.V_8_2_0);
+                return Map.of(hf6, Version.fromString("6.8.0"), hf7, Version.V_7_17_0, hf8, Version.V_8_2_0);
             }
         }));
 

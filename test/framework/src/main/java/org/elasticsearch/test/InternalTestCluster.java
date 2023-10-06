@@ -69,6 +69,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
@@ -232,6 +233,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Collection<Class<? extends Plugin>> mockPlugins;
 
+    private final Collection<? extends FeatureSpecification> featureSpecs;
+
     private final boolean forbidPrivateIndexSettings;
 
     private final int numDataPaths;
@@ -285,6 +288,7 @@ public final class InternalTestCluster extends TestCluster {
             numClientNodes,
             nodePrefix,
             mockPlugins,
+            List.of(),
             clientWrapper,
             true,
             false,
@@ -304,6 +308,7 @@ public final class InternalTestCluster extends TestCluster {
         final int numClientNodes,
         final String nodePrefix,
         final Collection<Class<? extends Plugin>> mockPlugins,
+        final Collection<? extends FeatureSpecification> featureSpecs,
         final Function<Client, Client> clientWrapper,
         final boolean forbidPrivateIndexSettings,
         final boolean forceSingleDataPath,
@@ -362,6 +367,7 @@ public final class InternalTestCluster extends TestCluster {
         assert nodePrefix != null;
 
         this.mockPlugins = mockPlugins;
+        this.featureSpecs = featureSpecs;
 
         sharedNodesSeeds = new long[numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
@@ -769,7 +775,13 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(settings, plugins, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
+        MockNode node = new MockNode(
+            settings,
+            plugins,
+            featureSpecs,
+            nodeConfigurationSource.nodeConfigPath(nodeId),
+            forbidPrivateIndexSettings
+        );
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -1038,7 +1050,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                 .build();
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins, forbidPrivateIndexSettings);
+            node = new MockNode(finalSettings, plugins, node.getFeatureSpecifications(), forbidPrivateIndexSettings);
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void afterStart() {

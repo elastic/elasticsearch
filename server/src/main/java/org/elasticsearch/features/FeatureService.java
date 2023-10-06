@@ -10,6 +10,7 @@ package org.elasticsearch.features;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.plugins.PluginsService;
 
@@ -60,6 +61,15 @@ public class FeatureService {
      */
     public static void registerSpecificationsFrom(PluginsService plugins) {
         registerSpecificationsFrom(plugins.loadServiceProviders(FeatureSpecification.class));
+    }
+
+    /**
+     * Registers additional {@link FeatureSpecification} implementations from {@code plugins} and {@code specs}
+     */
+    public static void registerSpecificationsFrom(PluginsService plugins, Collection<? extends FeatureSpecification> specs) {
+        registerSpecificationsFrom(
+            CollectionUtils.<FeatureSpecification>concatLists(plugins.loadServiceProviders(FeatureSpecification.class), specs)
+        );
     }
 
     /**

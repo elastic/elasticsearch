@@ -105,6 +105,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
@@ -342,7 +343,7 @@ public class Node implements Closeable {
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
     public Node(Environment environment) {
-        this(environment, PluginsService.getPluginsServiceCtor(environment), true);
+        this(environment, PluginsService.getPluginsServiceCtor(environment), List.of(), true);
     }
 
     /**
@@ -355,8 +356,9 @@ public class Node implements Closeable {
      */
     @SuppressWarnings("this-escape")
     protected Node(
-        final Environment initialEnvironment,
-        final Function<Settings, PluginsService> pluginServiceCtor,
+        Environment initialEnvironment,
+        Function<Settings, PluginsService> pluginServiceCtor,
+        Collection<? extends FeatureSpecification> additionalFeatureSpecs,
         boolean forbidPrivateIndexSettings
     ) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
@@ -474,6 +476,7 @@ public class Node implements Closeable {
             SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
             client = new NodeClient(settings, threadPool);
 
+            FeatureService.registerSpecificationsFrom(pluginsService, additionalFeatureSpecs);
             final FeatureService featureService = new FeatureService();
 
             final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
@@ -757,8 +760,6 @@ public class Node implements Closeable {
                 shardLimitValidator,
                 threadPool
             );
-
-            FeatureService.registerSpecificationsFrom(pluginsService);
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(

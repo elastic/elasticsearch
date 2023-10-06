@@ -37,8 +37,8 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -75,7 +75,8 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         Node node = new MockNode(
             settings,
-            Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class, InternalSettingsPlugin.class),
+            List.of(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class, InternalSettingsPlugin.class),
+            List.of(),
             true
         );
         node.start();

@@ -287,7 +287,7 @@ public class CollectionUtils {
         return result;
     }
 
-    public static <E> List<E> concatLists(List<E> listA, Collection<E> listB) {
+    public static <E> List<E> concatLists(List<? extends E> listA, Collection<? extends E> listB) {
         List<E> concatList = new ArrayList<>(listA.size() + listB.size());
         concatList.addAll(listA);
         concatList.addAll(listB);

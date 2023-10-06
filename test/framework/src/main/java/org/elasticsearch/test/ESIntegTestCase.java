@@ -103,6 +103,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.http.HttpInfo;
@@ -1984,6 +1985,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
+    /**
+     * Returns a collection of feature specifications to be added to each node.
+     */
+    protected Collection<? extends FeatureSpecification> nodeFeatureSpecifications() {
+        return Collections.emptyList();
+    }
+
     private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
@@ -1997,6 +2005,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             createTempDir(),
             externalClusterClientSettings(),
             nodePlugins(),
+            nodeFeatureSpecifications(),
             getClientWrapper(),
             clusterName,
             transportAddresses
@@ -2062,6 +2071,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getNumClientNodes(),
             nodePrefix,
             mockPlugins,
+            nodeFeatureSpecifications(),
             getClientWrapper(),
             forbidPrivateIndexSettings(),
             forceSingleDataPath(),

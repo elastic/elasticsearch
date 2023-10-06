@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.NodeValidationException;
@@ -73,6 +74,7 @@ public final class ExternalTestCluster extends TestCluster {
         Path tempDir,
         Settings additionalSettings,
         Collection<Class<? extends Plugin>> pluginClasses,
+        Collection<? extends FeatureSpecification> featureSpecs,
         Function<Client, Client> clientWrapper,
         String clusterName,
         TransportAddress... transportAddresses
@@ -105,7 +107,7 @@ public final class ExternalTestCluster extends TestCluster {
         pluginClasses = new ArrayList<>(pluginClasses);
         pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
-        MockNode mockNode = new MockNode(clientSettings, pluginClasses);
+        MockNode mockNode = new MockNode(clientSettings, pluginClasses, featureSpecs);
         Client wrappedClient = clientWrapper.apply(mockNode.client());
         try {
             mockNode.start();

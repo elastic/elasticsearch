@@ -46,6 +46,8 @@ teardown:
   - do:
       index:
         index: logs-generic-default
+        refresh: true
+        op_type: create
         id: "1"
         pipeline: "pipeline-with-two-data-stream-processors"
         body: {
@@ -53,10 +55,13 @@ teardown:
         }
 
   - do:
-      get:
+      search:
         index: logs-first-default
-        id: "1"
-  - match: { _source.foo: "bar" }
+        body:
+          query:
+            match: {"_id": "1"}
+  - match: { hits.hits.0._source.foo: "bar" }
+
 ---
 "Test two stage routing":
   - skip:
@@ -123,6 +128,7 @@ teardown:
 
   - do:
       index:
+        refresh: true
         index: logs-nginx-default
         id: "example-log"
         op_type: create
@@ -134,7 +140,8 @@ teardown:
               path: "nginx-error.log"
 
   - do:
-      get:
-        index: logs-nginx.error-default
-        id: "example-log"
-  - match: { _source.message: "this is an error log" }
+      search:
+        body:
+          query:
+            match: {"_id": "example-log"}
+  - match: { hits.hits.0._source.message: "this is an error log" }

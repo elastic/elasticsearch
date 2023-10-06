@@ -112,6 +112,9 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
      * equals method works properly across different implementations of the BooleanBlock interface.
      */
     static boolean equals(BooleanBlock block1, BooleanBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

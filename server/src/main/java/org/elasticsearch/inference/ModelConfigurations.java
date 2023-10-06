@@ -13,11 +13,14 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
 
 public class ModelConfigurations implements ToXContentObject, VersionedNamedWriteable {
 
@@ -33,17 +36,21 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
     private final ServiceSettings serviceSettings;
     private final TaskSettings taskSettings;
 
+    public ModelConfigurations(String modelId, TaskType taskType, String service, ServiceSettings serviceSettings) {
+        this(modelId, taskType, service, serviceSettings, null);
+    }
+
     public ModelConfigurations(
         String modelId,
         TaskType taskType,
         String service,
         ServiceSettings serviceSettings,
-        TaskSettings taskSettings
+        @Nullable TaskSettings taskSettings
     ) {
-        this.modelId = modelId;
-        this.taskType = taskType;
-        this.service = service;
-        this.serviceSettings = serviceSettings;
+        this.modelId = Objects.requireNonNull(modelId);
+        this.taskType = Objects.requireNonNull(taskType);
+        this.service = Objects.requireNonNull(service);
+        this.serviceSettings = Objects.requireNonNull(serviceSettings);
         this.taskSettings = taskSettings;
     }
 
@@ -52,7 +59,12 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         this.taskType = in.readEnum(TaskType.class);
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
-        this.taskSettings = in.readNamedWriteable(TaskSettings.class);
+
+        if (in.getTransportVersion().onOrAfter(ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED)) {
+            this.taskSettings = in.readOptionalNamedWriteable(TaskSettings.class);
+        } else {
+            this.taskSettings = in.readNamedWriteable(TaskSettings.class);
+        }
     }
 
     @Override
@@ -61,7 +73,12 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         out.writeEnum(taskType);
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
-        out.writeNamedWriteable(taskSettings);
+
+        if (out.getTransportVersion().onOrAfter(ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED)) {
+            out.writeOptionalNamedWriteable(taskSettings);
+        } else {
+            out.writeNamedWriteable(taskSettings);
+        }
     }
 
     public String getModelId() {
@@ -91,7 +108,9 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
-        builder.field(TASK_SETTINGS, taskSettings);
+        if (taskSettings != null) {
+            builder.field(TASK_SETTINGS, taskSettings);
+        }
         builder.endObject();
         return builder;
     }

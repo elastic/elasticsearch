@@ -108,6 +108,9 @@ public sealed interface IntBlock extends Block permits FilterIntBlock, IntArrayB
      * equals method works properly across different implementations of the IntBlock interface.
      */
     static boolean equals(IntBlock block1, IntBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

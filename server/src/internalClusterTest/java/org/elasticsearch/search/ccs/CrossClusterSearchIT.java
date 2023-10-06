@@ -242,6 +242,57 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertTrue("should have 'index corrupted' in reason", remoteShardSearchFailure.reason().contains("index corrupted"));
     }
 
+    // tests bug fix https://github.com/elastic/elasticsearch/issues/100350
+    public void testClusterDetailsAfterCCSWhereRemoteClusterHasNoShardsToSearch() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+
+        PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
+        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + "no_such_index*");
+        searchRequest.allowPartialSearchResults(false);
+        boolean minimizeRoundtrips = randomBoolean();
+        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1000));
+        client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
+
+        assertBusy(() -> assertTrue(queryFuture.isDone()));
+
+        SearchResponse searchResponse = queryFuture.get();
+        assertNotNull(searchResponse);
+
+        SearchResponse.Clusters clusters = searchResponse.getClusters();
+        assertFalse("search cluster results should NOT be marked as partial", clusters.hasPartialResults());
+        assertThat(clusters.getTotal(), equalTo(2));
+        assertThat(clusters.getSuccessful(), equalTo(2));
+        assertThat(clusters.getSkipped(), equalTo(0));
+
+        if (minimizeRoundtrips) {
+            SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).get();
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getIndexExpression(), equalTo(localIndex));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(localNumShards));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getTook().millis(), greaterThan(0L));
+
+            SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER).get();
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("no_such_index*"));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(0));  // zero since no shards to search
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertNotNull(remoteClusterSearchInfo.getTook());
+        }
+    }
+
     public void testClusterDetailsAfterCCSWithFailuresOnRemoteClusterOnly() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");

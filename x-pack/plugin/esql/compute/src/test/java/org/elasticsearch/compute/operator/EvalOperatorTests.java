@@ -57,7 +57,7 @@ public class EvalOperatorTests extends OperatorTestCase {
     record LoadFromPage(int channel) implements EvalOperator.ExpressionEvaluator {
         @Override
         public Block.Ref eval(Page page) {
-            return new Block.Ref(page.getBlock(channel), page);
+            return page.getBlockRef(channel).shallowCopy();
         }
 
         @Override

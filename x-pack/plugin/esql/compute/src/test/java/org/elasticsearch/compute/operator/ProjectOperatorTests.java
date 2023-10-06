@@ -37,7 +37,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
     }
 
     public void testProjectionOnEmptyPage() {
-        var page = new Page(0, new BlockRef[] {});
+        var page = new Page(0, new Block.Ref[] {});
         var projection = new ProjectOperator(randomProjection(10));
         projection.addInput(page);
         assertEquals(page, projection.getOutput());

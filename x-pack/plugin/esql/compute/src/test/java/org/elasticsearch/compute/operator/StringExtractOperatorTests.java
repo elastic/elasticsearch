@@ -48,7 +48,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
             dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block.Ref eval(Page page) {
-                    return new Block.Ref(page.getBlock(0), page);
+                    return page.getBlockRef(0).shallowCopy();
                 }
 
                 @Override
@@ -92,7 +92,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
         StringExtractOperator operator = new StringExtractOperator(new String[] { "test" }, new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block.Ref eval(Page page) {
-                return new Block.Ref(page.getBlock(0), page);
+                return page.getBlockRef(0).shallowCopy();
             }
 
             @Override

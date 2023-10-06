@@ -29,9 +29,9 @@ public class BasicPageTests extends SerializationTestCase {
     static final Class<AssertionError> AE = AssertionError.class;
 
     public void testExceptions() {
-        expectThrows(NPE, () -> new Page((BlockRef[]) null));
+        expectThrows(NPE, () -> new Page((Block.Ref[]) null));
 
-        expectThrows(IAE, () -> new Page(new BlockRef[] {}));
+        expectThrows(IAE, () -> new Page(new Block.Ref[] {}));
 
         // Temporarily disable, until the intermediate state of grouping aggs is resolved.
         // Intermediate state consists of a Page with two blocks: one of size N with the groups, the
@@ -41,8 +41,8 @@ public class BasicPageTests extends SerializationTestCase {
 
     public void testEqualityAndHashCodeSmallInput() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new Page(0, new BlockRef[] {}),
-            page -> new Page(0, new BlockRef[] {}),
+            new Page(0, new Block.Ref[] {}),
+            page -> new Page(0, new Block.Ref[] {}),
             page -> new Page(1, IntBlock.newConstantBlockWith(1, 1).asRef())
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -82,7 +82,7 @@ public class BasicPageTests extends SerializationTestCase {
 
     public void testEqualityAndHashCode() throws IOException {
         final EqualsHashCodeTestUtils.CopyFunction<Page> copyPageFunction = page -> {
-            BlockRef[] blocks = new BlockRef[page.getBlockCount()];
+            Block.Ref[] blocks = new Block.Ref[page.getBlockCount()];
             for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
                 blocks[blockIndex] = page.getBlockRef(blockIndex).shallowCopy();
             }
@@ -91,10 +91,10 @@ public class BasicPageTests extends SerializationTestCase {
 
         final EqualsHashCodeTestUtils.MutateFunction<Page> mutatePageFunction = page -> {
             assert page.getPositionCount() > 0;
-            BlockRef[] blocks = new BlockRef[page.getBlockCount()];
+            Block.Ref[] blocks = new Block.Ref[page.getBlockCount()];
             int positions = randomInt(page.getPositionCount() - 1);
             for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-                Block block = page.getBlockRef(blockIndex).get();
+                Block block = page.getBlockRef(blockIndex).block();
                 blocks[blockIndex] = block.elementType()
                     .newBlockBuilder(positions)
                     .copyFrom(block, 0, page.getPositionCount() - 1)
@@ -106,7 +106,7 @@ public class BasicPageTests extends SerializationTestCase {
 
         int positions = randomIntBetween(1, 512);
         int blockCount = randomIntBetween(1, 256);
-        BlockRef[] blocks = new BlockRef[blockCount];
+        Block.Ref[] blocks = new Block.Ref[blockCount];
         for (int blockIndex = 0; blockIndex < blockCount; blockIndex++) {
             blocks[blockIndex] = switch (randomInt(6)) {
                 case 0 -> new IntArrayVector(randomInts(positions).toArray(), positions).asBlock().asRef();
@@ -134,7 +134,7 @@ public class BasicPageTests extends SerializationTestCase {
         Page page = new Page(new IntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock().asRef());
         assertThat(1, is(page.getBlockCount()));
         assertThat(positions, is(page.getPositionCount()));
-        IntBlock block = page.getBlockRef(0).get();
+        IntBlock block = page.getBlockRef(0).block();
         IntStream.range(0, positions).forEach(i -> assertThat(i, is(block.getInt(i))));
     }
 
@@ -143,9 +143,9 @@ public class BasicPageTests extends SerializationTestCase {
         Page page2 = page1.appendBlock(new LongArrayVector(LongStream.range(0, 10).toArray(), 10).asBlock().asRef());
         assertThat(1, is(page1.getBlockCount()));
         assertThat(2, is(page2.getBlockCount()));
-        IntBlock block1 = page2.getBlockRef(0).get();
+        IntBlock block1 = page2.getBlockRef(0).block();
         IntStream.range(0, 10).forEach(i -> assertThat(i, is(block1.getInt(i))));
-        LongBlock block2 = page2.getBlockRef(1).get();
+        LongBlock block2 = page2.getBlockRef(1).block();
         IntStream.range(0, 10).forEach(i -> assertThat((long) i, is(block2.getLong(i))));
     }
 
@@ -167,9 +167,9 @@ public class BasicPageTests extends SerializationTestCase {
                 EqualsHashCodeTestUtils.checkEqualsAndHashCode(origPage, unused -> deserPage);
 
                 for (int i = 0; i < origPage.getBlockCount(); i++) {
-                    Vector vector = origPage.getBlockRef(i).get().asVector();
+                    Vector vector = origPage.getBlockRef(i).block().asVector();
                     if (vector != null) {
-                        assertEquals(vector.isConstant(), deserPage.getBlockRef(i).get().asVector().isConstant());
+                        assertEquals(vector.isConstant(), deserPage.getBlockRef(i).block().asVector().isConstant());
                     }
                 }
             } finally {

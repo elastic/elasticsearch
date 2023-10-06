@@ -22,23 +22,22 @@ PUT _ingest/pipeline/my-text-embeddings-pipeline
     {
       "inference": {
         "model_id": ".elser_model_2",
-        "target_field": "my_embeddings",
-        "field_map": { <1>
-          "my_text_field": "text_field"
-        },
-        "inference_config": {
-          "text_expansion": { <2>
-            "results_field": "tokens"
+        "input_output": [ <1>
+          {
+            "input_field": "my_text_field",
+            "output_field": "my_text_embedding"
           }
-        }
+        ]
+      },
+      "inference_config": {
+        "text_expansion": {} <2>
       }
     }
   ]
 }
 ----
-<1> The `field_map` object maps the input document field name (which is
-`my_text_field` in this example) to the name of the field that the model expects
-(which is always `text_field`).
+<1> Configuration object that defines the `input_field` for the {infer} process 
+and the `output_field` that will contain the {infer} results.
 <2> The `text_expansion` inference type needs to be used in the inference ingest 
 processor.
 

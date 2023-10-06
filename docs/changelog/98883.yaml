@@ -1,0 +1,6 @@
+pr: 99983
+summary: Use non-deprecated URL: /api/security/saml/callback in SAML smoketests
+area: Authorization
+type: enhancement
+issues:
+ - 99986

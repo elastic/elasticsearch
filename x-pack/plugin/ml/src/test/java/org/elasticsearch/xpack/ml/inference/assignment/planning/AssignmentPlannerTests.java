@@ -485,6 +485,53 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.countPreviouslyAssignedModelsThatAreStillAssigned(), equalTo(1L));
     }
 
+    public void testGivenClusterResize_AllocationShouldNotExceedMemoryConstraints() {
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
+        Deployment deployment2 = new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+
+        // First only start m_1
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1)).computePlan();
+
+        Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(assignmentPlan);
+        assertThat(indexedBasedPlan.keySet(), hasItems("m_1"));
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+
+        // Then start m_2
+        assignmentPlan = new AssignmentPlanner(
+            List.of(node1, node2),
+            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment2)).toList()
+        ).computePlan();
+
+        indexedBasedPlan = convertToIdIndexed(assignmentPlan);
+        assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2"));
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+        assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_2", 1)));
+
+        // Then start m_3
+        assignmentPlan = new AssignmentPlanner(
+            List.of(node1, node2),
+            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment3)).toList()
+        ).computePlan();
+
+        indexedBasedPlan = convertToIdIndexed(assignmentPlan);
+        assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2", "m_3"));
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+        assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_2", 1)));
+        assertThat(indexedBasedPlan.get("m_3"), equalTo(Map.of("n_2", 1)));
+
+        // First, one node goes away.
+        assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
+        assertThat(assignmentPlan.getRemainingNodeMemory("n_1"), greaterThanOrEqualTo(0l));
+//        indexedBasedPlan = convertToIdIndexed(assignmentPlan);
+//        assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2", "m_3"));
+//        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+//        assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_2", 1)));
+//        assertThat(indexedBasedPlan.get("m_3"), equalTo(Map.of("n_2", 1)));
+    }
+
     public void testGivenClusterResize_ShouldAllocateEachModelAtLeastOnce() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);

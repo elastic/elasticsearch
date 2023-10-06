@@ -94,6 +94,10 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         return true;
     }
 
+    public void testDoesTestSkippingWork() {
+        assumeTrue("testDoesTestSkippingWork", false);
+    }
+
     public void testCreateAndRestoreSnapshot() throws IOException {
         final String repoName = getTestName();
         try {

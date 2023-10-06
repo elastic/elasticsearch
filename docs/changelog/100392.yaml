@@ -1,0 +1,5 @@
+pr: 100392
+summary: Prevent resource over-subscription in assignment planner
+area: Machine Learning
+type: bug
+issues: []

@@ -367,6 +367,7 @@ public class InstallPluginAction implements Closeable {
                 "attempted to install release build of official plugin on snapshot build of Elasticsearch"
             );
         }
+        // assumption: we will only be publishing plugins to snapshot or staging when they're versioned
         String semanticVersion = getSemanticVersion(Build.current().version());
         if (semanticVersion == null) {
             throw new UserException(
@@ -1095,8 +1096,8 @@ public class InstallPluginAction implements Closeable {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
     }
 
-    String getSemanticVersion(String version) {
-        Matcher matcher = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?").matcher(version);
+    static String getSemanticVersion(String version) {
+        Matcher matcher = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*").matcher(version);
         return matcher.matches() ? matcher.group(1) : null;
     }
 }

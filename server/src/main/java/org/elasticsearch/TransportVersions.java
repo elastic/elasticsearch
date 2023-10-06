@@ -134,7 +134,7 @@ public class TransportVersions {
     public static final TransportVersion NODE_INFO_REQUEST_SIMPLIFIED = def(8_510_00_0);
     public static final TransportVersion NESTED_KNN_VECTOR_QUERY_V = def(8_511_00_0);
     public static final TransportVersion ML_PACKAGE_LOADER_PLATFORM_ADDED = def(8_512_00_0);
-
+    public static final TransportVersion PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME = def(8_513_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

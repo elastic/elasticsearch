@@ -1,5 +1,6 @@
 pr: 100388
-summary: Fix empty requests being sent to nodes with the model allocations
+summary: Fix for inference requests being sent to every node with a model allocation. 
+If there are more nodes than items in the original request then empty requests were sent. 
 area: Machine Learning
 type: bug
 issues:

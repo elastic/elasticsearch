@@ -305,12 +305,7 @@ public class InstallPluginAction implements Closeable {
                 // else carry on to regular download
             }
 
-            final String url = getElasticUrl(
-                getStagingHash(),
-                isSnapshot(),
-                pluginId,
-                Platforms.PLATFORM_NAME
-            );
+            final String url = getElasticUrl(getStagingHash(), isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println(logPrefix + "Downloading " + pluginId + " from elastic");
             return downloadAndValidate(url, tmpDir, true);
         }
@@ -363,12 +358,8 @@ public class InstallPluginAction implements Closeable {
     /**
      * Returns the url for an official elasticsearch plugin.
      */
-    private String getElasticUrl(
-        final String stagingHash,
-        final boolean isSnapshot,
-        final String pluginId,
-        final String platform
-    ) throws IOException, UserException {
+    private String getElasticUrl(final String stagingHash, final boolean isSnapshot, final String pluginId, final String platform)
+        throws IOException, UserException {
         final String baseUrl;
         if (isSnapshot && stagingHash == null) {
             throw new UserException(

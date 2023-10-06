@@ -249,16 +249,6 @@ public record Build(
         return version;
     }
 
-    /**
-     * Remove certain version suffixes. (Just "-SNAPSHOT" at the moment)
-     */
-    public String unqualifiedVersion() {
-        if (version.endsWith("-SNAPSHOT")) {
-            return version.substring(0, version.length() - "-SNAPSHOT".length());
-        }
-        return version;
-    }
-
     public boolean isProductionRelease() {
         return isSnapshot() == false && version.matches(".*(-alpha\\d+)|(-beta\\d+)|(-rc\\d+)") == false;
     }

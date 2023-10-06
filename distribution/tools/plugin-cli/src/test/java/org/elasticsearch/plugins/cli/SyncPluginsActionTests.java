@@ -330,7 +330,7 @@ public class SyncPluginsActionTests extends ESTestCase {
     }
 
     private void createPlugin(String name) throws IOException {
-        createPlugin(name, Build.current().unqualifiedVersion());
+        createPlugin(name, Build.current().qualifiedVersion());
     }
 
     private void createPlugin(String name, String version) throws IOException {

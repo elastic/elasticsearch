@@ -83,6 +83,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -305,7 +307,6 @@ public class InstallPluginAction implements Closeable {
 
             final String url = getElasticUrl(
                 getStagingHash(),
-                Build.current().unqualifiedVersion(),
                 isSnapshot(),
                 pluginId,
                 Platforms.PLATFORM_NAME
@@ -347,7 +348,7 @@ public class InstallPluginAction implements Closeable {
         if (Files.isDirectory(path) == false) {
             throw new UserException(ExitCodes.CONFIG, "Location in ES_PLUGIN_ARCHIVE_DIR is not a directory");
         }
-        return PathUtils.get(pluginArchiveDir, pluginId + "-" + Build.current() + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip");
+        return PathUtils.get(pluginArchiveDir, pluginId + "-" + Build.current().qualifiedVersion() + ".zip");
     }
 
     // pkg private so tests can override
@@ -364,7 +365,6 @@ public class InstallPluginAction implements Closeable {
      */
     private String getElasticUrl(
         final String stagingHash,
-        final String version,
         final boolean isSnapshot,
         final String pluginId,
         final String platform
@@ -376,11 +376,20 @@ public class InstallPluginAction implements Closeable {
                 "attempted to install release build of official plugin on snapshot build of Elasticsearch"
             );
         }
+        String semanticVersion = getSemanticVersion(Build.current().version());
+        if (semanticVersion == null) {
+            throw new UserException(
+                ExitCodes.CONFIG,
+                "attempted to download a plugin for a non-semantically-versioned build of Elasticsearch: ["
+                    + Build.current().version()
+                    + "]"
+            );
+        }
         if (stagingHash != null) {
             if (isSnapshot) {
-                baseUrl = nonReleaseUrl("snapshots", version, stagingHash, pluginId);
+                baseUrl = nonReleaseUrl("snapshots", semanticVersion, stagingHash, pluginId);
             } else {
-                baseUrl = nonReleaseUrl("staging", version, stagingHash, pluginId);
+                baseUrl = nonReleaseUrl("staging", semanticVersion, stagingHash, pluginId);
             }
         } else {
             baseUrl = String.format(Locale.ROOT, "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
@@ -1093,5 +1102,10 @@ public class InstallPluginAction implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
+    }
+
+    String getSemanticVersion(String version) {
+        Matcher matcher = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?").matcher(version);
+        return matcher.matches() ? matcher.group(1) : null;
     }
 }

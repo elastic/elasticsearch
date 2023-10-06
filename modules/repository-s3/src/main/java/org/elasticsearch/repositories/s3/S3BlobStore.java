@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -74,6 +76,7 @@ class S3BlobStore implements BlobStore {
 
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
+    private final Meter meter;
 
     private final Stats stats = new Stats();
 
@@ -93,7 +96,8 @@ class S3BlobStore implements BlobStore {
         String storageClass,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Meter meter
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -105,46 +109,83 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        this.meter = meter;
+
+        Stream.of("GetObject", "ListObjects", "PutObject", "PutMultipartObject", "DeleteObjects", "AbortMultipartObject")
+            .forEach(operation -> {
+                this.meter.registerLongCounter("request_counter/" + operation, "request count counter", "unit");
+                this.meter.registerLongGauge("request_gauge/" + operation, "request count gauge", "unit");
+                this.meter.registerLongHistogram("request_histogram/" + operation, "request count histogram", "unit");
+            });
+
         this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
-                stats.getCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                meter.getLongCounter("request_counter/GetObject").incrementBy(requestCount, Map.of("operation", "GetObject"));
+                meter.getLongGauge("request_gauge/GetObject").record(requestCount, Map.of("operation", "GetObject"));
+                meter.getLongHistogram("request_histogram/GetObject").record(requestCount, Map.of("operation", "GetObject"));
+                stats.getCount.addAndGet(requestCount);
             }
         };
         this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
-                stats.listCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                meter.getLongCounter("request_counter/ListObjects").incrementBy(requestCount, Map.of("operation", "ListObjects"));
+                meter.getLongGauge("request_gauge/ListObjects").record(requestCount, Map.of("operation", "ListObjects"));
+                meter.getLongHistogram("request_histogram/ListObjects").record(requestCount, Map.of("operation", "ListObjects"));
+                stats.listCount.addAndGet(requestCount);
             }
         };
         this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT");
-                stats.putCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                meter.getLongCounter("request_counter/PutObject").incrementBy(requestCount, Map.of("operation", "PutObject"));
+                meter.getLongGauge("request_gauge/PutObject").record(requestCount, Map.of("operation", "PutObject"));
+                meter.getLongHistogram("request_histogram/PutObject").record(requestCount, Map.of("operation", "PutObject"));
+                stats.putCount.addAndGet(requestCount);
             }
         };
         this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-                stats.postCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                meter.getLongCounter("request_counter/PutMultipartObject")
+                    .incrementBy(requestCount, Map.of("operation", "PutMultipartObject"));
+                meter.getLongGauge("request_gauge/PutMultipartObject").record(requestCount, Map.of("operation", "PutMultipartObject"));
+                meter.getLongHistogram("request_histogram/PutMultipartObject")
+                    .record(requestCount, Map.of("operation", "PutMultipartObject"));
+                stats.postCount.addAndGet(requestCount);
             }
         };
         this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("POST");
-                stats.deleteCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                meter.getLongCounter("request_counter/DeleteObjects").incrementBy(requestCount, Map.of("operation", "DeleteObjects"));
+                meter.getLongGauge("request_gauge/DeleteObjects").record(requestCount, Map.of("operation", "DeleteObjects"));
+                meter.getLongHistogram("request_histogram/DeleteObjects").record(requestCount, Map.of("operation", "DeleteObjects"));
+                stats.deleteCount.addAndGet(requestCount);
             }
         };
         this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("DELETE");
-                stats.abortCount.addAndGet(getRequestCount(request));
+                final long requestCount = getRequestCount(request);
+                meter.getLongCounter("request_counter/AbortMultipartObject")
+                    .incrementBy(requestCount, Map.of("operation", "AbortMultipartObject"));
+                meter.getLongGauge("request_gauge/AbortMultipartObject").record(requestCount, Map.of("operation", "AbortMultipartObject"));
+                meter.getLongHistogram("request_histogram/AbortMultipartObject")
+                    .record(requestCount, Map.of("operation", "AbortMultipartObject"));
+                stats.abortCount.addAndGet(requestCount);
             }
         };
     }

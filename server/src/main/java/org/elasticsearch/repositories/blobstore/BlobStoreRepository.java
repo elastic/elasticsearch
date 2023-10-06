@@ -932,15 +932,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 })) {
                     // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                     cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, refs.acquireListener());
-                    writeUpdatedShardMetaDataAndComputeDeletes(
-                        snapshotIds,
-                        repositoryData,
-                        false,
-                        refs.acquireListener()
-                            .delegateFailure(
-                                (l, deleteResults) -> asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotIds, deleteResults, l)
+
+                    // writeIndexGen finishes on master-service thread so must fork here.
+                    threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                        .execute(
+                            ActionRunnable.wrap(
+                                refs.acquireListener(),
+                                l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
+                                    snapshotIds,
+                                    repositoryData,
+                                    false,
+                                    l0.delegateFailure(
+                                        (l, deleteResults) -> asyncCleanupUnlinkedShardLevelBlobs(
+                                            repositoryData,
+                                            snapshotIds,
+                                            deleteResults,
+                                            l
+                                        )
+                                    )
+                                )
                             )
-                    );
+                        );
                 }
             }, listener::onFailure));
         }

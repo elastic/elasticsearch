@@ -39,7 +39,7 @@ public class NodeFeaturesIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<? extends FeatureSpecification> nodeFeatureSpecifications() {
+    protected Collection<? extends FeatureSpecification> nodeFeatureSpecifications(String nodeId) {
         return List.of(new TestFeatures());
     }
 
@@ -53,5 +53,4 @@ public class NodeFeaturesIT extends ESIntegTestCase {
         assertThat(state.getNodes().allNodesHaveFeature(HISTORICAL_FEATURE), is(true));
         assertThat(state.getNodes().allNodesHaveFeature(ELIDED_FEATURE), is(true));
     }
-
 }

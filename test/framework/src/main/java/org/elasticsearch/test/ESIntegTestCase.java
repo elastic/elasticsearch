@@ -1986,9 +1986,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Returns a collection of feature specifications to be added to each node.
+     * Returns a collection of feature specifications to be added to node {@code nodeId}
      */
-    protected Collection<? extends FeatureSpecification> nodeFeatureSpecifications() {
+    protected Collection<? extends FeatureSpecification> nodeFeatureSpecifications(String nodeId) {
         return Collections.emptyList();
     }
 
@@ -2005,7 +2005,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             createTempDir(),
             externalClusterClientSettings(),
             nodePlugins(),
-            nodeFeatureSpecifications(),
+            this::nodeFeatureSpecifications,
             getClientWrapper(),
             clusterName,
             transportAddresses
@@ -2071,7 +2071,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getNumClientNodes(),
             nodePrefix,
             mockPlugins,
-            nodeFeatureSpecifications(),
+            this::nodeFeatureSpecifications,
             getClientWrapper(),
             forbidPrivateIndexSettings(),
             forceSingleDataPath(),

@@ -233,7 +233,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Collection<Class<? extends Plugin>> mockPlugins;
 
-    private final Collection<? extends FeatureSpecification> featureSpecs;
+    private final Function<String, Collection<? extends FeatureSpecification>> featureSpecs;
 
     private final boolean forbidPrivateIndexSettings;
 
@@ -288,7 +288,7 @@ public final class InternalTestCluster extends TestCluster {
             numClientNodes,
             nodePrefix,
             mockPlugins,
-            List.of(),
+            n -> List.of(),
             clientWrapper,
             true,
             false,
@@ -308,7 +308,7 @@ public final class InternalTestCluster extends TestCluster {
         final int numClientNodes,
         final String nodePrefix,
         final Collection<Class<? extends Plugin>> mockPlugins,
-        final Collection<? extends FeatureSpecification> featureSpecs,
+        final Function<String, Collection<? extends FeatureSpecification>> featureSpecs,
         final Function<Client, Client> clientWrapper,
         final boolean forbidPrivateIndexSettings,
         final boolean forceSingleDataPath,
@@ -778,7 +778,7 @@ public final class InternalTestCluster extends TestCluster {
         MockNode node = new MockNode(
             settings,
             plugins,
-            featureSpecs,
+            featureSpecs.apply(name),
             nodeConfigurationSource.nodeConfigPath(nodeId),
             forbidPrivateIndexSettings
         );

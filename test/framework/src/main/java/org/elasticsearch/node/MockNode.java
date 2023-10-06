@@ -78,20 +78,12 @@ public class MockNode extends Node {
     }
 
     public MockNode(
-        Settings settings,
-        Collection<Class<? extends Plugin>> classpathPlugins,
-        Collection<? extends FeatureSpecification> featureSpecs
-    ) {
-        this(settings, classpathPlugins, featureSpecs, null, true);
-    }
-
-    public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final Collection<? extends FeatureSpecification> featureSpecifications,
         final boolean forbidPrivateIndexSettings
     ) {
-        this(settings, classpathPlugins, List.of(), null, forbidPrivateIndexSettings);
+        this(settings, classpathPlugins, featureSpecifications, null, forbidPrivateIndexSettings);
     }
 
     public MockNode(

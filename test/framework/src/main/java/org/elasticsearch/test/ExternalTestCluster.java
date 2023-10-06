@@ -74,7 +74,7 @@ public final class ExternalTestCluster extends TestCluster {
         Path tempDir,
         Settings additionalSettings,
         Collection<Class<? extends Plugin>> pluginClasses,
-        Collection<? extends FeatureSpecification> featureSpecs,
+        Function<String, Collection<? extends FeatureSpecification>> getFeatureSpec,
         Function<Client, Client> clientWrapper,
         String clusterName,
         TransportAddress... transportAddresses
@@ -107,7 +107,7 @@ public final class ExternalTestCluster extends TestCluster {
         pluginClasses = new ArrayList<>(pluginClasses);
         pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
-        MockNode mockNode = new MockNode(clientSettings, pluginClasses, featureSpecs);
+        MockNode mockNode = new MockNode(clientSettings, pluginClasses);
         Client wrappedClient = clientWrapper.apply(mockNode.client());
         try {
             mockNode.start();

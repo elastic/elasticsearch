@@ -71,10 +71,8 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -245,14 +243,27 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         // Internal stats collection is fine-grained and records different purposes
         assertThat(
-            statsCollectors.collectors.keySet().stream().filter(k -> k.purpose() != OperationPurpose.SNAPSHOT).toList(),
-            not(empty())
+            statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::purpose).collect(Collectors.toUnmodifiableSet()),
+            equalTo(Set.of(OperationPurpose.SNAPSHOT, purpose))
         );
         // The stats report aggregates over different purposes
         final Map<String, Long> newStats = blobStore.stats();
         assertThat(newStats.keySet(), equalTo(allOperations));
         assertThat(newStats, not(equalTo(initialStats)));
-        newStats.forEach((k, v) -> assertThat(newStats.get(k), greaterThanOrEqualTo(initialStats.get(k))));
+
+        final Set<String> operationsSeenForTheNewPurpose = statsCollectors.collectors.keySet()
+            .stream()
+            .filter(sk -> sk.purpose() != OperationPurpose.SNAPSHOT)
+            .map(sk -> sk.operation().getKey())
+            .collect(Collectors.toUnmodifiableSet());
+
+        newStats.forEach((k, v) -> {
+            if (operationsSeenForTheNewPurpose.contains(k)) {
+                assertThat(newStats.get(k), greaterThan(initialStats.get(k)));
+            } else {
+                assertThat(newStats.get(k), equalTo(initialStats.get(k)));
+            }
+        });
     }
 
     public void testEnforcedCooldownPeriod() throws IOException {

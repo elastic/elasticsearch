@@ -40,10 +40,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -118,7 +119,7 @@ class S3BlobStore implements BlobStore {
     // issue
     private abstract static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
 
-        protected final AtomicLong counter = new AtomicLong();
+        protected final LongAdder counter = new LongAdder();
 
         @Override
         public final void collectMetrics(Request<?> request, Response<?> response) {
@@ -320,16 +321,14 @@ class S3BlobStore implements BlobStore {
     class StatsCollectors {
         final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
 
-        StatsCollectors() {}
-
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation()));
         }
 
         Map<String, Long> statsMap() {
-            final Map<String, Long> stats = Arrays.stream(Operation.values()).collect(Collectors.toMap(e -> e.key, e -> 0L));
-            collectors.forEach((k0, v) -> stats.compute(k0.operation().getKey(), (k1, c) -> Objects.requireNonNull(c) + v.counter.get()));
-            return Map.copyOf(stats);
+            final Map<String, Long> m = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, e -> 0L));
+            collectors.forEach((sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c) + v.counter.sum()));
+            return Map.copyOf(m);
         }
 
         IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {
@@ -337,7 +336,7 @@ class S3BlobStore implements BlobStore {
                 @Override
                 public void collectMetrics(Request<?> request) {
                     assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
-                    counter.addAndGet(getRequestCount(request));
+                    counter.add(getRequestCount(request));
                 }
             };
         }

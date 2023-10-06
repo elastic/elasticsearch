@@ -167,14 +167,7 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
-    // TODO: drop testHugeConcatRejected() once this is fixed
     public void testHugeConcat() throws IOException {
-        initSingleDocIndex();
-        assertCircuitBreaks(() -> concat(10));
-    }
-
-    public void testHugeConcatRejected() throws IOException {
         initSingleDocIndex();
         ResponseException e = expectThrows(ResponseException.class, () -> concat(10));
         Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(e.getResponse().getEntity()), false);

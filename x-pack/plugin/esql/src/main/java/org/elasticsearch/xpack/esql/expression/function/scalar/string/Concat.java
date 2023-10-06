@@ -89,7 +89,7 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
 
     @Evaluator
     static BytesRef process(@Fixed(includeInToString = false) BreakingBytesRefBuilder scratch, BytesRef[] values) {
-        ensureIsBelowMaxLength(values);
+        scratch.grow(checkedTotalLength(values));
         scratch.clear();
         for (int i = 0; i < values.length; i++) {
             scratch.append(values[i]);
@@ -97,8 +97,8 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
         return scratch.bytesRefView();
     }
 
-    private static void ensureIsBelowMaxLength(BytesRef[] values) {
-        long length = 0;
+    private static int checkedTotalLength(BytesRef[] values) {
+        int length = 0;
         for (var v : values) {
             length += v.length;
         }
@@ -110,6 +110,7 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
                 }
             };
         }
+        return length;
     }
 
     @Override

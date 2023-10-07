@@ -207,7 +207,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        Meter meter
+        final Meter meter
     ) {
         super(
             metadata,

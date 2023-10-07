@@ -68,10 +68,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public Block filter(int... positions) {
-        blockFactory.adjustBreaker(ConstantNullBlock.BASE_RAM_BYTES_USED, false);
-        final var block = blockFactory.newConstantNullBlock(positions.length);
-        assert block.ramBytesUsed() == ConstantNullBlock.BASE_RAM_BYTES_USED;
-        return block;
+        return blockFactory.newConstantNullBlock(positions.length);
     }
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

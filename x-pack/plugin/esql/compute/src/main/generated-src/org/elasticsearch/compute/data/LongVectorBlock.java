@@ -44,7 +44,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
 
     @Override
     public LongBlock filter(int... positions) {
-        return new LongVectorBlock(vector.filter(positions));
+        return vector.filter(positions).asBlock();
     }
 
     @Override

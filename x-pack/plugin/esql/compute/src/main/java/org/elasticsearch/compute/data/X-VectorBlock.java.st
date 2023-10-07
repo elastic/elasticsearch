@@ -52,7 +52,7 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        return new $Type$VectorBlock(vector.filter(positions));
+        return vector.filter(positions).asBlock();
     }
 
     @Override

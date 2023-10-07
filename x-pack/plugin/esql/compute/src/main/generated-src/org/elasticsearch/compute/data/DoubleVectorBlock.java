@@ -44,7 +44,7 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public DoubleBlock filter(int... positions) {
-        return new DoubleVectorBlock(vector.filter(positions));
+        return vector.filter(positions).asBlock();
     }
 
     @Override

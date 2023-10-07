@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
@@ -330,7 +331,8 @@ public class SyncPluginsActionTests extends ESTestCase {
     }
 
     private void createPlugin(String name) throws IOException {
-        createPlugin(name, Build.current().qualifiedVersion());
+        String semanticVersion = InstallPluginAction.getSemanticVersion(Build.current().version());
+        createPlugin(name, Objects.nonNull(semanticVersion) ? semanticVersion : Build.current().version());
     }
 
     private void createPlugin(String name, String version) throws IOException {

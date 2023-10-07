@@ -344,7 +344,7 @@ public class ReservedClusterStateService {
      *
      * Package private for testing
      */
-    void executeNonStateTransformationSteps(
+    static void executeNonStateTransformationSteps(
         List<Consumer<ActionListener<NonStateTransformResult>>> nonStateTransforms,
         ActionListener<Collection<NonStateTransformResult>> listener
     ) {

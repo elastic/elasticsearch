@@ -44,6 +44,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
         try (Block.Ref ref = evaluator.eval(page)) {
             if (ref.block().areAllValuesNull()) {
                 // All results are null which is like false. No values selected.
+                page.releaseBlocks();
                 return null;
             }
             BooleanBlock test = (BooleanBlock) ref.block();

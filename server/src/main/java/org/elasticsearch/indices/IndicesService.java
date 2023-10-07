@@ -455,7 +455,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return closeLatch.await(timeout, timeUnit);
     }
 
-    public NodeIndicesStats stats(CommonStatsFlags flags) {
+    public NodeIndicesStats stats(CommonStatsFlags flags, boolean needShardsStats) {
         CommonStats commonStats = new CommonStats(flags);
         // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
         for (Flag flag : flags.getFlags()) {
@@ -471,7 +471,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), needShardsStats ? statsByShard(this, flags) : new HashMap<>(0));
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {

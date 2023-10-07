@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.Strings;
@@ -33,6 +34,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
+    private boolean needShardsStats = true;
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -44,6 +46,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         requestedMetrics.addAll(in.readStringCollectionAsList());
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NEED_SHARDS_STATS_ADDED)) {
+            needShardsStats = in.readBoolean();
+        }
     }
 
     /**
@@ -169,11 +174,22 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         };
     }
 
+    public boolean needShardsStats() {
+        return needShardsStats;
+    }
+
+    public void setNeedShardsStats(boolean needShardsStats) {
+        this.needShardsStats = needShardsStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
         out.writeStringCollection(requestedMetrics);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NEED_SHARDS_STATS_ADDED)) {
+            out.writeBoolean(needShardsStats);
+        }
     }
 
     /**

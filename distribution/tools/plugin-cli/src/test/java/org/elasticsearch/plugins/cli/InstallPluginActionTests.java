@@ -298,7 +298,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 "version",
                 "1.0",
                 "elasticsearch.version",
-                Build.current().version(),
+                InstallPluginAction.getSemanticVersion(Build.current().version()),
                 "java.version",
                 System.getProperty("java.specification.version")
 

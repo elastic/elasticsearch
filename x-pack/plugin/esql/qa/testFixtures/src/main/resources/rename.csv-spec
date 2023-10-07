@@ -94,12 +94,12 @@ x:integer | y:integer | x2:integer | y2:integer
 ;
 
 duplicateProjectEval
-from employees | eval y = languages, x = languages | keep x, y | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
+from employees | eval y = languages, x = languages | keep x, y | eval x2 = x + 1 | eval y2 = y + 2 | limit 3 | sort x;
 
 x:integer | y:integer | x2:integer | y2:integer
 2 | 2 | 3 | 4
-5 | 5 | 6 | 7
 4 | 4 | 5 | 6
+5 | 5 | 6 | 7
 ;
 
 

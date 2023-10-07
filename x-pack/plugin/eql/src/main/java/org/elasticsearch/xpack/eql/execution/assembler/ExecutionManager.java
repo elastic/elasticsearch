@@ -238,7 +238,7 @@ public class ExecutionManager {
         );
     }
 
-    private boolean[] toMissing(List<SequenceCriterion> criteria) {
+    private static boolean[] toMissing(List<SequenceCriterion> criteria) {
         boolean[] result = new boolean[criteria.size()];
         for (int i = 0; i < criteria.size(); i++) {
             result[i] = criteria.get(i).missing();
@@ -246,7 +246,7 @@ public class ExecutionManager {
         return result;
     }
 
-    private HitExtractor timestampExtractor(HitExtractor hitExtractor) {
+    private static HitExtractor timestampExtractor(HitExtractor hitExtractor) {
         if (hitExtractor instanceof FieldHitExtractor fe) {
             return (fe instanceof TimestampFieldHitExtractor) ? hitExtractor : new TimestampFieldHitExtractor(fe);
         }
@@ -265,7 +265,7 @@ public class ExecutionManager {
         return extractors;
     }
 
-    private List<BucketExtractor> compositeKeyExtractors(List<? extends Expression> exps, FieldExtractorRegistry registry) {
+    private static List<BucketExtractor> compositeKeyExtractors(List<? extends Expression> exps, FieldExtractorRegistry registry) {
         List<BucketExtractor> extractors = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
             extractors.add(RuntimeUtils.createBucketExtractor(registry.compositeKeyExtraction(exp)));

@@ -5,12 +5,12 @@
       "actions": {
         "rollover": {
           "max_size": "10gb",
-          "max_age": "14d"
+          "max_age": "7d"
         }
       }
     },
     "delete": {
-      "min_age": "24d",
+      "min_age": "7d",
       "actions": {
         "delete": {
           "delete_searchable_snapshot": true

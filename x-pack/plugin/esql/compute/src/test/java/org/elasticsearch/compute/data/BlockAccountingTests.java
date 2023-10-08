@@ -161,7 +161,7 @@ public class BlockAccountingTests extends ESTestCase {
         Block emptyPlusSome = new IntArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + alignObjectSize((long) Integer.BYTES * randomData.length) * 2));
 
-        Block filterBlock = emptyPlusSome.filter(randomInt(randomData.length));
+        Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
     }
 

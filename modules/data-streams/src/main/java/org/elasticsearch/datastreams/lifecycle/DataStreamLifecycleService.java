@@ -143,7 +143,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final ThreadPool threadPool;
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
-    private final LongSupplier nowSupplier;
+    private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
     private volatile boolean isMaster = false;
@@ -1258,6 +1258,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     // public visibility for testing
     public DataStreamLifecycleErrorStore getErrorStore() {
         return errorStore;
+    }
+
+    // visible for testing
+    public void setNowSupplier(LongSupplier nowSupplier) {
+        this.nowSupplier = nowSupplier;
     }
 
     /**

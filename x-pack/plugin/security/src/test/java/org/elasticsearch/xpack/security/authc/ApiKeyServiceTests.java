@@ -2192,7 +2192,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(request.getMetadata()).thenReturn(newMetadata);
         final var service = createApiKeyService();
 
-        final XContentBuilder builder = service.maybeBuildUpdatedDocument(
+        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
             apiKeyId,
             oldApiKeyDoc,
             newVersion,

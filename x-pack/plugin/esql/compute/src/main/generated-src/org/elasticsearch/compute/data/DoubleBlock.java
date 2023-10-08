@@ -112,6 +112,9 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
      * equals method works properly across different implementations of the DoubleBlock interface.
      */
     static boolean equals(DoubleBlock block1, DoubleBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

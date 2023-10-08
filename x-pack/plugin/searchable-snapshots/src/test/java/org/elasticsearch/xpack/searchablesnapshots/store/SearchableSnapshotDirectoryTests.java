@@ -972,7 +972,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             "_index",
             Settings.builder()
                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-                .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .build()
         );
     }

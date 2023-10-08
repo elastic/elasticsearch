@@ -15,14 +15,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterServerInfo;
@@ -43,13 +46,23 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
     }
 
     public static class Request extends ActionRequest {
+        public static final Request ALL_NODES = new Request(false);
+        public static final Request REMOTE_CLUSTER_SERVER_NODES = new Request(true);
+        private final boolean remoteClusterServer;
 
-        public static final Request INSTANCE = new Request();
-
-        public Request() {}
+        private Request(boolean remoteClusterServer) {
+            this.remoteClusterServer = remoteClusterServer;
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            this.remoteClusterServer = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeBoolean(remoteClusterServer);
         }
 
         @Override
@@ -68,12 +81,12 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.nodes = in.readList(DiscoveryNode::new);
+            this.nodes = in.readCollectionAsList(DiscoveryNode::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public List<DiscoveryNode> getNodes() {
@@ -82,38 +95,49 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
-
         private final TransportService transportService;
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(RemoteClusterNodesAction.NAME, transportService, actionFilters, Request::new);
+            super(RemoteClusterNodesAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-            nodesInfoRequest.clear();
-            nodesInfoRequest.addMetrics(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName());
             final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
             try (var ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
-                transportService.sendRequest(
-                    transportService.getLocalNode(),
-                    NodesInfoAction.NAME,
-                    nodesInfoRequest,
-                    new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, response) -> {
-                        final List<DiscoveryNode> remoteClusterNodes = response.getNodes().stream().map(nodeInfo -> {
-                            final RemoteClusterServerInfo remoteClusterServerInfo = nodeInfo.getInfo(RemoteClusterServerInfo.class);
-                            if (remoteClusterServerInfo == null) {
-                                return null;
-                            }
-                            return nodeInfo.getNode().withTransportAddress(remoteClusterServerInfo.getAddress().publishAddress());
-                        }).filter(Objects::nonNull).toList();
-                        l.onResponse(new Response(remoteClusterNodes));
-                    }), NodesInfoResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
-                );
+                if (request.remoteClusterServer) {
+                    final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().clear()
+                        .addMetrics(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName());
+                    transportService.sendRequest(
+                        transportService.getLocalNode(),
+                        NodesInfoAction.NAME,
+                        nodesInfoRequest,
+                        new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, response) -> {
+                            final List<DiscoveryNode> remoteClusterNodes = response.getNodes().stream().map(nodeInfo -> {
+                                final RemoteClusterServerInfo remoteClusterServerInfo = nodeInfo.getInfo(RemoteClusterServerInfo.class);
+                                if (remoteClusterServerInfo == null) {
+                                    return null;
+                                }
+                                return nodeInfo.getNode().withTransportAddress(remoteClusterServerInfo.getAddress().publishAddress());
+                            }).filter(Objects::nonNull).toList();
+                            l.onResponse(new Response(remoteClusterNodes));
+                        }), NodesInfoResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+                    );
+                } else {
+                    final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().clear();
+                    transportService.sendRequest(
+                        transportService.getLocalNode(),
+                        NodesInfoAction.NAME,
+                        nodesInfoRequest,
+                        new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, response) -> {
+                            final List<DiscoveryNode> nodes = response.getNodes().stream().map(BaseNodeResponse::getNode).toList();
+                            l.onResponse(new Response(nodes));
+                        }), NodesInfoResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+                    );
+                }
             }
         }
     }

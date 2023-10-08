@@ -36,7 +36,6 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -158,6 +157,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * and each value is passed to the mapper for parsing.
      */
     public boolean parsesArrayValue() {
+        return false;
+    }
+
+    /**
+     * Whether this mapper can handle an object value during document parsing.
+     * When the subobjects property is set to false, and we encounter an object while
+     * parsing we need a way to understand if its fieldMapper is able to parse an object.
+     * If that's the case we can provide the entire object to the FieldMapper otherwise its
+     * name becomes the part of the dotted field name of each internal value.
+     */
+    protected boolean supportsParsingObject() {
         return false;
     }
 
@@ -517,7 +527,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public static class CopyTo {
 
-        private static final CopyTo EMPTY = new CopyTo(Collections.emptyList());
+        private static final CopyTo EMPTY = new CopyTo(List.of());
 
         public static CopyTo empty() {
             return EMPTY;
@@ -526,7 +536,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private final List<String> copyToFields;
 
         private CopyTo(List<String> copyToFields) {
-            this.copyToFields = copyToFields;
+            this.copyToFields = List.copyOf(copyToFields);
+        }
+
+        public CopyTo withAddedFields(List<String> fields) {
+            if (fields.isEmpty()) {
+                return this;
+            }
+            return new CopyTo(CollectionUtils.concatLists(copyToFields, fields));
         }
 
         public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
@@ -538,31 +555,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 builder.endArray();
             }
             return builder;
-        }
-
-        public static class Builder {
-            private final List<String> copyToBuilders = new ArrayList<>();
-
-            public Builder add(String field) {
-                copyToBuilders.add(field);
-                return this;
-            }
-
-            public boolean hasValues() {
-                return copyToBuilders.isEmpty() == false;
-            }
-
-            public CopyTo build() {
-                if (copyToBuilders.isEmpty()) {
-                    return EMPTY;
-                }
-                return new CopyTo(Collections.unmodifiableList(copyToBuilders));
-            }
-
-            public void reset(CopyTo copyTo) {
-                copyToBuilders.clear();
-                copyToBuilders.addAll(copyTo.copyToFields);
-            }
         }
 
         public List<String> copyToFields() {
@@ -975,6 +967,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             T defaultValue,
             Class<T> enumClass
         ) {
+            return enumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass);
+        }
+
+        /**
+         * Defines a parameter that takes any of the values of an enumeration.
+         *
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  a supplier for the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass     the enumeration class the parameter takes values from
+         */
+        public static <T extends Enum<T>> Parameter<T> enumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            Supplier<T> defaultValue,
+            Class<T> enumClass
+        ) {
             Set<T> acceptedValues = EnumSet.allOf(enumClass);
             return restrictedEnumParam(name, updateable, initializer, defaultValue, enumClass, acceptedValues);
         }
@@ -997,10 +1008,32 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Class<T> enumClass,
             Set<T> acceptedValues
         ) {
+            return restrictedEnumParam(name, updateable, initializer, (Supplier<T>) () -> defaultValue, enumClass, acceptedValues);
+        }
+
+        /**
+         * Defines a parameter that takes one of a restricted set of values from an enumeration.
+         *
+         * @param name            the parameter name
+         * @param updateable      whether the parameter can be changed by a mapping update
+         * @param initializer     a function that reads the parameter value from an existing mapper
+         * @param defaultValue    a supplier for the default value, to be used if the parameter is undefined in a mapping
+         * @param enumClass       the enumeration class the parameter takes values from
+         * @param acceptedValues  the set of values that the parameter can take
+         */
+        public static <T extends Enum<T>> Parameter<T> restrictedEnumParam(
+            String name,
+            boolean updateable,
+            Function<FieldMapper, T> initializer,
+            Supplier<T> defaultValue,
+            Class<T> enumClass,
+            Set<T> acceptedValues
+        ) {
             assert acceptedValues.size() > 0;
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> {
+            assert defaultValue != null;
+            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> {
                 if (o == null) {
-                    return defaultValue;
+                    return defaultValue.get();
                 }
                 EnumSet<T> enumSet = EnumSet.allOf(enumClass);
                 for (T t : enumSet) {
@@ -1074,7 +1107,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new Parameter<>(
                 "meta",
                 true,
-                Collections::emptyMap,
+                Map::of,
                 (n, c, o) -> TypeParsers.parseMeta(n, o),
                 m -> m.fieldType().meta(),
                 XContentBuilder::stringStringMap,
@@ -1164,7 +1197,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public abstract static class Builder extends Mapper.Builder implements ToXContentFragment {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
-        protected final CopyTo.Builder copyTo = new CopyTo.Builder();
+        protected CopyTo copyTo = CopyTo.EMPTY;
 
         /**
          * Creates a new Builder with a field name
@@ -1194,7 +1227,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
-            this.copyTo.reset(in.copyTo);
+            this.copyTo = in.copyTo;
             validate();
         }
 
@@ -1224,7 +1257,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (s != null && multiFieldsBuilder.hasMultiFields()) {
                     throw new MapperParsingException("Cannot define multifields on a field with a script");
                 }
-                if (s != null && copyTo.hasValues()) {
+                if (s != null && copyTo.copyToFields().isEmpty() == false) {
                     throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
                 }
             });
@@ -1272,7 +1305,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         continue;
                     }
                     case "copy_to" -> {
-                        TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
+                        copyTo = copyTo.withAddedFields(TypeParsers.parseCopyFields(propNode));
                         iterator.remove();
                         continue;
                     }

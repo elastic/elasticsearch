@@ -67,7 +67,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         CommonStatsFlags.Flag.FieldData,
         CommonStatsFlags.Flag.QueryCache,
         CommonStatsFlags.Flag.Completion,
-        CommonStatsFlags.Flag.Segments
+        CommonStatsFlags.Flag.Segments,
+        CommonStatsFlags.Flag.DenseVector
     );
 
     private final NodeService nodeService;
@@ -95,7 +96,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             actionFilters,
             ClusterStatsRequest::new,
             ClusterStatsNodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;

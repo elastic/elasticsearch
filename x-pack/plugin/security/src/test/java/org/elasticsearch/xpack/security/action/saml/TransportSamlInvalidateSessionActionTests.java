@@ -12,6 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -31,6 +36,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +46,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -169,8 +176,22 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     listener.onResponse((Response) response);
                 } else if (BulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));
-                    bulkRequests.add((BulkRequest) request);
-                    final BulkResponse response = new BulkResponse(new BulkItemResponse[0], 1);
+                    BulkRequest bulkRequest = (BulkRequest) request;
+                    bulkRequests.add(bulkRequest);
+                    BulkItemResponse[] bulkItemResponses = new BulkItemResponse[bulkRequest.requests().size()];
+                    for (int i = 0; i < bulkItemResponses.length; i++) {
+                        UpdateResponse updateResponse = mock(UpdateResponse.class);
+                        DocWriteResponse.Result docWriteResponse = randomFrom(
+                            DocWriteResponse.Result.UPDATED,
+                            DocWriteResponse.Result.NOOP
+                        );
+                        when(updateResponse.getResult()).thenReturn(docWriteResponse);
+                        GetResult getResult = mock(GetResult.class);
+                        when(getResult.getId()).thenReturn(bulkRequest.requests().get(i).id());
+                        when(updateResponse.getGetResult()).thenReturn(getResult);
+                        bulkItemResponses[i] = BulkItemResponse.success(i, DocWriteRequest.OpType.UPDATE, updateResponse);
+                    }
+                    BulkResponse response = new BulkResponse(bulkItemResponses, 1);
                     listener.onResponse((Response) response);
                 } else if (SearchAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(SearchRequest.class));
@@ -224,6 +245,9 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     assertEquals("_scrollId1", scrollRequest.getScrollIds().get(0));
                     ClearScrollResponse response = new ClearScrollResponse(true, 1);
                     listener.onResponse((Response) response);
+                } else if (RefreshAction.NAME.equals(action.name())) {
+                    assertThat(request, instanceOf(RefreshRequest.class));
+                    listener.onResponse((Response) mock(RefreshResponse.class));
                 } else {
                     super.doExecute(action, request, listener);
                 }
@@ -239,12 +263,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
         when(securityIndex.getCreationTime()).thenReturn(Clock.systemUTC().instant());
         when(securityIndex.aliasName()).thenReturn(".security");
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
@@ -355,7 +380,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         action.doExecute(mock(Task.class), request, future);
         final SamlInvalidateSessionResponse response = future.get();
         assertThat(response, notNullValue());
-        assertThat(response.getCount(), equalTo(2));
+        assertThat(response.getCount(), equalTo(4));
         assertThat(response.getRealmName(), equalTo(samlRealm.name()));
         assertThat(response.getRedirectUrl(), notNullValue());
         assertThat(response.getRedirectUrl(), startsWith(SamlRealmTestHelper.IDP_LOGOUT_URL));

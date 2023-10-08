@@ -19,6 +19,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -307,7 +309,7 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns the {@link Version} for the given snapshot or {@code null} if unknown.
+     * Returns the {@link IndexVersion} for the given snapshot or {@code null} if unknown.
      */
     @Nullable
     public IndexVersion getVersion(SnapshotId snapshotId) {
@@ -740,7 +742,7 @@ public final class RepositoryData {
             }
             final IndexVersion version = snapshotDetails.getVersion();
             if (version != null) {
-                if (version.before(IndexVersion.V_8_9_0)) {
+                if (version.before(IndexVersion.V_8_10_0)) {
                     builder.field(VERSION, Version.fromId(version.id()).toString());
                 } else {
                     builder.field(VERSION, version.id());
@@ -953,14 +955,19 @@ public final class RepositoryData {
         }
     }
 
+    private static final Logger logger = LogManager.getLogger(RepositoryData.class);
+
     private static IndexVersion parseIndexVersion(XContentParser.Token token, XContentParser parser) throws IOException {
         if (token == XContentParser.Token.VALUE_NUMBER) {
             return IndexVersion.fromId(parser.intValue());
         } else {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
-            Version v = Version.fromString(parser.text());
-            assert v.before(Version.V_8_10_0);
-            return IndexVersion.fromId(v.id);
+            final var versionStr = parser.text();
+            final var versionId = Version.fromString(versionStr).id;
+            if (versionId > 8_11_00_99 && versionId < 8_500_000) {
+                logger.error("found impossible string index version [{}] with id [{}]", versionStr, versionId);
+            }
+            return IndexVersion.fromId(versionId);
         }
     }
 
@@ -1150,6 +1157,23 @@ public final class RepositoryData {
             return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, slmPolicy);
         }
 
+        public static SnapshotDetails fromSnapshotInfo(SnapshotInfo snapshotInfo) {
+            return new SnapshotDetails(
+                snapshotInfo.state(),
+                snapshotInfo.version(),
+                snapshotInfo.startTime(),
+                snapshotInfo.endTime(),
+                slmPolicy(snapshotInfo.userMetadata())
+            );
+        }
+
+        private static String slmPolicy(Map<String, Object> userMetadata) {
+            if (userMetadata != null && userMetadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String policyId) {
+                return policyId;
+            } else {
+                return "";
+            }
+        }
     }
 
 }

@@ -13,12 +13,14 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.net.InetAddress;
 import java.util.List;
@@ -29,7 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandler {
     public RestPostAnalyticsEventAction(XPackLicenseState licenseState) {
-        super(licenseState);
+        super(licenseState, LicenseUtils.Product.BEHAVIORAL_ANALYTICS);
     }
 
     public static final String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";
@@ -47,7 +49,11 @@ public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandle
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
         PostAnalyticsEventAction.Request request = buidRequest(restRequest);
-        return channel -> client.execute(PostAnalyticsEventAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(
+            PostAnalyticsEventAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED)
+        );
     }
 
     private static InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {

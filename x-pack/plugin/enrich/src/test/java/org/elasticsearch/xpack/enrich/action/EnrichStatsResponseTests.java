@@ -61,7 +61,8 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
     }
 
     public static TaskInfo randomTaskInfo() {
-        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomLong());
+        String nodeId = randomAlphaOfLength(5);
+        TaskId taskId = new TaskId(nodeId, randomLong());
         String type = randomAlphaOfLength(5);
         String action = randomAlphaOfLength(5);
         String description = randomAlphaOfLength(5);
@@ -76,6 +77,7 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
         return new TaskInfo(
             taskId,
             type,
+            nodeId,
             action,
             description,
             null,

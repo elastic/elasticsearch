@@ -144,6 +144,9 @@
                 "name": {
                   "type": "keyword"
                 },
+                "machine": {
+                  "type": "keyword"
+                },
                 "kernel_version": {
                   "type": "version"
                 },

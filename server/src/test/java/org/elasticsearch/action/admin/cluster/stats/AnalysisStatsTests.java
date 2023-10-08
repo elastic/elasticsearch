@@ -26,7 +26,7 @@ import java.util.TreeMap;
 
 public class AnalysisStatsTests extends AbstractWireSerializingTestCase<AnalysisStats> {
 
-    private static final String[] SYNONYM_RULES_TYPES = { "synonyms", "synonyms_set", "synonyms_path" };
+    private static final Set<String> SYNONYM_RULES_TYPES = AnalysisStats.SYNONYM_STATS_KEYS_FOR_CONFIG.keySet();
 
     @Override
     protected Reader<AnalysisStats> instanceReader() {
@@ -439,9 +439,9 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         expectedSynonymInlineStats.indexCount = 3;
 
         Map<String, SynonymsStats> expectedSynonymStats = new TreeMap<>();
-        expectedSynonymStats.put("synonyms_set", expectedSynonymSetStats);
-        expectedSynonymStats.put("synonyms_path", expectedSynonymPathStats);
-        expectedSynonymStats.put("synonyms", expectedSynonymInlineStats);
+        expectedSynonymStats.put("sets", expectedSynonymSetStats);
+        expectedSynonymStats.put("paths", expectedSynonymPathStats);
+        expectedSynonymStats.put("inline", expectedSynonymInlineStats);
 
         assertEquals(expectedSynonymStats, analysisStats.getUsedSynonyms());
     }

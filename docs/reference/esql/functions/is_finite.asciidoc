@@ -1,0 +1,9 @@
+[[esql-is_finite]]
+=== `IS_FINITE`
+Returns a boolean that indicates whether its input is a finite number.
+
+[source,esql]
+----
+ROW d = 1.0
+| EVAL s = IS_FINITE(d/0)
+----

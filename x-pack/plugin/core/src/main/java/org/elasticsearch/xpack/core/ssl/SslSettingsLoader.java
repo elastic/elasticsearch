@@ -40,6 +40,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     private final Map<String, Setting<?>> standardSettings;
     private final Map<String, Setting<?>> disabledSettings;
 
+    @SuppressWarnings("this-escape")
     public SslSettingsLoader(Settings settings, String settingPrefix, boolean acceptNonSecurePasswords) {
         super(settingPrefix);
         this.settings = settings;

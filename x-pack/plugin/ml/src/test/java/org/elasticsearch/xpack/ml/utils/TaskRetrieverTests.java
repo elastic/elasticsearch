@@ -200,6 +200,7 @@ public class TaskRetrieverTests extends ESTestCase {
                     "test",
                     "test",
                     "test",
+                    "test",
                     null,
                     0,
                     0,

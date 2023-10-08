@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -48,8 +49,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
-    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersion.V_7_13_0;
-    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersion.V_8_6_0;
+    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
+    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -106,14 +107,14 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> o.writeLong(v == null ? -1 : v));
+        out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeWriteable);
+        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeWriteable);
+        out.writeMap(this.shardSizes, (o, v) -> o.writeLong(v == null ? -1 : v));
         if (out.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeMap(this.shardDataSetSizes, (o, s) -> s.writeTo(o), StreamOutput::writeLong);
+            out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
         }
         if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
-            out.writeMap(this.dataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
+            out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
@@ -358,7 +359,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
         ReservedSpace(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readSet(ShardId::new));
+            this(in.readVLong(), in.readCollectionAsSet(ShardId::new));
         }
 
         @Override

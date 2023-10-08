@@ -9,10 +9,14 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -44,6 +48,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -55,6 +60,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -142,6 +148,20 @@ public abstract class Engine implements Closeable {
         this.eventListener = engineConfig.getEventListener();
     }
 
+    /**
+     * Reads an {@code IndexVersion} from an {@code es_version} metadata string
+     */
+    public static IndexVersion readIndexVersion(String esVersion) {
+        if (esVersion.contains(".")) {
+            // backwards-compatible Version-style
+            org.elasticsearch.Version v = org.elasticsearch.Version.fromString(esVersion);
+            assert v.onOrBefore(org.elasticsearch.Version.V_8_11_0);
+            return IndexVersion.fromId(v.id);
+        } else {
+            return IndexVersion.fromId(Integer.parseInt(esVersion));
+        }
+    }
+
     public final EngineConfig config() {
         return engineConfig;
     }
@@ -199,6 +219,48 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Returns the {@link DenseVectorStats} for this engine
+     */
+    public DenseVectorStats denseVectorStats() {
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+            return denseVectorStats(searcher.getIndexReader());
+        }
+    }
+
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader) {
+        long valueCount = 0;
+        // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
+        // the next scheduled refresh to go through and refresh the stats as well
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            try {
+                valueCount += getDenseVectorValueCount(readerContext.reader());
+            } catch (IOException e) {
+                logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
+            }
+        }
+        return new DenseVectorStats(valueCount);
+    }
+
+    private long getDenseVectorValueCount(final LeafReader atomicReader) throws IOException {
+        long count = 0;
+        for (FieldInfo info : atomicReader.getFieldInfos()) {
+            if (info.getVectorDimension() > 0) {
+                switch (info.getVectorEncoding()) {
+                    case FLOAT32 -> {
+                        FloatVectorValues values = atomicReader.getFloatVectorValues(info.name);
+                        count += values != null ? values.size() : 0;
+                    }
+                    case BYTE -> {
+                        ByteVectorValues values = atomicReader.getByteVectorValues(info.name);
+                        count += values != null ? values.size() : 0;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
      * Performs the pre-closing checks on the {@link Engine}.
      *
      * @throws IllegalStateException if the sanity checks failed
@@ -221,10 +283,9 @@ public abstract class Engine implements Closeable {
     public interface IndexCommitListener {
 
         /**
-         * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
-         * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
-         * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the
-         * reference as soon as it is done with it.
+         * This method is invoked each time a new Lucene commit is created through this engine. Note that commits are notified in order. The
+         * {@link IndexCommitRef} prevents the {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such,
+         * the listener must close the reference as soon as it is done with it.
          *
          * @param shardId         the {@link ShardId} of shard
          * @param store           the index shard store
@@ -1065,7 +1126,7 @@ public abstract class Engine implements Closeable {
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
      */
     // NOTE: do NOT rename this to something containing flush or refresh!
-    public abstract void writeIndexingBuffer() throws EngineException;
+    public abstract void writeIndexingBuffer() throws IOException;
 
     /**
      * Checks if this engine should be flushed periodically.

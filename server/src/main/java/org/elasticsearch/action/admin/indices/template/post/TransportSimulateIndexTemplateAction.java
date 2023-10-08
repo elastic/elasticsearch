@@ -29,6 +29,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -91,7 +92,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             SimulateIndexTemplateRequest::new,
             indexNameExpressionResolver,
             SimulateIndexTemplateResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
@@ -155,7 +156,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
-        if (request.includeDefaults() && DataStreamLifecycle.isFeatureEnabled()) {
+        if (request.includeDefaults()) {
             listener.onResponse(
                 new SimulateIndexTemplateResponse(
                     template,
@@ -294,9 +295,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             indexMetadata,
             tempIndexService -> {
                 MapperService mapperService = tempIndexService.mapperService();
-                for (CompressedXContent mapping : mappings) {
-                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-                }
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);
 
                 DocumentMapper documentMapper = mapperService.documentMapper();
                 return documentMapper != null ? documentMapper.mappingSource() : null;

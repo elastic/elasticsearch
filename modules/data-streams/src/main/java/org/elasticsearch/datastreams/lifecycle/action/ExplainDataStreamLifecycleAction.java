@@ -67,6 +67,11 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
             return null;
         }
 
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
@@ -146,7 +151,7 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readList(ExplainIndexDataStreamLifecycle::new);
+            this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
 
@@ -160,7 +165,7 @@ public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStre
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(indices);
+            out.writeCollection(indices);
             out.writeOptionalWriteable(rolloverConfiguration);
         }
 

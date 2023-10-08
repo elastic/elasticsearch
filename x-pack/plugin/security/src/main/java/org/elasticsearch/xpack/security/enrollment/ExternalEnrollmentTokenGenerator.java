@@ -87,11 +87,11 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         return httpResponseBuilder;
     }
 
-    protected URL createAPIKeyUrl(URL baseUrl) throws MalformedURLException, URISyntaxException {
+    protected static URL createAPIKeyUrl(URL baseUrl) throws MalformedURLException, URISyntaxException {
         return new URL(baseUrl, (baseUrl.toURI().getPath() + "/_security/api_key").replaceAll("/+", "/"));
     }
 
-    protected URL getHttpInfoUrl(URL baseUrl) throws MalformedURLException, URISyntaxException {
+    protected static URL getHttpInfoUrl(URL baseUrl) throws MalformedURLException, URISyntaxException {
         return new URL(baseUrl, (baseUrl.toURI().getPath() + "/_nodes/_local/http").replaceAll("/+", "/"));
     }
 
@@ -134,7 +134,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
             user,
             password,
             createApiKeyRequestBodySupplier,
-            is -> responseBuilder(is)
+            ExternalEnrollmentTokenGenerator::responseBuilder
         );
         final int httpCode = httpResponseApiKey.getHttpStatus();
 

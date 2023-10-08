@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
+
 /**
  * Base class for the common case of a {@link TransportMasterNodeAction} that responds with an {@link AcknowledgedResponse}.
  */
@@ -30,7 +32,7 @@ public abstract class AcknowledgedTransportMasterNodeAction<Request extends Mast
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        String executor
+        Executor executor
     ) {
         super(
             actionName,
@@ -54,7 +56,7 @@ public abstract class AcknowledgedTransportMasterNodeAction<Request extends Mast
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        String executor
+        Executor executor
     ) {
         super(
             actionName,

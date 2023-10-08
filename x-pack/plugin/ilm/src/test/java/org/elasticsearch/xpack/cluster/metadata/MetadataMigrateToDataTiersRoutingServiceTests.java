@@ -864,20 +864,18 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                         .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 );
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
-
             Metadata.Builder mb = Metadata.builder(state.metadata());
 
             List<String> migratedIndices = migrateIndices(mb, state, "data");
-            assertThat(migratedIndices.size(), is(1));
+            // no index to migrate as the IndexMetadata.Builder#build method adds a tier preference for this partial index
+            assertThat(migratedIndices.size(), is(0));
 
             ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
             IndexMetadata migratedIndex = migratedState.metadata().index("foo");
             assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is("cold"));
-            // partially mounted index must remain in `data_frozen`
-            assertThat(
-                migratedIndex.getSettings().get(TIER_PREFERENCE),
-                is(MountSearchableSnapshotRequest.Storage.SHARED_CACHE.defaultDataTiersPreference())
-            );
+            // partially mounted index must remain in `data_frozen`, however we do not change the setting
+            assertThat(migratedIndex.getSettings().get(TIER_PREFERENCE), is(nullValue()));
+            assertThat(migratedIndex.getTierPreference(), is(IndexMetadata.PARTIALLY_MOUNTED_INDEX_TIER_PREFERENCE));
         }
 
         {
@@ -903,6 +901,32 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(
                 migratedIndex.getSettings().get(TIER_PREFERENCE),
                 is(MountSearchableSnapshotRequest.Storage.FULL_COPY.defaultDataTiersPreference())
+            );
+        }
+
+        {
+            // partially mounted indices remain on tier_preference data_frozen
+            IndexMetadata.Builder partiallyMountedIndex = IndexMetadata.builder("foo")
+                .settings(
+                    getBaseIndexSettings().put(BOX_ROUTING_REQUIRE_SETTING, "cold")
+                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+                );
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(partiallyMountedIndex)).build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "box");
+            assertThat(migratedIndices.size(), is(1));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("foo");
+            assertThat(migratedIndex.getSettings().get(BOX_ROUTING_REQUIRE_SETTING), is(nullValue()));
+            // partially mounted index must have _tier_preference and remain in `data_frozen` (despite the cold custom filtering
+            // attributed)
+            assertThat(
+                migratedIndex.getSettings().get(TIER_PREFERENCE),
+                is(MountSearchableSnapshotRequest.Storage.SHARED_CACHE.defaultDataTiersPreference())
             );
         }
     }

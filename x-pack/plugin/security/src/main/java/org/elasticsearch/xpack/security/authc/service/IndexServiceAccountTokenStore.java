@@ -65,6 +65,8 @@ import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.t
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenStore {
@@ -168,11 +170,11 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (false == frozenSecurityIndex.indexExists()) {
             listener.onResponse(List.of());
-        } else if (false == frozenSecurityIndex.isAvailable()) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (false == frozenSecurityIndex.isAvailable(SEARCH_SHARDS)) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final Supplier<ThreadContext.StoredContext> contextSupplier = client.threadPool()
@@ -204,11 +206,11 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (false == frozenSecurityIndex.indexExists()) {
             listener.onResponse(false);
-        } else if (false == frozenSecurityIndex.isAvailable()) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (false == frozenSecurityIndex.isAvailable(PRIMARY_SHARDS)) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
             if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {

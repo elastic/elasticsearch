@@ -151,6 +151,7 @@ public class SSLService {
      * Create a new SSLService using the provided {@link SslConfiguration} instances. The ssl
      * contexts created from these configurations will be cached.
      */
+    @SuppressWarnings("this-escape")
     public SSLService(Environment environment, Map<String, SslConfiguration> sslConfigurations) {
         this.env = environment;
         this.settings = env.settings();
@@ -159,6 +160,7 @@ public class SSLService {
         this.sslContexts = loadSslConfigurations(this.sslConfigurations);
     }
 
+    @SuppressWarnings("this-escape")
     @Deprecated
     public SSLService(Settings settings, Environment environment) {
         this.env = environment;
@@ -664,8 +666,7 @@ public class SSLService {
             if (isConfigurationValidForServerUsage(sslConfiguration) == false) {
                 final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(
                     REMOTE_CLUSTER_SERVER_SSL_PREFIX,
-                    false,
-                    SSLConfigurationSettings.IntendedUse.SERVER
+                    false
                 );
                 throwExceptionForMissingKeyMaterial(REMOTE_CLUSTER_SERVER_SSL_PREFIX, configurationSettings);
             }

@@ -7,11 +7,21 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlDateNanosSpecTestCase;
+import org.junit.ClassRule;
 
 import java.util.List;
 
 public class EqlDateNanosIT extends EqlDateNanosSpecTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public EqlDateNanosIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
         super(query, name, eventIds, joinKeys, size, maxSamplesPerKey);

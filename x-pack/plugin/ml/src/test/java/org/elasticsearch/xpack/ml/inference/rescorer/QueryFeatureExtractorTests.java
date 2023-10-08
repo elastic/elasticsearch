@@ -62,6 +62,7 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
         searcher.setSimilarity(new ClassicSimilarity());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98127")
     public void testQueryExtractor() throws IOException {
         addDocs(
             new String[] { "the quick brown fox", "the slow brown fox", "the grey dog", "yet another string" },

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -137,13 +137,14 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             : Math.max(maxAssignedAllocations, totalCurrentAllocations());
     }
 
+    @SuppressWarnings("this-escape")
     public TrainedModelAssignment(StreamInput in) throws IOException {
         this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
         this.nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingInfo::new);
         this.assignmentState = in.readEnum(AssignmentState.class);
         this.reason = in.readOptionalString();
         this.startTime = in.readInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             this.maxAssignedAllocations = in.readVInt();
         } else {
             this.maxAssignedAllocations = totalCurrentAllocations();
@@ -212,7 +213,9 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
             var nodeCounts = new ArrayList<Tuple<String, Integer>>();
             for (int i = 0; i < counts.length; i++) {
-                nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+                if (counts[i] > 0) {
+                    nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+                }
             }
             return nodeCounts;
         }
@@ -231,7 +234,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
         var nodeCounts = new ArrayList<Tuple<String, Integer>>();
         for (int i = 0; i < counts.length; i++) {
-            nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+            // filter out zero counts
+            if (counts[i] > 0) {
+                nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+            }
         }
         return nodeCounts;
     }
@@ -306,11 +312,11 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         taskParams.writeTo(out);
-        out.writeMap(nodeRoutingTable, StreamOutput::writeString, (o, w) -> w.writeTo(o));
+        out.writeMap(nodeRoutingTable, StreamOutput::writeWriteable);
         out.writeEnum(assignmentState);
         out.writeOptionalString(reason);
         out.writeInstant(startTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeVInt(maxAssignedAllocations);
         }
     }
@@ -410,6 +416,15 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             return this;
         }
 
+        /**
+         * Adds the {@link RoutingInfo} regardless of whether it already exists.
+         */
+        public Builder addOrOverwriteRoutingEntry(String nodeId, RoutingInfo routingInfo) {
+            nodeRoutingTable.put(nodeId, routingInfo);
+
+            return this;
+        }
+
         public Builder removeRoutingEntry(String nodeId) {
             nodeRoutingTable.remove(nodeId);
             return this;
@@ -465,6 +480,12 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             return this;
         }
 
+        public Builder clearNodeRoutingTable() {
+            nodeRoutingTable.clear();
+
+            return this;
+        }
+
         public Builder setNumberOfAllocations(int numberOfAllocations) {
             this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(
                 taskParams.getModelId(),
@@ -474,7 +495,9 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
                 taskParams.getThreadsPerAllocation(),
                 taskParams.getQueueCapacity(),
                 taskParams.getCacheSize().orElse(null),
-                taskParams.getPriority()
+                taskParams.getPriority(),
+                taskParams.getPerDeploymentMemoryBytes(),
+                taskParams.getPerAllocationMemoryBytes()
             );
             return this;
         }

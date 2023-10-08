@@ -1,0 +1,46 @@
+####
+# These tests verify the authenticate API functionality without using any create user/role features
+####
+---
+setup:
+  - skip:
+      features: headers
+---
+"Test authenticate as admin user":
+
+  - do:
+      security.authenticate: {}
+
+  - is_true: username
+  - match: { authentication_type: "realm" }
+  - match: { api_key: null }
+  - match: { enabled: true }
+
+---
+"Test authenticate with token":
+
+  - do:
+      security.get_token:
+        body:
+          grant_type: "client_credentials"
+
+  - is_true: access_token
+  - set:
+      access_token: token
+
+  - do:
+      security.authenticate: {}
+  - set:
+      username: token_owner
+      authentication_realm.name: realm_name
+
+  - do:
+      headers:
+        Authorization: "Bearer ${token}"
+      security.authenticate: {}
+
+  - match: { username: "$token_owner" }
+  - match: { authentication_realm.name: "$realm_name" }
+  - match: { authentication_type: "token" }
+  - match: { enabled: true }
+  - match: { api_key: null }

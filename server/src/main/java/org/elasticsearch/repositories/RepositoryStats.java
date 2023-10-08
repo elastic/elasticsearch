@@ -43,7 +43,7 @@ public class RepositoryStats implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(requestCounts, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(requestCounts, StreamOutput::writeLong);
     }
 
     @Override

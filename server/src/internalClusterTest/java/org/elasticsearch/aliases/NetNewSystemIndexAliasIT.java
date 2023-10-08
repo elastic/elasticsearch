@@ -9,10 +9,10 @@
 package org.elasticsearch.aliases;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -43,7 +43,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
         {
             final IndexRequest request = new IndexRequest(SYSTEM_INDEX_NAME);
             request.source("some_field", "some_value");
-            IndexResponse resp = client().index(request).get();
+            DocWriteResponse resp = client().index(request).get();
             assertThat(resp.status().getStatus(), is(201));
         }
         ensureGreen();
@@ -68,6 +68,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT.toString());
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 
                     builder.field("dynamic", "strict");

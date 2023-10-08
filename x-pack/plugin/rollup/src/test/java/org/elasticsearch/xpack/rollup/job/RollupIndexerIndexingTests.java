@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
@@ -682,7 +681,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         Map<String, MappedFieldType> fieldTypeLookup = createFieldTypes(config);
         Directory dir = index(docs, fieldTypeLookup);
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
 
@@ -691,7 +689,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             final SyncRollupIndexer action = new SyncRollupIndexer(
                 threadPool,
                 job,
-                searcher,
+                reader,
                 fieldTypeLookup.values().toArray(new MappedFieldType[0]),
                 fieldTypeLookup.get(dateHistoField)
             );
@@ -723,15 +721,16 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     false,
                     IndexVersion.current(),
                     null
-                ).build(MapperBuilderContext.root(false)).fieldType();
+                ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.current()).build(MapperBuilderContext.root(false))
-                    .fieldType();
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.current()).build(
+                    MapperBuilderContext.root(false, false)
+                ).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -746,7 +745,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     false,
                     IndexVersion.current(),
                     null
-                ).build(MapperBuilderContext.root(false)).fieldType();
+                ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -792,7 +791,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     class SyncRollupIndexer extends RollupIndexer {
-        private final IndexSearcher searcher;
+        private final IndexReader reader;
         private final MappedFieldType[] fieldTypes;
         private final MappedFieldType timestampField;
         private final List<IndexRequest> documents = new ArrayList<>();
@@ -802,12 +801,12 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         SyncRollupIndexer(
             ThreadPool threadPool,
             RollupJob job,
-            IndexSearcher searcher,
+            IndexReader reader,
             MappedFieldType[] fieldTypes,
             MappedFieldType timestampField
         ) {
             super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
-            this.searcher = searcher;
+            this.reader = reader;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;
         }
@@ -863,7 +862,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
             CompositeAggregation result = null;
             try {
-                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
+                result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
             } catch (IOException e) {
                 listener.onFailure(e);
             }
@@ -900,11 +899,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         public List<IndexRequest> triggerAndWaitForCompletion(long now) throws Exception {
             assertTrue(maybeTriggerAsyncJob(now));
-            try {
-                latch.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(latch);
             if (exc != null) {
                 throw exc;
             }

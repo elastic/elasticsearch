@@ -407,7 +407,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 }
             },
                 CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(store.indexSettings().getNodeSettings()),
-                Ccr.CCR_THREAD_POOL_NAME
+                remoteClientResponseExecutor
             );
             toClose.add(() -> {
                 logger.trace("{} canceling background renewal of retention lease [{}] at the end of restore", shardId, retentionLeaseId);
@@ -583,6 +583,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 response.getStoreFileMetadata(),
                 response.getMappingVersion(),
                 threadPool,
+                chunkResponseExecutor,
                 ccrSettings,
                 throttledTime::inc,
                 leaderShardId
@@ -595,7 +596,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 threadPool,
                 responseListener,
                 ccrSettings.getRecoveryActionTimeout(),
-                ThreadPool.Names.GENERIC,
+                threadPool.generic(), // TODO should be the remote-client response executor to match the non-timeout case
                 PutCcrRestoreSessionAction.INTERNAL_NAME
             )
         );
@@ -611,6 +612,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         private final CcrSettings ccrSettings;
         private final LongConsumer throttleListener;
         private final ThreadPool threadPool;
+        private final Executor timeoutExecutor;
         private final ShardId leaderShardId;
 
         RestoreSession(
@@ -623,6 +625,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Store.MetadataSnapshot sourceMetadata,
             long mappingVersion,
             ThreadPool threadPool,
+            Executor timeoutExecutor,
             CcrSettings ccrSettings,
             LongConsumer throttleListener,
             ShardId leaderShardId
@@ -634,6 +637,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             this.sourceMetadata = sourceMetadata;
             this.mappingVersion = mappingVersion;
             this.threadPool = threadPool;
+            this.timeoutExecutor = timeoutExecutor;
             this.ccrSettings = ccrSettings;
             this.throttleListener = throttleListener;
             this.leaderShardId = leaderShardId;
@@ -685,7 +689,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         ListenerTimeouts.wrapWithTimeout(threadPool, listener.map(getCcrRestoreFileChunkResponse -> {
                             writeFileChunk(request.md, getCcrRestoreFileChunkResponse);
                             return null;
-                        }), ccrSettings.getRecoveryActionTimeout(), ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.INTERNAL_NAME)
+                        }), ccrSettings.getRecoveryActionTimeout(), timeoutExecutor, GetCcrRestoreFileChunkAction.INTERNAL_NAME)
                     );
                 }
 
@@ -740,7 +744,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 threadPool,
                 listener,
                 ccrSettings.getRecoveryActionTimeout(),
-                ThreadPool.Names.GENERIC,
+                timeoutExecutor,
                 ClearCcrRestoreSessionAction.INTERNAL_NAME
             );
             ClearCcrRestoreSessionRequest clearRequest = new ClearCcrRestoreSessionRequest(sessionUUID, node, leaderShardId);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.existence;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -38,7 +37,7 @@ public class FrozenExistenceDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
         verify(ClusterState.EMPTY_STATE, this::assertZeroCapacity);
 
-        final Settings versionSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings versionSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final int shards = between(1, 3);
         final int replicas = between(0, 2);
         final Metadata nonFrozenMetadata = Metadata.builder()

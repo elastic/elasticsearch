@@ -121,7 +121,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(getCheckpoints(), StreamOutput::writeString, StreamOutput::writeLongArray);
+            out.writeMap(getCheckpoints(), StreamOutput::writeLongArray);
         }
 
         public Map<String, long[]> getCheckpoints() {

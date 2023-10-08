@@ -34,7 +34,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -1479,8 +1478,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(1, 3);
@@ -1561,8 +1558,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
         InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(2, 5);
@@ -1618,8 +1613,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutMatchingGroups() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final Role role = createSimpleRoleWithRemoteIndices(
             RemoteIndicesPermission.builder()
@@ -1648,8 +1641,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutRemoteIndicesPermissions() throws ExecutionException,
         InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final Role role = createSimpleRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
@@ -1666,15 +1657,13 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsForRemoteClusterForReservedRoles() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         // superuser
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("superuser"),
+                ReservedRolesStore.roleDescriptor("superuser"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
@@ -1710,7 +1699,7 @@ public class RBACEngineTests extends ESTestCase {
         // kibana_system
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("kibana_system"),
+                ReservedRolesStore.roleDescriptor("kibana_system"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
@@ -1746,7 +1735,7 @@ public class RBACEngineTests extends ESTestCase {
         // monitoring_user
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("monitoring_user"),
+                ReservedRolesStore.roleDescriptor("monitoring_user"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );

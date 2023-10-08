@@ -74,6 +74,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final TransportService transportService;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportSqlQueryAction(
         Settings settings,
@@ -85,7 +86,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays
     ) {
-        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -183,7 +184,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             planExecutor.nextPage(
                 cfg,
                 decoded.v1(),
-                wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)), listener::onFailure)
+                listener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
             );
         }
     }

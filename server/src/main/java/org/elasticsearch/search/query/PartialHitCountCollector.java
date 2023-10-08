@@ -16,7 +16,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TotalHitCountCollector;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -79,45 +78,6 @@ class PartialHitCountCollector extends TotalHitCountCollector {
 
         boolean isThresholdReached() {
             return numCollected.getAcquire() >= totalHitsThreshold;
-        }
-    }
-
-    static class CollectorManager implements org.apache.lucene.search.CollectorManager<PartialHitCountCollector, Void> {
-        private final HitsThresholdChecker hitsThresholdChecker;
-        private boolean earlyTerminated;
-        private int totalHits;
-
-        CollectorManager(int totalHitsThreshold) {
-            this.hitsThresholdChecker = new HitsThresholdChecker(totalHitsThreshold);
-        }
-
-        CollectorManager(HitsThresholdChecker hitsThresholdChecker) {
-            this.hitsThresholdChecker = hitsThresholdChecker;
-        }
-
-        @Override
-        public PartialHitCountCollector newCollector() {
-            return new PartialHitCountCollector(hitsThresholdChecker);
-        }
-
-        @Override
-        public Void reduce(Collection<PartialHitCountCollector> collectors) throws IOException {
-            assert totalHits == 0;
-            for (PartialHitCountCollector collector : collectors) {
-                this.totalHits += collector.getTotalHits();
-                if (collector.hasEarlyTerminated()) {
-                    earlyTerminated = true;
-                }
-            }
-            return null;
-        }
-
-        public boolean hasEarlyTerminated() {
-            return earlyTerminated;
-        }
-
-        public int getTotalHits() {
-            return totalHits;
         }
     }
 }

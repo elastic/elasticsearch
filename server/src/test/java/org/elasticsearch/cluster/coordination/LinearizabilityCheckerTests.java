@@ -19,8 +19,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LinearizabilityCheckerTests extends ESTestCase {
 
-    final LinearizabilityChecker checker = new LinearizabilityChecker();
-
     /**
      * Simple specification of a lock that can be exactly locked once. There is no unlocking.
      * Input is always null (and represents lock acquisition), output is a boolean whether lock was acquired.

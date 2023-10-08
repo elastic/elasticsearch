@@ -75,7 +75,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             Map<String, Object> response = entityAsMap(client().performRequest(request));
 
             Map<?, ?> downloadStats = (Map<?, ?>) response.get("stats");
-            assertThat(downloadStats.get("databases_count"), equalTo(3));
+            assertThat(downloadStats.get("databases_count"), equalTo(4));
 
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             assertThat(nodes.size(), equalTo(1));
@@ -83,7 +83,10 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             List<?> databases = ((List<?>) node.get("databases"));
             assertThat(databases, notNullValue());
             List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).collect(Collectors.toList());
-            assertThat(databaseNames, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb"));
+            assertThat(
+                databaseNames,
+                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
         });
     }
 

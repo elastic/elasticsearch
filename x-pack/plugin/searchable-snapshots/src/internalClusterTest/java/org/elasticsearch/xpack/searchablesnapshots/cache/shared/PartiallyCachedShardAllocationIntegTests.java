@@ -189,7 +189,6 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/91800")
     public void testPartialSearchableSnapshotDelaysAllocationUntilNodeCacheStatesKnown() throws Exception {
 
         updateClusterSettings(

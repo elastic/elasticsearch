@@ -9,13 +9,14 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 public class TcpHeader {
 
-    public static final TransportVersion VERSION_WITH_HEADER_SIZE = TransportVersion.V_7_6_0;
+    public static final TransportVersion VERSION_WITH_HEADER_SIZE = TransportVersions.V_7_6_0;
 
     public static final int MARKER_BYTES_SIZE = 2;
 

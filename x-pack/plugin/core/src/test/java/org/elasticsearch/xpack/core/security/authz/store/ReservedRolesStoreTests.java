@@ -64,9 +64,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.root.MainAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -231,7 +231,6 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.R
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -298,7 +297,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("snapshot_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("snapshot_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -373,7 +372,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("ingest_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("ingest_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -415,7 +414,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             () -> AuthenticationTestHelper.builder().build()
         );
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_system");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_system");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -768,6 +767,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetSecretsIndex), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetSecretsIndex), is(false));
+
+        assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/get", request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/post", request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check("cluster:admin/fleet/secrets/delete", request, authentication), is(true));
 
         // read-only indices for Fleet telemetry
         Arrays.asList("logs-elastic_agent-default", "logs-elastic_agent.fleet_server-default").forEach((index) -> {
@@ -1336,7 +1339,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
@@ -1397,7 +1400,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
@@ -1467,7 +1470,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("monitoring_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("monitoring_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -1595,7 +1598,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_agent");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("remote_monitoring_agent");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -1774,7 +1777,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("remote_monitoring_collector");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("remote_monitoring_collector");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2003,7 +2006,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     private void assertMonitoringOnRestrictedIndices(Role role) {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -2043,7 +2046,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("reporting_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("reporting_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
@@ -2099,7 +2102,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("superuser");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("superuser");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2119,7 +2122,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(superuserRole.cluster().check(SuggestProfilesAction.NAME, mock(SuggestProfilesRequest.class), authentication), is(true));
         assertThat(superuserRole.cluster().check(ActivateProfileAction.NAME, mock(ActivateProfileRequest.class), authentication), is(true));
 
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -2226,7 +2229,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_system");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("logstash_system");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2264,7 +2267,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("beats_admin");
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("beats_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2315,7 +2318,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(UsernamesField.BEATS_ROLE);
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(UsernamesField.BEATS_ROLE);
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2357,7 +2360,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(UsernamesField.APM_ROLE);
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(UsernamesField.APM_ROLE);
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2410,7 +2413,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("apm_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2493,7 +2496,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("machine_learning_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2633,7 +2636,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("machine_learning_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("machine_learning_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2758,8 +2761,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor[] roleDescriptors = {
-            new ReservedRolesStore().roleDescriptor("data_frame_transforms_admin"),
-            new ReservedRolesStore().roleDescriptor("transform_admin") };
+            ReservedRolesStore.roleDescriptor("data_frame_transforms_admin"),
+            ReservedRolesStore.roleDescriptor("transform_admin") };
 
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
             assertNotNull(roleDescriptor);
@@ -2847,8 +2850,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         RoleDescriptor[] roleDescriptors = {
-            new ReservedRolesStore().roleDescriptor("data_frame_transforms_user"),
-            new ReservedRolesStore().roleDescriptor("transform_user") };
+            ReservedRolesStore.roleDescriptor("data_frame_transforms_user"),
+            ReservedRolesStore.roleDescriptor("transform_user") };
 
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
             assertNotNull(roleDescriptor);
@@ -2940,7 +2943,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("watcher_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -2971,7 +2974,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("watcher_user");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("watcher_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -3006,7 +3009,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("viewer");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("viewer");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -3077,7 +3080,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("editor");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("editor");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -3147,71 +3150,54 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testRemoteIndicesPrivilegesForSuperuserRole() {
-        final RoleDescriptor superuserRoleDescriptor = new ReservedRolesStore().roleDescriptor("superuser");
+        final RoleDescriptor superuserRoleDescriptor = ReservedRolesStore.roleDescriptor("superuser");
         final Role superuserRole = Role.buildFromRoleDescriptor(
             superuserRoleDescriptor,
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES
         );
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertThat(superuserRoleDescriptor.hasRemoteIndicesPrivileges(), is(true));
-            assertThat(
-                Arrays.stream(superuserRoleDescriptor.getRemoteIndicesPrivileges())
-                    .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
-                    .toArray(RoleDescriptor.IndicesPrivileges[]::new),
-                equalTo(superuserRoleDescriptor.getIndicesPrivileges())
-            );
-            final List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = superuserRole.remoteIndices()
-                .remoteIndicesGroups();
-            assertThat(remoteIndicesGroups.size(), equalTo(1));
-            assertThat(remoteIndicesGroups.get(0).remoteClusterAliasMatcher().isTotal(), is(true));
-        } else {
-            assertThat(superuserRoleDescriptor.hasRemoteIndicesPrivileges(), is(false));
-            assertThat(superuserRoleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
-            assertThat(superuserRole.remoteIndices(), is(RemoteIndicesPermission.NONE));
-        }
+        assertThat(superuserRoleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+        assertThat(
+            Arrays.stream(superuserRoleDescriptor.getRemoteIndicesPrivileges())
+                .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+                .toArray(RoleDescriptor.IndicesPrivileges[]::new),
+            equalTo(superuserRoleDescriptor.getIndicesPrivileges())
+        );
+        final List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = superuserRole.remoteIndices().remoteIndicesGroups();
+        assertThat(remoteIndicesGroups.size(), equalTo(1));
+        assertThat(remoteIndicesGroups.get(0).remoteClusterAliasMatcher().isTotal(), is(true));
     }
 
     public void testRemoteIndicesPrivileges() {
         final List<String> rolesWithRemoteIndicesPrivileges = new ArrayList<>();
 
-        for (RoleDescriptor roleDescriptor : new ReservedRolesStore().roleDescriptors()) {
+        for (RoleDescriptor roleDescriptor : ReservedRolesStore.roleDescriptors()) {
             if (roleDescriptor.getName().equals("superuser")) {
                 continue;  // superuser is tested separately
             }
             final Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
 
-            if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-                // The assumption here is that any read_cross_cluster indices privileges should be paired with
-                // a corresponding remote indices privileges
-                final var readCrossClusterIndicesPrivileges = Arrays.stream(roleDescriptor.getIndicesPrivileges())
-                    .filter(ip -> Arrays.asList(ip.getPrivileges()).contains("read_cross_cluster"))
-                    .toArray(RoleDescriptor.IndicesPrivileges[]::new);
-                if (readCrossClusterIndicesPrivileges.length == 0) {
-                    assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(false));
-                } else {
-                    assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
-                    assertThat(
-                        Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
-                            .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
-                            .toList(),
-                        containsInAnyOrder(readCrossClusterIndicesPrivileges)
-                    );
-                    rolesWithRemoteIndicesPrivileges.add(roleDescriptor.getName());
-                }
-            } else {
+            // The assumption here is that any read_cross_cluster indices privileges should be paired with
+            // a corresponding remote indices privileges
+            final var readCrossClusterIndicesPrivileges = Arrays.stream(roleDescriptor.getIndicesPrivileges())
+                .filter(ip -> Arrays.asList(ip.getPrivileges()).contains("read_cross_cluster"))
+                .toArray(RoleDescriptor.IndicesPrivileges[]::new);
+            if (readCrossClusterIndicesPrivileges.length == 0) {
                 assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(false));
-                assertThat(roleDescriptor.getRemoteIndicesPrivileges(), emptyArray());
-                assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
+            } else {
+                assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+                assertThat(
+                    Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
+                        .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+                        .toList(),
+                    containsInAnyOrder(readCrossClusterIndicesPrivileges)
+                );
+                rolesWithRemoteIndicesPrivileges.add(roleDescriptor.getName());
             }
         }
 
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
-        } else {
-            assertThat(rolesWithRemoteIndicesPrivileges, emptyIterable());
-        }
+        assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
     }
 
     private void assertAllIndicesAccessAllowed(Role role, String index) {
@@ -3310,7 +3296,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_admin");
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("logstash_admin");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
@@ -3411,7 +3397,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(roleRetrievalResult.isSuccess(), is(true));
                 assertThat(roleRetrievalResult.getDescriptors().stream().map(RoleDescriptor::getName).toList(), contains(roleName));
 
-                assertThat(reservedRolesStore.roleDescriptor(roleName), notNullValue());
+                assertThat(ReservedRolesStore.roleDescriptor(roleName), notNullValue());
             } else {
                 assertThat(ReservedRolesStore.isReserved(roleName), is(false));
                 assertThat(ReservedRolesStore.names(), not(hasItem(roleName)));
@@ -3421,12 +3407,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(roleRetrievalResult.isSuccess(), is(true));
                 assertThat(roleRetrievalResult.getDescriptors(), emptyIterable());
 
-                assertThat(reservedRolesStore.roleDescriptor(roleName), nullValue());
+                assertThat(ReservedRolesStore.roleDescriptor(roleName), nullValue());
             }
         }
 
         assertThat(
-            reservedRolesStore.roleDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.toUnmodifiableSet()),
+            ReservedRolesStore.roleDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.toUnmodifiableSet()),
             equalTo(includedRoles)
         );
     }

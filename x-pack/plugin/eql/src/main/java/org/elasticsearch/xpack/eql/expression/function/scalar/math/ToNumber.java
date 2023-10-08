@@ -40,6 +40,7 @@ public class ToNumber extends ScalarFunction implements OptionalArgument {
 
     private final Expression value, base;
 
+    @SuppressWarnings("this-escape")
     public ToNumber(Source source, Expression value, Expression base) {
         super(source, Arrays.asList(value, base != null ? base : new Literal(source, null, DataTypes.NULL)));
         this.value = value;

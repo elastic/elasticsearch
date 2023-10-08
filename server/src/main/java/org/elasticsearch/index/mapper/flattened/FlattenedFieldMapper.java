@@ -208,7 +208,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
             if (multiFields.iterator().hasNext()) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
             }
-            CopyTo copyTo = this.copyTo.build();
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
             }
@@ -794,6 +793,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     public RootFlattenedFieldType fieldType() {
         return (RootFlattenedFieldType) super.fieldType();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override

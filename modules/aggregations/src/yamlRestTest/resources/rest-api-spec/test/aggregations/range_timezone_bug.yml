@@ -3,17 +3,11 @@ setup:
         indices.create:
             index: test
             body:
-                settings:
-                    number_of_replicas: 0
                 mappings:
                     properties:
                         mydate:
                             type: date
                             format: "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSZZZZZ"
-
-    - do:
-        cluster.health:
-            wait_for_status: green
 
     - do:
         index:

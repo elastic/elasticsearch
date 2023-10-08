@@ -129,15 +129,11 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
             public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-                try {
-                    assertThat(indexId.getName(), equalTo(indexName));
-                    assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
-                    latch.await();
-                    getShardSnapshotStatusCount.incrementAndGet();
-                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                assertThat(indexId.getName(), equalTo(indexName));
+                assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
+                safeAwait(latch);
+                getShardSnapshotStatusCount.incrementAndGet();
+                return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
             }
         };
         when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
@@ -438,9 +434,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 .build()
         );
 
-        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
-            currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)
-        );
+        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(RestoreInProgress.get(currentState));
         final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
             shards.put(new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));

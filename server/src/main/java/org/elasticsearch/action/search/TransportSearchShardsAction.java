@@ -60,7 +60,13 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         SearchTransportService searchTransportService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(SearchShardsAction.NAME, transportService, actionFilters, SearchShardsRequest::new);
+        super(
+            SearchShardsAction.NAME,
+            transportService,
+            actionFilters,
+            SearchShardsRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+        );
         this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
@@ -73,6 +79,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
 
     @Override
     protected void doExecute(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
             .routing(searchShardsRequest.routing())

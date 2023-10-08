@@ -22,8 +22,11 @@
           cancel-builds-on-update: true
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - 'test-release'
+          black-list-labels:
+            - 'buildkite-opt-in'
           black-list-target-branches:
             - 7.15
             - 6.8

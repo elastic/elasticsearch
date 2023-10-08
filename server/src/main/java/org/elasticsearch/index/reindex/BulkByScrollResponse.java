@@ -68,8 +68,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         super(in);
         took = in.readTimeValue();
         status = new BulkByScrollTask.Status(in);
-        bulkFailures = in.readList(Failure::new);
-        searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);
+        bulkFailures = in.readCollectionAsList(Failure::new);
+        searchFailures = in.readCollectionAsList(ScrollableHitSource.SearchFailure::new);
         timedOut = in.readBoolean();
     }
 
@@ -185,8 +185,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     public void writeTo(StreamOutput out) throws IOException {
         out.writeTimeValue(took);
         status.writeTo(out);
-        out.writeList(bulkFailures);
-        out.writeList(searchFailures);
+        out.writeCollection(bulkFailures);
+        out.writeCollection(searchFailures);
         out.writeBoolean(timedOut);
     }
 

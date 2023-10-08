@@ -1,5 +1,0 @@
-pr: 97979
-summary: Ignore the `total_shards_per_node` setting on searchable snapshots in frozen
-area: ILM+SLM
-type: bug
-issues: []

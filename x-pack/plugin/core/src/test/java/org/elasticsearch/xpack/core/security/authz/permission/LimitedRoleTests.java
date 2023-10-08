@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -82,8 +81,6 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         String remoteClusterPrefix = randomAlphaOfLengthBetween(6, 8);
         String remoteClusterSuffix = randomAlphaOfLength(1);
         String remoteClusterAlias = remoteClusterPrefix + "-" + remoteClusterSuffix;
@@ -214,8 +211,6 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterReturnsEmpty() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         String remoteClusterAlias = randomAlphaOfLengthBetween(5, 8);
         Role.Builder baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "base-role");
         Role.Builder limitedByRole1 = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role-1");

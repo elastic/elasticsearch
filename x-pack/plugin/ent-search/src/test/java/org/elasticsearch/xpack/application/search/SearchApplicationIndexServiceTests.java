@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.search;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -69,6 +69,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCreateSearchApplication() throws Exception {
+        // Default case - no template specified
         final SearchApplication searchApp = new SearchApplication(
             "my_search_app",
             new String[] { "index_1" },
@@ -77,7 +78,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             null
         );
 
-        IndexResponse resp = awaitPutSearchApplication(searchApp, true);
+        DocWriteResponse resp = awaitPutSearchApplication(searchApp, true);
         assertThat(resp.status(), equalTo(RestStatus.CREATED));
         assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
 
@@ -85,9 +86,31 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(getSearchApp, equalTo(searchApp));
         checkAliases(searchApp);
 
-        assertThat(getSearchApp.searchApplicationTemplate(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
+        assertFalse(getSearchApp.hasStoredTemplate());
 
         expectThrows(VersionConflictEngineException.class, () -> awaitPutSearchApplication(searchApp, true));
+
+        // With template specified
+        final SearchApplication searchApp2 = new SearchApplication(
+            "my_search_app2",
+            new String[] { "index_2" },
+            null,
+            System.currentTimeMillis(),
+            SearchApplicationTemplate.DEFAULT_TEMPLATE
+        );
+
+        DocWriteResponse resp2 = awaitPutSearchApplication(searchApp2, true);
+        assertThat(resp2.status(), equalTo(RestStatus.CREATED));
+        assertThat(resp2.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
+
+        SearchApplication getSearchApp2 = awaitGetSearchApplication(searchApp2.name());
+        assertThat(getSearchApp2, equalTo(searchApp2));
+        checkAliases(searchApp2);
+
+        assertThat(getSearchApp2.searchApplicationTemplateOrDefault(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
+
+        resp2 = awaitPutSearchApplication(searchApp2, false);
+        assertThat(resp2.status(), equalTo(RestStatus.OK));
     }
 
     private void checkAliases(SearchApplication searchApp) {
@@ -110,7 +133,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 System.currentTimeMillis(),
                 SearchApplicationTestUtils.getRandomSearchApplicationTemplate()
             );
-            IndexResponse resp = awaitPutSearchApplication(searchApp, false);
+            DocWriteResponse resp = awaitPutSearchApplication(searchApp, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
 
@@ -125,12 +148,12 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             System.currentTimeMillis(),
             SearchApplicationTestUtils.getRandomSearchApplicationTemplate()
         );
-        IndexResponse newResp = awaitPutSearchApplication(searchApp, false);
+        DocWriteResponse newResp = awaitPutSearchApplication(searchApp, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
         SearchApplication getNewSearchApp = awaitGetSearchApplication(searchApp.name());
         assertThat(searchApp, equalTo(getNewSearchApp));
-        assertThat(searchApp.searchApplicationTemplate(), equalTo(getNewSearchApp.searchApplicationTemplate()));
+        assertThat(searchApp.searchApplicationTemplateOrDefault(), equalTo(getNewSearchApp.searchApplicationTemplateOrDefault()));
         checkAliases(searchApp);
     }
 
@@ -143,7 +166,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 System.currentTimeMillis(),
                 null
             );
-            IndexResponse resp = awaitPutSearchApplication(searchApp, false);
+            DocWriteResponse resp = awaitPutSearchApplication(searchApp, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
         }
@@ -185,7 +208,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 System.currentTimeMillis(),
                 null
             );
-            IndexResponse resp = awaitPutSearchApplication(app, false);
+            DocWriteResponse resp = awaitPutSearchApplication(app, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
         }
@@ -211,7 +234,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 System.currentTimeMillis(),
                 null
             );
-            IndexResponse resp = awaitPutSearchApplication(app, false);
+            DocWriteResponse resp = awaitPutSearchApplication(app, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
 
@@ -239,13 +262,13 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    private IndexResponse awaitPutSearchApplication(SearchApplication app, boolean create) throws Exception {
+    private DocWriteResponse awaitPutSearchApplication(SearchApplication app, boolean create) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<IndexResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         searchAppService.putSearchApplication(app, create, new ActionListener<>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
+            public void onResponse(DocWriteResponse indexResponse) {
                 resp.set(indexResponse);
                 latch.countDown();
             }

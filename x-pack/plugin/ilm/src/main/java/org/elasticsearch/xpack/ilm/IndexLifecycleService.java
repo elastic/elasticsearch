@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
@@ -89,6 +90,7 @@ public class IndexLifecycleService
     private final LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
+    @SuppressWarnings("this-escape")
     public IndexLifecycleService(
         Settings settings,
         Client client,

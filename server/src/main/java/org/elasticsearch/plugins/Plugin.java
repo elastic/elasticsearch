@@ -26,9 +26,9 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -81,7 +81,7 @@ public abstract class Plugin implements Closeable {
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
      *                                    is called, but will return the repositories service once the node is initialized.
-     * @param tracer                      An interface for distributed tracing
+     * @param telemetryProvider           An interface for distributed tracing
      * @param allocationService           A service to manage shard allocation in the cluster
      * @param indicesService              A service to manage indices in the cluster
      */
@@ -97,7 +97,7 @@ public abstract class Plugin implements Closeable {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {

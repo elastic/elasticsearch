@@ -91,7 +91,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             SnapshotsStatusRequest::new,
             indexNameExpressionResolver,
             SnapshotsStatusResponse::new,
-            ThreadPool.Names.SNAPSHOT_META // building the response is somewhat expensive for large snapshots so we fork
+            // building the response is somewhat expensive for large snapshots, so we fork.
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
         );
         this.repositoriesService = repositoriesService;
         this.client = client;
@@ -112,7 +113,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         assert task instanceof CancellableTask : task + " not cancellable";
         final CancellableTask cancellableTask = (CancellableTask) task;
 
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
         List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
             snapshotsInProgress,
             request.repository(),

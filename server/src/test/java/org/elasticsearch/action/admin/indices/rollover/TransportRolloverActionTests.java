@@ -48,6 +48,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -299,7 +300,6 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
-        final TransportService mockTransportService = mock(TransportService.class);
         final ClusterService mockClusterService = mock(ClusterService.class);
         final DiscoveryNode mockNode = mock(DiscoveryNode.class);
         when(mockNode.getId()).thenReturn("mocknode");
@@ -353,8 +353,9 @@ public class TransportRolloverActionTests extends ESTestCase {
             EmptySystemIndices.INSTANCE,
             WriteLoadForecaster.DEFAULT
         );
+
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
-            mockTransportService,
+            mock(TransportService.class),
             mockClusterService,
             mockThreadPool,
             mockActionFilters,
@@ -492,6 +493,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
+                stats.denseVectorStats = new DenseVectorStats();
                 shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0));
             }
         }

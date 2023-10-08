@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -239,7 +238,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     // tests that field permissions are merged correctly when we authorize with several groups and don't crash when an index has no group
     public void testCorePermissionAuthorize() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final Metadata metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
             true
@@ -340,7 +339,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testSecurityIndicesPermissions() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -398,7 +397,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAsyncSearchIndicesPermissions() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String asyncSearchIndex = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
         final Metadata metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder(asyncSearchIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
@@ -501,7 +500,7 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testAuthorizationForMappingUpdates() {
-        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final Metadata.Builder metadata = new Metadata.Builder().put(
             new IndexMetadata.Builder("test1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
             true
@@ -739,7 +738,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
     private static IndexMetadata createBackingIndexMetadata(String name) {
         Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", true);
 
         IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)

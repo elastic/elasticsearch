@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -319,8 +320,8 @@ public class MappingParserTests extends MapperServiceTestCase {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.V_8_5_0);
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersion.V_8_5_0
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersions.V_8_5_0
         );
         {
             XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());

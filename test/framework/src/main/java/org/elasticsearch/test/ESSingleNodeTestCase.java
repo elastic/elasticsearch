@@ -227,11 +227,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     private Node newNode() {
         final Path tempDir = createTempDir();
         final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
-        boolean eagerConcurrentSearch = eagerConcurrentSearch();
-        Settings concurrentSetting = eagerConcurrentSearch
-            ? Settings.builder().put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1).build()
-            : Settings.EMPTY;
-        Settings settings = Settings.builder()
+        Settings.Builder settingBuilder = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
             .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
@@ -254,9 +250,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
-            .put(nodeSettings()) // allow test cases to provide their own settings or override these
-            .put(concurrentSetting)
-            .build();
+            .put(nodeSettings());// allow test cases to provide their own settings or override these
+
+        boolean enableConcurrentSearch = enableConcurrentSearch();
+        if (enableConcurrentSearch) {
+            settingBuilder.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true)
+                .put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        }
+        Settings settings = settingBuilder.build();
 
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
         if (plugins.contains(getTestTransportPlugin()) == false) {
@@ -265,7 +266,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
-        if (eagerConcurrentSearch) {
+        if (enableConcurrentSearch) {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
@@ -445,11 +446,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     /**
-     * Whether we'd like to increase the likelihood of leveraging inter-segment search concurrency, by creating multiple slices
-     * with a low amount of documents in them, which would not be allowed in production.
+     * Whether we'd like to enable inter-segment search concurrency and increase the likelihood of leveraging it, by creating multiple
+     * slices with a low amount of documents in them, which would not be allowed in production.
      * Default is true, can be disabled if it causes problems in specific tests.
      */
-    protected boolean eagerConcurrentSearch() {
+    protected boolean enableConcurrentSearch() {
         return true;
     }
 }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -61,7 +62,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         final ClusterService clusterService,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new);
+        super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -105,8 +106,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 continue;
             }
             if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
-                // special case: a node that holds the shard is on an old version
-                if (nodes.get(shard.currentNodeId()).getVersion().before(Version.V_8_2_0)) {
+                // special case: The minimum TransportVersion in the cluster is on an old version
+                if (state.getMinTransportVersion().before(TransportVersions.V_8_2_0)) {
                     throw new ActionNotFoundTransportException(GetCheckpointNodeAction.NAME);
                 }
 

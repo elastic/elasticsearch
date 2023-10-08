@@ -549,7 +549,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return new JcaMiscPEMGenerator(privateKey, CertificateTool.getEncrypter(password));
     }
 
-    private Period getCertificateValidityPeriod(Terminal terminal) {
+    private static Period getCertificateValidityPeriod(Terminal terminal) {
         printHeader("How long should your certificates be valid?", terminal);
         terminal.println("Every certificate has an expiry date. When the expiry date is reached clients");
         terminal.println("will stop trusting your certificate and TLS connections will fail.");
@@ -931,7 +931,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
      * Read input from the terminal as a {@link Period}.
      * Package protected for testing purposes.
      */
-    Period readPeriodInput(Terminal terminal, String prompt, Period defaultValue, int recommendedMinimumDays) {
+    static Period readPeriodInput(Terminal terminal, String prompt, Period defaultValue, int recommendedMinimumDays) {
         Period period = tryReadInput(terminal, prompt, defaultValue, input -> {
             String periodInput = input.replaceAll("[,\\s]", "");
             if (input.charAt(0) != 'P') {

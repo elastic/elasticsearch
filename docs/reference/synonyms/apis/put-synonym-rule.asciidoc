@@ -36,7 +36,7 @@ Synonym rule identifier to create or update.
 `synonyms`::
 (Required, string)
 The synonym rule definition.
-This needs to be in <<_solr_synonyms>> format. Some examples are:
+This needs to be in <<analysis-synonym-graph-define-synonyms,Solr format>>. Some examples are:
 
 * "i-pod, i pod => ipod",
 * "universe, cosmos"

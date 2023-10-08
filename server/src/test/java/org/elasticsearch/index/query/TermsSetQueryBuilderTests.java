@@ -231,7 +231,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 Query queryWithMinimumShouldMatchField = new TermsSetQueryBuilder("message", Arrays.asList("c", "d"))
                     .setMinimumShouldMatchField("m_s_m")
                     .doToQuery(context);
-                IndexSearcher searcher = new IndexSearcher(ir);
+                IndexSearcher searcher = newSearcher(ir);
                 TopDocs topDocsWithMinimumShouldMatchField = searcher.search(
                     queryWithMinimumShouldMatchField,
                     10,
@@ -246,7 +246,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 Query queryWithMinimumShouldMatch = new TermsSetQueryBuilder("message", Arrays.asList("c", "d", "a")).setMinimumShouldMatch(
                     "2"
                 ).doToQuery(context);
-                searcher = new IndexSearcher(ir);
+                searcher = newSearcher(ir);
                 TopDocs topDocsWithMinimumShouldMatch = searcher.search(queryWithMinimumShouldMatch, 10, new Sort(SortField.FIELD_DOC));
                 assertThat(topDocsWithMinimumShouldMatch.totalHits.value, equalTo(5L));
                 assertThat(topDocsWithMinimumShouldMatch.scoreDocs[0].doc, equalTo(1));
@@ -259,7 +259,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 Query queryWithMinimumShouldMatchNegative = new TermsSetQueryBuilder("message", Arrays.asList("c", "g", "f"))
                     .setMinimumShouldMatch("-1")
                     .doToQuery(context);
-                searcher = new IndexSearcher(ir);
+                searcher = newSearcher(ir);
                 TopDocs topDocsWithMinimumShouldMatchNegative = searcher.search(
                     queryWithMinimumShouldMatchNegative,
                     10,
@@ -307,7 +307,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap());
                 Query query = new TermsSetQueryBuilder("message", Arrays.asList("a", "b", "c", "d")).setMinimumShouldMatchScript(script)
                     .doToQuery(context);
-                IndexSearcher searcher = new IndexSearcher(ir);
+                IndexSearcher searcher = newSearcher(ir);
                 TopDocs topDocs = searcher.search(query, 10, new Sort(SortField.FIELD_DOC));
                 assertThat(topDocs.totalHits.value, equalTo(3L));
                 assertThat(topDocs.scoreDocs[0].doc, equalTo(0));

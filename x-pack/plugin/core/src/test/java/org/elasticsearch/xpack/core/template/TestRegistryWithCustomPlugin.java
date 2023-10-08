@@ -92,7 +92,7 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
         return List.of(
             new LifecyclePolicyConfig("custom-plugin-policy", "/org/elasticsearch/xpack/core/template/custom-plugin-policy.json").load(
                 LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY

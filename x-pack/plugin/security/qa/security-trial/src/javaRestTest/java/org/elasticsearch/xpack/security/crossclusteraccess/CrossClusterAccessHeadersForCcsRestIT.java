@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -43,7 +44,6 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -86,10 +85,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicenseRestTestCase {
-    @BeforeClass
-    public static void checkFeatureFlag() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-    }
 
     private static final String CLUSTER_A = "my_remote_cluster_a";
     private static final String CLUSTER_B = "my_remote_cluster_b";
@@ -1114,7 +1109,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
         try {
             service.registerRequestHandler(
                 ClusterStateAction.NAME,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 ClusterStateRequest::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
@@ -1127,7 +1122,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             );
             service.registerRequestHandler(
                 RemoteClusterNodesAction.NAME,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 RemoteClusterNodesAction.Request::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
@@ -1138,7 +1133,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             );
             service.registerRequestHandler(
                 SearchShardsAction.NAME,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
@@ -1147,31 +1142,36 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
                 }
             );
-            service.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new, (request, channel, task) -> {
-                capturedHeaders.add(
-                    new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
-                );
-                channel.sendResponse(
-                    new SearchResponse(
-                        new InternalSearchResponse(
-                            new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
-                            InternalAggregations.EMPTY,
+            service.registerRequestHandler(
+                SearchAction.NAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                SearchRequest::new,
+                (request, channel, task) -> {
+                    capturedHeaders.add(
+                        new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
+                    );
+                    channel.sendResponse(
+                        new SearchResponse(
+                            new InternalSearchResponse(
+                                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                                InternalAggregations.EMPTY,
+                                null,
+                                null,
+                                false,
+                                null,
+                                1
+                            ),
                             null,
-                            null,
-                            false,
-                            null,
-                            1
-                        ),
-                        null,
-                        1,
-                        1,
-                        0,
-                        100,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    )
-                );
-            });
+                            1,
+                            1,
+                            0,
+                            100,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        )
+                    );
+                }
+            );
             service.start();
             service.acceptIncomingRequests();
             success = true;

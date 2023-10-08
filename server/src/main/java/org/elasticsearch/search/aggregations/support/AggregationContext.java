@@ -342,6 +342,9 @@ public abstract class AggregationContext implements Releasable {
         private final SearchExecutionContext context;
         private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
+
+        private final ClusterSettings clusterSettings;
+
         private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
         private final int maxBuckets;
@@ -361,6 +364,7 @@ public abstract class AggregationContext implements Releasable {
             AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
+            ClusterSettings clusterSettings,
             long bytesToPreallocate,
             Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
@@ -376,6 +380,7 @@ public abstract class AggregationContext implements Releasable {
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
+            this.clusterSettings = clusterSettings;
             if (bytesToPreallocate == 0) {
                 /*
                  * Its possible if a bit strange for the aggregations to ask
@@ -414,7 +419,7 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+        public Aggregator profileIfEnabled(Aggregator agg) {
             if (profiler == null) {
                 return agg;
             }
@@ -516,7 +521,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public ClusterSettings getClusterSettings() {
-            return context.getClusterSettings();
+            return clusterSettings;
         }
 
         @Override
@@ -547,7 +552,9 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public void removeReleasable(Aggregator aggregator) {
+        public synchronized void removeReleasable(Aggregator aggregator) {
+            // Removing an aggregator is done after calling Aggregator#buildTopLevel which happens on an executor thread.
+            // We need to synchronize the removal because he AggregatorContext it is shared between executor threads.
             assert releaseMe.contains(aggregator)
                 : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
             releaseMe.remove(aggregator);

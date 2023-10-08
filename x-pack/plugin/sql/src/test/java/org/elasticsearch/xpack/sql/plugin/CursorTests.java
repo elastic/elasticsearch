@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -56,7 +57,7 @@ public class CursorTests extends ESTestCase {
         TransportVersion otherVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getFirstVersion(),
-            TransportVersion.V_8_7_0
+            TransportVersions.V_8_7_0
         );
 
         String encodedWithWrongVersion = encodeToString(cursor, otherVersion, randomZone());
@@ -126,7 +127,7 @@ public class CursorTests extends ESTestCase {
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersionUtils.getFirstVersion(),
-            TransportVersion.V_8_7_0
+            TransportVersions.V_8_7_0
         );
         String encoded = encodeToString(cursor, version, zone);
 

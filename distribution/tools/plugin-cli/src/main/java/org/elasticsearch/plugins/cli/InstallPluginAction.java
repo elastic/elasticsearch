@@ -201,7 +201,6 @@ public class InstallPluginAction implements Closeable {
     private Environment env;
     private boolean batch;
     private Proxy proxy = null;
-    private NamedComponentScanner scanner = new NamedComponentScanner();
 
     public InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
         this.terminal = terminal;
@@ -877,12 +876,12 @@ public class InstallPluginAction implements Closeable {
         return info;
     }
 
-    private void generateNameComponentFile(Path pluginRoot) throws IOException {
+    private static void generateNameComponentFile(Path pluginRoot) throws IOException {
         Stream<ClassReader> classPath = ClassReaders.ofClassPath().stream(); // contains plugin-api
         List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(pluginRoot).stream(), classPath).toList();
-        Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
+        Map<String, Map<String, String>> namedComponentsMap = NamedComponentScanner.scanForNamedClasses(classReaders);
         Path outputFile = pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
-        scanner.writeToFile(namedComponentsMap, outputFile);
+        NamedComponentScanner.writeToFile(namedComponentsMap, outputFile);
     }
 
     private static boolean hasNamedComponentFile(Path pluginRoot) {

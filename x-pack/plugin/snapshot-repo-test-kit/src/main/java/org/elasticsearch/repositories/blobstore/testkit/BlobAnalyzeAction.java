@@ -9,7 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
@@ -167,7 +168,13 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.SNAPSHOT);
+            super(
+                NAME,
+                transportService,
+                actionFilters,
+                Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
+            );
             this.repositoriesService = repositoriesService;
             this.transportService = transportService;
         }
@@ -341,17 +348,18 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                     };
                     if (atomic) {
                         try {
-                            blobContainer.writeBlobAtomic(request.blobName, bytesReference, failIfExists);
+                            blobContainer.writeBlobAtomic(OperationPurpose.SNAPSHOT, request.blobName, bytesReference, failIfExists);
                         } catch (BlobWriteAbortedException e) {
                             assert request.getAbortWrite() : "write unexpectedly aborted";
                         }
                     } else {
-                        blobContainer.writeBlob(request.blobName, bytesReference, failIfExists);
+                        blobContainer.writeBlob(OperationPurpose.SNAPSHOT, request.blobName, bytesReference, failIfExists);
                     }
                 } else {
                     cancellableThreads.execute(() -> {
                         try {
                             blobContainer.writeBlob(
+                                OperationPurpose.SNAPSHOT,
                                 request.blobName,
                                 repository.maybeRateLimitSnapshots(
                                     new RandomBlobContentStream(content, request.getTargetLength()),
@@ -470,7 +478,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 logger.trace(() -> "analysis failed [" + request.getDescription() + "] cleaning up", exception);
             }
             try {
-                blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(request.blobName));
+                blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, Iterators.single(request.blobName));
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(
@@ -694,12 +702,12 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             blobName = in.readString();
             targetLength = in.readVLong();
             seed = in.readLong();
-            nodes = in.readList(DiscoveryNode::new);
+            nodes = in.readCollectionAsList(DiscoveryNode::new);
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 abortWrite = in.readBoolean();
             } else {
                 abortWrite = false;
@@ -714,12 +722,12 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeString(blobName);
             out.writeVLong(targetLength);
             out.writeLong(seed);
-            out.writeList(nodes);
+            out.writeCollection(nodes);
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWrite);
             } else if (abortWrite) {
                 throw new IllegalStateException("cannot send abortWrite request on transport version [" + out.getTransportVersion() + "]");
@@ -841,7 +849,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             writeElapsedNanos = in.readVLong();
             overwriteElapsedNanos = in.readVLong();
             writeThrottledNanos = in.readVLong();
-            readDetails = in.readList(ReadDetail::new);
+            readDetails = in.readCollectionAsList(ReadDetail::new);
         }
 
         @Override
@@ -857,7 +865,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeVLong(writeElapsedNanos);
             out.writeVLong(overwriteElapsedNanos);
             out.writeVLong(writeThrottledNanos);
-            out.writeList(readDetails);
+            out.writeCollection(readDetails);
         }
 
         @Override

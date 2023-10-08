@@ -141,12 +141,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public int getFailureCount() {
@@ -269,7 +269,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 new ActionFilters(new HashSet<>()),
                 NodesRequest::new,
                 NodeRequest::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 
@@ -404,7 +404,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 UnblockTestTasksRequest::new,
                 UnblockTestTasksResponse::new,
                 UnblockTestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
         }
 

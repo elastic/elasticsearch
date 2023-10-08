@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.List;
@@ -24,17 +25,23 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
  */
 public class DataStreamLifecycleErrorStore {
 
+    public static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
     private final ConcurrentMap<String, String> indexNameToError = new ConcurrentHashMap<>();
 
     /**
      * Records a string representation of the provided exception for the provided index.
      * If an error was already recorded for the provided index this will override that error.
+     *
+     * Returns the previously recorded error for the provided index, or null otherwise.
      */
-    public void recordError(String indexName, Exception e) {
-        indexNameToError.put(indexName, org.elasticsearch.common.Strings.toString(((builder, params) -> {
+    @Nullable
+    public String recordError(String indexName, Exception e) {
+        String exceptionToString = Strings.toString((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, EMPTY_PARAMS, e);
             return builder;
-        })));
+        });
+        String recordedError = Strings.substring(exceptionToString, 0, MAX_ERROR_MESSAGE_LENGTH);
+        return indexNameToError.put(indexName, recordedError);
     }
 
     /**

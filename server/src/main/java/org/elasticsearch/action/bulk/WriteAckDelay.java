@@ -51,7 +51,7 @@ public class WriteAckDelay implements Consumer<Runnable> {
         this.threadPool.scheduleWithFixedDelay(
             new ScheduleTask(),
             TimeValue.timeValueNanos(writeDelayIntervalNanos),
-            ThreadPool.Names.GENERIC
+            this.threadPool.generic()
         );
     }
 
@@ -80,7 +80,7 @@ public class WriteAckDelay implements Consumer<Runnable> {
                 writeDelayInterval,
                 randomDelay
             );
-            threadPool.schedule(new CompletionTask(tasks), randomDelay, ThreadPool.Names.GENERIC);
+            threadPool.schedule(new CompletionTask(tasks), randomDelay, threadPool.generic());
         }
     }
 

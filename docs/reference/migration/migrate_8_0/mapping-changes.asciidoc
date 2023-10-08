@@ -2,10 +2,6 @@
 [[breaking_80_mapping_changes]]
 ==== Mapping changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 .Indices created in {es} 6.x and earlier versions are not supported.
 [%collapsible]
 ====
@@ -135,4 +131,3 @@ GitHub or the 'discuss' forums.
 Discontinue use of the `sparse_vector` field data type. Requests containing
 a mapping for this field data type will return an error.
 ====
-//end::notable-breaking-changes[]

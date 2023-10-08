@@ -105,7 +105,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                 actionFilters,
                 Request::new,
                 Request::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 
@@ -161,11 +161,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
                             // only activated on primary
                             if (action.equals(testActionName)) {
                                 actionRunningLatch.countDown();
-                                try {
-                                    actionWaitLatch.await(10, TimeUnit.SECONDS);
-                                } catch (InterruptedException e) {
-                                    throw new AssertionError(e);
-                                }
+                                safeAwait(actionWaitLatch);
                             }
                             sender.sendRequest(connection, action, request, options, handler);
                         }
@@ -217,11 +213,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         // we would not hit the transport service closed case.
         primaryTransportService.addOnStopListener(() -> {
             primaryTestPlugin.actionWaitLatch.countDown();
-            try {
-                assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(doneLatch);
         });
         internalCluster().stopNode(primary);
 

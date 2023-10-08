@@ -39,6 +39,7 @@ public class ActionClusterPrivilege implements NamedClusterPrivilege {
      * @param allowedActionPatterns  a set of cluster action patterns
      * @param excludedActionPatterns a set of cluster action patterns
      */
+    @SuppressWarnings("this-escape")
     public ActionClusterPrivilege(final String name, final Set<String> allowedActionPatterns, final Set<String> excludedActionPatterns) {
         this.name = name;
         this.allowedActionPatterns = allowedActionPatterns;

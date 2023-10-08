@@ -1,0 +1,12 @@
+[[esql-agg-max]]
+=== `MAX`
+The maximum value of a numeric field.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/stats.csv-spec[tag=max]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/stats.csv-spec[tag=max-result]
+|===

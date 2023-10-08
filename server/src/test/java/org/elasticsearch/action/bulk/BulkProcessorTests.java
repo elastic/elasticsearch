@@ -26,6 +26,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ScheduledExecutorServiceScheduler;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,6 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -225,7 +227,7 @@ public class BulkProcessorTests extends ESTestCase {
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 null,
-                (command, delay, executor) -> null,
+                UnusedScheduler.INSTANCE,
                 () -> called.set(true),
                 BulkRequest::new
             )
@@ -344,9 +346,7 @@ public class BulkProcessorTests extends ESTestCase {
                 maxBatchSize,
                 ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
-                (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
-                    flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
-                ),
+                new ScheduledExecutorServiceScheduler(flushExecutor),
                 () -> {
                     flushExecutor.shutdown();
                     try {
@@ -447,7 +447,7 @@ public class BulkProcessorTests extends ESTestCase {
             10,
             ByteSizeValue.ofBytes(1000),
             null,
-            (command, delay, executor) -> null,
+            UnusedScheduler.INSTANCE,
             () -> called.set(true),
             BulkRequest::new
         );
@@ -545,5 +545,14 @@ public class BulkProcessorTests extends ESTestCase {
 
     private DocWriteResponse mockResponse() {
         return new IndexResponse(new ShardId("index", "uid", 0), "id", 1, 1, 1, true);
+    }
+
+    private static class UnusedScheduler implements Scheduler {
+        static UnusedScheduler INSTANCE = new UnusedScheduler();
+
+        @Override
+        public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+            throw new AssertionError("should not be called");
+        }
     }
 }

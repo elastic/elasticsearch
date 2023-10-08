@@ -2,10 +2,6 @@
 [[breaking_80_packaging_changes]]
 ==== Packaging changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 TIP: {ess-skip-section}
 
 .The layout of the data folder has changed.
@@ -62,4 +58,3 @@ After the geoip downloader has completed downloading the most up to data databas
 then the geoip processor will function as normal. The window of time that the
 geoip processor can't do geoip lookups after cluster startup should be very small.
 ====
-//end::notable-breaking-changes[]

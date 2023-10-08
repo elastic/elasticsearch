@@ -73,7 +73,6 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
         return settings.build();
     }

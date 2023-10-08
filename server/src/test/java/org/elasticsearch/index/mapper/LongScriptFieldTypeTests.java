@@ -36,6 +36,7 @@ import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -50,6 +51,16 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
 
+    @Override
+    protected ScriptFactory parseFromSource() {
+        return LongFieldScript.PARSE_FROM_SOURCE;
+    }
+
+    @Override
+    protected ScriptFactory dummyScript() {
+        return LongFieldScriptTests.DUMMY;
+    }
+
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
         assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(11), equalTo("11"));
@@ -63,7 +74,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             MappedFieldType ft = mapperService.fieldType("field");
             SearchExecutionContext sec = createSearchExecutionContext(mapperService);
             Query rangeQuery = ft.rangeQuery(0, 9223372036854775807L, false, false, ShapeRelation.CONTAINS, null, null, sec);
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
             assertEquals(1, searcher.count(rangeQuery));
         });
     }

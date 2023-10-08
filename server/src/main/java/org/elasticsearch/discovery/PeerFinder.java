@@ -94,6 +94,7 @@ public abstract class PeerFinder {
     private Optional<DiscoveryNode> leader = Optional.empty();
     private volatile List<TransportAddress> lastResolvedAddresses = emptyList();
 
+    @SuppressWarnings("this-escape")
     public PeerFinder(
         Settings settings,
         TransportService transportService,
@@ -110,7 +111,7 @@ public abstract class PeerFinder {
 
         transportService.registerRequestHandler(
             REQUEST_PEERS_ACTION_NAME,
-            Names.CLUSTER_COORDINATION,
+            this.clusterCoordinationExecutor,
             false,
             false,
             PeersRequest::new,
@@ -122,34 +123,44 @@ public abstract class PeerFinder {
         logger.trace("activating with {}", lastAcceptedNodes);
 
         synchronized (mutex) {
-            assert assertInactiveWithNoKnownPeers();
+            assert assertInactiveWithNoUndiscoveredPeers();
             active = true;
             activatedAtMillis = transportService.getThreadPool().relativeTimeInMillis();
             this.lastAcceptedNodes = lastAcceptedNodes;
             leader = Optional.empty();
-            handleWakeUp(); // return value discarded: there are no known peers, so none can be disconnected
+            handleWakeUp();
         }
 
         onFoundPeersUpdated(); // trigger a check for a quorum already
     }
 
     public void deactivate(DiscoveryNode leader) {
-        final boolean peersRemoved;
+        final boolean hasInactivePeers;
         final Collection<Releasable> connectionReferences;
         synchronized (mutex) {
             logger.trace("deactivating and setting leader to {}", leader);
             active = false;
             connectionReferences = new ArrayList<>(peersByAddress.size());
-            for (Peer peer : peersByAddress.values()) {
-                connectionReferences.add(peer.getConnectionReference());
+            hasInactivePeers = peersByAddress.isEmpty() == false;
+            final var iterator = peersByAddress.values().iterator();
+            while (iterator.hasNext()) {
+                final var peer = iterator.next();
+                if (peer.getDiscoveryNode() == null) {
+                    connectionReferences.add(peer.getConnectionReference());
+                    iterator.remove();
+                }
             }
-            peersRemoved = handleWakeUp();
             this.leader = Optional.of(leader);
-            assert assertInactiveWithNoKnownPeers();
+            assert assertInactiveWithNoUndiscoveredPeers();
         }
-        if (peersRemoved) {
+        if (hasInactivePeers) {
             onFoundPeersUpdated();
         }
+
+        Releasables.close(connectionReferences);
+    }
+
+    public void closePeers() {
 
         // Discovery is over, we're joining a cluster, so we can release all the connections that were being used for discovery. We haven't
         // finished joining/forming the cluster yet, but if we're joining an existing master then the join will hold open the connection
@@ -166,7 +177,16 @@ public abstract class PeerFinder {
         // Note also that the NodeConnectionsService is still maintaining connections to the nodes in the last-applied cluster state, so
         // this will only close connections to nodes that we didn't know about beforehand. In most cases that's because we only just started
         // and haven't applied any cluster states at all yet. This won't cause any connection disruption during a typical master failover.
-        assert peersRemoved || connectionReferences.isEmpty() : connectionReferences;
+
+        final Collection<Releasable> connectionReferences = new ArrayList<>(peersByAddress.size());
+        synchronized (mutex) {
+            assert active == false;
+            for (final var peer : peersByAddress.values()) {
+                connectionReferences.add(peer.getConnectionReference());
+            }
+            peersByAddress.clear();
+            logger.trace("closeInactivePeers: closing {}", connectionReferences);
+        }
         Releasables.close(connectionReferences);
     }
 
@@ -175,10 +195,10 @@ public abstract class PeerFinder {
         return Thread.holdsLock(mutex);
     }
 
-    private boolean assertInactiveWithNoKnownPeers() {
+    private boolean assertInactiveWithNoUndiscoveredPeers() {
         assert holdsLock() : "PeerFinder mutex not held";
         assert active == false;
-        assert peersByAddress.isEmpty() : peersByAddress.keySet();
+        assert peersByAddress.values().stream().allMatch(p -> p.getDiscoveryNode() != null);
         return true;
     }
 
@@ -254,6 +274,9 @@ public abstract class PeerFinder {
 
     private Collection<DiscoveryNode> getFoundPeersUnderLock() {
         assert holdsLock() : "PeerFinder mutex not held";
+        if (active == false) {
+            return Set.of();
+        }
         Set<DiscoveryNode> peers = Sets.newHashSetWithExpectedSize(peersByAddress.size());
         for (Peer peer : peersByAddress.values()) {
             DiscoveryNode discoveryNode = peer.getDiscoveryNode();
@@ -290,7 +313,7 @@ public abstract class PeerFinder {
             }
         });
 
-        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.CLUSTER_COORDINATION, new Runnable() {
+        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, clusterCoordinationExecutor, new Runnable() {
             @Override
             public void run() {
                 synchronized (mutex) {
@@ -351,7 +374,8 @@ public abstract class PeerFinder {
             assert holdsLock() : "PeerFinder mutex not held";
 
             if (isActive() == false) {
-                return true;
+                logger.trace("Peer#handleWakeUp inactive: {}", Peer.this);
+                return false;
             }
 
             final DiscoveryNode discoveryNode = getDiscoveryNode();
@@ -391,6 +415,7 @@ public abstract class PeerFinder {
                     try {
                         synchronized (mutex) {
                             if (isActive() == false) {
+                                logger.trace("Peer#establishConnection inactive: {}", Peer.this);
                                 return;
                             }
 
@@ -472,11 +497,12 @@ public abstract class PeerFinder {
                 public void handleResponse(PeersResponse response) {
                     logger.trace("{} received {}", Peer.this, response);
                     synchronized (mutex) {
+                        peersRequestInFlight = false;
+
                         if (isActive() == false) {
+                            logger.trace("Peer#requestPeers inactive: {}", Peer.this);
                             return;
                         }
-
-                        peersRequestInFlight = false;
 
                         response.getMasterNode().ifPresent(node -> startProbe(node.getAddress()));
                         for (DiscoveryNode node : response.getKnownPeers()) {

@@ -33,10 +33,10 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -55,14 +55,22 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    // *Internal* setting meant as an escape hatch if we need to skip the check for outdated indices for some reason.
+    public static final Setting<Boolean> PROFILING_CHECK_OUTDATED_INDICES = Setting.boolSetting(
+        "xpack.profiling.check_outdated_indices",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     public static final String PROFILING_THREAD_POOL_NAME = "profiling";
     private final Settings settings;
     private final boolean enabled;
 
     private final SetOnce<ProfilingIndexTemplateRegistry> registry = new SetOnce<>();
-
     private final SetOnce<ProfilingIndexManager> indexManager = new SetOnce<>();
     private final SetOnce<ProfilingDataStreamManager> dataStreamManager = new SetOnce<>();
+    private final SetOnce<IndexStateResolver> indexStateResolver = new SetOnce<>();
 
     public ProfilingPlugin(Settings settings) {
         this.settings = settings;
@@ -82,14 +90,17 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
         registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry));
-        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService));
-        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService));
+        indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
+
+        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get()));
+        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get()));
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
@@ -101,6 +112,13 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         } else {
             return Collections.emptyList();
         }
+    }
+
+    public void updateCheckOutdatedIndices(boolean newValue) {
+        if (newValue == false) {
+            logger.info("profiling will ignore outdated indices");
+        }
+        indexStateResolver.get().setCheckOutdatedIndices(newValue);
     }
 
     public void updateTemplatesEnabled(boolean newValue) {
@@ -126,6 +144,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         handlers.add(new RestGetStatusAction());
         if (enabled) {
             handlers.add(new RestGetStackTracesAction());
+            handlers.add(new RestGetFlamegraphAction());
         }
         return Collections.unmodifiableList(handlers);
     }
@@ -134,6 +153,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         return List.of(
             PROFILING_TEMPLATES_ENABLED,
+            PROFILING_CHECK_OUTDATED_INDICES,
             TransportGetStackTracesAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
             TransportGetStackTracesAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
             TransportGetStackTracesAction.PROFILING_QUERY_REALTIME
@@ -158,6 +178,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
+            new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
             new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
         );
     }

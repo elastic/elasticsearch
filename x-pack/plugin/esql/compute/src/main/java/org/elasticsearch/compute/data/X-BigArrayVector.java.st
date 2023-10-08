@@ -1,0 +1,88 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.data;
+
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
+import org.elasticsearch.core.Releasable;
+
+/**
+ * Vector implementation that defers to an enclosed $Type$Array.
+ * This class is generated. Do not edit it.
+ */
+public final class $Type$BigArrayVector extends AbstractVector implements $Type$Vector, Releasable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$BigArrayVector.class);
+
+    private final $if(boolean)$Bit$else$$Type$$endif$Array values;
+
+    private final $Type$Block block;
+
+    public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount) {
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
+        this.values = values;
+        this.block = new $Type$VectorBlock(this);
+    }
+
+    @Override
+    public $Type$Block asBlock() {
+        return block;
+    }
+
+    @Override
+    public $type$ get$Type$(int position) {
+        return values.get(position);
+    }
+
+    @Override
+    public ElementType elementType() {
+        return ElementType.$TYPE$;
+    }
+
+    @Override
+    public boolean isConstant() {
+        return false;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public $Type$Vector filter(int... positions) {
+        return new Filter$Type$Vector(this, positions);
+    }
+
+    @Override
+    public void close() {
+        values.close();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof $Type$Vector that) {
+            return $Type$Vector.equals(this, that);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return $Type$Vector.hash(this);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + values + ']';
+    }
+}

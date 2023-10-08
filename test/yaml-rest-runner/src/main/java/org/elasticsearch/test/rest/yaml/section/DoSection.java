@@ -554,6 +554,7 @@ public class DoSection implements ExecutableSection {
         Map.entry("missing", tuple("404", equalTo(404))),
         Map.entry("request_timeout", tuple("408", equalTo(408))),
         Map.entry("conflict", tuple("409", equalTo(409))),
+        Map.entry("gone", tuple("410", equalTo(410))),
         Map.entry("unavailable", tuple("503", equalTo(503))),
         Map.entry(
             "request",
@@ -566,7 +567,8 @@ public class DoSection implements ExecutableSection {
                     not(equalTo(403)),
                     not(equalTo(404)),
                     not(equalTo(408)),
-                    not(equalTo(409))
+                    not(equalTo(409)),
+                    not(equalTo(410))
                 )
             )
         )

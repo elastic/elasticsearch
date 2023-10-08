@@ -99,7 +99,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         MultiValueMode sortMode = randomFrom(Arrays.asList(MultiValueMode.MIN, MultiValueMode.MAX));
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         PagedBytesIndexFieldData indexFieldData1 = getForField("f");
         IndexFieldData<?> indexFieldData2 = NoOrdinalsStringFieldDataTests.hideOrdinals(indexFieldData1);
         final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(random(), 2);
@@ -291,7 +291,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         MultiValueMode sortMode = MultiValueMode.MIN;
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
         Query parentFilter = new TermQuery(new Term("_nested_path", "parent"));
         Query childFilter = Queries.not(parentFilter);
@@ -612,7 +612,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         }
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(0, 0, searcher, () -> 0L, null, emptyMap());
 
         FieldSortBuilder sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");

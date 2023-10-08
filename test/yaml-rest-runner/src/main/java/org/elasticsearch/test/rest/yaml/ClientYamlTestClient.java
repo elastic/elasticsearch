@@ -30,6 +30,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
@@ -107,7 +109,8 @@ public class ClientYamlTestClient implements Closeable {
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
-        NodeSelector nodeSelector
+        NodeSelector nodeSelector,
+        BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
     ) throws IOException {
 
         ClientYamlSuiteRestApi restApi = restApi(apiName);
@@ -120,8 +123,20 @@ public class ClientYamlTestClient implements Closeable {
             .collect(Collectors.toSet());
 
         List<ClientYamlSuiteRestApi.Path> bestPaths = restApi.getBestMatchingPaths(params.keySet());
+        List<ClientYamlSuiteRestApi.Path> filteredPaths = bestPaths.stream()
+            .filter(path -> pathPredicate.test(restApi, path))
+            .collect(Collectors.toUnmodifiableList());
+        if (filteredPaths.isEmpty()) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "All possible paths [%s] for API [%s] have been skipped",
+                    Strings.collectionToCommaDelimitedString(bestPaths),
+                    apiName
+                )
+            );
+        }
         // the rest path to use is randomized out of the matching ones (if more than one)
-        ClientYamlSuiteRestApi.Path path = RandomizedTest.randomFrom(bestPaths);
+        ClientYamlSuiteRestApi.Path path = RandomizedTest.randomFrom(filteredPaths);
 
         // divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();

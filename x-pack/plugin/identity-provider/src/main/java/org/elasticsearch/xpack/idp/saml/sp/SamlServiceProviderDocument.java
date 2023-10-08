@@ -256,16 +256,16 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         authenticationExpiryMillis = in.readOptionalVLong();
 
         privileges.resource = in.readString();
-        privileges.rolePatterns = new TreeSet<>(in.readSet(StreamInput::readString));
+        privileges.rolePatterns = new TreeSet<>(in.readCollectionAsSet(StreamInput::readString));
 
         attributeNames.principal = in.readString();
         attributeNames.email = in.readOptionalString();
         attributeNames.name = in.readOptionalString();
         attributeNames.roles = in.readOptionalString();
 
-        certificates.serviceProviderSigning = in.readStringList();
-        certificates.identityProviderSigning = in.readStringList();
-        certificates.identityProviderMetadataSigning = in.readStringList();
+        certificates.serviceProviderSigning = in.readStringCollectionAsList();
+        certificates.identityProviderSigning = in.readStringCollectionAsList();
+        certificates.identityProviderMetadataSigning = in.readStringCollectionAsList();
     }
 
     @Override

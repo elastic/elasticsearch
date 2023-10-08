@@ -41,7 +41,12 @@ class MlProcessorAutoscalingDecider {
         this.scaleTimer = Objects.requireNonNull(scaleTimer);
     }
 
-    public MlProcessorAutoscalingCapacity scale(Settings configuration, AutoscalingDeciderContext context, MlAutoscalingContext mlContext) {
+    public MlProcessorAutoscalingCapacity scale(
+        Settings configuration,
+        AutoscalingDeciderContext context,
+        MlAutoscalingContext mlContext,
+        int allocatedProcessorsScale
+    ) {
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(context.state());
 
         if (hasUnsatisfiedDeployments(trainedModelAssignmentMetadata, mlContext.mlNodes)) {
@@ -52,7 +57,7 @@ class MlProcessorAutoscalingDecider {
             ).build();
         }
 
-        final MlProcessorAutoscalingCapacity currentCapacity = computeCurrentCapacity(mlContext.mlNodes);
+        final MlProcessorAutoscalingCapacity currentCapacity = computeCurrentCapacity(mlContext.mlNodes, allocatedProcessorsScale);
 
         final MlProcessorAutoscalingCapacity requiredCapacity = computeRequiredCapacity(trainedModelAssignmentMetadata).build();
 
@@ -64,7 +69,8 @@ class MlProcessorAutoscalingDecider {
 
         if (MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
             trainedModelAssignmentMetadata.allAssignments().values(),
-            mlContext.mlNodes
+            mlContext.mlNodes,
+            allocatedProcessorsScale
         )) {
             return MlProcessorAutoscalingCapacity.builder(currentCapacity.nodeProcessors(), currentCapacity.tierProcessors())
                 .setReason("not scaling down as model assignments require more than half of the ML tier's allocated processors")
@@ -141,11 +147,11 @@ class MlProcessorAutoscalingDecider {
         );
     }
 
-    MlProcessorAutoscalingCapacity computeCurrentCapacity(List<DiscoveryNode> mlNodes) {
+    MlProcessorAutoscalingCapacity computeCurrentCapacity(List<DiscoveryNode> mlNodes, int allocatedProcessorsScale) {
         Processors maxNodeProcessors = Processors.ZERO;
         Processors tierProcessors = Processors.ZERO;
         for (DiscoveryNode node : mlNodes) {
-            Processors nodeProcessors = MlProcessors.get(node);
+            Processors nodeProcessors = MlProcessors.get(node, allocatedProcessorsScale);
             if (nodeProcessors.compareTo(maxNodeProcessors) > 0) {
                 maxNodeProcessors = nodeProcessors;
             }

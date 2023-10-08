@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -65,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -138,7 +140,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     bulkRequest.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
                 }
                 final BulkResponse bulkResponse = bulkRequest.get();
-                assertThat(bulkResponse.status(), is(RestStatus.OK));
                 assertThat(bulkResponse.hasFailures(), is(false));
             }
             docsPerIndex.put(indexName, nbDocs);
@@ -462,6 +463,12 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                                 }
 
                                 @Override
+                                public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames)
+                                    throws IOException {
+                                    delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
+                                }
+
+                                @Override
                                 public void close() throws IOException {
                                     delegate.close();
                                 }
@@ -480,8 +487,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public InputStream readBlob(String blobName, long position, long length) throws IOException {
-                return new FilterInputStream(super.readBlob(blobName, position, length)) {
+            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                return new FilterInputStream(super.readBlob(purpose, blobName, position, length)) {
                     long bytesRead = 0L;
 
                     @Override

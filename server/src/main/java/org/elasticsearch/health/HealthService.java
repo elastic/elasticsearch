@@ -46,28 +46,23 @@ public class HealthService {
      */
     private static final String REASON = "reasons";
 
+    // Indicators that are run first and represent a serious cascading health problem
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
+    // Indicators that are run if the preflight indicators return GREEN results
     private final List<HealthIndicatorService> healthIndicatorServices;
     private final ThreadPool threadPool;
 
     /**
      * Creates a new HealthService.
-     *
+
      * Accepts a list of regular indicator services and a list of preflight indicator services. Preflight indicators are run first and
      * represent serious cascading health problems. If any of these preflight indicators are not GREEN status, all remaining indicators are
      * likely to be degraded in some way or will not be able to calculate their state correctly. The remaining health indicators will return
      * UNKNOWN statuses in this case.
-     *
-     * @param preflightHealthIndicatorServices indicators that are run first and represent a serious cascading health problem.
-     * @param healthIndicatorServices indicators that are run if the preflight indicators return GREEN results.
      */
-    public HealthService(
-        List<HealthIndicatorService> preflightHealthIndicatorServices,
-        List<HealthIndicatorService> healthIndicatorServices,
-        ThreadPool threadPool
-    ) {
-        this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
-        this.healthIndicatorServices = healthIndicatorServices;
+    public HealthService(List<HealthIndicatorService> healthIndicatorServices, ThreadPool threadPool) {
+        this.preflightHealthIndicatorServices = healthIndicatorServices.stream().filter(HealthIndicatorService::isPreflight).toList();
+        this.healthIndicatorServices = healthIndicatorServices.stream().filter(indicator -> indicator.isPreflight() == false).toList();
         this.threadPool = threadPool;
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService;
@@ -27,7 +28,7 @@ import java.util.Collection;
 import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
 
@@ -104,7 +105,6 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
         for (int i = 0; i < 100; i++) {
             client().prepareDelete("index", Integer.toString(i)).get();
         }
-        // need to assert busily as IndexingMemoryController refreshes in background
-        assertBusy(() -> assertThat(shard.refreshStats().getTotal(), greaterThan(refreshStats.getTotal() + 1)));
+        assertThat(shard.getEngineOrNull().getIndexBufferRAMBytesUsed(), lessThanOrEqualTo(ByteSizeUnit.KB.toBytes(1)));
     }
 }

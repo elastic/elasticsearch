@@ -177,7 +177,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             SearchProgressListener.buildSearchShards(this.shardsIts),
             SearchProgressListener.buildSearchShards(toSkipShardsIts),
             clusters,
-            sourceBuilder == null || sourceBuilder.size() > 0
+            sourceBuilder == null || sourceBuilder.size() > 0,
+            timeProvider
         );
     }
 

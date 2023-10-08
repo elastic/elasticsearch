@@ -10,6 +10,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -144,6 +145,13 @@ public interface SearchPlugin {
      * The new {@link Rescorer}s added by this plugin.
      */
     default List<RescorerSpec<?>> getRescorers() {
+        return emptyList();
+    }
+
+    /**
+     * Additional GenericNamedWriteable classes added by this plugin.
+     */
+    default List<GenericNamedWriteableSpec> getGenericNamedWriteables() {
         return emptyList();
     }
 
@@ -634,4 +642,9 @@ public interface SearchPlugin {
             super(name, reader, parser);
         }
     }
+
+    /**
+     * Specification of GenericNamedWriteable classes that can be serialized/deserialized as generic objects in search results.
+     */
+    record GenericNamedWriteableSpec(String name, Writeable.Reader<? extends GenericNamedWriteable> reader) {}
 }

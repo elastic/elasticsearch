@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -20,7 +21,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -66,6 +67,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -101,7 +103,9 @@ import static org.mockito.Mockito.mock;
  */
 public abstract class MapperServiceTestCase extends ESTestCase {
 
-    protected static final Settings SETTINGS = Settings.builder().put("index.version.created", Version.CURRENT).build();
+    protected static final Settings SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+        .build();
 
     protected static final ToXContent.Params INCLUDE_DEFAULTS = new ToXContent.MapParams(Map.of("include_defaults", "true"));
 
@@ -230,7 +234,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexSettings createIndexSettings(IndexVersion version, Settings settings) {
-        settings = indexSettings(1, 0).put(settings).put("index.version.created", version).build();
+        settings = indexSettings(1, 0).put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(meta, settings);
     }
@@ -240,7 +244,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
-        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
+        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
+            new PerFieldMapperCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
+        );
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
             try (DirectoryReader reader = iw.getReader()) {
@@ -620,9 +626,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
 
             }
-        },
-            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query, lookupSupplier))
-        );
+        }, reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, newSearcher(reader), query, lookupSupplier)));
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
@@ -641,27 +645,22 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            ClusterSettings.createBuiltInClusterSettings(),
-            new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {
+        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
 
-                }
+            }
 
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
 
-                }
-            }),
+            }
+        }),
             (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
-            null,
+            MapperServiceTestCase.this::compileScript,
             parserConfig(),
             writableRegistry(),
             null,
@@ -728,10 +727,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     private static String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
-        SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-        LeafReader leafReader = getOnlyLeafReader(reader);
-        SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
-        Source synthetic = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
+        SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping());
+        Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), docId);
         return synthetic.internalSourceRef().utf8ToString();
     }
 

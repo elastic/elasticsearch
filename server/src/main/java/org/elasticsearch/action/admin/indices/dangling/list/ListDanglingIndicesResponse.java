@@ -14,8 +14,8 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,7 +34,7 @@ import java.util.Objects;
  * information for each dangling index is presented under the "dangling_indices" key. If any nodes
  * in the cluster failed to answer, the details are presented under the "_nodes.failures" key.
  */
-public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements StatusToXContentObject {
+public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements ToXContentObject {
 
     public ListDanglingIndicesResponse(StreamInput in) throws IOException {
         super(in);
@@ -48,7 +48,6 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
         super(clusterName, nodes, failures);
     }
 
-    @Override
     public RestStatus status() {
         return this.hasFailures() ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.OK;
     }
@@ -94,12 +93,12 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
     @Override
     protected List<NodeListDanglingIndicesResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeListDanglingIndicesResponse::new);
+        return in.readCollectionAsList(NodeListDanglingIndicesResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeListDanglingIndicesResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     // visible for testing

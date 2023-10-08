@@ -98,7 +98,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
 
     private Response sign(Response response) {
         final SamlObjectSigner signer = new SamlObjectSigner(samlFactory, idp);
-        return samlFactory.buildXmlObject(signer.sign(response), Response.class);
+        return SamlFactory.buildXmlObject(signer.sign(response), Response.class);
     }
 
     private Conditions buildConditions(Instant now, SamlServiceProvider serviceProvider) {

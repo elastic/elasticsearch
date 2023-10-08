@@ -148,7 +148,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.queryDelay = in.readOptionalTimeValue();
         this.frequency = in.readOptionalTimeValue();
         if (in.readBoolean()) {
-            this.indices = in.readStringList();
+            this.indices = in.readStringCollectionAsList();
         } else {
             this.indices = null;
         }
@@ -157,7 +157,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
         if (in.readBoolean()) {
-            this.scriptFields = in.readList(SearchSourceBuilder.ScriptField::new);
+            this.scriptFields = in.readCollectionAsList(SearchSourceBuilder.ScriptField::new);
         } else {
             this.scriptFields = null;
         }
@@ -194,7 +194,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         if (scriptFields != null) {
             out.writeBoolean(true);
-            out.writeList(scriptFields);
+            out.writeCollection(scriptFields);
         } else {
             out.writeBoolean(false);
         }

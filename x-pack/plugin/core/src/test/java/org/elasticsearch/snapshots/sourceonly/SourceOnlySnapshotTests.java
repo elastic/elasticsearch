@@ -191,7 +191,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 for (int i = 0; i < 3; i++) {
                     assertEquals(snapReader.document(i).get("src"), reader.document(i).get("src"));
                 }
-                IndexSearcher searcher = new IndexSearcher(snapReader);
+                IndexSearcher searcher = newSearcher(snapReader);
                 TopDocs id = searcher.search(new TermQuery(new Term("id", "1")), 10);
                 assertEquals(0, id.totalHits.value);
             }

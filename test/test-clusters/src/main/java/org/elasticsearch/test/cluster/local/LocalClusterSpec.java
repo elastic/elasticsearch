@@ -84,7 +84,6 @@ public class LocalClusterSpec implements ClusterSpec {
         private final Map<String, Resource> extraConfigFiles;
         private final Map<String, String> systemProperties;
         private final List<String> jvmArgs;
-        private final Map<String, String> secrets;
         private Version version;
 
         public LocalNodeSpec(
@@ -105,8 +104,7 @@ public class LocalClusterSpec implements ClusterSpec {
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
             Map<String, String> systemProperties,
-            List<String> jvmArgs,
-            Map<String, String> secrets
+            List<String> jvmArgs
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -126,7 +124,6 @@ public class LocalClusterSpec implements ClusterSpec {
             this.extraConfigFiles = extraConfigFiles;
             this.systemProperties = systemProperties;
             this.jvmArgs = jvmArgs;
-            this.secrets = secrets;
         }
 
         void setVersion(Version version) {
@@ -189,12 +186,12 @@ public class LocalClusterSpec implements ClusterSpec {
             return jvmArgs;
         }
 
-        public Map<String, String> getSecrets() {
-            return secrets;
-        }
-
         public boolean isSecurityEnabled() {
             return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
+        }
+
+        public boolean isRemoteClusterServerEnabled() {
+            return Boolean.parseBoolean(getSetting("remote_cluster_server.enabled", "false"));
         }
 
         public boolean isMasterEligible() {
@@ -306,8 +303,7 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.keystorePassword,
                         n.extraConfigFiles,
                         n.systemProperties,
-                        n.jvmArgs,
-                        n.secrets
+                        n.jvmArgs
                     )
                 )
                 .toList();

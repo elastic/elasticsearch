@@ -90,6 +90,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
         }
 
+        @SuppressWarnings("this-escape")
         public Request() {
             setTimeout(DEFAULT_TIMEOUT);
         }
@@ -146,7 +147,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             out.writeString(id);
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(force);
-            out.writeStringArray(expandedIds.toArray(new String[0]));
+            out.writeStringCollection(expandedIds);
         }
 
         @Override

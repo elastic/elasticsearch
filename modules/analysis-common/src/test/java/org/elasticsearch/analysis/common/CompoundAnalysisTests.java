@@ -11,13 +11,13 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.MyFilterTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -94,7 +94,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         String json = "/org/elasticsearch/analysis/common/test1.json";
         return Settings.builder()
             .loadFromStream(json, getClass().getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
     }
@@ -103,7 +103,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         String yaml = "/org/elasticsearch/analysis/common/test1.yml";
         return Settings.builder()
             .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
     }

@@ -154,7 +154,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(jobs, StreamOutput::writeWriteable);
         }
 
         @Override

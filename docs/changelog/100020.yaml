@@ -1,0 +1,6 @@
+pr: 100020
+summary: "[CI] `SearchResponseTests#testSerialization` failing resolved"
+area: Search
+type: bug
+issues:
+ - 100005

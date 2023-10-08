@@ -60,6 +60,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
@@ -150,6 +151,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -330,7 +332,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard indexShard = newStartedShard();
         closeShards(indexShard);
         assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
-        expectThrows(IndexShardClosedException.class, () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE));
+        expectThrows(IndexShardClosedException.class, () -> indexShard.acquirePrimaryOperationPermit(null, writeExecutor));
         expectThrows(
             IndexShardClosedException.class,
             () -> indexShard.acquireAllPrimaryOperationsPermits(null, TimeValue.timeValueSeconds(30L))
@@ -342,7 +344,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(),
                 null,
-                ThreadPool.Names.WRITE
+                writeExecutor
             )
         );
         expectThrows(
@@ -364,7 +366,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.runUnderPrimaryPermit(
                 () -> assertThat(indexShard.getActiveOperationsCount(), equalTo(1)),
                 e -> fail(e.toString()),
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
         } finally {
@@ -380,7 +382,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertThat(e, instanceOf(RuntimeException.class));
                 assertThat(e.getMessage(), equalTo("failure"));
                 invoked.set(true);
-            }, ThreadPool.Names.SAME);
+            }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             assertTrue(invoked.get());
         } finally {
             closeShards(indexShard);
@@ -406,7 +408,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     : executorOnDelay.toLowerCase(Locale.ROOT);
                 assertThat(Thread.currentThread().getName(), containsString(expectedThreadPoolName));
                 latch.countDown();
-            }, e -> fail(e.toString()), executorOnDelay);
+            }, e -> fail(e.toString()), threadPool.executor(executorOnDelay));
             permit.close();
             latch.await();
             // we could race and assert on the count before the permit is returned
@@ -469,7 +471,7 @@ public class IndexShardTests extends IndexShardTestCase {
                             throw new RuntimeException(e);
                         }
                     },
-                    ThreadPool.Names.WRITE
+                    writeExecutor
                 );
             });
             thread.start();
@@ -513,7 +515,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     public void onFailure(Exception e) {
                         throw new RuntimeException(e);
                     }
-                }, ThreadPool.Names.WRITE);
+                }, writeExecutor);
             });
             thread.start();
             delayedThreads.add(thread);
@@ -559,7 +561,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 if (indexShard.routingEntry().primary()) {
                     assertThat(indexShard.getPendingPrimaryTerm(), equalTo(promotedTerm));
                     final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-                    indexShard.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME);
+                    indexShard.acquirePrimaryOperationPermit(permitAcquiredFuture, EsExecutors.DIRECT_EXECUTOR_SERVICE);
                     try (Releasable ignored = permitAcquiredFuture.actionGet()) {
                         assertThat(indexShard.getReplicationGroup(), notNullValue());
                     }
@@ -619,7 +621,7 @@ public class IndexShardTests extends IndexShardTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        }, ThreadPool.Names.GENERIC);
+        }, threadPool.generic());
 
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo((long) maxSeqNo));
@@ -667,7 +669,7 @@ public class IndexShardTests extends IndexShardTestCase {
             public void onFailure(Exception e) {
                 throw new RuntimeException(e);
             }
-        }, ThreadPool.Names.GENERIC);
+        }, threadPool.generic());
 
         latch.await();
         assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(currentTranslogGeneration + 1));
@@ -750,7 +752,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertThat(e, instanceOf(ShardNotInPrimaryModeException.class));
                     assertThat(e, hasToString(containsString("shard is not in primary mode")));
                 }
-            }, ThreadPool.Names.SAME);
+            }, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
             final CountDownLatch latch = new CountDownLatch(1);
             indexShard.acquireAllPrimaryOperationsPermits(new ActionListener<>() {
@@ -788,7 +790,7 @@ public class IndexShardTests extends IndexShardTestCase {
                                 fail();
                             }
                         },
-                        ThreadPool.Names.WRITE
+                        writeExecutor
                     )
                 ).getMessage(),
                 containsString("in primary mode cannot be a replication target")
@@ -842,7 +844,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     throw new RuntimeException(e);
                 }
                 if (singlePermit) {
-                    indexShard.acquirePrimaryOperationPermit(future, ThreadPool.Names.WRITE);
+                    indexShard.acquirePrimaryOperationPermit(future, writeExecutor);
                 } else {
                     indexShard.acquireAllPrimaryOperationsPermits(future, TimeValue.timeValueHours(1L));
                 }
@@ -899,7 +901,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     private Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        indexShard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.WRITE);
+        indexShard.acquirePrimaryOperationPermit(fut, writeExecutor);
         return fut.get();
     }
 
@@ -911,7 +913,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.getLastKnownGlobalCheckpoint(),
             randomNonNegativeLong(),
             fut,
-            ThreadPool.Names.WRITE
+            writeExecutor
         );
         return fut.get();
     }
@@ -963,10 +965,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         assertEquals(0, indexShard.getActiveOperationsCount());
         if (shardRouting.primary() == false && Assertions.ENABLED) {
-            AssertionError e = expectThrows(
-                AssertionError.class,
-                () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE)
-            );
+            AssertionError e = expectThrows(AssertionError.class, () -> indexShard.acquirePrimaryOperationPermit(null, writeExecutor));
             assertThat(e, hasToString(containsString("acquirePrimaryOperationPermit should only be called on primary shard")));
 
             e = expectThrows(
@@ -1424,7 +1423,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         latch.countDown();
                     }
                 },
-                ThreadPool.Names.WRITE
+                writeExecutor
             );
         };
 
@@ -1748,6 +1747,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         indexDoc(shard, "_doc", "test");
         shard.writeIndexingBuffer();
+        // This did not actually run a refresh, it called IndexWriter#flushNextBuffer()
+        assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
+        shard.refresh("force");
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 2));
         closeShards(shard);
     }
@@ -1772,9 +1774,10 @@ public class IndexShardTests extends IndexShardTestCase {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         }
         indexDoc(shard, "_doc", "test");
+        // This runs IndexWriter#flushNextBuffer internally
         shard.writeIndexingBuffer();
         assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
-        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 2 - extraInternalRefreshes));
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         closeShards(shard);
     }
 
@@ -1995,7 +1998,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 });
             }
 
-            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE);
+            shard.acquirePrimaryOperationPermit(onLockAcquired, writeExecutor);
         }
 
         for (final Runnable assertion : assertions) {
@@ -2852,31 +2855,37 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, null, null, recoveryListener) {
-            @Override
-            public void indexTranslogOperations(
-                final List<Translog.Operation> operations,
-                final int totalTranslogOps,
-                final long maxSeenAutoIdTimestamp,
-                final long maxSeqNoOfUpdatesOrDeletes,
-                final RetentionLeases retentionLeases,
-                final long mappingVersion,
-                final ActionListener<Long> listener
-            ) {
-                super.indexTranslogOperations(
-                    operations,
-                    totalTranslogOps,
-                    maxSeenAutoIdTimestamp,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases,
-                    mappingVersion,
-                    listener.delegateFailureAndWrap((l, r) -> {
-                        assertFalse(replica.isSyncNeeded());
-                        l.onResponse(r);
-                    })
-                );
-            }
-        }, true, true);
+        recoverReplica(
+            replica,
+            primary,
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(
+                    final List<Translog.Operation> operations,
+                    final int totalTranslogOps,
+                    final long maxSeenAutoIdTimestamp,
+                    final long maxSeqNoOfUpdatesOrDeletes,
+                    final RetentionLeases retentionLeases,
+                    final long mappingVersion,
+                    final ActionListener<Long> listener
+                ) {
+                    super.indexTranslogOperations(
+                        operations,
+                        totalTranslogOps,
+                        maxSeenAutoIdTimestamp,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        retentionLeases,
+                        mappingVersion,
+                        listener.delegateFailureAndWrap((l, r) -> {
+                            assertFalse(replica.isSyncNeeded());
+                            l.onResponse(r);
+                        })
+                    );
+                }
+            },
+            true,
+            true
+        );
 
         closeShards(primary, replica);
     }
@@ -2976,32 +2985,38 @@ public class IndexShardTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, null, null, recoveryListener) {
-            @Override
-            public void indexTranslogOperations(
-                final List<Translog.Operation> operations,
-                final int totalTranslogOps,
-                final long maxAutoIdTimestamp,
-                final long maxSeqNoOfUpdatesOrDeletes,
-                final RetentionLeases retentionLeases,
-                final long mappingVersion,
-                final ActionListener<Long> listener
-            ) {
-                super.indexTranslogOperations(
-                    operations,
-                    totalTranslogOps,
-                    maxAutoIdTimestamp,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases,
-                    mappingVersion,
-                    listener.delegateFailureAndWrap((l, checkpoint) -> {
-                        l.onResponse(checkpoint);
-                        // Shard should now be active since we did recover:
-                        assertTrue(replica.isActive());
-                    })
-                );
-            }
-        }, false, true);
+        recoverReplica(
+            replica,
+            primary,
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+                @Override
+                public void indexTranslogOperations(
+                    final List<Translog.Operation> operations,
+                    final int totalTranslogOps,
+                    final long maxAutoIdTimestamp,
+                    final long maxSeqNoOfUpdatesOrDeletes,
+                    final RetentionLeases retentionLeases,
+                    final long mappingVersion,
+                    final ActionListener<Long> listener
+                ) {
+                    super.indexTranslogOperations(
+                        operations,
+                        totalTranslogOps,
+                        maxAutoIdTimestamp,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        retentionLeases,
+                        mappingVersion,
+                        listener.delegateFailureAndWrap((l, checkpoint) -> {
+                            l.onResponse(checkpoint);
+                            // Shard should now be active since we did recover:
+                            assertTrue(replica.isActive());
+                        })
+                    );
+                }
+            },
+            false,
+            true
+        );
 
         closeShards(primary, replica);
     }
@@ -3029,48 +3044,54 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         assertListenerCalled.accept(replica);
-        recoverReplica(replica, primary, (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, null, null, recoveryListener) {
-            // we're only checking that listeners are called when the engine is open, before there is no point
-            @Override
-            public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
-                super.prepareForTranslogOperations(totalTranslogOps, listener.delegateFailureAndWrap((l, r) -> {
-                    assertListenerCalled.accept(replica);
-                    l.onResponse(r);
-                }));
-            }
-
-            @Override
-            public void indexTranslogOperations(
-                final List<Translog.Operation> operations,
-                final int totalTranslogOps,
-                final long maxAutoIdTimestamp,
-                final long maxSeqNoOfUpdatesOrDeletes,
-                final RetentionLeases retentionLeases,
-                final long mappingVersion,
-                final ActionListener<Long> listener
-            ) {
-                super.indexTranslogOperations(
-                    operations,
-                    totalTranslogOps,
-                    maxAutoIdTimestamp,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases,
-                    mappingVersion,
-                    listener.delegateFailureAndWrap((l, r) -> {
+        recoverReplica(
+            replica,
+            primary,
+            (shard, discoveryNode) -> new RecoveryTarget(shard, discoveryNode, 0L, null, null, recoveryListener) {
+                // we're only checking that listeners are called when the engine is open, before there is no point
+                @Override
+                public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
+                    super.prepareForTranslogOperations(totalTranslogOps, listener.delegateFailureAndWrap((l, r) -> {
                         assertListenerCalled.accept(replica);
                         l.onResponse(r);
-                    })
-                );
-            }
+                    }));
+                }
 
-            @Override
-            public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
-                super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener.delegateFailureAndWrap((l, r) -> {
-                    assertListenerCalled.accept(replica);
-                    l.onResponse(r);
-                }));
-            }
-        }, false, true);
+                @Override
+                public void indexTranslogOperations(
+                    final List<Translog.Operation> operations,
+                    final int totalTranslogOps,
+                    final long maxAutoIdTimestamp,
+                    final long maxSeqNoOfUpdatesOrDeletes,
+                    final RetentionLeases retentionLeases,
+                    final long mappingVersion,
+                    final ActionListener<Long> listener
+                ) {
+                    super.indexTranslogOperations(
+                        operations,
+                        totalTranslogOps,
+                        maxAutoIdTimestamp,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        retentionLeases,
+                        mappingVersion,
+                        listener.delegateFailureAndWrap((l, r) -> {
+                            assertListenerCalled.accept(replica);
+                            l.onResponse(r);
+                        })
+                    );
+                }
+
+                @Override
+                public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
+                    super.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, listener.delegateFailureAndWrap((l, r) -> {
+                        assertListenerCalled.accept(replica);
+                        l.onResponse(r);
+                    }));
+                }
+            },
+            false,
+            true
+        );
 
         closeShards(primary, replica);
     }
@@ -3972,11 +3993,7 @@ public class IndexShardTests extends IndexShardTestCase {
             IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
                 @Override
                 protected void commitIndexWriter(final IndexWriter writer, final Translog translog) throws IOException {
-                    try {
-                        readyToCompleteFlushLatch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(readyToCompleteFlushLatch);
                     super.commitIndexWriter(writer, translog);
                 }
             });
@@ -4257,22 +4274,18 @@ public class IndexShardTests extends IndexShardTestCase {
                 ActionListener<Void> listener
             ) {
                 readyToCloseLatch.countDown();
-                try {
-                    closeDoneLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(closeDoneLatch);
                 super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, listener);
             }
         });
 
         Thread closeShardThread = new Thread(() -> {
             try {
-                readyToCloseLatch.await();
+                safeAwait(readyToCloseLatch);
                 shard.close("testing", false);
                 // in integration tests, this is done as a listener on IndexService.
                 MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
-            } catch (InterruptedException | IOException e) {
+            } catch (IOException e) {
                 throw new AssertionError(e);
             } finally {
                 closeDoneLatch.countDown();
@@ -4296,7 +4309,7 @@ public class IndexShardTests extends IndexShardTestCase {
             TimeValue.timeValueMinutes(1L)
         );
 
-        engineResetLatch.await();
+        safeAwait(engineResetLatch);
 
         closeShardThread.join();
 
@@ -4331,7 +4344,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         Thread snapshotThread = new Thread(() -> {
             try {
-                readyToSnapshotLatch.await();
+                safeAwait(readyToSnapshotLatch);
                 shard.snapshotStoreMetadata();
                 try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(randomBoolean())) {
                     shard.store().getMetadata(indexCommitRef.getIndexCommit());
@@ -4339,7 +4352,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 try (Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {
                     shard.store().getMetadata(indexCommitRef.getIndexCommit());
                 }
-            } catch (InterruptedException | IOException e) {
+            } catch (IOException e) {
                 throw new AssertionError(e);
             } finally {
                 snapshotDoneLatch.countDown();
@@ -4517,7 +4530,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * Randomizes the usage of {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String)} and
+     * Randomizes the usage of {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, Executor)} and
      * {@link IndexShard#acquireAllReplicaOperationsPermits(long, long, long, ActionListener, TimeValue)} in order to acquire a permit.
      */
     private void randomReplicaOperationPermitAcquisition(
@@ -4528,8 +4541,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ActionListener<Releasable> listener
     ) {
         if (randomBoolean()) {
-            final String executor = ThreadPool.Names.WRITE;
-            indexShard.acquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, executor);
+            indexShard.acquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, writeExecutor);
         } else {
             final TimeValue timeout = TimeValue.timeValueSeconds(30L);
             indexShard.acquireAllReplicaOperationsPermits(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, timeout);
@@ -4591,13 +4603,9 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch warmerBlocking = new CountDownLatch(1);
         IndexShard shard = newShard(true, Settings.EMPTY, config -> {
             Engine.Warmer warmer = reader -> {
-                try {
-                    warmerStarted.countDown();
-                    warmerBlocking.await();
-                    config.getWarmer().warm(reader);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                warmerStarted.countDown();
+                safeAwait(warmerBlocking);
+                config.getWarmer().warm(reader);
             };
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),
@@ -4736,7 +4744,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 assert false : "Unexpected failure";
             }
         };
-        recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
+        recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {
             @Override
             public void indexTranslogOperations(
                 List<Translog.Operation> operations,

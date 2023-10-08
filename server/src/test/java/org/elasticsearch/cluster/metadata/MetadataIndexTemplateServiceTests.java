@@ -1252,7 +1252,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );
@@ -1364,7 +1369,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );
@@ -1418,7 +1428,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(
                     Map.of(
                         "_doc",
-                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                        Map.of(
+                            "properties",
+                            Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")),
+                            "_routing",
+                            Map.of("required", false)
+                        )
                     )
                 )
             );
@@ -1532,34 +1547,34 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         String ctEmptyLifecycle = "ct_empty_lifecycle";
         state = addComponentTemplate(service, state, ctEmptyLifecycle, emptyLifecycle);
 
-        String ctNullLifecycle = "ct_null_lifecycle";
-        state = addComponentTemplate(service, state, ctNullLifecycle, Template.NO_LIFECYCLE);
+        String ctDisabledLifecycle = "ct_disabled_lifecycle";
+        state = addComponentTemplate(service, state, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
 
         String ctNoLifecycle = "ct_no_lifecycle";
         state = addComponentTemplate(service, state, ctNoLifecycle, null);
 
         // Component A: -
-        // Component B: "lifecycle": {}
+        // Component B: "lifecycle": {"enabled": true}
         // Composable Z: -
-        // Result: "lifecycle": {}
+        // Result: "lifecycle": {"enabled": true}
         assertLifecycleResolution(service, state, List.of(ctNoLifecycle, ctEmptyLifecycle), null, emptyLifecycle);
 
-        // Component A: "lifecycle": {}
+        // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "30d"}
         // Composable Z: -
-        // Result: "lifecycle": {"retention": "30d"}
+        // Result: "lifecycle": {"enabled": true, "retention": "30d"}
         assertLifecycleResolution(service, state, List.of(ctEmptyLifecycle, ct30d), null, lifecycle30d);
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
-        // Composable Z: "lifecycle": {}
-        // Result: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Composable Z: "lifecycle": {"enabled": true}
+        // Result: "lifecycle": {"enabled": true, "retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         assertLifecycleResolution(service, state, List.of(ct30d, ct45d), emptyLifecycle, lifecycle45d);
 
-        // Component A: "lifecycle": {}
+        // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Composable Z: "lifecycle": {"retention": "30d"}
-        // Result: "lifecycle": {"retention": "30d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        // Result: "lifecycle": {"enabled": true, "retention": "30d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         assertLifecycleResolution(
             service,
             state,
@@ -1574,16 +1589,16 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": null}
         // Composable Z: -
-        // Result: "lifecycle": {"retention": null}, here the result of the composition is with retention explicitly
-        // nullified, but effectively this is equivalent to "lifecycle": {} when there is no further composition.
+        // Result: "lifecycle": {"enabled": true, "retention": null}, here the result of the composition is with retention explicitly
+        // nullified, but effectively this is equivalent to infinite retention.
         assertLifecycleResolution(service, state, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
 
-        // Component A: "lifecycle": {}
+        // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Composable Z: "lifecycle": {"retention": null}
-        // Result: "lifecycle": {"retention": null, "downsampling": [{"after": "30d", "fixed_interval": "3h"}]} , here the result of the
-        // composition is with retention explicitly
-        // nullified, but effectively this is equivalent to "lifecycle": {} when there is no further composition.
+        // Result: "lifecycle": {"enabled": true, "retention": null, "downsampling": [{"after": "30d", "fixed_interval": "3h"}]} ,
+        // here the result of the composition is with retention explicitly nullified, but effectively this is equivalent to infinite
+        // retention.
         assertLifecycleResolution(
             service,
             state,
@@ -1597,21 +1612,37 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
-        // Composable Z: "lifecycle": null
-        // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ct45d), Template.NO_LIFECYCLE, null);
+        // Composable Z: "lifecycle": {"enabled": false}
+        // Result: "lifecycle": {"enabled": false, "retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ct30d, ct45d),
+            DataStreamLifecycle.newBuilder().enabled(false).build(),
+            DataStreamLifecycle.newBuilder()
+                .dataRetention(lifecycle45d.getDataRetention())
+                .downsampling(lifecycle45d.getDownsampling())
+                .enabled(false)
+                .build()
+        );
 
         // Component A: "lifecycle": {"retention": "30d"}
-        // Component B: "lifecycle": null
-        // Composable Z: -
-        // Result: null aka unmanaged
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), null, null);
+        // Component B: "lifecycle": {"enabled": false}
+        // Composable Z:
+        // Result: "lifecycle": {"enabled": false, "retention": "30d"}
+        assertLifecycleResolution(
+            service,
+            state,
+            List.of(ct30d, ctDisabledLifecycle),
+            null,
+            DataStreamLifecycle.newBuilder().dataRetention(lifecycle30d.getDataRetention()).enabled(false).build()
+        );
 
         // Component A: "lifecycle": {"retention": "30d"}
-        // Component B: "lifecycle": null
+        // Component B: "lifecycle": {"enabled": false}
         // Composable Z: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Result: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
-        assertLifecycleResolution(service, state, List.of(ct30d, ctNullLifecycle), lifecycle45d, lifecycle45d);
+        assertLifecycleResolution(service, state, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
     }
 
     private ClusterState addComponentTemplate(
@@ -1644,12 +1675,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
-
-        if (expected == null) {
-            assertThat(resolvedLifecycle, nullValue());
-        } else {
-            assertThat(resolvedLifecycle, equalTo(expected));
-        }
+        assertThat(resolvedLifecycle, equalTo(expected));
     }
 
     public void testAddInvalidTemplate() throws Exception {
@@ -1809,6 +1835,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                   "properties": {
                     "field2": {
                       "type": "object",
+                                  "subobjects": false,
                       "properties": {
                         "foo": {
                           "type": "integer"
@@ -1831,7 +1858,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
                   "properties": {
                     "field2": {
-                      "type": "text"
+                              "type": "object",
+                              "properties": {
+                                "bar": {
+                                  "type": "object"
+                                }
+                              }
                     }
                   }
                 }"""), null), randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null, null);
@@ -1853,7 +1885,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause());
         assertThat(
             e.getCause().getCause().getMessage(),
-            containsString("can't merge a non object mapping [field2] with an object mapping")
+            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
         );
     }
 
@@ -1900,6 +1932,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
               "properties": {
                 "field2": {
                   "type": "object",
+                                  "subobjects": false,
                   "properties": {
                     "foo": {
                       "type": "integer"
@@ -1938,7 +1971,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             {
               "properties": {
                 "field2": {
-                  "type": "text"
+                                  "type": "object",
+                                  "properties": {
+                                    "bar": {
+                                      "type": "object"
+                                    }
+                                  }
                 }
               }
             }
@@ -1964,7 +2002,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause().getCause().getCause());
         assertThat(
             e.getCause().getCause().getCause().getMessage(),
-            containsString("can't merge a non object mapping [field2] with an object mapping")
+            containsString("Tried to add subobject [bar] to object [field2] which does not support subobjects")
         );
     }
 
@@ -2296,14 +2334,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             );
 
             // when validating is false, we return the conflicts instead of throwing an exception
-            var overlaps = metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, false);
+            var overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, false);
 
             assertThat(overlaps, allOf(aMapWithSize(1), hasKey("foo")));
 
             // try now the same thing with validation on
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
+                () -> MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
             );
             assertThat(
                 e.getMessage(),
@@ -2325,7 +2363,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null
             );
 
-            overlaps = metadataIndexTemplateService.v2TemplateOverlaps(state, "no-conflict", nonConflict, true);
+            overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(state, "no-conflict", nonConflict, true);
             assertTrue(overlaps.isEmpty());
         }
 
@@ -2354,7 +2392,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             );
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> metadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
+                () -> MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
             );
             assertThat(
                 e.getMessage(),
@@ -2502,6 +2540,61 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertThat(e.name(), equalTo("template"));
         assertThat(e.getMessage(), containsString("missing component templates [fail] that does not exist"));
+    }
+
+    public void testComposableTemplateWithSubobjectsFalse() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "subobjects": false
+            }
+            """), null), null, null);
+
+        ComponentTemplate fieldMapping = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "parent.subfield": {
+                  "type": "keyword"
+                }
+              }
+            }
+            """), null), null, null);
+
+        state = service.addComponentTemplate(state, true, "subobjects", subobjects);
+        state = service.addComponentTemplate(state, true, "field_mapping", fieldMapping);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(null, null, null),
+            List.of("subobjects", "field_mapping"),
+            0L,
+            1L,
+            null,
+            null,
+            null
+        );
+        state = service.addIndexTemplateV2(state, true, "composable-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "composable-template", "test-index");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(2));
+        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
+            try {
+                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
+            } catch (Exception e) {
+                logger.error(e);
+                fail("failed to parse mappings: " + m.string());
+                return null;
+            }
+        }).toList();
+
+        assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("subobjects", false))));
+        assertThat(
+            parsedMappings.get(1),
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("parent.subfield", Map.of("type", "keyword")))))
+        );
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

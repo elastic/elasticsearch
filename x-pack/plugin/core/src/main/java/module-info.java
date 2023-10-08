@@ -62,6 +62,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.enrich.action;
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;
+    exports org.elasticsearch.xpack.core.esql;
     exports org.elasticsearch.xpack.core.frozen.action;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
@@ -220,4 +221,9 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
+
+    provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
+        with
+            org.elasticsearch.xpack.core.ml.MlConfigVersionComponent,
+            org.elasticsearch.xpack.core.transform.TransformConfigVersionComponent;
 }

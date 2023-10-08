@@ -162,13 +162,13 @@ public class ServiceAccountService {
     }
 
     // TODO: No production code usage
-    public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
+    public static void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getEffectiveSubject().getUser().principal();
         getRoleDescriptorForPrincipal(principal, listener);
     }
 
-    public void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
+    public static void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(

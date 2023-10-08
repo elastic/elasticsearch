@@ -96,11 +96,11 @@ public class SamlAuthnRequestValidator {
             // We consciously parse the AuthnRequest before we validate its signature as we need to get the Issuer, in order to
             // verify if we know of this SP and get its credentials for signature verification
             final Element root = parseSamlMessage(inflate(decodeBase64(parsedQueryString.samlRequest)));
-            if (samlFactory.elementNameMatches(root, "urn:oasis:names:tc:SAML:2.0:protocol", "AuthnRequest") == false) {
-                logAndRespond("SAML message [" + samlFactory.text(root, 128) + "] is not an AuthnRequest", listener);
+            if (SamlFactory.elementNameMatches(root, "urn:oasis:names:tc:SAML:2.0:protocol", "AuthnRequest") == false) {
+                logAndRespond("SAML message [" + SamlFactory.text(root, 128) + "] is not an AuthnRequest", listener);
                 return;
             }
-            final AuthnRequest authnRequest = samlFactory.buildXmlObject(root, AuthnRequest.class);
+            final AuthnRequest authnRequest = SamlFactory.buildXmlObject(root, AuthnRequest.class);
             getSpFromAuthnRequest(authnRequest.getIssuer(), authnRequest.getAssertionConsumerServiceURL(), ActionListener.wrap(sp -> {
                 try {
                     validateAuthnRequest(authnRequest, sp, parsedQueryString, listener);
@@ -180,7 +180,7 @@ public class SamlAuthnRequestValidator {
                         org.elasticsearch.core.Strings.format(
                             "Unable to validate signature of authentication request [%s] using credentials [%s]",
                             parsedQueryString.queryString,
-                            samlFactory.describeCredentials(spSigningCredentials)
+                            SamlFactory.describeCredentials(spSigningCredentials)
                         ),
                         listener
                     );
@@ -246,7 +246,7 @@ public class SamlAuthnRequestValidator {
     }
 
     private boolean validateSignature(ParsedQueryString queryString, Collection<X509Credential> credentials) {
-        final String javaSigAlgorithm = samlFactory.getJavaAlorithmNameFromUri(queryString.sigAlg);
+        final String javaSigAlgorithm = SamlFactory.getJavaAlorithmNameFromUri(queryString.sigAlg);
         final byte[] contentBytes = queryString.reconstructQueryParameters().getBytes(StandardCharsets.UTF_8);
         final byte[] signatureBytes = Base64.getDecoder().decode(queryString.signature);
         return credentials.stream().anyMatch(credential -> {
@@ -264,7 +264,7 @@ public class SamlAuthnRequestValidator {
                 );
             } catch (InvalidKeyException | SignatureException e) {
                 logger.warn(
-                    () -> format("Signature verification failed for credential [%s]", samlFactory.describeCredentials(Set.of(credential))),
+                    () -> format("Signature verification failed for credential [%s]", SamlFactory.describeCredentials(Set.of(credential))),
                     e
                 );
                 return false;

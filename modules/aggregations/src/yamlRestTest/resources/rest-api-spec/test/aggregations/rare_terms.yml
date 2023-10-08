@@ -6,8 +6,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 str:
@@ -22,11 +20,6 @@ setup:
                   type: long
                 date:
                   type: date
-
-
-  - do:
-      cluster.health:
-        wait_for_status: green
 
 ---
 "Basic test":
@@ -370,8 +363,6 @@ setup:
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 str:

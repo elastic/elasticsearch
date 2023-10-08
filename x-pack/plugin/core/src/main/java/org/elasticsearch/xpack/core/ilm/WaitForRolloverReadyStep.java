@@ -23,8 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -271,18 +270,5 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         }
         WaitForRolloverReadyStep other = (WaitForRolloverReadyStep) obj;
         return super.equals(obj) && Objects.equals(conditions, other.conditions);
-    }
-
-    // We currently have no information to provide for this AsyncWaitStep, so this is an empty object
-    private static final class EmptyInfo implements ToXContentObject {
-
-        static final EmptyInfo INSTANCE = new EmptyInfo();
-
-        private EmptyInfo() {}
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-            return builder;
-        }
     }
 }

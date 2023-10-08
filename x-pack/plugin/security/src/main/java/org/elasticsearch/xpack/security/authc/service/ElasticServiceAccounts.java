@@ -62,7 +62,7 @@ final class ElasticServiceAccounts {
         "fleet-server",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server",
-            new String[] { "monitor", "manage_own_api_key" },
+            new String[] { "monitor", "manage_own_api_key", "read_fleet_secrets" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(

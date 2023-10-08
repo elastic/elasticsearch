@@ -35,7 +35,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
     SearchableSnapshotsStatsResponse(StreamInput in) throws IOException {
         super(in);
-        this.stats = in.readList(SearchableSnapshotShardStats::new);
+        this.stats = in.readCollectionAsList(SearchableSnapshotShardStats::new);
     }
 
     SearchableSnapshotsStatsResponse(
@@ -73,7 +73,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(stats);
+        out.writeCollection(stats);
     }
 
     @Override

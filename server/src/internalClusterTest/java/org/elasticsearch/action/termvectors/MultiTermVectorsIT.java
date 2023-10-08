@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
@@ -34,27 +35,33 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         // we generate as many docs as many shards we have
         TestDoc[] testDocs = generateTestDocs("test", testFieldSettings);
 
-        DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
-        AbstractTermVectorsTestCase.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
+        DirectoryReader directoryReader = null;
+        try {
+            directoryReader = indexDocsWithLucene(testDocs);
 
-        MultiTermVectorsRequestBuilder requestBuilder = client().prepareMultiTermVectors();
-        for (AbstractTermVectorsTestCase.TestConfig test : testConfigs) {
-            requestBuilder.add(getRequestForConfig(test).request());
-        }
+            AbstractTermVectorsTestCase.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
-        MultiTermVectorsItemResponse[] responseItems = requestBuilder.get().getResponses();
-
-        for (int i = 0; i < testConfigs.length; i++) {
-            TestConfig test = testConfigs[i];
-            MultiTermVectorsItemResponse item = responseItems[i];
-            if (test.expectedException != null) {
-                assertTrue(item.isFailed());
-                continue;
-            } else if (item.isFailed()) {
-                fail(item.getFailure().getCause().getMessage());
+            MultiTermVectorsRequestBuilder requestBuilder = client().prepareMultiTermVectors();
+            for (AbstractTermVectorsTestCase.TestConfig test : testConfigs) {
+                requestBuilder.add(getRequestForConfig(test).request());
             }
-            Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
-            validateResponse(item.getResponse(), luceneTermVectors, test);
+
+            MultiTermVectorsItemResponse[] responseItems = requestBuilder.get().getResponses();
+
+            for (int i = 0; i < testConfigs.length; i++) {
+                TestConfig test = testConfigs[i];
+                MultiTermVectorsItemResponse item = responseItems[i];
+                if (test.expectedException != null) {
+                    assertTrue(item.isFailed());
+                    continue;
+                } else if (item.isFailed()) {
+                    fail(item.getFailure().getCause().getMessage());
+                }
+                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+                validateResponse(item.getResponse(), luceneTermVectors, test);
+            }
+        } finally {
+            IOUtils.close(directoryReader);
         }
     }
 

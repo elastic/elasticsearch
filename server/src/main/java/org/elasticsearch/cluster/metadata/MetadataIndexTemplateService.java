@@ -84,7 +84,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
-    public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING;
+    public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING;
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
@@ -96,8 +96,14 @@ public class MetadataIndexTemplateService {
             Map.of("type", DateFieldMapper.CONTENT_TYPE, "ignore_malformed", "false")
         );
         try {
-            DEFAULT_TIMESTAMP_MAPPING = new CompressedXContent(
+            DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING = new CompressedXContent(
                 (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    // adding explicit "_routing": {"required": false}, even though this is the default, because this snippet is used
+                    // later for resolving a RoutingFieldMapper, where we need this information to validate that does not conflict with
+                    // any mapping.
+                    .startObject(RoutingFieldMapper.NAME)
+                    .field("required", false)
+                    .endObject()
                     .field("properties", defaultTimestampField)
                     .endObject()
             );
@@ -637,7 +643,7 @@ public class MetadataIndexTemplateService {
      * @param validate should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
      * @return a map of v2 template names to their index patterns for v2 templates that would overlap with the given template
      */
-    public Map<String, List<String>> v2TemplateOverlaps(
+    public static Map<String, List<String>> v2TemplateOverlaps(
         ClusterState currentState,
         String name,
         final ComposableIndexTemplate template,
@@ -1303,7 +1309,7 @@ public class MetadataIndexTemplateService {
             if (template.getDataStreamTemplate().isAllowCustomRouting()) {
                 mappings.add(0, DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING);
             } else {
-                mappings.add(0, DEFAULT_TIMESTAMP_MAPPING);
+                mappings.add(0, DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING);
             }
         }
 
@@ -1481,28 +1487,33 @@ public class MetadataIndexTemplateService {
      * [
      *   {
      *     "lifecycle": {
+     *       "enabled": true,
      *       "data_retention" : "10d"
      *     }
      *   },
      *   {
      *     "lifecycle": {
+     *       "enabled": true,
      *       "data_retention" : "20d"
      *     }
      *   }
      * ]
-     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
-     * However, if we have the following two lifecycles:
+     * The result will be { "lifecycle": { "enabled": true, "data_retention" : "20d"}} because the second data retention overrides the
+     * first. However, if we have the following two lifecycles:
      * [
      *   {
      *     "lifecycle": {
+     *       "enabled": false,
      *       "data_retention" : "10d"
      *     }
      *   },
      *   {
-     *   "lifecycle": { }
+     *   "lifecycle": {
+     *      "enabled": true
+     *   }
      *   }
      * ]
-     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
+     * The result will be { "lifecycle": { "enabled": true, "data_retention" : "10d"} } because the latest lifecycle does not have any
      * information on retention.
      * @param lifecycles a sorted list of lifecycles in the order that they will be composed
      * @return the final lifecycle
@@ -1511,11 +1522,10 @@ public class MetadataIndexTemplateService {
     public static DataStreamLifecycle composeDataLifecycles(List<DataStreamLifecycle> lifecycles) {
         DataStreamLifecycle.Builder builder = null;
         for (DataStreamLifecycle current : lifecycles) {
-            if (current == Template.NO_LIFECYCLE) {
-                builder = null;
-            } else if (builder == null) {
+            if (builder == null) {
                 builder = DataStreamLifecycle.newBuilder(current);
             } else {
+                builder.enabled(current.isEnabled());
                 if (current.getDataRetention() != null) {
                     builder.dataRetention(current.getDataRetention());
                 }
@@ -1595,9 +1605,7 @@ public class MetadataIndexTemplateService {
             List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName);
             try {
                 MapperService mapperService = tempIndexService.mapperService();
-                for (CompressedXContent mapping : mappings) {
-                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-                }
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);
 
                 if (template.getDataStreamTemplate() != null) {
                     validateTimestampFieldMapping(mapperService.mappingLookup());

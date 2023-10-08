@@ -119,7 +119,7 @@ public class RestClusterInfoAction extends BaseRestHandler {
                 public RestResponse buildResponse(NodesStatsResponse response) throws Exception {
                     var chunkedResponses = targets.stream().map(RESPONSE_MAPPER::get).map(mapper -> mapper.apply(response)).iterator();
 
-                    return new RestResponse(
+                    return RestResponse.chunked(
                         RestStatus.OK,
                         ChunkedRestResponseBody.fromXContent(
                             outerParams -> Iterators.concat(
@@ -129,7 +129,8 @@ public class RestClusterInfoAction extends BaseRestHandler {
                                 ChunkedToXContentHelper.endObject()
                             ),
                             EMPTY_PARAMS,
-                            channel
+                            channel,
+                            null
                         )
                     );
                 }

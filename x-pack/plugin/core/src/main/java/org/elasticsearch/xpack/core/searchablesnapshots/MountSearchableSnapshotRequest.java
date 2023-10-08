@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -83,7 +84,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     /**
      * Searchable snapshots partial storage was introduced in 7.12.0
      */
-    private static final TransportVersion SHARED_CACHE_VERSION = TransportVersion.V_7_12_0;
+    private static final TransportVersion SHARED_CACHE_VERSION = TransportVersions.V_7_12_0;
 
     private final String mountedIndexName;
     private final String repositoryName;

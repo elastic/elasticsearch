@@ -9,20 +9,29 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Objects;
 
-public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject {
-    private static final TransportVersion ALLOCATION_DECISION_ADDED_VERSION = TransportVersion.V_7_16_0;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
+
+public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXContentObject {
+    private static final TransportVersion ALLOCATION_DECISION_ADDED_VERSION = TransportVersions.V_7_16_0;
 
     public static final String NODE_ALLOCATION_DECISION_KEY = "node_allocation_decision";
 
@@ -77,21 +86,23 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            startObject(),
+            singleChunk((builder, p) -> buildHeader(builder)),
+            Objects.nonNull(allocationDecision)
+                ? Iterators.concat(startObject(NODE_ALLOCATION_DECISION_KEY), allocationDecision.toXContentChunked(params), endObject())
+                : Collections.emptyIterator(),
+            endObject()
+        );
+    }
+
+    private XContentBuilder buildHeader(XContentBuilder builder) throws IOException {
         builder.field("status", status);
         builder.field("shard_migrations_remaining", shardsRemaining);
         if (Objects.nonNull(explanation)) {
             builder.field("explanation", explanation);
         }
-        if (Objects.nonNull(allocationDecision)) {
-            builder.startObject(NODE_ALLOCATION_DECISION_KEY);
-            {
-                allocationDecision.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
         return builder;
     }
 
@@ -123,6 +134,6 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString((b, p) -> buildHeader(b), false, false);
     }
 }

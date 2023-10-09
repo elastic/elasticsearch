@@ -39,6 +39,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -103,7 +104,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SORT_FIELD = new ParseField("sort"); // retriever specific
     public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores"); // global
     public static final ParseField TRACK_TOTAL_HITS_FIELD = new ParseField("track_total_hits"); // global
-    public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost"); //global
+    public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost"); // global
     public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations"); // global
     public static final ParseField AGGS_FIELD = new ParseField("aggs"); // global
     public static final ParseField HIGHLIGHT_FIELD = new ParseField("highlight"); // global
@@ -117,6 +118,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice"); // global
     public static final ParseField POINT_IN_TIME = new ParseField("pit"); // global
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings"); // global
+    public static final ParseField RETRIEVER = new ParseField("retriever"); // global
 
     /**
      * A static factory method to construct a new search source.
@@ -131,8 +133,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static HighlightBuilder highlight() {
         return new HighlightBuilder();
     }
-
-    private RetrieverBuilder<?> retrieverBuilder;
 
     private List<SubSearchSourceBuilder> subSearchSourceBuilders = new ArrayList<>();
 
@@ -1273,12 +1273,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             );
         }
 
+        RetrieverBuilder<?> retrieverBuilder = null;
         SearchUsage searchUsage = new SearchUsage();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
+                    retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
+                        parser,
+                        new RetrieverParserContext(searchUsage::trackSectionUsage, searchUsage::trackQueryUsage)
+                    );
+                } else if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     int parsedSize = parser.intValue();
@@ -1594,6 +1600,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (token != null) {
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] found after the main object.");
             }
+        }
+        if (retrieverBuilder != null) {
+            retrieverBuilder.extractToSearchSourceBuilder(this);
         }
         searchUsageConsumer.accept(searchUsage);
         return this;

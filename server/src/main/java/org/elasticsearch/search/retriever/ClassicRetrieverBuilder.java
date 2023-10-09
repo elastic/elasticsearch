@@ -16,12 +16,12 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,7 +45,7 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
 
-    public static final ObjectParser<ClassicRetrieverBuilder, SearchUsage> PARSER = new ObjectParser<>(NAME);
+    public static final ObjectParser<ClassicRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(NAME);
 
     static {
         PARSER.declareObject(ClassicRetrieverBuilder::queryBuilder, (p, c) -> {
@@ -91,6 +91,12 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
             c.trackSectionUsage(NAME + ":" + RESCORE_FIELD.getPreferredName());
             return rescorerBuilders;
         }, RESCORE_FIELD);
+
+        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+    }
+
+    public static ClassicRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
+        return PARSER.apply(parser, context);
     }
 
     private QueryBuilder queryBuilder;
@@ -216,7 +222,7 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     }
 
     @Override
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public ClassicRetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         ClassicRetrieverBuilder crb = super.rewrite(ctx);
 
@@ -225,8 +231,10 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         QueryBuilder postFilterQueryBuilder = this.postFilterQueryBuilder == null ? null : this.postFilterQueryBuilder.rewrite(ctx);
         List<RescorerBuilder> rescorerBuilders = this.rescorerBuilders == null ? null : Rewriteable.rewrite(this.rescorerBuilders, ctx);
 
-        if (queryBuilder != this.queryBuilder || sortBuilders != this.sortBuilders || postFilterQueryBuilder != this.postFilterQueryBuilder ||
-            rescorerBuilders != this.rescorerBuilders) {
+        if (queryBuilder != this.queryBuilder
+            || sortBuilders != this.sortBuilders
+            || postFilterQueryBuilder != this.postFilterQueryBuilder
+            || rescorerBuilders != this.rescorerBuilders) {
 
             if (crb == this) {
                 crb = shallowCopyInstance();
@@ -247,14 +255,34 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     }
 
     @Override
-    protected boolean doEquals(ClassicRetrieverBuilder other) {
-        return terminateAfter == other.terminateAfter && Objects.equals(queryBuilder, other.queryBuilder) && Objects.equals(searchAfterBuilder, other.searchAfterBuilder) && Objects.equals(sortBuilders, other.sortBuilders) && Objects.equals(minScore, that.minScore) && Objects.equals(postFilterQueryBuilder, that.postFilterQueryBuilder) && Objects.equals(rescorerBuilders, other.rescorerBuilders) && Objects.equals(collapseBuilder, other.collapseBuilder);
-
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        ClassicRetrieverBuilder that = (ClassicRetrieverBuilder) o;
+        return terminateAfter == that.terminateAfter
+            && Objects.equals(queryBuilder, that.queryBuilder)
+            && Objects.equals(searchAfterBuilder, that.searchAfterBuilder)
+            && Objects.equals(sortBuilders, that.sortBuilders)
+            && Objects.equals(minScore, that.minScore)
+            && Objects.equals(postFilterQueryBuilder, that.postFilterQueryBuilder)
+            && Objects.equals(rescorerBuilders, that.rescorerBuilders)
+            && Objects.equals(collapseBuilder, that.collapseBuilder);
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(queryBuilder, searchAfterBuilder, terminateAfter, sortBuilders, minScore, postFilterQueryBuilder, rescorerBuilders, collapseBuilder);
+    public int hashCode() {
+        return Objects.hash(
+            super.hashCode(),
+            queryBuilder,
+            searchAfterBuilder,
+            terminateAfter,
+            sortBuilders,
+            minScore,
+            postFilterQueryBuilder,
+            rescorerBuilders,
+            collapseBuilder
+        );
     }
 
     public QueryBuilder queryBuilder() {
@@ -329,5 +357,57 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     public ClassicRetrieverBuilder collapseBuilder(CollapseBuilder collapseBuilder) {
         this.collapseBuilder = collapseBuilder;
         return this;
+    }
+
+    public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        if (searchSourceBuilder.query() == null) {
+            searchSourceBuilder.query(queryBuilder);
+        } else {
+            throw new IllegalStateException("[query] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (searchSourceBuilder.searchAfter() == null) {
+            searchSourceBuilder.searchAfter(searchAfterBuilder.getSortValues());
+        } else {
+            throw new IllegalStateException("[search_after] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (searchSourceBuilder.terminateAfter() == SearchContext.DEFAULT_TERMINATE_AFTER) {
+            searchSourceBuilder.terminateAfter(terminateAfter);
+        } else {
+            throw new IllegalStateException("[terminate_after] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (searchSourceBuilder.sorts() == null) {
+            searchSourceBuilder.sort(sortBuilders);
+        } else {
+            throw new IllegalStateException("[sort] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (searchSourceBuilder.minScore() == null) {
+            searchSourceBuilder.minScore(minScore);
+        } else {
+            throw new IllegalStateException("[min_score] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (searchSourceBuilder.postFilter() == null) {
+            searchSourceBuilder.postFilter(postFilterQueryBuilder);
+        } else {
+            throw new IllegalStateException("[post_filter] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (searchSourceBuilder.rescores() == null) {
+            for (RescorerBuilder<?> rescorerBuilder : rescorerBuilders) {
+                searchSourceBuilder.addRescorer(rescorerBuilder);
+            }
+        } else {
+            throw new IllegalStateException("[rescore] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (searchSourceBuilder.collapse() == null) {
+            searchSourceBuilder.collapse(collapseBuilder);
+        } else {
+            throw new IllegalStateException("[collapse] cannot be declared as a retriever value and as a global value");
+        }
     }
 }

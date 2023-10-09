@@ -80,16 +80,7 @@ import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
-import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
-import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
-import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
-import org.elasticsearch.plugins.SearchPlugin.QueryVectorBuilderSpec;
-import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
-import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
-import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
-import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
-import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
+import org.elasticsearch.plugins.SearchPlugin.*;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -227,6 +218,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.ClassicRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -304,6 +298,7 @@ public class SearchModule {
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
+        registerRetrieverParsers(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
         registerSorts();
@@ -1038,6 +1033,14 @@ public class SearchModule {
         fetchSubPhases.add(requireNonNull(subPhase, "FetchSubPhase must not be null"));
     }
 
+    private void registerRetrieverParsers(List<SearchPlugin> plugins) {
+        registerRetriever(
+            new RetrieverSpec<>(ClassicRetrieverBuilder.NAME, ClassicRetrieverBuilder::new, ClassicRetrieverBuilder::fromXContent)
+        );
+
+        registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
+    }
+
     private void registerQueryParsers(List<SearchPlugin> plugins) {
         registerQuery(new QuerySpec<>(MatchQueryBuilder.NAME, MatchQueryBuilder::new, MatchQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent));
@@ -1192,6 +1195,18 @@ public class SearchModule {
                 IntervalsSourceProvider.class,
                 IntervalsSourceProvider.Fuzzy.NAME,
                 IntervalsSourceProvider.Fuzzy::new
+            )
+        );
+    }
+
+    private void registerRetriever(RetrieverSpec<?> spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RetrieverBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                RetrieverBuilder.class,
+                spec.getName(),
+                (p, c) -> spec.getParser().fromXContent(p, (RetrieverParserContext) c),
+                spec.getName().getForRestApiVersion()
             )
         );
     }

@@ -8,26 +8,161 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
-public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implements VersionedNamedWriteable, ToXContentObject, Rewriteable<RB> {
+public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
+    implements
+        VersionedNamedWriteable,
+        ToXContentObject,
+        Rewriteable<RB> {
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
-    public static final ParseField FILTER_FIELD = new ParseField("filter");
+    public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
     public static final ParseField _NAME_FIELD = new ParseField("_name");
+
+    protected static void declareBaseParserFields(
+        String name,
+        AbstractObjectParser<? extends RetrieverBuilder<?>, RetrieverParserContext> parser
+    ) {
+        parser.declareInt(RetrieverBuilder::from, FROM_FIELD);
+        parser.declareInt(RetrieverBuilder::size, SIZE_FIELD);
+        parser.declareObject(RetrieverBuilder::preFilterQueryBuilder, (p, c) -> {
+            QueryBuilder preFilterQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
+            c.trackSectionUsage(name + ":" + PRE_FILTER_FIELD.getPreferredName());
+            return preFilterQueryBuilder;
+        }, PRE_FILTER_FIELD);
+        parser.declareString(RetrieverBuilder::_name, _NAME_FIELD);
+    }
+
+    public static RetrieverBuilder<?> parseTopLevelRetrieverBuilder(XContentParser parser, RetrieverParserContext context)
+        throws IOException {
+        parser = new FilterXContentParserWrapper(parser) {
+
+            int nestedDepth = 0;
+
+            @Override
+            public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
+                if (categoryClass.equals(QueryBuilder.class)) {
+                    nestedDepth++;
+
+                    if (nestedDepth > 2) {
+                        throw new IllegalArgumentException(
+                            "the nested depth of the [" + name + "] retriever exceeds the maximum nested depth [2] for retrievers"
+                        );
+                    }
+                }
+
+                T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
+
+                if (categoryClass.equals(RetrieverBuilder.class)) {
+                    nestedDepth--;
+                }
+
+                return namedObject;
+            }
+        };
+
+        return parseInnerRetrieverBuilder(parser, context);
+    }
+
+    protected static RetrieverBuilder<?> parseInnerRetrieverBuilder(XContentParser parser, RetrieverParserContext context)
+        throws IOException {
+        Objects.requireNonNull(context);
+
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT && parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "retriever malformed, must start with [" + XContentParser.Token.START_OBJECT + "]"
+            );
+        }
+
+        if (parser.nextToken() == XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "retriever malformed, empty clause found");
+        }
+
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "retriever malformed, no field after [" + XContentParser.Token.START_OBJECT + "]"
+            );
+        }
+
+        String retrieverName = parser.currentName();
+
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "[" + retrieverName + "] retriever malformed, no [" + XContentParser.Token.START_OBJECT + "] after retriever name"
+            );
+        }
+
+        RetrieverBuilder<?> retrieverBuilder;
+
+        try {
+            retrieverBuilder = parser.namedObject(RetrieverBuilder.class, retrieverName, context);
+            context.trackSectionUsage(retrieverName);
+        } catch (NamedObjectNotFoundException nonfe) {
+            String message = String.format(
+                Locale.ROOT,
+                "unknown retriever [%s]%s",
+                retrieverName,
+                SuggestingErrorOnUnknown.suggest(retrieverName, nonfe.getCandidates())
+            );
+
+            throw new ParsingException(new XContentLocation(nonfe.getLineNumber(), nonfe.getColumnNumber()), message, nonfe);
+        }
+
+        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "["
+                    + retrieverName
+                    + "] malformed retriever, expected ["
+                    + XContentParser.Token.END_OBJECT
+                    + "] but found ["
+                    + parser.currentToken()
+                    + "]"
+            );
+        }
+
+        if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "["
+                    + retrieverName
+                    + "] malformed retriever, expected ["
+                    + XContentParser.Token.END_OBJECT
+                    + "] but found ["
+                    + parser.currentToken()
+                    + "]"
+            );
+        }
+
+        return retrieverBuilder;
+    }
 
     protected int from = SearchService.DEFAULT_FROM;
     protected int size = SearchService.DEFAULT_SIZE;
@@ -69,7 +204,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
         builder.field(FROM_FIELD.getPreferredName(), from);
         builder.field(SIZE_FIELD.getPreferredName(), size);
         if (preFilterQueryBuilder != null) {
-            builder.field(FILTER_FIELD.getPreferredName(), preFilterQueryBuilder);
+            builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilder);
         }
         if (_name != null) {
             builder.field(_NAME_FIELD.getPreferredName(), _name);
@@ -89,7 +224,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
             QueryBuilder rewrittenFilter = preFilterQueryBuilder.rewrite(ctx);
 
             if (rewrittenFilter != preFilterQueryBuilder) {
-                return (RB) shallowCopyInstance().preFilterQueryBuilder(preFilterQueryBuilder);
+                return shallowCopyInstance().preFilterQueryBuilder(preFilterQueryBuilder);
             }
         }
 
@@ -99,26 +234,20 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
     protected abstract RB shallowCopyInstance();
 
     @Override
-    public final boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        @SuppressWarnings("unchecked")
-        RB other = (RB) obj;
-        return from == other.from && size == other.size && Objects.equals(preFilterQueryBuilder, other.preFilterQueryBuilder) && Objects.equals(_name, other._name) && doEquals(other);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RetrieverBuilder<?> that = (RetrieverBuilder<?>) o;
+        return from == that.from
+            && size == that.size
+            && Objects.equals(preFilterQueryBuilder, that.preFilterQueryBuilder)
+            && Objects.equals(_name, that._name);
     }
-
-    protected abstract boolean doEquals(RB other);
 
     @Override
-    public final int hashCode() {
-        return Objects.hash(getClass(), from, size, preFilterQueryBuilder, _name, doHashCode());
+    public int hashCode() {
+        return Objects.hash(from, size, preFilterQueryBuilder, _name);
     }
-
-    protected abstract int doHashCode();
 
     public int from() {
         return from;
@@ -159,4 +288,30 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<?>> implement
         this._name = _name;
         return (RB) this;
     }
+
+    public final void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        doExtractToSearchSourceBuilder(searchSourceBuilder);
+
+        if (searchSourceBuilder.from() == -1) {
+            searchSourceBuilder.from(from);
+        } else {
+            throw new IllegalStateException("[from] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (searchSourceBuilder.size() == -1) {
+            searchSourceBuilder.size(size);
+        } else {
+            throw new IllegalStateException("[from] cannot be declared as a retriever value and as a global value");
+        }
+
+        if (preFilterQueryBuilder != null) {
+            throw new IllegalStateException("[filter] is not supported");
+        }
+
+        if (_name != null) {
+            throw new IllegalStateException("[_name] is not supported");
+        }
+    }
+
+    public abstract void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder);
 }

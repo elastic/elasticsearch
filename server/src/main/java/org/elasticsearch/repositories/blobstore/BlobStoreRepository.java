@@ -1241,10 +1241,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void cleanupUnlinkedShardLevelBlobs(
         RepositoryData oldRepositoryData,
         Collection<SnapshotId> snapshotIds,
-        Collection<ShardSnapshotMetaDeleteResult> deleteResults,
+        Collection<ShardSnapshotMetaDeleteResult> shardDeleteResults,
         ActionListener<Void> listener
     ) {
-        final Iterator<String> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
+        final Iterator<String> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, shardDeleteResults);
         if (filesToDelete.hasNext() == false) {
             listener.onResponse(null);
             return;

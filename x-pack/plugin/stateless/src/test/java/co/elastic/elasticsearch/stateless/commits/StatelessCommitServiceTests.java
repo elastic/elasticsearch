@@ -107,6 +107,7 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -305,6 +306,182 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 "Expected that all compound commit files " + compoundCommitFiles + " have been uploaded " + uploadedFiles,
                 uploadedFiles,
                 hasItems(compoundCommitFiles.toArray(String[]::new))
+            );
+        }
+    }
+
+    public void testRelocationWaitsForAllPendingCommitsAndDoesNotAllowNew() throws Exception {
+        Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        AtomicReference<String> commitFileToBlock = new AtomicReference<>();
+        AtomicReference<String> firstCommitFile = new AtomicReference<>();
+        AtomicReference<String> secondCommitFile = new AtomicReference<>();
+
+        CountDownLatch startingUpload = new CountDownLatch(1);
+        CountDownLatch blocking = new CountDownLatch(1);
+
+        CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileCapture = fileCapture(uploadedBlobs);
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), (compoundCommitFile, runnable) -> {
+            if (compoundCommitFile.equals(firstCommitFile.get())) {
+                try {
+                    startingUpload.countDown();
+                    blocking.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                assertFalse(uploadedBlobs.contains(secondCommitFile.get()));
+            } else {
+                assertEquals(compoundCommitFile, secondCommitFile.get());
+                assertTrue(uploadedBlobs.contains(firstCommitFile.get()));
+            }
+            compoundCommitFileCapture.accept(compoundCommitFile, runnable);
+        })) {
+
+            List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, 3);
+            StatelessCommitRef firstCommit = commitRefs.get(0);
+            StatelessCommitRef secondCommit = commitRefs.get(1);
+            StatelessCommitRef thirdCommit = commitRefs.get(2);
+
+            commitFileToBlock.set(
+                firstCommit.getAdditionalFiles()
+                    .stream()
+                    .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
+                    .findFirst()
+                    .get()
+            );
+
+            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> blobNameFromGeneration(ref.getGeneration())).toList();
+            firstCommitFile.set(compoundCommitFiles.get(0));
+            secondCommitFile.set(compoundCommitFiles.get(1));
+
+            testHarness.commitService.onCommitCreation(firstCommit);
+            startingUpload.await();
+            assertThat(uploadedBlobs, not(hasItems(commitFileToBlock.get())));
+            assertThat(uploadedBlobs, not(hasItems(firstCommitFile.get())));
+
+            testHarness.commitService.onCommitCreation(secondCommit);
+
+            assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
+
+            PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+
+            if (randomBoolean()) {
+                relocationListener.onResponse(null);
+            }
+
+            testHarness.commitService.onCommitCreation(thirdCommit);
+
+            assertFalse(listener.isDone());
+
+            blocking.countDown();
+
+            listener.actionGet();
+
+            ArrayList<String> uploadedFiles = new ArrayList<>(uploadedBlobs);
+
+            assertThat(
+                "Expected that compound commit file " + compoundCommitFiles.get(0) + " had been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItem(compoundCommitFiles.get(0))
+            );
+
+            assertThat(
+                "Expected that compound commit file " + compoundCommitFiles.get(1) + " had been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItem(compoundCommitFiles.get(1))
+            );
+
+            assertThat(
+                "Expected that compound commit file " + compoundCommitFiles.get(2) + " had not been uploaded " + uploadedFiles,
+                uploadedFiles,
+                not(hasItem(compoundCommitFiles.get(2)))
+            );
+        }
+    }
+
+    public void testFailedRelocationAllowsCommitsToContinue() throws Exception {
+        Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        AtomicReference<String> commitFileToBlock = new AtomicReference<>();
+        AtomicReference<String> firstCommitFile = new AtomicReference<>();
+        AtomicReference<String> secondCommitFile = new AtomicReference<>();
+
+        CountDownLatch startingUpload = new CountDownLatch(1);
+        CountDownLatch blocking = new CountDownLatch(1);
+
+        CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileCapture = fileCapture(uploadedBlobs);
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), (compoundCommitFile, runnable) -> {
+            if (compoundCommitFile.equals(firstCommitFile.get())) {
+                try {
+                    startingUpload.countDown();
+                    blocking.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                assertFalse(uploadedBlobs.contains(secondCommitFile.get()));
+            }
+            compoundCommitFileCapture.accept(compoundCommitFile, runnable);
+        })) {
+
+            List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, 3);
+            StatelessCommitRef firstCommit = commitRefs.get(0);
+            StatelessCommitRef secondCommit = commitRefs.get(1);
+            StatelessCommitRef thirdCommit = commitRefs.get(2);
+
+            commitFileToBlock.set(
+                firstCommit.getAdditionalFiles()
+                    .stream()
+                    .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
+                    .findFirst()
+                    .get()
+            );
+
+            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> blobNameFromGeneration(ref.getGeneration())).toList();
+            firstCommitFile.set(compoundCommitFiles.get(0));
+            secondCommitFile.set(compoundCommitFiles.get(1));
+
+            testHarness.commitService.onCommitCreation(firstCommit);
+            startingUpload.await();
+            assertThat(uploadedBlobs, not(hasItems(commitFileToBlock.get())));
+            assertThat(uploadedBlobs, not(hasItems(firstCommitFile.get())));
+
+            testHarness.commitService.onCommitCreation(secondCommit);
+
+            assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
+
+            PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+            ActionListener<Void> handoffListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+
+            testHarness.commitService.onCommitCreation(thirdCommit);
+
+            assertFalse(listener.isDone());
+
+            blocking.countDown();
+
+            listener.actionGet();
+
+            handoffListener.onFailure(new IllegalStateException("Failed"));
+            PlainActionFuture<Void> allowedListener = PlainActionFuture.newFuture();
+            testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, thirdCommit.getGeneration(), allowedListener);
+            allowedListener.actionGet();
+
+            ArrayList<String> uploadedFiles = new ArrayList<>(uploadedBlobs);
+
+            assertThat(
+                "Expected that compound commit file " + compoundCommitFiles.get(0) + " had been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItem(compoundCommitFiles.get(0))
+            );
+
+            assertThat(
+                "Expected that compound commit file " + compoundCommitFiles.get(1) + " had been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItem(compoundCommitFiles.get(1))
+            );
+
+            assertThat(
+                "Expected that compound commit file " + compoundCommitFiles.get(2) + " had been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItem(compoundCommitFiles.get(2))
             );
         }
     }

@@ -377,9 +377,12 @@ public class Stateless extends Plugin
         components.add(consistencyService);
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
-        var commitService = createStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
-        setAndGet(this.commitService, commitService);
+        var commitService = new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
         components.add(commitService);
+        // Allow wrapping non-Guiced version for testing
+        commitService = wrapStatelessCommitService(commitService);
+        clusterService.addListener(commitService);
+        setAndGet(this.commitService, commitService);
         var translogReplicator = setAndGet(
             this.translogReplicator,
             new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService, indicesService)
@@ -498,16 +501,8 @@ public class Stateless extends Plugin
         }
     }
 
-    protected StatelessCommitService createStatelessCommitService(
-        Settings settings,
-        ObjectStoreService objectStoreService,
-        ClusterService clusterService,
-        Client client,
-        StatelessCommitCleaner commitCleaner
-    ) {
-        var commitService = new StatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
-        clusterService.addListener(commitService);
-        return commitService;
+    protected StatelessCommitService wrapStatelessCommitService(StatelessCommitService instance) {
+        return instance;
     }
 
     private static <T> T setAndGet(SetOnce<T> ref, T service) {

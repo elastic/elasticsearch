@@ -172,6 +172,33 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.markCommitRecovered(recoveredCommit, unreferencedFiles);
     }
 
+    /**
+     * This method will mark the shard as relocating. It will calculate the max(minRelocatedGeneration, all pending uploads) and wait
+     * for that generation to be uploaded after which it will trigger the provided listener. Additionally, this method will then block
+     * the upload of any generations greater than the calculated max(minRelocatedGeneration, all pending uploads).
+     *
+     * We have implemented this mechanism opposed to using operation permits as we must push a flush after blocking all operations. If we
+     * used operation permits, the final flush would not be able to proceed.
+     *
+     * This method returns an ActionListener with must be triggered when the relocation either fails or succeeds.
+     */
+    public ActionListener<Void> markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        commitState.markRelocating(minRelocatedGeneration, listener);
+
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                commitState.markRelocated();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                commitState.markRelocationFailed();
+            }
+        };
+    }
+
     public long getRecoveredGeneration(ShardId shardId) {
         return getSafe(shardsCommitsStates, shardId).recoveredGeneration;
     }
@@ -216,7 +243,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     // package private for testing
     void runInactivityMonitor(Supplier<Long> time) {
         shardsCommitsStates.forEach((shardId, commitState) -> {
-            if (commitState.isClosed == false && commitState.lastNewCommitNotificationSentTimestamp > 0) {
+            if (commitState.state != ShardCommitState.State.CLOSED && commitState.lastNewCommitNotificationSentTimestamp > 0) {
                 long elapsed = time.get() - commitState.lastNewCommitNotificationSentTimestamp;
                 if (elapsed > shardInactivityDuration.getMillis()) {
                     commitState.maybeResendLatestNewCommitNotification();
@@ -238,8 +265,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
+            if (commitState.markUploadStarting(reference.getPrimaryTerm(), generation) == false) {
+                logger.debug(
+                    "{} aborting commit upload [state={}][{}][{}]",
+                    shardId,
+                    commitState.state,
+                    reference.getSegmentsFileName(),
+                    generation
+                );
+                IOUtils.closeWhileHandlingException(reference);
+                return;
+            }
+
             logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
-            var blobReference = commitState.markCommitCreated(
+            var blobReference = commitState.createBlobReference(
                 reference.getPrimaryTerm(),
                 generation,
                 reference.getCommitFiles(),
@@ -271,7 +310,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
 
                 private boolean assertClosedOrRejectionFailure(final Exception e) {
-                    final var closed = commitState.isClosed;
+                    ShardCommitState.State state = commitState.state;
+                    final var closed = state == ShardCommitState.State.CLOSED || state == ShardCommitState.State.RELOCATED;
                     assert closed
                         || e instanceof EsRejectedExecutionException
                         || e instanceof IndexNotFoundException
@@ -361,10 +401,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            executeUpload(listener.delegateResponse((l, e) -> {
-                logUploadAttemptFailure(e);
-                l.onFailure(e);
-            }));
+            // When a shard is in the process of relocating, we mark a max generation to attempt to upload. If this generation is greater
+            // then we fail this upload attempt. If the relocation hand-off fails then the state will be set back to RUNNING and the next
+            // upload attempt will be allowed through. If the state is transition to RELOCATED or CLOSED then we still don't upload and the
+            // upload task will not be retried again. We rely on and accept the max retry delay of 5s, i.e., in case of hand-off abort,
+            // this upload could be delayed for up to 5 additional seconds.
+            if (shardCommitState.state != ShardCommitState.State.RUNNING && generation > shardCommitState.maxGenerationToUpload) {
+                logger.trace(() -> format("%s skipped upload [%s] to object because of active relocation handoff", shardId, generation));
+                listener.onFailure(new IllegalStateException("Upload paused because of relocation handoff"));
+            } else {
+                executeUpload(listener.delegateResponse((l, e) -> {
+                    logUploadAttemptFailure(e);
+                    l.onFailure(e);
+                }));
+            }
+
         }
 
         private void logUploadAttemptFailure(Exception e) {
@@ -454,7 +505,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         @Override
         public boolean shouldRetry(Exception e) {
-            return shardCommitState.isClosed == false;
+            ShardCommitState.State state = shardCommitState.state;
+            return state == ShardCommitState.State.RUNNING || state == ShardCommitState.State.RELOCATING;
         }
     }
 
@@ -514,6 +566,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private class ShardCommitState {
 
+        private enum State {
+            RUNNING,
+            RELOCATING,
+            RELOCATED,
+            CLOSED
+        }
+
         private final ShardId shardId;
         private final long allocationPrimaryTerm;
         private final Set<Long> pendingUploadGenerations = ConcurrentCollections.newConcurrentSet();
@@ -527,7 +586,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * The highest generation that we received notification response from unpromotables for
          */
         private final AtomicLong generationNotified = new AtomicLong(-1);
-        private volatile boolean isClosed;
+        private volatile long maxGenerationToUpload = Long.MAX_VALUE;
+        private volatile State state = State.RUNNING;
         private volatile boolean isDeleted;
         // map generations to compound commit blob instances
         private final Map<PrimaryTermAndGeneration, BlobReference> blobReferences = new ConcurrentHashMap<>();
@@ -709,20 +769,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             handleUploadedCommit(recoveredCommit);
         }
 
-        public BlobReference markCommitCreated(
-            long primaryTerm,
-            long generation,
-            Collection<String> commitFiles,
-            Set<String> additionalFiles
-        ) {
+        // Returns true if the upload should proceed. False if the upload should be skipped because shard stopping.
+        private boolean markUploadStarting(long primaryTerm, long generation) {
             assert primaryTerm == allocationPrimaryTerm;
 
-            pendingUploadGenerations.add(generation);
-
-            return addCommitData(primaryTerm, generation, commitFiles, additionalFiles);
+            synchronized (this) {
+                if (state == State.CLOSED || state == State.RELOCATED) {
+                    return false;
+                } else {
+                    pendingUploadGenerations.add(generation);
+                    return true;
+                }
+            }
         }
 
-        private BlobReference addCommitData(
+        private BlobReference createBlobReference(
             long primaryTerm,
             long generation,
             Collection<String> commitFiles,
@@ -901,7 +962,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             boolean completeListenerSuccess = false;
             boolean completeListenerClosed = false;
             synchronized (this) {
-                if (isClosed) {
+                if (state == State.CLOSED) {
                     completeListenerClosed = true;
                 } else if (getMaxUploadedGeneration() >= generation) {
                     // Location already visible, just call the listener
@@ -933,7 +994,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         public void addConsumerForNewUploadedCommit(Consumer<UploadedCommitInfo> consumer) {
             synchronized (this) {
-                if (isClosed == false) {
+                if (state != State.CLOSED) {
                     if (uploadedCommitConsumers == null) {
                         uploadedCommitConsumers = new ArrayList<>();
                     }
@@ -945,7 +1006,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void close() {
             List<Tuple<Long, ActionListener<Void>>> listenersToFail;
             synchronized (this) {
-                isClosed = true;
+                state = State.CLOSED;
                 listenersToFail = generationListeners;
                 generationListeners = null;
                 uploadedCommitConsumers = null;
@@ -967,6 +1028,53 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        private void markRelocating(long minRelocatedGeneration, ActionListener<Void> listener) {
+            long toWaitFor;
+            synchronized (this) {
+                OptionalLong maxPending = pendingUploadGenerations.stream().mapToLong(l -> l).max();
+
+                // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so this
+                // logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it has already
+                // been uploaded which would make the listener be triggered immediately.
+                toWaitFor = minRelocatedGeneration;
+                if (maxPending.isPresent() && maxPending.getAsLong() > minRelocatedGeneration) {
+                    toWaitFor = maxPending.getAsLong();
+                }
+
+                maxGenerationToUpload = toWaitFor;
+                assert state == State.RUNNING;
+                state = State.RELOCATING;
+            }
+
+            addListenerForUploadedGeneration(toWaitFor, listener);
+        }
+
+        /**
+         * This method will mark a shard as fully relocated. At this point, no more commits can ever be uploaded for this instance of shard
+         * commit state.
+         */
+        private void markRelocated() {
+            synchronized (this) {
+                if (state != State.CLOSED) {
+                    assert state == State.RELOCATING;
+                    state = State.RELOCATED;
+                }
+            }
+        }
+
+        /**
+         * This method will transition the shard back to RUNNING and allow new generations to be uploaded.
+         */
+        private void markRelocationFailed() {
+            synchronized (this) {
+                if (state != State.CLOSED) {
+                    assert state == State.RELOCATING;
+                    maxGenerationToUpload = Long.MAX_VALUE;
+                    state = State.RUNNING;
+                }
+            }
+        }
+
         /**
          * Marks the shard as deleted. Any related {@link ShardCommitState.BlobReference} will be deleted in the upcoming {@link #close()}.
          */
@@ -982,7 +1090,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             Set<String> nodes,
             Set<PrimaryTermAndGeneration> usedPrimaryTermAndGenerations
         ) {
-            if (isClosed) {
+            if (state == State.CLOSED) {
                 return;
             }
 

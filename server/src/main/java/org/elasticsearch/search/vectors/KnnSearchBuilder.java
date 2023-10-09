@@ -69,8 +69,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             (String) args[0],
             vectorArray,
             (QueryVectorBuilder) args[4],
-            (int) args[2],
-            (int) args[3],
+            (Integer) args[2],
+            (Integer) args[3],
             (Float) args[5]
         );
     });
@@ -78,8 +78,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareFloatArray(optionalConstructorArg(), QUERY_VECTOR_FIELD);
-        PARSER.declareInt(constructorArg(), K_FIELD);
-        PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), K_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
@@ -109,8 +109,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     final float[] queryVector;
     final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> querySupplier;
-    final int k;
-    final int numCands;
+    final Integer k;
+    final Integer numCands;
     final Float similarity;
     final List<QueryBuilder> filterQueries;
     float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -124,7 +124,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      * @param k           the final number of nearest neighbors to return as top hits
      * @param numCands    the number of nearest neighbor candidates to consider per shard
      */
-    public KnnSearchBuilder(String field, float[] queryVector, int k, int numCands, Float similarity) {
+    public KnnSearchBuilder(String field, float[] queryVector, Integer k, Integer numCands, Float similarity) {
         this(field, Objects.requireNonNull(queryVector, format("[%s] cannot be null", QUERY_VECTOR_FIELD)), null, k, numCands, similarity);
     }
 
@@ -135,7 +135,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      * @param k                  the final number of nearest neighbors to return as top hits
      * @param numCands           the number of nearest neighbor candidates to consider per shard
      */
-    public KnnSearchBuilder(String field, QueryVectorBuilder queryVectorBuilder, int k, int numCands, Float similarity) {
+    public KnnSearchBuilder(String field, QueryVectorBuilder queryVectorBuilder, Integer k, Integer numCands, Float similarity) {
         this(
             field,
             null,
@@ -150,19 +150,19 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         String field,
         float[] queryVector,
         QueryVectorBuilder queryVectorBuilder,
-        int k,
-        int numCands,
+        Integer k,
+        Integer numCands,
         Float similarity
     ) {
-        if (k < 1) {
+        if (k != null && k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
         }
-        if (numCands < k) {
+        if (numCands != null && k != null && numCands < k) {
             throw new IllegalArgumentException(
                 "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
             );
         }
-        if (numCands > NUM_CANDS_LIMIT) {
+        if (numCands != null && numCands > NUM_CANDS_LIMIT) {
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
         if (queryVector == null && queryVectorBuilder == null) {
@@ -196,8 +196,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     private KnnSearchBuilder(
         String field,
         Supplier<float[]> querySupplier,
-        int k,
-        int numCands,
+        Integer k,
+        Integer numCands,
         List<QueryBuilder> filterQueries,
         Float similarity
     ) {
@@ -213,8 +213,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     public KnnSearchBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
-        this.k = in.readVInt();
-        this.numCands = in.readVInt();
+        this.k = in.readOptionalVInt();
+        this.numCands = in.readOptionalVInt();
         this.queryVector = in.readFloatArray();
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
@@ -238,7 +238,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return field;
     }
 
-    public int k() {
+    public Integer k() {
         return k;
     }
 
@@ -339,8 +339,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         KnnSearchBuilder that = (KnnSearchBuilder) o;
-        return k == that.k
-            && numCands == that.numCands
+        return Objects.equals(k, that.k)
+            && Objects.equals(numCands, that.numCands)
             && Objects.equals(field, that.field)
             && Arrays.equals(queryVector, that.queryVector)
             && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
@@ -369,9 +369,13 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FIELD_FIELD.getPreferredName(), field)
-            .field(K_FIELD.getPreferredName(), k)
-            .field(NUM_CANDS_FIELD.getPreferredName(), numCands);
+        builder.field(FIELD_FIELD.getPreferredName(), field);
+        if (k != null) {
+            builder.field(K_FIELD.getPreferredName(), k);
+        }
+        if (numCands != null) {
+            builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
+        }
         if (queryVectorBuilder != null) {
             builder.startObject(QUERY_VECTOR_BUILDER_FIELD.getPreferredName());
             builder.field(queryVectorBuilder.getWriteableName(), queryVectorBuilder);
@@ -408,8 +412,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             throw new IllegalStateException("missing a rewriteAndFetch?");
         }
         out.writeString(field);
-        out.writeVInt(k);
-        out.writeVInt(numCands);
+        out.writeOptionalVInt(k);
+        out.writeOptionalVInt(numCands);
         out.writeFloatArray(queryVector);
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
@@ -431,5 +435,16 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().onOrAfter(NESTED_KNN_VECTOR_QUERY_V)) {
             out.writeOptionalWriteable(innerHitBuilder);
         }
+    }
+
+    public KnnSearchBuilder adjustForExploration(int size) {
+        if (k != null && numCands != null) {
+            return this;
+        }
+        int adjustedK = k != null ? k : size;
+        int adjustedNumCands = numCands != null ? numCands : 100;
+        return new KnnSearchBuilder(field, queryVector, queryVectorBuilder, adjustedK, adjustedNumCands, similarity).addFilterQueries(
+            filterQueries
+        ).boost(boost);
     }
 }

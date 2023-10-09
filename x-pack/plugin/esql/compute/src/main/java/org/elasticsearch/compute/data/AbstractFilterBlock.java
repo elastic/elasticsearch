@@ -127,36 +127,43 @@ abstract class AbstractFilterBlock implements Block {
     }
 
     @Override
-    public void incRef() {
+    public final void incRef() {
+        if (references <= 0) {
+            throw new IllegalStateException("can't increase refCount on already released block [" + this + "]");
+        }
         references++;
     }
 
     @Override
-    public boolean tryIncRef() {
+    public final boolean tryIncRef() {
         if (references <= 0) {
             return false;
         }
-        incRef();
+        references++;
         return true;
     }
 
     @Override
-    public boolean decRef() {
-        references--;
+    public final boolean decRef() {
+        close();
 
         return references <= 0;
     }
 
     @Override
-    public boolean hasReferences() {
+    public final boolean hasReferences() {
         return references >= 1;
     }
 
+    /**
+     * When overriding this, {@code super.close()} must be called to ensure correct reference counting.
+     * Used in {@link AbstractFilterBlock#decRef()}.
+     */
     @Override
     public void close() {
-        if (hasReferences() == false) {
+        if (references <= 0) {
             throw new IllegalStateException("can't release already released block [" + this + "]");
         }
-        decRef();
+        references--;
     }
 }

@@ -281,8 +281,6 @@ class LinearProgrammingPlanSolver {
 
         for (AssignmentPlan.Deployment m : deployments) {
             for (Node n : nodes) {
-                // QUESTION: ModelPriority[m] is ignored?
-                // COMMENT: in Python it is thread_vars[m][n]
                 Variable allocationVar = model.addVariable("allocations_of_model_" + m.id() + "_on_node_" + n.id())
                     .integer(false) // We relax the program to non-integer as the integer solver is much slower and can often lead to
                                     // infeasible solutions
@@ -317,11 +315,7 @@ class LinearProgrammingPlanSolver {
             List<Variable> allocations = new ArrayList<>();
             List<Double> modelMemories = new ArrayList<>();
             deployments.stream().filter(m -> m.currentAllocationsByNodeId().containsKey(n.id()) == false).forEach(m -> {
-                // L690: pulp.lpSum([thread_vars[m][n] for n in Nodes]) <= ModelThreads[m],
                 allocations.add(allocationVars.get(Tuple.tuple(m, n)));
-                // L699: StaticModelMemory[m] / NodeCores[n] * thread_vars[m][n]
-                // + DynamicModelMemory[m] * thread_vars[m][n]
-                // QUESTION: what to do with m.threadPerAllocation()?
                 modelMemories.add(
                     (normalizedMemoryPerModel.get(m) / (double) coresPerNode.get(n) + normalizedMemoryPerAllocation.get(m)) * m
                         .threadsPerAllocation()

@@ -164,7 +164,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                             // - transform is not failed (stopped transforms do not have a task)
                             if (transformTask != null
                                 && transformTask.isAssigned()
-                                && transformTask.getState() != null
                                 && transformTask.getState() instanceof TransformState
                                 && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED) {
 

@@ -27,7 +27,7 @@ PUT _ingest/pipeline/my-text-embeddings-pipeline
             "input_field": "my_text_field",
             "output_field": "my_text_embedding"
           }
-        ]
+        ],
         "inference_config": {
           "text_expansion": {} <2>
         }

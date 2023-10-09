@@ -2355,7 +2355,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.debug("failed to complete snapshot deletion [{}] for reason: [{}]", deleteEntry, e.getMessage());
+                            logger.debug("failed to complete snapshot deletion [" + deleteEntry + "]", e);
                             submitUnbatchedTask(
                                 "remove snapshot deletion metadata after failed delete",
                                 new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {

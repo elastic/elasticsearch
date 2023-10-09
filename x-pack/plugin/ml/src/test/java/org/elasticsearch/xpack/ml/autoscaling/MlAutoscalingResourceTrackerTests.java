@@ -15,9 +15,8 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -1012,22 +1011,18 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             ),
 
             List.of(
-                new DiscoveryNode(
-                    "ml-node-name-1",
-                    "ml-node-1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    VersionInformation.CURRENT
-                ),
-                new DiscoveryNode(
-                    "ml-node-name-3",
-                    "ml-node-3",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    VersionInformation.CURRENT
-                )
+                DiscoveryNodeUtils.builder("ml-node-1")
+                    .name("ml-node-name-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-node-3")
+                    .name("ml-node-name-3")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
             ),
             PersistentTasksCustomMetadata.builder().build()
         );

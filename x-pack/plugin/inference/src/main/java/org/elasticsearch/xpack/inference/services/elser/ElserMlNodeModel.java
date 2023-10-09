@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 
 public class ElserMlNodeModel extends Model {
@@ -19,7 +20,7 @@ public class ElserMlNodeModel extends Model {
         ElserMlNodeServiceSettings serviceSettings,
         ElserMlNodeTaskSettings taskSettings
     ) {
-        super(modelId, taskType, service, serviceSettings, taskSettings);
+        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings));
     }
 
     @Override

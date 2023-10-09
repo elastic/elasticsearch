@@ -17,8 +17,9 @@ public interface InferenceService {
     String name();
 
     /**
-     * Parse model configuration from the {@code config map} and return
-     * the parsed {@link Model}.
+     * Parse model configuration from the {@code config map} from a request and return
+     * the parsed {@link Model}. This requires that both the secrets and service settings be contained in the
+     * {@code service_settings} field.
      * This function modifies {@code config map}, fields are removed
      * from the map as they are read.
      *
@@ -27,21 +28,25 @@ public interface InferenceService {
      *
      * @param modelId Model Id
      * @param taskType The model task type
-     * @param config Configuration options
+     * @param config Configuration options including the secrets
      * @return The parsed {@link Model}
      */
-    Model parseConfigStrict(String modelId, TaskType taskType, Map<String, Object> config);
+    Model parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
     /**
-     * As {@link #parseConfigStrict(String, TaskType, Map)} but the function
-     * does not throw on unrecognized options.
+     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
+     * secrets and service settings be in two separate maps.
+     * This function modifies {@code config map}, fields are removed from the map as they are read.
+     *
+     * If the map contains unrecognized configuration options, no error is thrown.
      *
      * @param modelId Model Id
      * @param taskType The model task type
      * @param config Configuration options
+     * @param secrets Sensitive configuration options (e.g. api key)
      * @return The parsed {@link Model}
      */
-    Model parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> config);
+    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
 
     /**
      * Perform inference on the model.

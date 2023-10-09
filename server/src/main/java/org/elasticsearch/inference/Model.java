@@ -8,101 +8,72 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
 import java.util.Objects;
 
-public class Model implements ToXContentObject, VersionedNamedWriteable {
-
-    public static final String MODEL_ID = "model_id";
-    public static final String SERVICE = "service";
-    public static final String SERVICE_SETTINGS = "service_settings";
-    public static final String TASK_SETTINGS = "task_settings";
-
-    private static final String NAME = "inference_model";
-
+public class Model {
     public static String documentId(String modelId) {
         return "model_" + modelId;
     }
 
-    private final String modelId;
-    private final TaskType taskType;
-    private final String service;
-    private final ServiceSettings serviceSettings;
-    private final TaskSettings taskSettings;
+    private final ModelConfigurations configurations;
+    private final ModelSecrets secrets;
 
-    public Model(String modelId, TaskType taskType, String service, ServiceSettings serviceSettings, TaskSettings taskSettings) {
-        this.modelId = modelId;
-        this.taskType = taskType;
-        this.service = service;
-        this.serviceSettings = serviceSettings;
-        this.taskSettings = taskSettings;
+    public Model(ModelConfigurations configurations, ModelSecrets secrets) {
+        this.configurations = Objects.requireNonNull(configurations);
+        this.secrets = Objects.requireNonNull(secrets);
     }
 
-    public Model(StreamInput in) throws IOException {
-        this.modelId = in.readString();
-        this.taskType = in.readEnum(TaskType.class);
-        this.service = in.readString();
-        this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
-        this.taskSettings = in.readNamedWriteable(TaskSettings.class);
+    public Model(ModelConfigurations configurations) {
+        this(configurations, new ModelSecrets());
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
-        out.writeEnum(taskType);
-        out.writeString(service);
-        out.writeNamedWriteable(serviceSettings);
-        out.writeNamedWriteable(taskSettings);
+    /**
+     * Returns the model's non-sensitive configurations (e.g. service name).
+     */
+    public ModelConfigurations getConfigurations() {
+        return configurations;
     }
 
-    public String getModelId() {
-        return modelId;
-    }
-
-    public TaskType getTaskType() {
-        return taskType;
-    }
-
-    public String getService() {
-        return service;
+    /**
+     * Returns the model's sensitive configurations (e.g. api key).
+     *
+     * This returns an object that in json would look like:
+     *
+     * <pre>
+     * {@code
+     * {
+     *     "secret_settings": { "api_key": "abc" }
+     * }
+     * }
+     * </pre>
+     */
+    public ModelSecrets getSecrets() {
+        return secrets;
     }
 
     public ServiceSettings getServiceSettings() {
-        return serviceSettings;
+        return configurations.getServiceSettings();
     }
 
     public TaskSettings getTaskSettings() {
-        return taskSettings;
+        return configurations.getTaskSettings();
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(MODEL_ID, modelId);
-        builder.field(TaskType.NAME, taskType.toString());
-        builder.field(SERVICE, service);
-        builder.field(SERVICE_SETTINGS, serviceSettings);
-        builder.field(TASK_SETTINGS, taskSettings);
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_074;
+    /**
+     * Returns the inner sensitive data defined by a particular service.
+     *
+     * This returns an object that in json would look like:
+     *
+     * <pre>
+     * {@code
+     * {
+     *     "api_key": "abc"
+     * }
+     * }
+     * </pre>
+     */
+    public SecretSettings getSecretSettings() {
+        return secrets.getSecretSettings();
     }
 
     @Override
@@ -110,15 +81,11 @@ public class Model implements ToXContentObject, VersionedNamedWriteable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Model model = (Model) o;
-        return Objects.equals(modelId, model.modelId)
-            && taskType == model.taskType
-            && Objects.equals(service, model.service)
-            && Objects.equals(serviceSettings, model.serviceSettings)
-            && Objects.equals(taskSettings, model.taskSettings);
+        return Objects.equals(configurations, model.configurations) && Objects.equals(secrets, model.secrets);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, taskType, service, serviceSettings, taskSettings);
+        return Objects.hash(configurations, secrets);
     }
 }

@@ -109,11 +109,7 @@ public class TaskRecoveryIT extends ESIntegTestCase {
 
                 @Override
                 public void skipTranslogRecovery() {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(latch);
                     super.skipTranslogRecovery();
                 }
             });

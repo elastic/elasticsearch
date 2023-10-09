@@ -7,8 +7,7 @@ emp_no:integer |_index:keyword |_version:long
 10002          |employees      |1
 ;
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-aliasWithSameName-Ignore
+aliasWithSameName
 from employees [metadata _index, _version] | sort emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
 
 emp_no:integer |_index:keyword |_version:long
@@ -95,8 +94,7 @@ emp_no:integer |_version:long |_index:keyword
 10002          |1             |employees
 ;
 
-# awaitsfix https://github.com/elastic/elasticsearch/issues/99826
-withMvFunction-Ignore
+withMvFunction
 from employees [metadata _version] | eval i = mv_avg(_version) + 2 | stats min = min(emp_no) by i;
 
 min:integer |i:double
@@ -112,8 +110,7 @@ emp_no:integer |_index:integer |_version:keyword
 10003          |3              |version
 ;
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-multipleIndices-Ignore
+multipleIndices
 // tag::multipleIndices[]
 FROM ul_logs, apps [METADATA _index, _version]
 | WHERE id IN (13, 14) AND _version == 1

@@ -52,7 +52,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             StringFieldScript.Factory factory,
             Script script,
@@ -63,12 +63,14 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
 
         @Override
-        StringFieldScript.Factory getParseFromSourceFactory() {
+        protected StringFieldScript.Factory getParseFromSourceFactory() {
             return StringFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        StringFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected StringFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return StringFieldScript.leafAdapter(parentScriptFactory);
         }
     }

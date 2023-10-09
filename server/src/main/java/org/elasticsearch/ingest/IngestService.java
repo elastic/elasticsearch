@@ -966,7 +966,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // no-op here, but subclasses might use this
     }
 
-    private void executePipeline(
+    private static void executePipeline(
         final IngestDocument ingestDocument,
         final Pipeline pipeline,
         final BiConsumer<Boolean, Exception> handler

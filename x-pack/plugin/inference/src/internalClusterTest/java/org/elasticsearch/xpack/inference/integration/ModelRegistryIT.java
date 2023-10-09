@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
@@ -99,13 +100,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(modelHolder.get(), not(nullValue()));
 
-        UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config());
-        assertEquals(model.getService(), unparsedModel.service());
+        UnparsedModel unparsedModel = UnparsedModel.unparsedModelFromMap(modelHolder.get().config(), modelHolder.get().secrets());
+        assertEquals(model.getConfigurations().getService(), unparsedModel.service());
         ElserMlNodeModel roundTripModel = ElserMlNodeService.parseConfig(
             false,
             unparsedModel.modelId(),
             unparsedModel.taskType(),
-            unparsedModel.settings()
+            unparsedModel.settings(),
+            unparsedModel.secrets()
         );
         assertEquals(model, roundTripModel);
     }
@@ -179,17 +181,19 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         latch.await();
     }
 
-    private static ModelWithUnknownField buildModelWithUnknownField(String modelId) {
-        return new ModelWithUnknownField(
-            modelId,
-            TaskType.SPARSE_EMBEDDING,
-            ElserMlNodeService.NAME,
-            ElserMlNodeServiceSettingsTests.createRandom(),
-            ElserMlNodeTaskSettingsTests.createRandom()
+    private static Model buildModelWithUnknownField(String modelId) {
+        return new Model(
+            new ModelWithUnknownField(
+                modelId,
+                TaskType.SPARSE_EMBEDDING,
+                ElserMlNodeService.NAME,
+                ElserMlNodeServiceSettingsTests.createRandom(),
+                ElserMlNodeTaskSettingsTests.createRandom()
+            )
         );
     }
 
-    private static class ModelWithUnknownField extends Model {
+    private static class ModelWithUnknownField extends ModelConfigurations {
 
         ModelWithUnknownField(
             String modelId,

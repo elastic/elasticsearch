@@ -183,7 +183,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         return forecastsToDelete;
     }
 
-    private DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
+    private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setTimeout(DEFAULT_MAX_DURATION);

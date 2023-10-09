@@ -12,10 +12,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -33,7 +32,7 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
         super(NAME, PostDataAction.Response::new);
     }
 
-    public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
+    public static class Response extends BaseTasksResponse implements ToXContentObject, Writeable {
 
         private final DataCounts dataCounts;
 
@@ -60,11 +59,6 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
 
         public DataCounts getDataCounts() {
             return dataCounts;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.ACCEPTED;
         }
 
         @Override

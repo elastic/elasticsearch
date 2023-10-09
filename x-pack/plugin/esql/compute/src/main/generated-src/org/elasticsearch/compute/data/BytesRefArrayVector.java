@@ -22,6 +22,8 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     private final BytesRefArray values;
 
+    private final BytesRefBlock block;
+
     public BytesRefArrayVector(BytesRefArray values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -29,11 +31,12 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     public BytesRefArrayVector(BytesRefArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
     public BytesRefBlock asBlock() {
-        return new BytesRefVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -53,7 +56,13 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
 
     @Override
     public BytesRefVector filter(int... positions) {
-        return new FilterBytesRefVector(this, positions);
+        final var scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendBytesRef(values.get(pos, scratch));
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated(BytesRefArray values) {

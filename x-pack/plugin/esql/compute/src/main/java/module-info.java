@@ -6,7 +6,6 @@
  */
 
 module org.elasticsearch.compute {
-    uses org.elasticsearch.compute.data.BlockFactoryParameters;
 
     requires org.apache.lucene.core;
     requires org.elasticsearch.base;

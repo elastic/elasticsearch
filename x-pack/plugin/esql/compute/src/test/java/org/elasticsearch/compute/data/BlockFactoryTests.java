@@ -61,16 +61,6 @@ public class BlockFactoryTests extends ESTestCase {
             public String toString() {
                 return "1gb";
             }
-        }, new Supplier<>() {
-            @Override
-            public BlockFactory get() {
-                return BlockFactory.getGlobalInstance();
-            }
-
-            @Override
-            public String toString() {
-                return "global";
-            }
         });
         return l.stream().map(s -> new Object[] { s }).toList();
     }

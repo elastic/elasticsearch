@@ -26,6 +26,10 @@ public class CannedSourceOperator extends SourceOperator {
                 if (in == null) {
                     continue;
                 }
+                if (in.getPositionCount() == 0) {
+                    in.releaseBlocks();
+                    continue;
+                }
                 pages.add(in);
             }
             return pages;
@@ -97,6 +101,7 @@ public class CannedSourceOperator extends SourceOperator {
 
     @Override
     public void close() {
+        // release pages in the case of early termination - failure
         while (page.hasNext()) {
             page.next().releaseBlocks();
         }

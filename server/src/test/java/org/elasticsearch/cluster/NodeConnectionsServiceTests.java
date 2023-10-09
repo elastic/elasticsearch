@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -91,6 +92,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         return builder.build();
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100493")
     public void testEventuallyConnectsOnlyToAppliedNodes() throws Exception {
         final NodeConnectionsService service = new NodeConnectionsService(Settings.EMPTY, threadPool, transportService);
 

@@ -258,7 +258,7 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         ClassicRetrieverBuilder that = (ClassicRetrieverBuilder) o;
         return terminateAfter == that.terminateAfter
             && Objects.equals(queryBuilder, that.queryBuilder)

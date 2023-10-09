@@ -286,8 +286,8 @@ public interface SearchPlugin {
         /**
          * Specification of custom {@link RetrieverBuilder}.
          *
-         * @param name the name by which this retriever might be parsed or deserialized. Make sure that the retriever builder returns this name for
-         *        {@link NamedWriteable#getWriteableName()}.
+         * @param name the name by which this retriever might be parsed or deserialized. Make sure that the retriever builder returns
+         *             this name for {@link NamedWriteable#getWriteableName()}.
          * @param reader the reader registered for this retriever's builder. Typically a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser the parser the reads the retriever builder from xcontent

@@ -125,24 +125,24 @@ public class Verifier {
                 agg.aggregates().forEach(e -> {
                     var exp = e instanceof Alias ? ((Alias) e).child() : e;
                     if (exp instanceof AggregateFunction aggFunc) {
-                        aggFunc.arguments().forEach(a -> {
-                            // TODO: allow an expression?
-                            if ((a instanceof FieldAttribute
-                                || a instanceof MetadataAttribute
-                                || a instanceof ReferenceAttribute
-                                || a instanceof Literal) == false) {
-                                failures.add(
-                                    fail(
-                                        e,
-                                        "aggregate function's parameters must be an attribute or literal; found ["
-                                            + a.sourceText()
-                                            + "] of type ["
-                                            + a.nodeName()
-                                            + "]"
-                                    )
-                                );
-                            }
-                        });
+                        Expression field = aggFunc.field();
+
+                        // TODO: allow an expression?
+                        if ((field instanceof FieldAttribute
+                            || field instanceof MetadataAttribute
+                            || field instanceof ReferenceAttribute
+                            || field instanceof Literal) == false) {
+                            failures.add(
+                                fail(
+                                    e,
+                                    "aggregate function's field must be an attribute or literal; found ["
+                                        + field.sourceText()
+                                        + "] of type ["
+                                        + field.nodeName()
+                                        + "]"
+                                )
+                            );
+                        }
                     } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
                         failures.add(
                             fail(

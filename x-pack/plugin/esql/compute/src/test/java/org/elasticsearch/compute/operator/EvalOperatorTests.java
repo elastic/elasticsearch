@@ -67,7 +67,8 @@ public class EvalOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         return new EvalOperator.EvalOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
-            @Override public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            @Override
+            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
                 return new Addition(context, 0, 1);
             }
 

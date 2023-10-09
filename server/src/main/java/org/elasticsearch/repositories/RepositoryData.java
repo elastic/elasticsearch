@@ -750,8 +750,11 @@ public final class RepositoryData {
                 builder.endObject();
             }
             final IndexVersion version = snapshotDetails.getVersion();
-            if (version != null && version.id() != NUMERIC_INDEX_VERSION_MARKER.id()) {
-                if (version.onOrAfter(IndexVersion.V_8_500_000)) {
+            if (version != null) {
+                if (version.equals(NUMERIC_INDEX_VERSION_MARKER)) {
+                    logger.error("snapshot [{}] is from 8.11.0 or later but has no version details, using 8.11.0 placeholder", snapshot);
+                    builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
+                } else if (version.onOrAfter(IndexVersion.V_8_500_000)) {
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
                     builder.field(INDEX_VERSION, version.id());
                 } else {

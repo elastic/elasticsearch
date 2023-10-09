@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -286,6 +287,7 @@ public final class RepositoryData {
         final SnapshotDetails snapshotDetails = getSnapshotDetails(snapshotId);
         return snapshotDetails == null
             || snapshotDetails.getVersion() == null
+            || snapshotDetails.getVersion().id() == NUMERIC_INDEX_VERSION_MARKER.id()
             || snapshotDetails.getStartTimeMillis() == -1
             || snapshotDetails.getEndTimeMillis() == -1
             || snapshotDetails.getSlmPolicy() == null;
@@ -641,6 +643,7 @@ public final class RepositoryData {
     private static final String CLUSTER_UUID = "cluster_id";
     private static final String STATE = "state";
     private static final String VERSION = "version";
+    private static final String INDEX_VERSION = "index_version";
     private static final String MIN_VERSION = "min_version";
     private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String END_TIME_MILLIS = "end_time_millis";
@@ -652,6 +655,13 @@ public final class RepositoryData {
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final IndexVersion repoMetaVersion) throws IOException {
         return snapshotsToXContent(builder, repoMetaVersion, false);
     }
+
+    /**
+     * From 8.11.0 onwards we use numeric index versions, but leave the string "8.11.0" in the old version field for bwc.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/98454">#98454</a> for details.
+     */
+    private static final IndexVersion NUMERIC_INDEX_VERSION_MARKER = IndexVersion.fromId(8_11_00_99);
+    private static final String NUMERIC_INDEX_VERSION_MARKER_STRING = "8.11.0";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -680,10 +690,20 @@ public final class RepositoryData {
             } else {
                 minVersion = SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
             }
+            // Note that all known versions expect the MIN_VERSION field to be a string, and versions before 8.11.0 try and parse it as a
+            // major.minor.patch version number, so if we introduce a numeric format version in future then this will cause them to fail
+            // with an opaque parse error rather than the more helpful:
+            //
+            // IllegalStateException: this snapshot repository format requires Elasticsearch version [x.y.z] or later
+            //
+            // Likewise if we simply encode the numeric IndexVersion as a string then versions from 8.11.0 onwards will report the exact
+            // string in this message, which is not especially helpful to users. Slightly more helpful than the opaque parse error reported
+            // by earlier versions, but still not great. TODO rethink this if and when adding a new snapshot repository format version.
             if (minVersion.before(IndexVersion.V_8_10_0)) {
                 // write as a string
                 builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
             } else {
+                assert false : "writing a numeric version [" + minVersion + "] is unhelpful here, see preceding comment";
                 // write an int
                 builder.field(MIN_VERSION, minVersion.id());
             }
@@ -721,6 +741,9 @@ public final class RepositoryData {
 
         // write the snapshots list
 
+        int numericIndexVersionMarkerPlaceholdersUsed = 0;
+        SnapshotId lastSnapshotWithNumericIndexVersionPlaceholder = null;
+
         builder.startArray(SNAPSHOTS);
         for (final SnapshotId snapshot : getSnapshotIds()) {
             builder.startObject();
@@ -742,10 +765,16 @@ public final class RepositoryData {
             }
             final IndexVersion version = snapshotDetails.getVersion();
             if (version != null) {
-                if (version.before(IndexVersion.V_8_10_0)) {
-                    builder.field(VERSION, Version.fromId(version.id()).toString());
+                if (version.equals(NUMERIC_INDEX_VERSION_MARKER)) {
+                    numericIndexVersionMarkerPlaceholdersUsed += 1;
+                    lastSnapshotWithNumericIndexVersionPlaceholder = snapshot;
+                    builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
+                } else if (version.onOrAfter(IndexVersion.V_8_500_000)) {
+                    builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
+                    builder.field(INDEX_VERSION, version.id());
                 } else {
-                    builder.field(VERSION, version.id());
+                    assert version.id() < NUMERIC_INDEX_VERSION_MARKER.id() : version; // versions between 8.10.last and 8_500_000 invalid
+                    builder.field(VERSION, Version.fromId(version.id()).toString());
                 }
             }
 
@@ -762,6 +791,18 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endArray();
+
+        if (numericIndexVersionMarkerPlaceholdersUsed > 0) {
+            // This shouldn't happen without other failures - we might see the 8.11.0 marker if the RepositoryData was previously written by
+            // a pre-8.11.0 version which does not know to write the INDEX_VERSION field, but in that case we will reload the correct
+            // version from SnapshotInfo before writing the new RepositoryData; this reload process is technically a best-effort thing so we
+            // must tolerate the case where it fails, but we can report the problem at least.
+            logger.warn(
+                "created RepositoryData with [{}] snapshot(s) using a placeholder version of '8.11.0', including [{}]",
+                numericIndexVersionMarkerPlaceholdersUsed,
+                lastSnapshotWithNumericIndexVersionPlaceholder
+            );
+        }
 
         // write the indices map
         builder.startObject(INDICES);
@@ -824,14 +865,22 @@ public final class RepositoryData {
                     indexMetaIdentifiers = parser.mapStrings();
                 }
                 case MIN_VERSION -> {
-                    IndexVersion version = parseIndexVersion(parser.nextToken(), parser);
+                    final var token = parser.nextToken();
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+                    final var versionString = parser.text();
+                    final var version = switch (versionString) {
+                        case "7.12.0" -> IndexVersion.V_7_12_0;
+                        case "7.9.0" -> IndexVersion.V_7_9_0;
+                        case "7.6.0" -> IndexVersion.V_7_6_0;
+                        default ->
+                            // All (known) versions only ever emit one of the above strings for the format version, so if we see something
+                            // else it must be a newer version or else something wholly invalid. Report the raw string rather than trying
+                            // to parse it.
+                            throw new IllegalStateException(Strings.format("""
+                                this snapshot repository format requires Elasticsearch version [%s] or later""", versionString));
+                    };
 
                     assert SnapshotsService.useShardGenerations(version);
-                    if (version.after(IndexVersion.current())) {
-                        throw new IllegalStateException(
-                            "this snapshot repository format requires Elasticsearch version [" + version + "] or later"
-                        );
-                    }
                 }
                 case UUID -> {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
@@ -917,6 +966,7 @@ public final class RepositoryData {
             SnapshotState state = null;
             Map<String, String> metaGenerations = null;
             IndexVersion version = null;
+            IndexVersion indexVersion = null;
             long startTimeMillis = -1;
             long endTimeMillis = -1;
             String slmPolicy = null;
@@ -932,6 +982,7 @@ public final class RepositoryData {
                         p -> stringDeduplicator.computeIfAbsent(p.text(), Function.identity())
                     );
                     case VERSION -> version = parseIndexVersion(token, parser);
+                    case INDEX_VERSION -> indexVersion = IndexVersion.fromId(parser.intValue());
                     case START_TIME_MILLIS -> {
                         assert startTimeMillis == -1;
                         startTimeMillis = parser.longValue();
@@ -945,6 +996,9 @@ public final class RepositoryData {
             }
             assert (startTimeMillis == -1) == (endTimeMillis == -1) : "unexpected: " + startTimeMillis + ", " + endTimeMillis + ", ";
             final SnapshotId snapshotId = new SnapshotId(name, uuid);
+            if (indexVersion != null) {
+                version = indexVersion;
+            }
             if (state != null || version != null) {
                 snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis, slmPolicy));
             }
@@ -963,6 +1017,9 @@ public final class RepositoryData {
         } else {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
             final var versionStr = parser.text();
+            if (NUMERIC_INDEX_VERSION_MARKER_STRING.equals(versionStr)) {
+                return NUMERIC_INDEX_VERSION_MARKER;
+            }
             final var versionId = Version.fromString(versionStr).id;
             if (versionId > 8_11_00_99 && versionId < 8_500_000) {
                 logger.error("found impossible string index version [{}] with id [{}]", versionStr, versionId);

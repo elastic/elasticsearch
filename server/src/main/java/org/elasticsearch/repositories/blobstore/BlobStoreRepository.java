@@ -1184,11 +1184,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all
     // temporary blobs
     private static List<String> unusedBlobs(
-        Set<String> blobs,
+        Set<String> originalShardBlobs,
         Set<String> survivingSnapshotUUIDs,
         BlobStoreIndexShardSnapshots updatedSnapshots
     ) {
-        return blobs.stream()
+        return originalShardBlobs.stream()
             .filter(
                 blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)
                     || (blob.startsWith(SNAPSHOT_PREFIX)

@@ -92,7 +92,7 @@ public class HttpClientTests extends ESTestCase {
         String paramValue = randomAlphaOfLength(3);
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool)) {
+        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager())) {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -119,10 +119,9 @@ public class HttpClientTests extends ESTestCase {
             return mock(Future.class);
         }).when(asyncClient).execute(any(), any());
 
-        var evictor = createEvictor(threadPool);
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, evictor, threadPool)) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool)) {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -143,10 +142,9 @@ public class HttpClientTests extends ESTestCase {
             return mock(Future.class);
         }).when(asyncClient).execute(any(), any());
 
-        var evictor = createEvictor(threadPool);
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, evictor, threadPool)) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool)) {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -162,10 +160,9 @@ public class HttpClientTests extends ESTestCase {
         var asyncClient = mock(CloseableHttpAsyncClient.class);
         when(asyncClient.execute(any(), any())).thenReturn(mock(Future.class));
 
-        var evictor = createEvictor(threadPool);
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
-        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, evictor, threadPool)) {
+        try (var client = new HttpClient(emptyHttpSettings(), asyncClient, threadPool)) {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -188,7 +185,7 @@ public class HttpClientTests extends ESTestCase {
         Settings settings = Settings.builder().put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.ONE).build();
         var httpSettings = createHttpSettings(settings);
 
-        try (var httpClient = HttpClient.create(httpSettings, threadPool)) {
+        try (var httpClient = HttpClient.create(httpSettings, threadPool, createConnectionManager())) {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -217,11 +214,6 @@ public class HttpClientTests extends ESTestCase {
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         return httpPost;
-    }
-
-    private static IdleConnectionEvictor createEvictor(ThreadPool threadPool) throws IOReactorException {
-        var manager = createConnectionManager();
-        return new IdleConnectionEvictor(threadPool, manager, new TimeValue(10, TimeUnit.SECONDS), new TimeValue(10, TimeUnit.SECONDS));
     }
 
     private static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {

@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAct
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
@@ -62,13 +62,15 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     private final Settings settings;
-    private final SetOnce<HttpClient> httpClient = new SetOnce<>();
+    private final SetOnce<HttpClientManager> httpClientManager = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -119,8 +121,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        var httpSettings = new HttpSettings(settings, clusterService);
-        httpClient.set(HttpClient.create(httpSettings, threadPool));
+        httpClientManager.set(HttpClientManager.create(settings, threadPool, clusterService));
 
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
@@ -169,7 +170,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public List<Setting<?>> getSettings() {
-        return HttpSettings.getSettings();
+        return Stream.concat(HttpSettings.getSettings().stream(), HttpClientManager.getSettings().stream()).collect(Collectors.toList());
     }
 
     @Override
@@ -194,8 +195,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public void close() {
-        if (httpClient.get() != null) {
-            IOUtils.closeWhileHandlingException(httpClient.get());
+        if (httpClientManager.get() != null) {
+            IOUtils.closeWhileHandlingException(httpClientManager.get());
         }
     }
 }

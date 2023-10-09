@@ -103,6 +103,23 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99951")
+    public void testIsGreenDuringOpeningAndClosingIndex() {
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        var index = randomIdentifier();
+        prepareCreate(index).setSettings(indexSettings(1, 1)).get();
+        ensureGreen(index);
+
+        assertHealthDuring(equalTo(GREEN), () -> {
+            indicesAdmin().prepareClose(index).get();
+            ensureGreen(index);
+            indicesAdmin().prepareClose(index).get();
+            ensureGreen(index);
+        });
+    }
+
     private void assertHealthDuring(Matcher<HealthStatus> statusMatcher, Runnable action) {
         var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         var allocationService = internalCluster().getCurrentMasterNodeInstance(AllocationService.class);

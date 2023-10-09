@@ -868,7 +868,7 @@ public class MachineLearning extends Plugin
         }
     }
 
-    private void reportClashingNodeAttribute(String attrName) {
+    private static void reportClashingNodeAttribute(String attrName) {
         throw new IllegalArgumentException(
             "Directly setting ["
                 + attrName

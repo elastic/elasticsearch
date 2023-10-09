@@ -48,6 +48,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         requestedMetrics.addAll(in.readStringCollectionAsList());
         if (in.getTransportVersion().onOrAfter(TransportVersions.NEED_SHARDS_STATS_ADDED)) {
             needShardsStats = in.readBoolean();
+        } else {
+            needShardsStats = true;
         }
     }
 

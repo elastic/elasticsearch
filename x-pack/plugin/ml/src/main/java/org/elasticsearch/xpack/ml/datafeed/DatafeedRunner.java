@@ -356,7 +356,7 @@ public class DatafeedRunner {
         return holder.getJobId();
     }
 
-    private JobState getJobState(PersistentTasksCustomMetadata tasks, String jobId) {
+    private static JobState getJobState(PersistentTasksCustomMetadata tasks, String jobId) {
         return MlTasks.getJobStateModifiedForReassignments(jobId, tasks);
     }
 

@@ -891,8 +891,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *
      * @param snapshotIds       SnapshotIds to delete
      * @param originalRepositoryDataGeneration {@link RepositoryData} generation at the start of the process.
-     * @param foundIndices      All indices folders found in the repository before executing any writes to the repository during this
-     *                          delete operation
+     * @param originalIndexContainers          All index containers at the start of the operation, obtained by listing the repository
+     *                                         contents.
      * @param rootBlobs         All blobs found at the root of the repository before executing any writes to the repository during this
      *                          delete operation
      * @param repositoryData    RepositoryData found the in the repository before executing this delete
@@ -901,7 +901,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void doDeleteShardSnapshots(
         Collection<SnapshotId> snapshotIds,
         long originalRepositoryDataGeneration,
-        Map<String, BlobContainer> foundIndices,
+        Map<String, BlobContainer> originalIndexContainers,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData repositoryData,
         IndexVersion repoMetaVersion,
@@ -939,7 +939,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 listener.onRepositoryDataWritten(updatedRepoData);
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                 try (var refs = new RefCountingRunnable(listener::onDone)) {
-                    cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, refs.acquireListener());
+                    cleanupUnlinkedRootAndIndicesBlobs(
+                        snapshotIds,
+                        originalIndexContainers,
+                        rootBlobs,
+                        updatedRepoData,
+                        refs.acquireListener()
+                    );
                     asyncCleanupUnlinkedShardLevelBlobs(
                         repositoryData,
                         snapshotIds,
@@ -962,7 +968,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         listener.onDone();
                     })) {
                         // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                        cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, refs.acquireListener());
+                        cleanupUnlinkedRootAndIndicesBlobs(
+                            snapshotIds,
+                            originalIndexContainers,
+                            rootBlobs,
+                            newRepoData,
+                            refs.acquireListener()
+                        );
 
                         // writeIndexGen finishes on master-service thread so must fork here.
                         threadPool.executor(ThreadPool.Names.SNAPSHOT)

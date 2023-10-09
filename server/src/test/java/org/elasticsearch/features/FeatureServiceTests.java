@@ -132,7 +132,7 @@ public class FeatureServiceTests extends ESTestCase {
     }
 
     public void testServiceRejectsIncorrectHistoricalEra() {
-        FeatureEra era = publishableEra();
+        FeatureEra era = publishableEra(0);
         Version incorrectVersion = Version.fromString((era.era() + 1) + ".0.0");
         FeatureSpecification dupSpec = new FeatureSpecification() {
             @Override

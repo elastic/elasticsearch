@@ -105,7 +105,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     ) {
         CircuitBreaker circuitBreaker = indicesService.getBigArrays().breakerService().getBreaker("request");
         Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
-        BlockFactory blockFactory = new BlockFactory(circuitBreaker, indicesService.getBigArrays());
+        BlockFactory blockFactory = new BlockFactory(circuitBreaker, indicesService.getBigArrays().withCircuitBreaking());
         return List.of(
             new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of)),
             new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME, blockFactory),

@@ -10,7 +10,9 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BasicBlockTests;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -38,8 +40,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
             protected Page createPage(int positionOffset, int length) {
                 idx += length;
                 return new Page(
-                    randomBlock(ElementType.INT, length, true, 1, 10, 0, 0).block(),
-                    randomBlock(ElementType.INT, length, false, 1, 10, 0, 0).block()
+                    randomBlock(blockFactory, ElementType.INT, length, true, 1, 10, 0, 0).block(),
+                    randomBlock(blockFactory, ElementType.INT, length, false, 1, 10, 0, 0).block()
                 );
             }
         };
@@ -64,8 +66,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
         assertThat(results, hasSize(results.size()));
         for (int i = 0; i < results.size(); i++) {
-            IntBlock origExpanded = input.get(i).getBlock(0);
-            IntBlock resultExpanded = results.get(i).getBlock(0);
+            Block origExpanded = input.get(i).getBlock(0);
+            Block resultExpanded = results.get(i).getBlock(0);
             int np = 0;
             for (int op = 0; op < origExpanded.getPositionCount(); op++) {
                 if (origExpanded.isNull(op)) {
@@ -81,8 +83,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
                 }
             }
 
-            IntBlock origDuplicated = input.get(i).getBlock(1);
-            IntBlock resultDuplicated = results.get(i).getBlock(1);
+            Block origDuplicated = input.get(i).getBlock(1);
+            Block resultDuplicated = results.get(i).getBlock(1);
             np = 0;
             for (int op = 0; op < origDuplicated.getPositionCount(); op++) {
                 int copies = origExpanded.isNull(op) ? 1 : origExpanded.getValueCount(op);
@@ -134,10 +136,32 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         assertThat(status.noops(), equalTo(0));
     }
 
-    // TODO: remove this once possible
-    // https://github.com/elastic/elasticsearch/issues/99826
+    public void testExpandWithBytesRefs() {
+        DriverContext context = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(new AbstractBlockSourceOperator(context.blockFactory(), 8 * 1024) {
+            private int idx;
+
+            @Override
+            protected int remaining() {
+                return 10000 - idx;
+            }
+
+            @Override
+            protected Page createPage(int positionOffset, int length) {
+                idx += length;
+                return new Page(
+                    randomBlock(context.blockFactory(), ElementType.BYTES_REF, length, true, 1, 10, 0, 0).block(),
+                    randomBlock(context.blockFactory(), ElementType.INT, length, false, 1, 10, 0, 0).block()
+                );
+            }
+        });
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> results = drive(new MvExpandOperator(0), input.iterator(), context);
+        assertSimpleOutput(origInput, results);
+    }
+
     @Override
-    protected boolean canLeak() {
-        return true;
+    protected DriverContext driverContext() {
+        return breakingDriverContext();
     }
 }

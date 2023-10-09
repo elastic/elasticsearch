@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -60,18 +61,30 @@ public class MvExpandOperator extends AbstractPageMappingOperator {
             noops++;
             return page;
         }
-        if (page.getBlockCount() == 1) {
-            assert channel == 0;
-            return new Page(expandedBlock);
-        }
+        try {
+            if (page.getBlockCount() == 1) {
+                assert channel == 0;
+                return new Page(expandedBlock);
+            }
 
-        int[] duplicateFilter = buildDuplicateExpandingFilter(expandingBlock, expandedBlock.getPositionCount());
+            int[] duplicateFilter = buildDuplicateExpandingFilter(expandingBlock, expandedBlock.getPositionCount());
 
-        Block[] result = new Block[page.getBlockCount()];
-        for (int b = 0; b < result.length; b++) {
-            result[b] = b == channel ? expandedBlock : page.getBlock(b).filter(duplicateFilter);
+            Block[] result = new Block[page.getBlockCount()];
+            boolean success = false;
+            try {
+                for (int b = 0; b < result.length; b++) {
+                    result[b] = b == channel ? expandedBlock : page.getBlock(b).filter(duplicateFilter);
+                }
+                success = true;
+                return new Page(result);
+            } finally {
+                if (success == false) {
+                    Releasables.close(result);
+                }
+            }
+        } finally {
+            page.releaseBlocks();
         }
-        return new Page(result);
     }
 
     private int[] buildDuplicateExpandingFilter(Block expandingBlock, int newPositions) {

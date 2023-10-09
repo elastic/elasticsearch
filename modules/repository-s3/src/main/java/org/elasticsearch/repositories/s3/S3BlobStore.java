@@ -114,48 +114,42 @@ class S3BlobStore implements BlobStore {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
-                final long requestCount = getRequestCount(request);
-                stats.getCount.addAndGet(requestCount);
+                stats.getCount.addAndGet(getRequestCount(request));
             }
         };
         this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
-                final long requestCount = getRequestCount(request);
-                stats.listCount.addAndGet(requestCount);
+                stats.listCount.addAndGet(getRequestCount(request));
             }
         };
         this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT");
-                final long requestCount = getRequestCount(request);
-                stats.putCount.addAndGet(requestCount);
+                stats.putCount.addAndGet(getRequestCount(request));
             }
         };
         this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-                final long requestCount = getRequestCount(request);
-                stats.postCount.addAndGet(requestCount);
+                stats.postCount.addAndGet(getRequestCount(request));
             }
         };
         this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("POST");
-                final long requestCount = getRequestCount(request);
-                stats.deleteCount.addAndGet(requestCount);
+                stats.deleteCount.addAndGet(getRequestCount(request));
             }
         };
         this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
             @Override
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("DELETE");
-                final long requestCount = getRequestCount(request);
-                stats.abortCount.addAndGet(requestCount);
+                stats.abortCount.addAndGet(getRequestCount(request));
             }
         };
     }

@@ -104,16 +104,15 @@ PUT _ingest/pipeline/elser-v2-test
             "input_field": "content",
             "output_field": "content_embedding"
           }
-        ] 
-      },
-      "inference_config": {
-        "text_expansion": {} <2>
+        ],
+        "inference_config": {
+          "text_expansion": {} <2>
         }
+      }
     }
   ]
 }
 ----
-// TEST[skip:TBD]
 <1> Configuration object that defines the `input_field` for the {infer} process 
 and the `output_field` that will contain the {infer} results.
 <2> The `text_expansion` {infer} type needs to be used in the {infer} ingest

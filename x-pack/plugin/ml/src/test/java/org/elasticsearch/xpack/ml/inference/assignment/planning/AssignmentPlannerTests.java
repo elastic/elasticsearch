@@ -845,7 +845,7 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         // First, one node goes away.
         assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
-        assertThat(assignmentPlan.getRemainingNodeMemory("n_1"), greaterThanOrEqualTo(0l));
+        assertThat(assignmentPlan.getRemainingNodeMemory("n_1"), greaterThanOrEqualTo(0L));
     }
 
     public void testGivenClusterResize_ShouldAllocateEachModelAtLeastOnce() {
@@ -1025,7 +1025,7 @@ public class AssignmentPlannerTests extends ESTestCase {
     public static Deployment randomModel(String idSuffix) {
         int allocations = randomIntBetween(1, 32);
         // randomly choose between old and new memory fields format
-        if (randomBoolean() == true) {
+        if (randomBoolean()) {
             return new Deployment(
                 "m_" + idSuffix,
                 randomLongBetween(ByteSizeValue.ofMb(100).getBytes(), ByteSizeValue.ofGb(10).getBytes()),

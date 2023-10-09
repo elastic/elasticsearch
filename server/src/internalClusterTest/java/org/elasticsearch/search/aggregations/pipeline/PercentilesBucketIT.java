@@ -257,12 +257,12 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
 
     private void assertPercentileBucket(double[] values, PercentilesBucket percentiles) {
         for (Percentile percentile : percentiles) {
-            assertEquals(percentiles.percentile(percentile.getPercent()), percentile.getValue(), 0d);
+            assertEquals(percentiles.percentile(percentile.percent()), percentile.value(), 0d);
             if (values.length == 0) {
-                assertThat(percentile.getValue(), equalTo(Double.NaN));
+                assertThat(percentile.value(), equalTo(Double.NaN));
             } else {
-                int index = (int) Math.round((percentile.getPercent() / 100.0) * (values.length - 1));
-                assertThat(percentile.getValue(), equalTo(values[index]));
+                int index = (int) Math.round((percentile.percent() / 100.0) * (values.length - 1));
+                assertThat(percentile.value(), equalTo(values[index]));
             }
         }
     }
@@ -271,7 +271,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
         Iterator<Percentile> it = percentiles.iterator();
         for (int i = 0; i < percents.length; ++i) {
             assertTrue(it.hasNext());
-            assertEquals(percents[i], it.next().getPercent(), 0d);
+            assertEquals(percents[i], it.next().percent(), 0d);
         }
         assertFalse(it.hasNext());
         assertPercentileBucket(values, percentiles);

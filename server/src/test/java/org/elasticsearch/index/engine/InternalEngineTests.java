@@ -1039,6 +1039,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99916")
     public void testGetWithSearcherWrapper() throws Exception {
         engine.refresh("warm_up");
         engine.index(indexForDoc(createParsedDoc("1", null)));

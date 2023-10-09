@@ -1073,12 +1073,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 // Listener for collecting the results of removing the snapshot from each shard's metadata in the current index
                 final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener = new GroupedActionListener<>(shardCount, delegate);
-                for (int shardId = 0; shardId < shardCount; shardId++) {
-                    final int finalShardId = shardId;
+                for (int i = 0; i < shardCount; i++) {
+                    final int shardId = i;
                     executor.execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
-                            final BlobContainer shardContainer = shardContainer(indexId, finalShardId);
+                            final BlobContainer shardContainer = shardContainer(indexId, shardId);
                             final Set<String> blobs = shardContainer.listBlobs(OperationPurpose.SNAPSHOT).keySet();
                             final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
                             final long newGen;
@@ -1087,7 +1087,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(
                                     blobs,
                                     shardContainer,
-                                    oldRepositoryData.shardGenerations().getShardGen(indexId, finalShardId)
+                                    oldRepositoryData.shardGenerations().getShardGen(indexId, shardId)
                                 ).v1();
                             } else {
                                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
@@ -1098,7 +1098,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 deleteFromShardSnapshotMeta(
                                     survivingSnapshots,
                                     indexId,
-                                    finalShardId,
+                                    shardId,
                                     snapshotIds,
                                     shardContainer,
                                     blobs,
@@ -1111,12 +1111,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         @Override
                         public void onFailure(Exception ex) {
                             logger.warn(
-                                () -> format(
-                                    "%s failed to delete shard data for shard [%s][%s]",
-                                    snapshotIds,
-                                    indexId.getName(),
-                                    finalShardId
-                                ),
+                                () -> format("%s failed to delete shard data for shard [%s][%s]", snapshotIds, indexId.getName(), shardId),
                                 ex
                             );
                             // Just passing null here to count down the listener instead of failing it, the stale data left behind

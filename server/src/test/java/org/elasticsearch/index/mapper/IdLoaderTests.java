@@ -184,10 +184,7 @@ public class IdLoaderTests extends ESTestCase {
         assertThat(expectedIDs, empty());
     }
 
-    private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(
-        IndexRouting.ExtractFromSource routing,
-        List<Doc> docs
-    ) {
+    private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(IndexRouting.ExtractFromSource routing, List<Doc> docs) {
         return writer -> {
             for (Doc doc : docs) {
                 indexDoc(routing, writer, doc);

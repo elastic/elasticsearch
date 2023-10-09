@@ -152,7 +152,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
         }
     }
 
-    private boolean isTaskCancelled(Task task) {
+    private static boolean isTaskCancelled(Task task) {
         return (task instanceof CancellableTask t) && t.isCancelled();
     }
 }

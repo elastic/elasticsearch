@@ -852,7 +852,7 @@ class CertificateTool extends MultiCommand {
             }
         }
 
-        private CertificateAndKey generateCertificateAndKey(
+        private static CertificateAndKey generateCertificateAndKey(
             CertificateInformation certificateInformation,
             CAInfo caInfo,
             int keySize,

@@ -3072,9 +3072,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         logger.info("snapshots {} deleted", snapshotIds);
                         removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
                     }, ex -> {
-                        logger.debug(() -> "failed to complete snapshot deletion [" + deleteEntry + "]", e);
-                        removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData));
-                    }
+                        logger.debug(() -> "failed to complete snapshot deletion [" + deleteEntry + "]", ex);
+                        removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData);
+                    })
                 );
         }
     }

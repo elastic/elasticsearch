@@ -471,11 +471,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(
-            commonStats,
-            statsByIndex(this, flags),
-            includeShardsStats ? statsByShard(this, flags) : new HashMap<>(0)
-        );
+        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags), includeShardsStats);
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {

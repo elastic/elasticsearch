@@ -896,6 +896,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param originalRootBlobs                All blobs found at the root of the repository at the start of the operation, obtained by
      *                                         listing the repository contents.
      * @param originalRepositoryData           {@link RepositoryData} at the start of the operation.
+     * @param repositoryFormatIndexVersion     The minimum {@link IndexVersion} of the nodes in the cluster and the snapshots remaining in
+     *                                         the repository.
      * @param listener          Listener to invoke once finished
      */
     private void doDeleteShardSnapshots(
@@ -904,10 +906,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> originalIndexContainers,
         Map<String, BlobMetadata> originalRootBlobs,
         RepositoryData originalRepositoryData,
-        IndexVersion repoMetaVersion,
+        IndexVersion repositoryFormatIndexVersion,
         SnapshotDeleteListener listener
     ) {
-        if (SnapshotsService.useShardGenerations(repoMetaVersion)) {
+        if (SnapshotsService.useShardGenerations(repositoryFormatIndexVersion)) {
             // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
             final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =
                 new ListenableFuture<>();
@@ -929,7 +931,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 writeIndexGen(
                     updatedRepoData,
                     originalRepositoryDataGeneration,
-                    repoMetaVersion,
+                    repositoryFormatIndexVersion,
                     Function.identity(),
                     ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
                 );
@@ -960,7 +962,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             writeIndexGen(
                 updatedRepoData,
                 originalRepositoryDataGeneration,
-                repoMetaVersion,
+                repositoryFormatIndexVersion,
                 Function.identity(),
                 ActionListener.wrap(newRepoData -> {
                     try (var refs = new RefCountingRunnable(() -> {

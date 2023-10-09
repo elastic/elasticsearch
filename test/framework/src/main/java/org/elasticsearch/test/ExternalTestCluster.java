@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.NodeValidationException;

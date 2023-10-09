@@ -150,7 +150,7 @@ PUT _application/search_application/my_search_application
         "query": {
           "multi_match": {
             "query": "{{query_string}}",
-            "fields": [{{#text_fields}}"{{name}}^{{boost}}"{{/text_fields}}]
+            "fields": [{{#text_fields}}"{{name}}^{{boost}}",{{/text_fields}}]
           }
         },
         "explain": "{{explain}}",
@@ -314,7 +314,7 @@ PUT _application/search_application/my_search_application
               {
                 "multi_match": {
                   "query": "{{query_string}}",
-                  "fields": [{{#text_fields}}"{{name}}^{{boost}}"{{/text_fields}}],
+                  "fields": [{{#text_fields}}"{{name}}^{{boost}}",{{/text_fields}}],
                   "boost": "{{text_query_boost}}"
                 }
               },

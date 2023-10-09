@@ -1139,7 +1139,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private ShardSnapshotMetaDeleteResult deleteFromShardSnapshotMeta(
         Set<SnapshotId> survivingSnapshots,
         IndexId indexId,
-        int snapshotShardId,
+        int shardId,
         Collection<SnapshotId> snapshotIds,
         BlobContainer shardContainer,
         Set<String> blobs,
@@ -1151,7 +1151,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardGeneration writtenGeneration = null;
         try {
             if (updatedSnapshots.snapshots().isEmpty()) {
-                return new ShardSnapshotMetaDeleteResult(indexId, snapshotShardId, ShardGenerations.DELETED_SHARD_GEN, blobs);
+                return new ShardSnapshotMetaDeleteResult(indexId, shardId, ShardGenerations.DELETED_SHARD_GEN, blobs);
             } else {
                 if (indexGeneration < 0L) {
                     writtenGeneration = ShardGeneration.newGeneration();
@@ -1163,7 +1163,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final Set<String> survivingSnapshotUUIDs = survivingSnapshots.stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
                 return new ShardSnapshotMetaDeleteResult(
                     indexId,
-                    snapshotShardId,
+                    shardId,
                     writtenGeneration,
                     unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots)
                 );

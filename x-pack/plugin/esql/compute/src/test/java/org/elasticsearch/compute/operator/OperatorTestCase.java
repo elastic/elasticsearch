@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
@@ -217,8 +219,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
     }
 
-    // Tests that finish then close without calling getOutput to retrieve a potential last page, releases all memory
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100496")
+    /**
+     * Tests that finish then close without calling {@link Operator#getOutput} to
+     * retrieve a potential last page, releases all memory.
+     */
+    @Repeat(iterations=1000)
     public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));

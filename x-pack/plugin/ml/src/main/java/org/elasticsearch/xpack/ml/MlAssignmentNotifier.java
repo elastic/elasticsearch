@@ -75,7 +75,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
-    private String executorName() {
+    private static String executorName() {
         return ThreadPool.Names.GENERIC;
     }
 

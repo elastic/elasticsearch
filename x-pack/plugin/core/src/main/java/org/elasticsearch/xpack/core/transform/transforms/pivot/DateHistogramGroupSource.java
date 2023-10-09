@@ -183,7 +183,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         }
     }
 
-    private Interval readInterval(StreamInput in) throws IOException {
+    private static Interval readInterval(StreamInput in) throws IOException {
         byte id = in.readByte();
         return switch (id) {
             case FIXED_INTERVAL_ID -> new FixedInterval(in);
@@ -192,7 +192,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         };
     }
 
-    private void writeInterval(Interval anInterval, StreamOutput out) throws IOException {
+    private static void writeInterval(Interval anInterval, StreamOutput out) throws IOException {
         out.write(anInterval.getIntervalTypeId());
         anInterval.writeTo(out);
     }

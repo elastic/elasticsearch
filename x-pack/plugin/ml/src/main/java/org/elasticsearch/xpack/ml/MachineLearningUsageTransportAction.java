@@ -249,7 +249,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         List<GetJobsStatsAction.Response.JobStats> jobsStats = response.getResponse().results();
         Map<String, Job> jobMap = jobs.stream().collect(Collectors.toMap(Job::getId, item -> item));
         Map<String, Long> allJobsCreatedBy = jobs.stream()
-            .map(this::jobCreatedBy)
+            .map(MachineLearningUsageTransportAction::jobCreatedBy)
             .collect(Collectors.groupingBy(item -> item, Collectors.counting()));
         ;
         for (GetJobsStatsAction.Response.JobStats jobStats : jobsStats) {
@@ -294,7 +294,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private String jobCreatedBy(Job job) {
+    private static String jobCreatedBy(Job job) {
         Map<String, Object> customSettings = job.getCustomSettings();
         if (customSettings == null || customSettings.containsKey(MachineLearningFeatureSetUsage.CREATED_BY) == false) {
             return "unknown";
@@ -304,7 +304,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         return customSettings.get(MachineLearningFeatureSetUsage.CREATED_BY).toString().replaceAll("\\W", "_");
     }
 
-    private Map<String, Object> createJobUsageEntry(
+    private static Map<String, Object> createJobUsageEntry(
         long count,
         StatsAccumulator detectorStats,
         StatsAccumulator modelSizeStats,
@@ -320,7 +320,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         return usage;
     }
 
-    private void addDatafeedsUsage(GetDatafeedsStatsAction.Response response, Map<String, Object> datafeedsUsage) {
+    private static void addDatafeedsUsage(GetDatafeedsStatsAction.Response response, Map<String, Object> datafeedsUsage) {
         Map<DatafeedState, Counter> datafeedCountByState = new HashMap<>();
 
         List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedsStats = response.getResponse().results();
@@ -337,13 +337,13 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private Map<String, Object> createCountUsageEntry(long count) {
+    private static Map<String, Object> createCountUsageEntry(long count) {
         Map<String, Object> usage = new HashMap<>();
         usage.put(MachineLearningFeatureSetUsage.COUNT, count);
         return usage;
     }
 
-    private void addDataFrameAnalyticsStatsUsage(
+    private static void addDataFrameAnalyticsStatsUsage(
         GetDataFrameAnalyticsStatsAction.Response response,
         Map<String, Object> dataframeAnalyticsUsage
     ) {
@@ -371,7 +371,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private void addDataFrameAnalyticsUsage(GetDataFrameAnalyticsAction.Response response, Map<String, Object> dataframeAnalyticsUsage) {
+    private static void addDataFrameAnalyticsUsage(
+        GetDataFrameAnalyticsAction.Response response,
+        Map<String, Object> dataframeAnalyticsUsage
+    ) {
         Map<String, Integer> perAnalysisTypeCounterMap = new HashMap<>();
 
         for (DataFrameAnalyticsConfig config : response.getResources().results()) {
@@ -405,7 +408,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private void addDeploymentStats(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
+    private static void addDeploymentStats(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
         StatsAccumulator modelSizes = new StatsAccumulator();
         int deploymentsCount = 0;
         double avgTimeSum = 0.0;
@@ -442,7 +445,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         );
     }
 
-    private void addTrainedModelStats(
+    private static void addTrainedModelStats(
         GetTrainedModelsAction.Response modelsResponse,
         GetTrainedModelsStatsAction.Response statsResponse,
         Map<String, Object> inferenceUsage
@@ -492,7 +495,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     // TODO separate out ours and users models possibly regression vs classification
-    private void addInferenceIngestUsage(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
+    private static void addInferenceIngestUsage(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
         int pipelineCount = 0;
         StatsAccumulator docCountStats = new StatsAccumulator();
         StatsAccumulator timeStats = new StatsAccumulator();
@@ -517,7 +520,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         inferenceUsage.put("ingest_processors", Collections.singletonMap(MachineLearningFeatureSetUsage.ALL, ingestUsage));
     }
 
-    private Map<String, Object> getMinMaxSumAsLongsFromStats(StatsAccumulator stats) {
+    private static Map<String, Object> getMinMaxSumAsLongsFromStats(StatsAccumulator stats) {
         Map<String, Object> asMap = Maps.newMapWithExpectedSize(3);
         asMap.put("sum", Double.valueOf(stats.getTotal()).longValue());
         asMap.put("min", Double.valueOf(stats.getMin()).longValue());

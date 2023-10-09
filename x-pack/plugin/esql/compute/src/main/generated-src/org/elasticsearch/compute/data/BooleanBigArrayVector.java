@@ -60,7 +60,13 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
 
     @Override
     public BooleanVector filter(int... positions) {
-        return new FilterBooleanVector(this, positions);
+        final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
+        for (int i = 0; i < positions.length; i++) {
+            if (values.get(positions[i])) {
+                filtered.set(i);
+            }
+        }
+        return new BooleanBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override

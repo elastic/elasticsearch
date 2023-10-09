@@ -207,6 +207,50 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         return builder.build();
     }
 
+    public void testCreateDataStreamWithFailureStore() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            cs,
+            req,
+            ActionListener.noop()
+        );
+        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
+        assertThat(
+            newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+            equalTo("true")
+        );
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+        assertThat(
+            newState.metadata().index(DataStream.getDefaultFailureStoreName(dataStreamName, 1, System.currentTimeMillis())),
+            notNullValue()
+        );
+        assertThat(
+            newState.metadata()
+                .index(DataStream.getDefaultFailureStoreName(dataStreamName, 1, System.currentTimeMillis()))
+                .getSettings()
+                .get("index.hidden"),
+            equalTo("true")
+        );
+        assertThat(
+            newState.metadata().index(DataStream.getDefaultFailureStoreName(dataStreamName, 1, System.currentTimeMillis())).isSystem(),
+            is(false)
+        );
+    }
+
     public void testCreateSystemDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = ".system-data-stream";

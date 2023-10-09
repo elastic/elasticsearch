@@ -162,7 +162,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
     private record RateThresholdCurve(double[] percentiles, boolean isTp) {
 
-        private double getRate(int index) {
+        private static double getRate(int index) {
             return 1 - 0.01 * (index + 1);
         }
 

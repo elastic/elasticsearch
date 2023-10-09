@@ -197,7 +197,7 @@ public class WaitForHttpResource {
         return store;
     }
 
-    private SSLContext createSslContext(KeyStore trustStore) throws GeneralSecurityException {
+    private static SSLContext createSslContext(KeyStore trustStore) throws GeneralSecurityException {
         checkForTrustEntry(trustStore);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(trustStore);
@@ -206,7 +206,7 @@ public class WaitForHttpResource {
         return sslContext;
     }
 
-    private void checkForTrustEntry(KeyStore trustStore) throws KeyStoreException {
+    private static void checkForTrustEntry(KeyStore trustStore) throws KeyStoreException {
         Enumeration<String> enumeration = trustStore.aliases();
         while (enumeration.hasMoreElements()) {
             if (trustStore.isCertificateEntry(enumeration.nextElement())) {

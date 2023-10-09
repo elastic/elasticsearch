@@ -29,6 +29,7 @@ IMPORTANT: You cannot use the `input_output` field with the `target_field` and
 `field_map` fields. For NLP models, use the `input_output` option. For 
 {dfanalytics} models, use the `target_field` and `field_map` option.
 
+
 [discrete]
 [[inference-input-output-example]]
 ==== Configuring input and output fields

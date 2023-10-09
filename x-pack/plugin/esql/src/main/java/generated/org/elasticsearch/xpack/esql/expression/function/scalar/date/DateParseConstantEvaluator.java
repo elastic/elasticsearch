@@ -45,7 +45,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
       BytesRefVector valVector = valBlock.asVector();
@@ -57,35 +57,37 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock valBlock) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef valScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatter));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatter));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public LongBlock eval(int positionCount, BytesRefVector valVector) {
-    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
-    BytesRef valScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatter));
-      } catch (IllegalArgumentException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef valScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatter));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

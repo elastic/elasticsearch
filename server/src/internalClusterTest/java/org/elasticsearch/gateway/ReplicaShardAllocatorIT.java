@@ -115,17 +115,12 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
-                try {
-                    blockRecovery.await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(e);
-                }
+                safeAwait(blockRecovery);
             }
             connection.sendRequest(requestId, action, request, options);
         });
         internalCluster().startDataOnlyNode();
-        recoveryStarted.await();
+        safeAwait(recoveryStarted);
         nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
         // AllocationService only calls GatewayAllocator if there are unassigned shards
         assertAcked(indicesAdmin().prepareCreate("dummy-index").setWaitForActiveShards(0));
@@ -362,11 +357,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {
                 if (brokenNode.equals(connection.getNode().getName())) {
-                    try {
-                        newNodeStarted.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(newNodeStarted);
                     throw new CircuitBreakingException("not enough memory for indexing", 100, 50, CircuitBreaker.Durability.TRANSIENT);
                 }
             }

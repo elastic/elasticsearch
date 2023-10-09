@@ -30,7 +30,6 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
-import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -334,8 +333,7 @@ public class LocalExecutionPlanner {
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = p.getBlock(mappedPosition[i]);
             }
-            ProjectOperator.closeUnused(p, blocks);
-            return new Page(blocks);
+            return p.newPageAndRelease(blocks);
         } : Function.identity();
 
         return transformer;

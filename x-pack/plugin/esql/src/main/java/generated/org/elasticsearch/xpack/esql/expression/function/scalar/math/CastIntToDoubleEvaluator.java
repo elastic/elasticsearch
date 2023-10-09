@@ -34,7 +34,7 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
       if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       IntBlock vBlock = (IntBlock) vRef.block();
       IntVector vVector = vBlock.asVector();
@@ -46,23 +46,25 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   }
 
   public DoubleBlock eval(int positionCount, IntBlock vBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Cast.castIntToDouble(vBlock.getInt(vBlock.getFirstValueIndex(p))));
       }
-      result.appendDouble(Cast.castIntToDouble(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, IntVector vVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Cast.castIntToDouble(vVector.getInt(p)));
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Cast.castIntToDouble(vVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

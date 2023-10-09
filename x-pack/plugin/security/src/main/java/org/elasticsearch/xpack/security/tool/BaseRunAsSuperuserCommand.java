@@ -11,11 +11,11 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
@@ -249,12 +249,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
                 terminal.errorPrintln("Failed to determine the health of the cluster. Cluster health is currently RED.");
                 terminal.errorPrintln("This means that some cluster data is unavailable and your cluster is not fully functional.");
                 terminal.errorPrintln(
-                    "The cluster logs (https://www.elastic.co/guide/en/elasticsearch/reference/"
-                        + Version.CURRENT.major
-                        + "."
-                        + Version.CURRENT.minor
-                        + "/logging.html)"
-                        + " might contain information/indications for the underlying cause"
+                    "The cluster logs (" + ReferenceDocs.LOGGING + ")" + " might contain information/indications for the underlying cause"
                 );
                 terminal.errorPrintln("It is recommended that you resolve the issues with your cluster before continuing");
                 terminal.errorPrintln("It is very likely that the command will fail when run against an unhealthy cluster.");

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
@@ -30,19 +30,21 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     private final LongArrayState state;
     private final List<Integer> channels;
+    private final DriverContext driverContext;
     private final boolean countAll;
 
-    public static CountGroupingAggregatorFunction create(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(bigArrays, 0));
+    public static CountGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
+        return new CountGroupingAggregatorFunction(inputChannels, new LongArrayState(driverContext.bigArrays(), 0), driverContext);
     }
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state) {
+    private CountGroupingAggregatorFunction(List<Integer> channels, LongArrayState state, DriverContext driverContext) {
         this.channels = channels;
         this.state = state;
+        this.driverContext = driverContext;
         this.countAll = channels.isEmpty();
     }
 
@@ -184,17 +186,18 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        state.toIntermediate(blocks, offset, selected);
+        state.toIntermediate(blocks, offset, selected, driverContext);
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-        LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount());
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            int si = selected.getInt(i);
-            builder.appendLong(state.hasValue(si) ? state.get(si) : 0);
+    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        try (LongVector.Builder builder = LongVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int si = selected.getInt(i);
+                builder.appendLong(state.hasValue(si) ? state.get(si) : 0);
+            }
+            blocks[offset] = builder.build().asBlock();
         }
-        blocks[offset] = builder.build().asBlock();
     }
 
     @Override

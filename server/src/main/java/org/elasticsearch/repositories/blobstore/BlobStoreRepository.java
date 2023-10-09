@@ -1142,7 +1142,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         int shardId,
         Collection<SnapshotId> snapshotIds,
         BlobContainer shardContainer,
-        Set<String> blobs,
+        Set<String> originalShardBlobs,
         BlobStoreIndexShardSnapshots snapshots,
         long indexGeneration
     ) {
@@ -1151,7 +1151,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardGeneration writtenGeneration = null;
         try {
             if (updatedSnapshots.snapshots().isEmpty()) {
-                return new ShardSnapshotMetaDeleteResult(indexId, shardId, ShardGenerations.DELETED_SHARD_GEN, blobs);
+                return new ShardSnapshotMetaDeleteResult(indexId, shardId, ShardGenerations.DELETED_SHARD_GEN, originalShardBlobs);
             } else {
                 if (indexGeneration < 0L) {
                     writtenGeneration = ShardGeneration.newGeneration();
@@ -1165,7 +1165,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     indexId,
                     shardId,
                     writtenGeneration,
-                    unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots)
+                    unusedBlobs(originalShardBlobs, survivingSnapshotUUIDs, updatedSnapshots)
                 );
             }
         } catch (IOException e) {

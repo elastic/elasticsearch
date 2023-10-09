@@ -2055,7 +2055,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(Exception e) {
                 endingSnapshots.removeAll(completedNoCleanup);
-                logger.debug("failed to complete enqueued snapshot deletion [{}] for reason: [{}]", newDelete, e.getMessage());
                 listener.onFailure(e);
             }
 
@@ -2356,6 +2355,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                         @Override
                         public void onFailure(Exception e) {
+                            logger.debug("failed to complete snapshot deletion [{}] for reason: [{}]", deleteEntry, e.getMessage());
                             submitUnbatchedTask(
                                 "remove snapshot deletion metadata after failed delete",
                                 new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {

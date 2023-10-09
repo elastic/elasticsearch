@@ -68,7 +68,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
         return requests;
     }
 
-    private ClusterState wrapIngestTaskExecute(IngestService.PipelineClusterStateUpdateTask task, ClusterState state) {
+    private static ClusterState wrapIngestTaskExecute(IngestService.PipelineClusterStateUpdateTask task, ClusterState state) {
         final var allIndexMetadata = state.metadata().indices().values();
         final IngestMetadata currentIndexMetadata = state.metadata().custom(IngestMetadata.TYPE);
 

@@ -44,12 +44,16 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BooleanBlock", BooleanBlock::readFrom);
 
     private static BooleanBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return BooleanVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
+            return BooleanVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (BooleanBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newBooleanBlockBuilder(positions)) {
+        try (BooleanBlock.Builder builder = in.blockFactory().newBooleanBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();
@@ -108,6 +112,9 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
      * equals method works properly across different implementations of the BooleanBlock interface.
      */
     static boolean equals(BooleanBlock block1, BooleanBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

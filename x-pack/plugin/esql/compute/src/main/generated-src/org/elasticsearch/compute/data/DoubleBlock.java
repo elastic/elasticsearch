@@ -44,12 +44,16 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", DoubleBlock::readFrom);
 
     private static DoubleBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return DoubleVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
+            return DoubleVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (DoubleBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newDoubleBlockBuilder(positions)) {
+        try (DoubleBlock.Builder builder = in.blockFactory().newDoubleBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();
@@ -108,6 +112,9 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
      * equals method works properly across different implementations of the DoubleBlock interface.
      */
     static boolean equals(DoubleBlock block1, DoubleBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

@@ -185,7 +185,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         deleteIndexWithProvisioningClient("test");
     }
 
-    private void bulkIndex(String bulk) throws IOException {
+    private static void bulkIndex(String bulk) throws IOException {
         Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.setJsonEntity(bulk);
         bulkRequest.addParameter("refresh", "true");

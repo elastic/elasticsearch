@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -208,27 +207,31 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Expects - for now
+     * Expects
      * LimitExec[500[INTEGER]]
-     * \_AggregateExec[[],[COUNT(hidden_s{r}#8) AS c],FINAL,null]
+     * \_AggregateExec[[],[COUNT(salary{f}#20) AS c],FINAL,null]
      *   \_ExchangeExec[[count{r}#25, seen{r}#26],true]
-     *     \_AggregateExec[[],[COUNT(hidden_s{r}#8) AS c],PARTIAL,8]
-     *       \_EvalExec[[salary{f}#20 AS s, s{r}#3 AS hidden_s]]
-     *         \_FieldExtractExec[salary{f}#20]
-     *           \_EsQueryExec[test], query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"lt":10050,"boost":1.0}}}}}]
-     *             [_doc{f}#42], limit[], sort[] estimatedRowSize[16]
+     *     \_EsStatsQueryExec[test], stats[Stat[name=salary, type=COUNT, query={
+     *   "exists" : {
+     *     "field" : "salary",
+     *     "boost" : 1.0
+     *   }
      */
-    // TODO: the eval is not yet optimized away
     public void testCountFieldWithEval() {
         var plan = plan("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(hidden_s)
             """, IS_SV_STATS);
+
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         var exg = as(agg.child(), ExchangeExec.class);
-        agg = as(exg.child(), AggregateExec.class);
-        var eval = as(agg.child(), EvalExec.class);
+        var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
+
+        assertThat(esStatsQuery.limit(), is(nullValue()));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
     }
 
     // optimized doesn't know yet how to push down count over field

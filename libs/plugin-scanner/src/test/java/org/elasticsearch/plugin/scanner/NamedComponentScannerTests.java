@@ -39,10 +39,8 @@ public class NamedComponentScannerTests extends ESTestCase {
         return createTempDir();
     }
 
-    NamedComponentScanner namedComponentScanner = new NamedComponentScanner();
-
     public void testFindNamedComponentInSingleClass() throws URISyntaxException {
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(
+        Map<String, Map<String, String>> namedComponents = NamedComponentScanner.scanForNamedClasses(
             classReaderStream(TestNamedComponent.class, ExtensibleInterface.class)
         );
 
@@ -82,7 +80,7 @@ public class NamedComponentScannerTests extends ESTestCase {
         )// contains plugin-api
             .toList();
 
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaderStream);
+        Map<String, Map<String, String>> namedComponents = NamedComponentScanner.scanForNamedClasses(classReaderStream);
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
@@ -158,7 +156,7 @@ public class NamedComponentScannerTests extends ESTestCase {
         List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(dirWithJar).stream(), classPath)// contains plugin-api
             .toList();
 
-        Map<String, Map<String, String>> namedComponents = namedComponentScanner.scanForNamedClasses(classReaders);
+        Map<String, Map<String, String>> namedComponents = NamedComponentScanner.scanForNamedClasses(classReaders);
 
         org.hamcrest.MatcherAssert.assertThat(
             namedComponents,
@@ -189,7 +187,7 @@ public class NamedComponentScannerTests extends ESTestCase {
         mapToWrite.put(ExtensibleInterface.class.getCanonicalName(), extensibleInterfaceComponents);
 
         Path path = tmpDir().resolve("file.json");
-        namedComponentScanner.writeToFile(mapToWrite, path);
+        NamedComponentScanner.writeToFile(mapToWrite, path);
 
         String jsonMap = Files.readString(path);
         assertThat(jsonMap, equalTo("""

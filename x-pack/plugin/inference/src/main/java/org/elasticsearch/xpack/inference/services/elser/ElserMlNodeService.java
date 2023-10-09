@@ -40,34 +40,11 @@ public class ElserMlNodeService implements InferenceService {
     static final String ELSER_V2_MODEL = ".elser_model_2";
     static final String ELSER_V2_MODEL_LINUX_X86 = ".elser_model_2_linux-x86_64";
 
-    public static ElserMlNodeModel parseConfig(
-        boolean throwOnUnknownFields,
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> settings,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.SERVICE_SETTINGS);
-        var serviceSettings = serviceSettingsFromMap(serviceSettingsMap);
-
-        Map<String, Object> taskSettingsMap;
-        // task settings are optional
-        if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
-            taskSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.TASK_SETTINGS);
-        } else {
-            taskSettingsMap = Map.of();
-        }
-
-        var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
-
-        if (throwOnUnknownFields) {
-            throwIfNotEmptyMap(settings, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
-        }
-
-        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettings, taskSettings);
-    }
+    public static Set<String> VALID_ELSER_MODELS = Set.of(
+        ElserMlNodeService.ELSER_V1_MODEL,
+        ElserMlNodeService.ELSER_V2_MODEL,
+        ElserMlNodeService.ELSER_V2_MODEL_LINUX_X86
+    );
 
     private final OriginSettingClient client;
 
@@ -75,9 +52,47 @@ public class ElserMlNodeService implements InferenceService {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
+    public boolean isInClusterService() {
+        return true;
+    }
+
     @Override
-    public ElserMlNodeModel parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parseConfig(true, modelId, taskType, config, config);
+    public ElserMlNodeModel parseRequestConfig(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Set<String> modelArchitectures
+    ) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
+
+        // choose a default model version based on the cluster architecture
+        if (serviceSettingsBuilder.getModelVariant() == null) {
+            boolean homogenous = modelArchitectures.size() == 1;
+            if (homogenous && modelArchitectures.iterator().next().equals("linux-x86_64")) {
+                // Use the hardware optimized model
+                serviceSettingsBuilder.setModelVariant(ELSER_V2_MODEL_LINUX_X86);
+            } else {
+                // default to the platform-agnostic model
+                serviceSettingsBuilder.setModelVariant(ELSER_V2_MODEL);
+            }
+        }
+
+        Map<String, Object> taskSettingsMap;
+        // task settings are optional
+        if (config.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+            taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        } else {
+            taskSettingsMap = Map.of();
+        }
+
+        var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
+
+        throwIfNotEmptyMap(config, NAME);
+        throwIfNotEmptyMap(serviceSettingsMap, NAME);
+        throwIfNotEmptyMap(taskSettingsMap, NAME);
+
+        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
     }
 
     @Override
@@ -87,7 +102,20 @@ public class ElserMlNodeService implements InferenceService {
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        return parseConfig(false, modelId, taskType, config, secrets);
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
+
+        Map<String, Object> taskSettingsMap;
+        // task settings are optional
+        if (config.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+            taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        } else {
+            taskSettingsMap = Map.of();
+        }
+
+        var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
+
+        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
     }
 
     @Override
@@ -148,10 +176,6 @@ public class ElserMlNodeService implements InferenceService {
             var textExpansionResult = (TextExpansionResults) inferenceResult.getResults().get(0);
             listener.onResponse(textExpansionResult);
         }, listener::onFailure));
-    }
-
-    private static ElserMlNodeServiceSettings serviceSettingsFromMap(Map<String, Object> config) {
-        return ElserMlNodeServiceSettings.fromMap(config);
     }
 
     private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {

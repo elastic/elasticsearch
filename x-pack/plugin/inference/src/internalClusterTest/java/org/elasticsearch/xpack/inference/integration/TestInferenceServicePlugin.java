@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIfNotEmptyMap;
@@ -79,7 +80,12 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         }
 
         @Override
-        public TestServiceModel parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+        public TestServiceModel parseRequestConfig(
+            String modelId,
+            TaskType taskType,
+            Map<String, Object> config,
+            Set<String> platfromArchitectures
+        ) {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
             var secretSettings = TestSecretSettings.fromMap(serviceSettingsMap);

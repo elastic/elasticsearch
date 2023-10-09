@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class ElserMlNodeServiceSettings implements ServiceSettings {
 
@@ -28,12 +27,6 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
     public static final String NUM_ALLOCATIONS = "num_allocations";
     public static final String NUM_THREADS = "num_threads";
     public static final String MODEL_VERSION = "model_version";
-
-    public static Set<String> VALID_ELSER_MODELS = Set.of(
-        ElserMlNodeService.ELSER_V1_MODEL,
-        ElserMlNodeService.ELSER_V2_MODEL,
-        ElserMlNodeService.ELSER_V2_MODEL_LINUX_X86
-    );
 
     private final int numAllocations;
     private final int numThreads;
@@ -48,9 +41,8 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
      * @param map Source map containg the config
      * @return The {@code ElserMlNodeServiceSettings}
      */
-    public static ElserMlNodeServiceSettings fromMap(Map<String, Object> map) {
+    public static ElserMlNodeServiceSettings.Builder fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
-
         Integer numAllocations = MapParsingUtils.removeAsType(map, NUM_ALLOCATIONS, Integer.class);
         Integer numThreads = MapParsingUtils.removeAsType(map, NUM_THREADS, Integer.class);
 
@@ -71,25 +63,25 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
         }
 
         String version = MapParsingUtils.removeAsType(map, MODEL_VERSION, String.class);
-        if (version != null) {
-            if (VALID_ELSER_MODELS.contains(version) == false) {
-                validationException.addValidationError("unknown ELSER model version [" + version + "]");
-            }
-        } else {
-            version = ElserMlNodeService.ELSER_V2_MODEL;
+        if (version != null && ElserMlNodeService.VALID_ELSER_MODELS.contains(version) == false) {
+            validationException.addValidationError("unknown ELSER model version [" + version + "]");
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ElserMlNodeServiceSettings(numAllocations, numThreads, version);
+        var builder = new Builder();
+        builder.setNumAllocations(numAllocations);
+        builder.setNumThreads(numThreads);
+        builder.setModelVariant(version);
+        return builder;
     }
 
     public ElserMlNodeServiceSettings(int numAllocations, int numThreads, String variant) {
         this.numAllocations = numAllocations;
         this.numThreads = numThreads;
-        this.modelVariant = variant;
+        this.modelVariant = Objects.requireNonNull(variant);
     }
 
     public ElserMlNodeServiceSettings(StreamInput in) throws IOException {
@@ -158,5 +150,31 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
 
     private static String mustBeAPositiveNumberError(String settingName, int value) {
         return "Invalid value [" + value + "]. [" + settingName + "] must be a positive integer";
+    }
+
+    public static class Builder {
+        private int numAllocations;
+        private int numThreads;
+        private String modelVariant;
+
+        public void setNumAllocations(int numAllocations) {
+            this.numAllocations = numAllocations;
+        }
+
+        public void setNumThreads(int numThreads) {
+            this.numThreads = numThreads;
+        }
+
+        public void setModelVariant(String modelVariant) {
+            this.modelVariant = modelVariant;
+        }
+
+        public String getModelVariant() {
+            return modelVariant;
+        }
+
+        public ElserMlNodeServiceSettings build() {
+            return new ElserMlNodeServiceSettings(numAllocations, numThreads, modelVariant);
+        }
     }
 }

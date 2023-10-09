@@ -23,15 +23,15 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
         return new ElserMlNodeServiceSettings(
             randomIntBetween(1, 4),
             randomIntBetween(1, 2),
-            randomFrom(ElserMlNodeServiceSettings.VALID_ELSER_MODELS)
+            randomFrom(ElserMlNodeService.VALID_ELSER_MODELS)
         );
     }
 
     public void testFromMap_DefaultModelVersion() {
-        var serviceSettings = ElserMlNodeServiceSettings.fromMap(
+        var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(
             new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
         );
-        assertEquals(new ElserMlNodeServiceSettings(1, 4, ".elser_model_2"), serviceSettings);
+        assertNull(serviceSettingsBuilder.getModelVariant());
     }
 
     public void testFromMap() {
@@ -46,7 +46,7 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
                     ".elser_model_1"
                 )
             )
-        );
+        ).build();
         assertEquals(new ElserMlNodeServiceSettings(1, 4, ".elser_model_1"), serviceSettings);
     }
 
@@ -119,7 +119,7 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
                 instance.getModelVariant()
             );
             case 2 -> {
-                var versions = new HashSet<>(ElserMlNodeServiceSettings.VALID_ELSER_MODELS);
+                var versions = new HashSet<>(ElserMlNodeService.VALID_ELSER_MODELS);
                 versions.remove(instance.getModelVariant());
                 yield new ElserMlNodeServiceSettings(instance.getNumAllocations(), instance.getNumThreads(), versions.iterator().next());
             }

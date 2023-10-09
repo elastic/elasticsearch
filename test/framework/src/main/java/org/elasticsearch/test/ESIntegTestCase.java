@@ -2005,7 +2005,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             createTempDir(),
             externalClusterClientSettings(),
             nodePlugins(),
-            this::nodeFeatureSpecifications,
             getClientWrapper(),
             clusterName,
             transportAddresses

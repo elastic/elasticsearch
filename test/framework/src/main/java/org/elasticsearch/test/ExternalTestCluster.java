@@ -74,7 +74,6 @@ public final class ExternalTestCluster extends TestCluster {
         Path tempDir,
         Settings additionalSettings,
         Collection<Class<? extends Plugin>> pluginClasses,
-        Function<String, Collection<? extends FeatureSpecification>> getFeatureSpec,
         Function<Client, Client> clientWrapper,
         String clusterName,
         TransportAddress... transportAddresses

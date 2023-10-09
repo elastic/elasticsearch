@@ -73,7 +73,12 @@ public class ShardsAvailabilityHealthIndicatorServiceIT extends ESIntegTestCase 
                 .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
         clusterAdmin().prepareCreateSnapshot(repositoryName, snapshotName).setIndices(index).setWaitForCompletion(true).get();
-        assertAcked(indicesAdmin().prepareDelete(index));
+        if (randomBoolean()) {
+            assertAcked(indicesAdmin().prepareDelete(index));
+        } else {
+            assertAcked(indicesAdmin().prepareClose(index));
+        }
+        ensureGreen();
 
         assertHealthDuring(equalTo(GREEN), () -> {
             clusterAdmin().prepareRestoreSnapshot(repositoryName, snapshotName).setIndices(index).setWaitForCompletion(true).get();

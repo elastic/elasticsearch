@@ -53,7 +53,6 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -132,7 +131,8 @@ public class MetadataIndexTemplateService {
                     .endObject()
                     .startObject("document")
                     .startObject("properties")
-                    // document.source is unmapped so that it can be persisted in source only without worrying that the document might cause a mapping error
+                    // document.source is unmapped so that it can be persisted in source only without worrying that the document might cause
+                    // a mapping error
                     .startObject("id")
                     .field("type", "keyword")
                     .endObject()

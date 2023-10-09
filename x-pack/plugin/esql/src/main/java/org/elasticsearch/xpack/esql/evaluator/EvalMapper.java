@@ -88,14 +88,12 @@ public final class EvalMapper {
                 @Override
                 public Block.Ref eval(Page page) {
                     try (Block.Ref lhs = leftEval.eval(page); Block.Ref rhs = rightEval.eval(page)) {
-                        Block lhsBlock = lhs.block();
-                        Block rhsBlock = rhs.block();
-                        Vector lhsVector = lhsBlock.asVector();
-                        Vector rhsVector = rhsBlock.asVector();
+                        Vector lhsVector = lhs.block().asVector();
+                        Vector rhsVector = rhs.block().asVector();
                         if (lhsVector != null && rhsVector != null) {
                             return Block.Ref.floating(eval((BooleanVector) lhsVector, (BooleanVector) rhsVector));
                         }
-                        return Block.Ref.floating(eval(lhsBlock, rhsBlock));
+                        return Block.Ref.floating(eval(lhs.block(), rhs.block()));
                     }
                 }
 
@@ -168,7 +166,7 @@ public final class EvalMapper {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
                 public Block.Ref eval(Page page) {
-                    return page.getBlockRef(channel);
+                    return new Block.Ref(page.getBlock(channel), page);
                 }
 
                 @Override

@@ -49,6 +49,6 @@ public interface EvaluatorMapper {
                 // TODO maybe this should have a small fixed limit?
                 new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
             )
-        ).eval(new Page(1, new Block.Ref[0])).block(), 0);
+        ).eval(new Page(1)).block(), 0);
     }
 }

@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
@@ -209,7 +209,6 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
         Block build();
     }
 
-    // TODO: Update doc
     /**
      * A reference to a {@link Block}. This is {@link Releasable} and
      * {@link Ref#close closing} it will {@link Block#close release}
@@ -225,97 +224,31 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
      * The {@code try} block will return the memory used by the block to the
      * breaker if it was "free floating", but if it was attached to a {@link Page}
      * then it'll do nothing.
+     *
+     * @param block the block referenced
+     * @param containedIn the page containing it or null, if it is "free floating".
      */
-    class Ref implements Releasable {
-
-        private static class RefCount implements RefCounted {
-            private int i = 1;
-
-            @Override
-            public void incRef() {
-                i++;
-            }
-
-            @Override
-            public boolean tryIncRef() {
-                if (i <= 0) {
-                    return false;
-                }
-                incRef();
-                return true;
-            }
-
-            @Override
-            public boolean decRef() {
-                i--;
-
-                return i <= 0;
-            }
-
-            @Override
-            public boolean hasReferences() {
-                return i >= 1;
-            }
+    record Ref(Block block, @Nullable Page containedIn) implements Releasable {
+        /**
+         * Create a "free floating" {@link Ref}.
+         */
+        public static Ref floating(Block block) {
+            return new Ref(block, null);
         }
 
-        private final Block block;
-        private final RefCount refs;
-        private boolean isReleased;
-
-        public Ref(Block block) {
-            this(block, new RefCount());
-        }
-
-        private Ref(Block block, RefCount refs) {
-            this.block = block;
-            this.refs = refs;
-            isReleased = false;
-        }
-
-        public <B extends Block> B block() {
-            if (isReleased) {
-                throw new IllegalStateException("cannot get block from released reference");
-            }
-            assert block.isReleased() == false;
-
-            @SuppressWarnings("unchecked")
-            B castBlock = (B) block;
-
-            return castBlock;
-        }
-
-        public Ref shallowCopy() {
-            if (refs.tryIncRef() == false) {
-                throw new IllegalStateException("cannot copy already closed reference");
-            }
-
-            return new Ref(block, refs);
-        }
-
-        @Override
-        public String toString() {
-            return "BlockRef{" + "block=" + block.toString() + '}';
+        /**
+         * Is this block "free floating" or attached to a page?
+         */
+        public boolean floating() {
+            return containedIn == null;
         }
 
         @Override
         public void close() {
-            if (isReleased) {
-                throw new IllegalStateException("cannot release block reference twice");
-            }
-            isReleased = true;
-            if (refs.decRef()) {
+            if (floating()) {
                 block.close();
             }
         }
-
-        @Deprecated
-        public static Ref floating(Block b) {
-            return b.asRef();
-        }
-    }
-
-    default Block.Ref asRef() {
-        return new Ref(this);
     }
 
     static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

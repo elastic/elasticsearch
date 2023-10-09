@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -44,7 +45,8 @@ public class EvalOperator extends AbstractPageMappingOperator {
     @Override
     protected Page process(Page page) {
         Block.Ref ref = evaluator.eval(page);
-        return page.appendBlock(ref);
+        Block block = ref.floating() ? ref.block() : BlockUtils.deepCopyOf(ref.block(), blockFactory);
+        return page.appendBlock(block);
     }
 
     @Override

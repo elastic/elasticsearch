@@ -97,7 +97,7 @@ final class PackedValuesBlockHash extends BlockHash {
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             super(emitBatchSize, addInput);
             for (Group group : groups) {
-                group.encoder = MultivalueDedupe.batchEncoder(page.getBlockRef(group.spec.channel()), batchSize, true);
+                group.encoder = MultivalueDedupe.batchEncoder(new Block.Ref(page.getBlock(group.spec.channel()), page), batchSize, true);
             }
             bytes.grow(nullTrackingBytes);
             this.positionCount = page.getPositionCount();

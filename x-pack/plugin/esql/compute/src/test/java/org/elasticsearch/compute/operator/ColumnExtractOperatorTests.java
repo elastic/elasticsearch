@@ -53,7 +53,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
             dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block.Ref eval(Page page) {
-                    return page.getBlockRef(0).shallowCopy();
+                    return new Block.Ref(page.getBlock(0), page);
                 }
 
                 @Override

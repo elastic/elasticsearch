@@ -922,9 +922,9 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Ensure that plan is removing previously allocated models if not enough memory is available
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 1, 1, Map.of(), 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 1, 1, Map.of(), 0, 0, 0);
 
         // Create a plan where all deployments are assigned at least once
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))

@@ -1017,4 +1017,55 @@ public class BasicBlockTests extends ESTestCase {
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
         return breakerService;
     }
+
+    public void testRefCountingArrayBlock() {
+        int positionCount = randomIntBetween(0, 100);
+        IntBlock block = blockFactory.newIntArrayBlock(new int[] { randomInt() }, 1, new int[] {}, new BitSet(), randomOrdering());
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(block);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testRefCountingVectorBlock() {
+        int positionCount = randomIntBetween(0, 100);
+        IntBlock block = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount).asBlock();
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(block);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    // Take a block with exactly 1 reference and assert that ref counting works fine.
+    static void assertRefCountingBehavior(Block b) {
+        assertTrue(b.hasReferences());
+        int numShallowCopies = randomIntBetween(0, 15);
+        for (int i = 0; i < numShallowCopies; i++) {
+            if (randomBoolean()) {
+                b.incRef();
+            } else {
+                assertTrue(b.tryIncRef());
+            }
+        }
+
+        for (int i = 0; i < numShallowCopies; i++) {
+            if (randomBoolean()) {
+                b.close();
+            } else {
+                // closing and decreasing must be equivalent
+                assertFalse(b.decRef());
+            }
+            assertTrue(b.hasReferences());
+        }
+
+        if (randomBoolean()) {
+            b.close();
+        } else {
+            assertTrue(b.decRef());
+        }
+
+        assertFalse(b.hasReferences());
+        assertFalse(b.tryIncRef());
+
+        expectThrows(IllegalStateException.class, b::close);
+        expectThrows(IllegalStateException.class, b::incRef);
+    }
 }

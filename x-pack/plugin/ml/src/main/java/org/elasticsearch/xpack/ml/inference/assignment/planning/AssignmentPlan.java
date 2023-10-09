@@ -113,10 +113,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         int findOptimalAllocations(int maxAllocations, long availableMemoryBytes) {
             if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
                 return (int) Math.max(
-                    Math.min(
-                        maxAllocations,
-                        Math.floorDiv(availableMemoryBytes - estimateMemoryUsageBytes(0), perAllocationMemoryBytes)
-                    ),
+                    Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes - estimateMemoryUsageBytes(0), perAllocationMemoryBytes)),
                     0
                 );
             }
@@ -418,13 +415,17 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             assignments.get(deployment).compute(node, (n, remAllocations) -> remAllocations + allocations);
             remainingNodeMemory.compute(node, (n, remMemory) -> remMemory - additionalModelMemory);
             if (remainingNodeMemory.get(node) < 0) {
-                throw new IllegalArgumentException("node enough memory on node [" + node.id()+ "] to assign ["
-                    + allocations
-                    + "] allocations to deployment ["
-                    + deployment.id()
-                    + "]; required threads per allocation ["
-                    + deployment.threadsPerAllocation()
-                    + "]");
+                throw new IllegalArgumentException(
+                    "node enough memory on node ["
+                        + node.id()
+                        + "] to assign ["
+                        + allocations
+                        + "] allocations to deployment ["
+                        + deployment.id()
+                        + "]; required threads per allocation ["
+                        + deployment.threadsPerAllocation()
+                        + "]"
+                );
             }
             if (deployment.priority == Priority.NORMAL) {
                 remainingNodeCores.compute(node, (n, remCores) -> remCores - allocations * deployment.threadsPerAllocation());
@@ -440,7 +441,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         public void accountMemory(Deployment m, Node n) {
             remainingNodeMemory.computeIfPresent(n, (k, v) -> v - m.estimateMemoryUsageBytes(m.currentAllocationsByNodeId.get(n.id())));
             if (remainingNodeMemory.containsKey(n) && remainingNodeMemory.get(n) < 0) {
-                throw new IllegalArgumentException("node enough memory on node [" + n.id()+ "]");
+                throw new IllegalArgumentException("node enough memory on node [" + n.id() + "]");
             }
         }
 

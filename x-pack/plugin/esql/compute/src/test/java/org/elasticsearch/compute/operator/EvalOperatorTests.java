@@ -73,9 +73,9 @@ public class EvalOperatorTests extends OperatorTestCase {
 
             @Override
             public String toString() {
-                return "Addition[lhs=" + lhs + ", rhs=" + rhs + ']';
+                return "Addition[lhs=0, rhs=1]";
             }
-        };
+        });
     }
 
     @Override

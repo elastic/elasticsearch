@@ -95,10 +95,7 @@ public class RegressionInferenceResultsTests extends InferenceResultsTestCase<Re
     }
 
     @Override
-    void assertFieldValues(RegressionInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        assertThat(
-            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), Double.class),
-            closeTo(createdInstance.value(), 1e-10)
-        );
+    void assertFieldValues(RegressionInferenceResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        assertThat(document.getFieldValue(parentField + resultsField, Double.class), closeTo(createdInstance.value(), 1e-10));
     }
 }

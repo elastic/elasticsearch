@@ -810,15 +810,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         /*
          * Cluster Status logic:
-         * 1) FAILED if all shards failed and skip_unavailable=false
-         * 2) SKIPPED if all shards failed and skip_unavailable=true
+         * 1) FAILED if total_shards > 0 && all shards failed && skip_unavailable=false
+         * 2) SKIPPED if total_shards > 0 && all shards failed && skip_unavailable=true
          * 3) PARTIAL if it timed out
          * 4) PARTIAL if it at least one of the shards succeeded but not all
          * 5) SUCCESSFUL if no shards failed (and did not time out)
          */
         clusters.swapCluster(clusterAlias, (k, v) -> {
             SearchResponse.Cluster.Status status;
-            if (searchResponse.getFailedShards() >= searchResponse.getTotalShards()) {
+            int totalShards = searchResponse.getTotalShards();
+            if (totalShards > 0 && searchResponse.getFailedShards() >= totalShards) {
                 if (skipUnavailable) {
                     status = SearchResponse.Cluster.Status.SKIPPED;
                 } else {
@@ -832,7 +833,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 status = SearchResponse.Cluster.Status.SUCCESSFUL;
             }
             return new SearchResponse.Cluster.Builder(v).setStatus(status)
-                .setTotalShards(searchResponse.getTotalShards())
+                .setTotalShards(totalShards)
                 .setSuccessfulShards(searchResponse.getSuccessfulShards())
                 .setSkippedShards(searchResponse.getSkippedShards())
                 .setFailedShards(searchResponse.getFailedShards())
@@ -1604,7 +1605,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .searchShards(
                 clusterState,
                 concreteIndices,
-                Objects.requireNonNullElseGet(routingMap, Map::of),
+                routingMap,
                 searchRequest.preference(),
                 searchService.getResponseCollectorService(),
                 searchTransportService.getPendingSearchRequests()

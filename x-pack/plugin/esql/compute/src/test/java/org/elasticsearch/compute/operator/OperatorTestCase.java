@@ -218,6 +218,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     }
 
     // Tests that finish then close without calling getOutput to retrieve a potential last page, releases all memory
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100496")
     public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));

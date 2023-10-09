@@ -60,7 +60,11 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
 
     @Override
     public IntVector filter(int... positions) {
-        return new FilterIntVector(this, positions);
+        final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length, true);
+        for (int i = 0; i < positions.length; i++) {
+            filtered.set(i, values.get(positions[i]));
+        }
+        return new IntBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override

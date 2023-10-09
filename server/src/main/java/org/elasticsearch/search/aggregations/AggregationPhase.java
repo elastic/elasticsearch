@@ -117,6 +117,7 @@ public class AggregationPhase {
                 return collector.scoreMode();
             }
         });
+        collector.postCollection();
     }
 
     private static List<Runnable> getCancellationChecks(SearchContext context) {

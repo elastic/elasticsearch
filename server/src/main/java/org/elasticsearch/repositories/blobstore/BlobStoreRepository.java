@@ -1009,13 +1009,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // updates the shard state metadata for shards of a snapshot that is to be deleted. Also computes the files to be cleaned up.
     private void writeUpdatedShardMetaDataAndComputeDeletes(
         Collection<SnapshotId> snapshotIds,
-        RepositoryData oldRepositoryData,
+        RepositoryData originalRepositoryData,
         boolean useShardGenerations,
         ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
     ) {
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        final List<IndexId> indices = oldRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds);
+        final List<IndexId> indices = originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds);
 
         if (indices.isEmpty()) {
             onAllShardsCompleted.onResponse(Collections.emptyList());
@@ -1029,14 +1029,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
 
         for (IndexId indexId : indices) {
-            final Set<SnapshotId> snapshotsWithIndex = Set.copyOf(oldRepositoryData.getSnapshots(indexId));
+            final Set<SnapshotId> snapshotsWithIndex = Set.copyOf(originalRepositoryData.getSnapshots(indexId));
             final Set<SnapshotId> survivingSnapshots = snapshotsWithIndex.stream()
                 .filter(id -> snapshotIds.contains(id) == false)
                 .collect(Collectors.toSet());
             final ListenableFuture<Collection<Integer>> shardCountListener = new ListenableFuture<>();
             final Collection<String> indexMetaGenerations = snapshotIds.stream()
                 .filter(snapshotsWithIndex::contains)
-                .map(id -> oldRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
+                .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
                 .collect(Collectors.toSet());
             final ActionListener<Integer> allShardCountsListener = new GroupedActionListener<>(
                 indexMetaGenerations.size(),
@@ -1087,7 +1087,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(
                                     originalShardBlobs,
                                     shardContainer,
-                                    oldRepositoryData.shardGenerations().getShardGen(indexId, shardId)
+                                    originalRepositoryData.shardGenerations().getShardGen(indexId, shardId)
                                 ).v1();
                             } else {
                                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(

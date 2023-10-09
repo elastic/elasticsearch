@@ -101,7 +101,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         );
     }
 
-    private XContentBuilder testMapping(boolean syntheticSource) throws IOException {
+    private static XContentBuilder testMapping(boolean syntheticSource) throws IOException {
         if (syntheticSource) {
             return syntheticSourceMapping(b -> b.startObject("field").field("type", "match_only_text").endObject());
         }

@@ -60,12 +60,16 @@ $endif$
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::readFrom);
 
     private static $Type$Block readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static $Type$Block readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return $Type$Vector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
+            return $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try ($Type$Block.Builder builder = ((BlockStreamInput) in).blockFactory().new$Type$BlockBuilder(positions)) {
+        try ($Type$Block.Builder builder = in.blockFactory().new$Type$BlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();
@@ -128,6 +132,9 @@ $endif$
      * equals method works properly across different implementations of the $Type$Block interface.
      */
     static boolean equals($Type$Block block1, $Type$Block block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

@@ -48,12 +48,16 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
     NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", BytesRefBlock::readFrom);
 
     private static BytesRefBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return BytesRefVector.readFrom(((BlockStreamInput) in).blockFactory(), in).asBlock();
+            return BytesRefVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        try (BytesRefBlock.Builder builder = ((BlockStreamInput) in).blockFactory().newBytesRefBlockBuilder(positions)) {
+        try (BytesRefBlock.Builder builder = in.blockFactory().newBytesRefBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 if (in.readBoolean()) {
                     builder.appendNull();
@@ -112,6 +116,9 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
      * equals method works properly across different implementations of the BytesRefBlock interface.
      */
     static boolean equals(BytesRefBlock block1, BytesRefBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

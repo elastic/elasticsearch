@@ -206,7 +206,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             }
         }
 
-        private void globalCheckpointAdvancementFailure(
+        private static void globalCheckpointAdvancementFailure(
             final IndexShard indexShard,
             final Request request,
             final Exception e,

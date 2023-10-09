@@ -102,6 +102,87 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testCustomMapping() throws Exception {
+        RestClient client = client();
+        waitForLogs(client);
+
+        {
+            Request request = new Request("POST", "/_component_template/logs@custom");
+            request.setJsonEntity("""
+                {
+                  "template": {
+                    "settings": {
+                      "index": {
+                        "query": {
+                          "default_field": ["custom-message"]
+                        }
+                      }
+                    },
+                    "mappings": {
+                      "properties": {
+                        "numeric_field": {
+                          "type": "integer"
+                        },
+                        "socket": {
+                          "properties": {
+                            "ip": {
+                              "type": "keyword"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                """);
+            assertOK(client.performRequest(request));
+        }
+
+        String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+        String backingIndex = getWriteBackingIndex(client, dataStreamName);
+
+        // Verify that the custom settings.index.query.default_field overrides the default query field - "message"
+        Map<String, Object> settings = getSettings(client, backingIndex);
+        assertThat(settings.get("index.query.default_field"), is(List.of("custom-message")));
+
+        // Verify that the new field from the custom component template is applied
+        putMapping(client, backingIndex);
+        Map<String, Object> mappingProperties = getMappingProperties(client, backingIndex);
+        assertThat(((Map<String, Object>) mappingProperties.get("numeric_field")).get("type"), equalTo("integer"));
+        assertThat(
+            ((Map<String, Object>) mappingProperties.get("socket")).get("properties"),
+            equalTo(Map.of("ip", Map.of("type", "keyword")))
+        );
+
+        // Insert valid doc and verify successful indexing
+        {
+            indexDoc(client, dataStreamName, """
+                {
+                  "test": "doc-with-ip",
+                  "socket": {
+                    "ip": "127.0.0.1"
+                  }
+                }
+                """);
+            List<Object> results = searchDocs(client, dataStreamName, """
+                {
+                  "query": {
+                    "term": {
+                      "test": {
+                        "value": "doc-with-ip"
+                      }
+                    }
+                  },
+                  "fields": ["socket.ip"]
+                }
+                """);
+            Map<String, Object> fields = ((Map<String, Map<String, Object>>) results.get(0)).get("_source");
+            assertThat(fields.get("socket"), is(Map.of("ip", "127.0.0.1")));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
     public void testLogsDefaultPipeline() throws Exception {
         RestClient client = client();
         waitForLogs(client);

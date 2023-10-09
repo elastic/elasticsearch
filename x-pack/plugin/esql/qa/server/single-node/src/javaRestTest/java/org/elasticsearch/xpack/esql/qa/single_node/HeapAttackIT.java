@@ -306,6 +306,53 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns));
     }
 
+    public void testAggMvLongs() throws IOException {
+        int fieldValues = 100;
+        initMvLongsIndex(1, 3, fieldValues);
+        Response response = aggMvLongs(3);
+        Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(f00)").entry("type", "long"))
+            .item(matchesMap().entry("name", "f00").entry("type", "long"))
+            .item(matchesMap().entry("name", "f01").entry("type", "long"))
+            .item(matchesMap().entry("name", "f02").entry("type", "long"));
+        assertMap(map, matchesMap().entry("columns", columns));
+    }
+
+    public void testAggTooManyMvLongs() throws IOException {
+        initMvLongsIndex(1, 3, 1000);
+        assertCircuitBreaks(() -> aggMvLongs(3));
+    }
+
+    private Response aggMvLongs(int fields) throws IOException {
+        StringBuilder builder = new StringBuilder("{\"query\": \"FROM mv_longs | STATS MAX(f00) BY f00");
+        for (int f = 1; f < fields; f++) {
+            builder.append(", f").append(String.format(Locale.ROOT, "%02d", f));
+        }
+        return query(builder.append("\"}").toString(), "columns");
+    }
+
+    public void testFetchMvLongs() throws IOException {
+        int fields = 100;
+        initMvLongsIndex(100, fields, 1000);
+        Response response = fetchMvLongs();
+        Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < fields; f++) {
+            columns = columns.item(matchesMap().entry("name", String.format(Locale.ROOT, "f%02d", f)).entry("type", "long"));
+        }
+        assertMap(map, matchesMap().entry("columns", columns));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
+    public void testFetchTooManyMvLongs() throws IOException {
+        initMvLongsIndex(500, 100, 1000);
+        assertCircuitBreaks(() -> fetchMvLongs());
+    }
+
+    private Response fetchMvLongs() throws IOException {
+        return query("{\"query\": \"FROM mv_longs\"}", "columns");
+    }
+
     private void initManyLongs() throws IOException {
         logger.info("loading many documents with longs");
         StringBuilder bulk = new StringBuilder();
@@ -375,6 +422,39 @@ public class HeapAttackIT extends ESRestTestCase {
             }
         }
         initIndex("manybigfields", bulk.toString());
+    }
+
+    private void initMvLongsIndex(int docs, int fields, int fieldValues) throws IOException {
+        logger.info("loading documents with many multivalued longs");
+        int docsPerBulk = 100;
+
+        StringBuilder bulk = new StringBuilder();
+        for (int d = 0; d < docs; d++) {
+            bulk.append("{\"create\":{}}\n");
+            for (int f = 0; f < fields; f++) {
+                if (f == 0) {
+                    bulk.append('{');
+                } else {
+                    bulk.append(", ");
+                }
+                bulk.append('"').append("f").append(String.format(Locale.ROOT, "%02d", f)).append("\": ");
+                for (int fv = 0; fv < fieldValues; fv++) {
+                    if (fv == 0) {
+                        bulk.append('[');
+                    } else {
+                        bulk.append(", ");
+                    }
+                    bulk.append(f + fv);
+                }
+                bulk.append(']');
+            }
+            bulk.append("}\n");
+            if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
+                bulk("mv_longs", bulk.toString());
+                bulk.setLength(0);
+            }
+        }
+        initIndex("mv_longs", bulk.toString());
     }
 
     private void bulk(String name, String bulk) throws IOException {

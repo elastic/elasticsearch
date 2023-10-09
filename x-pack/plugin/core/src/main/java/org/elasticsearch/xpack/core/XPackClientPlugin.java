@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.ProfilingUsage;
 import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
@@ -277,7 +278,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 XPackFeatureSet.Usage.class,
                 XPackField.ENTERPRISE_SEARCH,
                 EnterpriseSearchFeatureSetUsage::new
-            )
+            ),
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new)
         ).filter(Objects::nonNull).toList();
     }
 

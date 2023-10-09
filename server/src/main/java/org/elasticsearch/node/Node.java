@@ -1298,7 +1298,7 @@ public class Node implements Closeable {
         };
     }
 
-    private TelemetryProvider getTelemetryProvider(PluginsService pluginsService, Settings settings) {
+    private static TelemetryProvider getTelemetryProvider(PluginsService pluginsService, Settings settings) {
         final List<TelemetryPlugin> telemetryPlugins = pluginsService.filterPlugins(TelemetryPlugin.class);
 
         if (telemetryPlugins.size() > 1) {
@@ -1329,7 +1329,7 @@ public class Node implements Closeable {
         return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices), threadPool);
     }
 
-    private HealthPeriodicLogger createHealthPeriodicLogger(
+    private static HealthPeriodicLogger createHealthPeriodicLogger(
         ClusterService clusterService,
         Settings settings,
         NodeClient client,

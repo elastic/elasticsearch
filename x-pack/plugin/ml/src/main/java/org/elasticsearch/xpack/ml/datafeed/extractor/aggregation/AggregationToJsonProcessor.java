@@ -408,7 +408,7 @@ class AggregationToJsonProcessor {
 
     private boolean processPercentiles(Percentiles percentiles) {
         Iterator<Percentile> percentileIterator = percentiles.iterator();
-        boolean aggregationAdded = addMetricIfFinite(percentiles.getName(), percentileIterator.next().getValue());
+        boolean aggregationAdded = addMetricIfFinite(percentiles.getName(), percentileIterator.next().value());
         if (percentileIterator.hasNext()) {
             throw new IllegalArgumentException("Multi-percentile aggregation [" + percentiles.getName() + "] is not supported");
         }

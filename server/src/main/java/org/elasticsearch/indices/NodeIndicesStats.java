@@ -59,7 +59,7 @@ import java.util.Objects;
 public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
     private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersions.V_8_5_0;
-    public static final HashMap<Index, List<IndexShardStats>> EMPTY_STATS_BY_SHARD = new HashMap<>(0);
+    private static final Map<Index, List<IndexShardStats>> EMPTY_STATS_BY_SHARD = Map.of();
 
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;

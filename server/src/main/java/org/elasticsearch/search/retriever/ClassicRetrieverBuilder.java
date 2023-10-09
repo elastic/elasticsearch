@@ -45,7 +45,10 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
 
-    public static final ObjectParser<ClassicRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(NAME);
+    public static final ObjectParser<ClassicRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
+        NAME,
+        ClassicRetrieverBuilder::new
+    );
 
     static {
         PARSER.declareObject(ClassicRetrieverBuilder::queryBuilder, (p, c) -> {
@@ -361,13 +364,17 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
 
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         if (searchSourceBuilder.query() == null) {
-            searchSourceBuilder.query(queryBuilder);
+            if (queryBuilder != null) {
+                searchSourceBuilder.query(queryBuilder);
+            }
         } else {
             throw new IllegalStateException("[query] cannot be declared as a retriever value and as a global value");
         }
 
         if (searchSourceBuilder.searchAfter() == null) {
-            searchSourceBuilder.searchAfter(searchAfterBuilder.getSortValues());
+            if (searchAfterBuilder != null) {
+                searchSourceBuilder.searchAfter(searchAfterBuilder.getSortValues());
+            }
         } else {
             throw new IllegalStateException("[search_after] cannot be declared as a retriever value and as a global value");
         }
@@ -379,13 +386,17 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         }
 
         if (searchSourceBuilder.sorts() == null) {
-            searchSourceBuilder.sort(sortBuilders);
+            if (sortBuilders != null) {
+                searchSourceBuilder.sort(sortBuilders);
+            }
         } else {
             throw new IllegalStateException("[sort] cannot be declared as a retriever value and as a global value");
         }
 
         if (searchSourceBuilder.minScore() == null) {
-            searchSourceBuilder.minScore(minScore);
+            if (minScore != null) {
+                searchSourceBuilder.minScore(minScore);
+            }
         } else {
             throw new IllegalStateException("[min_score] cannot be declared as a retriever value and as a global value");
         }
@@ -397,15 +408,19 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
         }
 
         if (searchSourceBuilder.rescores() == null) {
-            for (RescorerBuilder<?> rescorerBuilder : rescorerBuilders) {
-                searchSourceBuilder.addRescorer(rescorerBuilder);
+            if (rescorerBuilders != null) {
+                for (RescorerBuilder<?> rescorerBuilder : rescorerBuilders) {
+                    searchSourceBuilder.addRescorer(rescorerBuilder);
+                }
             }
         } else {
             throw new IllegalStateException("[rescore] cannot be declared as a retriever value and as a global value");
         }
 
         if (searchSourceBuilder.collapse() == null) {
-            searchSourceBuilder.collapse(collapseBuilder);
+            if (collapseBuilder != null) {
+                searchSourceBuilder.collapse(collapseBuilder);
+            }
         } else {
             throw new IllegalStateException("[collapse] cannot be declared as a retriever value and as a global value");
         }

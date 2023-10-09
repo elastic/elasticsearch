@@ -1279,12 +1279,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
-                        parser,
-                        new RetrieverParserContext(searchUsage::trackSectionUsage, searchUsage::trackQueryUsage)
-                    );
-                } else if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     int parsedSize = parser.intValue();
@@ -1344,7 +1339,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
+                    retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
+                        parser,
+                        new RetrieverParserContext(searchUsage::trackSectionUsage, searchUsage::trackQueryUsage)
+                    );
+                } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(
                             "cannot specify field [" + currentFieldName + "] and field [" + SUB_SEARCHES_FIELD.getPreferredName() + "]"

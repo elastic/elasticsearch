@@ -895,7 +895,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *                                         contents.
      * @param originalRootBlobs                All blobs found at the root of the repository at the start of the operation, obtained by
      *                                         listing the repository contents.
-     * @param repositoryData    RepositoryData found the in the repository before executing this delete
+     * @param originalRepositoryData           {@link RepositoryData} at the start of the operation.
      * @param listener          Listener to invoke once finished
      */
     private void doDeleteShardSnapshots(
@@ -903,7 +903,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long originalRepositoryDataGeneration,
         Map<String, BlobContainer> originalIndexContainers,
         Map<String, BlobMetadata> originalRootBlobs,
-        RepositoryData repositoryData,
+        RepositoryData originalRepositoryData,
         IndexVersion repoMetaVersion,
         SnapshotDeleteListener listener
     ) {
@@ -911,7 +911,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
             final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =
                 new ListenableFuture<>();
-            writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, true, writeShardMetaDataAndComputeDeletesStep);
+            writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, originalRepositoryData, true, writeShardMetaDataAndComputeDeletesStep);
             // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
             // 1. Remove the snapshots from the list of existing snapshots
             // 2. Update the index shard generations of all updated shard folders
@@ -925,7 +925,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 for (ShardSnapshotMetaDeleteResult newGen : deleteResults) {
                     builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
                 }
-                final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, builder.build());
+                final RepositoryData updatedRepoData = originalRepositoryData.removeSnapshots(snapshotIds, builder.build());
                 writeIndexGen(
                     updatedRepoData,
                     originalRepositoryDataGeneration,
@@ -947,7 +947,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         refs.acquireListener()
                     );
                     asyncCleanupUnlinkedShardLevelBlobs(
-                        repositoryData,
+                        originalRepositoryData,
                         snapshotIds,
                         writeShardMetaDataAndComputeDeletesStep.result(),
                         refs.acquireListener()
@@ -956,7 +956,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, listener::onFailure));
         } else {
             // Write the new repository data first (with the removed snapshot), using no shard generations
-            final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
+            final RepositoryData updatedRepoData = originalRepositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
             writeIndexGen(
                 updatedRepoData,
                 originalRepositoryDataGeneration,
@@ -983,11 +983,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     refs.acquireListener(),
                                     l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
                                         snapshotIds,
-                                        repositoryData,
+                                        originalRepositoryData,
                                         false,
                                         l0.delegateFailure(
                                             (l, deleteResults) -> asyncCleanupUnlinkedShardLevelBlobs(
-                                                repositoryData,
+                                                originalRepositoryData,
                                                 snapshotIds,
                                                 deleteResults,
                                                 l

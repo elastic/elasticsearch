@@ -1,5 +1,5 @@
 pr: 100466
-summary: "Introduce needShardsStats in the stats request to indicate that we only fetch a summary"
+summary: "Introduce includeShardsStats in the stats request to indicate that we only fetch a summary"
 area: Stats
 type: enhancement
 issues: [99744]

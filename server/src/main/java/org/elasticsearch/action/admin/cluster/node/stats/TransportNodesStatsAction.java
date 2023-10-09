@@ -83,7 +83,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         Set<String> metrics = request.requestedMetrics();
         return nodeService.stats(
             request.indices(),
-            request.needShardsStats(),
+            request.includeShardsStats(),
             NodesStatsRequest.Metric.OS.containedIn(metrics),
             NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
             NodesStatsRequest.Metric.JVM.containedIn(metrics),

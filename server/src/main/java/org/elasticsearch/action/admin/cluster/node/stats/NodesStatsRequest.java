@@ -34,7 +34,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
-    private boolean needShardsStats = true;
+    private boolean includeShardsStats = true;
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -47,9 +47,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         requestedMetrics.clear();
         requestedMetrics.addAll(in.readStringCollectionAsList());
         if (in.getTransportVersion().onOrAfter(TransportVersions.NEED_SHARDS_STATS_ADDED)) {
-            needShardsStats = in.readBoolean();
+            includeShardsStats = in.readBoolean();
         } else {
-            needShardsStats = true;
+            includeShardsStats = true;
         }
     }
 
@@ -176,12 +176,12 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         };
     }
 
-    public boolean needShardsStats() {
-        return needShardsStats;
+    public boolean includeShardsStats() {
+        return includeShardsStats;
     }
 
-    public void setNeedShardsStats(boolean needShardsStats) {
-        this.needShardsStats = needShardsStats;
+    public void setIncludeShardsStats(boolean includeShardsStats) {
+        this.includeShardsStats = includeShardsStats;
     }
 
     @Override
@@ -190,7 +190,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         indices.writeTo(out);
         out.writeStringCollection(requestedMetrics);
         if (out.getTransportVersion().onOrAfter(TransportVersions.NEED_SHARDS_STATS_ADDED)) {
-            out.writeBoolean(needShardsStats);
+            out.writeBoolean(includeShardsStats);
         }
     }
 

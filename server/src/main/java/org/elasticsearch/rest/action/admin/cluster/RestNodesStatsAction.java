@@ -92,7 +92,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         nodesStatsRequest.timeout(request.param("timeout"));
         // level parameter validation
         final NodeStatsLevel nodeStatsLevel = NodeStatsLevel.of(request, NodeStatsLevel.NODE);
-        nodesStatsRequest.setNeedShardsStats(nodeStatsLevel == NodeStatsLevel.NODE ? false : true);
+        nodesStatsRequest.setIncludeShardsStats(nodeStatsLevel == NodeStatsLevel.NODE ? false : true);
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             if (request.hasParam("index_metric")) {

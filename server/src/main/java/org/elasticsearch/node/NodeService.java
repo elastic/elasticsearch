@@ -155,7 +155,7 @@ public class NodeService implements Closeable {
 
     public NodeStats stats(
         CommonStatsFlags indices,
-        boolean needShardsStats,
+        boolean includeShardsStats,
         boolean os,
         boolean process,
         boolean jvm,
@@ -177,7 +177,7 @@ public class NodeService implements Closeable {
         return new NodeStats(
             transportService.getLocalNode(),
             System.currentTimeMillis(),
-            indices.anySet() ? indicesService.stats(indices, needShardsStats) : null,
+            indices.anySet() ? indicesService.stats(indices, includeShardsStats) : null,
             os ? monitorService.osService().stats() : null,
             process ? monitorService.processService().stats() : null,
             jvm ? monitorService.jvmService().stats() : null,

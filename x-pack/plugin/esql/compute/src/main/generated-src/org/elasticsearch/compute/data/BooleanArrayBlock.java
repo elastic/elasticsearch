@@ -95,7 +95,7 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
                     builder.appendBoolean(getBoolean(i));
                 }
             }
-            return builder.mvOrdering(mvOrdering()).build();
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
     }
 

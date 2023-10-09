@@ -99,7 +99,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
                     builder.appendBytesRef(getBytesRef(i, scratch));
                 }
             }
-            return builder.mvOrdering(mvOrdering()).build();
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
     }
 

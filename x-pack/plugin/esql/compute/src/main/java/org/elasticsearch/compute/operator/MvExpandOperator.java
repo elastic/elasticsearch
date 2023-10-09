@@ -70,10 +70,13 @@ public class MvExpandOperator extends AbstractPageMappingOperator {
             int[] duplicateFilter = buildDuplicateExpandingFilter(expandingBlock, expandedBlock.getPositionCount());
 
             Block[] result = new Block[page.getBlockCount()];
+            result[channel] = expandedBlock;
             boolean success = false;
             try {
                 for (int b = 0; b < result.length; b++) {
-                    result[b] = b == channel ? expandedBlock : page.getBlock(b).filter(duplicateFilter);
+                    if (b != channel) {
+                        result[b] = page.getBlock(b).filter(duplicateFilter);
+                    }
                 }
                 success = true;
                 return new Page(result);

@@ -95,7 +95,7 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
                     builder.appendDouble(getDouble(i));
                 }
             }
-            return builder.mvOrdering(mvOrdering()).build();
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
     }
 

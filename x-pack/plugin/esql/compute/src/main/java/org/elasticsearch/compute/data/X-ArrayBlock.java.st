@@ -123,7 +123,7 @@ $else$
 $endif$
                 }
             }
-            return builder.mvOrdering(mvOrdering()).build();
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
     }
 

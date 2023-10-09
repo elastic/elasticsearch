@@ -21,6 +21,8 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     private final LongArray values;
 
+    private final LongBlock block;
+
     public LongBigArrayVector(LongArray values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -28,11 +30,12 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     public LongBigArrayVector(LongArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new LongVectorBlock(this);
     }
 
     @Override
     public LongBlock asBlock() {
-        return new LongVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -57,7 +60,11 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     @Override
     public LongVector filter(int... positions) {
-        return new FilterLongVector(this, positions);
+        final LongArray filtered = blockFactory.bigArrays().newLongArray(positions.length, true);
+        for (int i = 0; i < positions.length; i++) {
+            filtered.set(i, values.get(positions[i]));
+        }
+        return new LongBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override

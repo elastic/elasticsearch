@@ -15,9 +15,12 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.util.Queries;
 
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.Arrays.asList;
 
 /**
  * Specialized query class for retrieving statistics about the underlying data and not the actual documents.
@@ -29,10 +32,15 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
         COUNT,
         MIN,
         MAX,
-        EXISTS;
+        EXISTS
     }
 
-    public record Stat(String name, StatsType type) {};
+    public record Stat(String name, StatsType type, QueryBuilder query) {
+
+        public QueryBuilder filter(QueryBuilder sourceQuery) {
+            return query == null ? sourceQuery : Queries.combine(Queries.Clause.FILTER, asList(sourceQuery, query));
+        }
+    }
 
     private final EsIndex index;
     private final QueryBuilder query;
@@ -67,6 +75,10 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public QueryBuilder query() {
         return query;
+    }
+
+    public List<Stat> stats() {
+        return stats;
     }
 
     @Override

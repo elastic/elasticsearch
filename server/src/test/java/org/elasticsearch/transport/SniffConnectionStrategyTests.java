@@ -849,17 +849,14 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             DiscoveryNode discoverableNode = getLocalNode(unresponsive2);
 
             // Use the address for the node that will not respond
-            DiscoveryNode unaddressableSeedNode = new DiscoveryNode(
-                accessibleNode.getName(),
-                accessibleNode.getId(),
-                accessibleNode.getEphemeralId(),
-                accessibleNode.getHostName(),
-                accessibleNode.getHostAddress(),
-                getLocalNode(unresponsive1).getAddress(),
-                accessibleNode.getAttributes(),
-                accessibleNode.getRoles(),
-                accessibleNode.getVersionInformation()
-            );
+            DiscoveryNode unaddressableSeedNode = DiscoveryNodeUtils.builder(accessibleNode.getId())
+                .name(accessibleNode.getName())
+                .ephemeralId(accessibleNode.getEphemeralId())
+                .address(accessibleNode.getHostName(), accessibleNode.getHostAddress(), getLocalNode(unresponsive1).getAddress())
+                .attributes(accessibleNode.getAttributes())
+                .roles(accessibleNode.getRoles())
+                .version(accessibleNode.getVersionInformation())
+                .build();
 
             knownNodes.add(unaddressableSeedNode);
             knownNodes.add(discoverableNode);

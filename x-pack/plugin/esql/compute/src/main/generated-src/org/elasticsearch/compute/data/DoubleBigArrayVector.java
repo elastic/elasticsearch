@@ -21,6 +21,8 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
 
     private final DoubleArray values;
 
+    private final DoubleBlock block;
+
     public DoubleBigArrayVector(DoubleArray values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -28,11 +30,12 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     public DoubleBigArrayVector(DoubleArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new DoubleVectorBlock(this);
     }
 
     @Override
     public DoubleBlock asBlock() {
-        return new DoubleVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -57,7 +60,11 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
 
     @Override
     public DoubleVector filter(int... positions) {
-        return new FilterDoubleVector(this, positions);
+        final DoubleArray filtered = blockFactory.bigArrays().newDoubleArray(positions.length, true);
+        for (int i = 0; i < positions.length; i++) {
+            filtered.set(i, values.get(positions[i]));
+        }
+        return new DoubleBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override

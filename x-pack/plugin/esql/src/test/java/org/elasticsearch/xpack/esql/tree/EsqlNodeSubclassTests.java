@@ -102,7 +102,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
         } else if (argClass == Stat.class) {
             // record field
-            return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()));
+            return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == Integer.class) {
             return randomInt();
         }

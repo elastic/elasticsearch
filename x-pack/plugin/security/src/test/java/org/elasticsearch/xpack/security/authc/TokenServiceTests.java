@@ -922,14 +922,14 @@ public class TokenServiceTests extends ESTestCase {
         final SecurityIndexManager tokensIndex;
         if (pre72OldNode != null) {
             tokensIndex = securityMainIndex;
-            when(securityTokensIndex.isAvailable()).thenReturn(false);
+            when(securityTokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
             when(securityTokensIndex.indexExists()).thenReturn(false);
-            when(securityTokensIndex.freeze()).thenReturn(securityTokensIndex);
+            when(securityTokensIndex.defensiveCopy()).thenReturn(securityTokensIndex);
         } else {
             tokensIndex = securityTokensIndex;
-            when(securityMainIndex.isAvailable()).thenReturn(false);
+            when(securityMainIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
             when(securityMainIndex.indexExists()).thenReturn(false);
-            when(securityMainIndex.freeze()).thenReturn(securityMainIndex);
+            when(securityMainIndex.defensiveCopy()).thenReturn(securityMainIndex);
         }
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -937,8 +937,10 @@ public class TokenServiceTests extends ESTestCase {
             tokenService.tryAuthenticateToken(bearerToken3, future);
             assertNull(future.get());
 
-            when(tokensIndex.isAvailable()).thenReturn(false);
-            when(tokensIndex.getUnavailableReason()).thenReturn(new UnavailableShardsException(null, "unavailable"));
+            when(tokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+            when(tokensIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
+                new UnavailableShardsException(null, "unavailable")
+            );
             when(tokensIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
             final SecureString bearerToken2 = Authenticator.extractBearerTokenFromHeader(requestContext);
@@ -951,7 +953,7 @@ public class TokenServiceTests extends ESTestCase {
             tokenService.tryAuthenticateToken(bearerToken1, future);
             assertNull(future.get());
 
-            when(tokensIndex.isAvailable()).thenReturn(true);
+            when(tokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
             when(tokensIndex.indexExists()).thenReturn(true);
             mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, false, null);
             future = new PlainActionFuture<>();

@@ -26,7 +26,7 @@ public class MedianAbsoluteDeviationIntAggregatorFunctionTests extends Aggregato
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<Integer> values = Arrays.asList(12, 125, 20, 20, 43, 60, 90);
         Randomness.shuffle(values);
-        return new SequenceIntBlockSourceOperator(values);
+        return new SequenceIntBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override

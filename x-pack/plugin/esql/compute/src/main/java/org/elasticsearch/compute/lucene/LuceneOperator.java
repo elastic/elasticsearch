@@ -126,6 +126,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         void scoreNextRange(LeafCollector collector, Bits acceptDocs, int numDocs) throws IOException {
             assert isDone() == false : "scorer is exhausted";
+            // avoid overflow and limit the range
+            numDocs = Math.min(maxPosition - position, numDocs);
+            assert numDocs > 0 : "scorer was exhausted";
             position = bulkScorer.score(collector, acceptDocs, position, Math.min(maxPosition, position + numDocs));
         }
 

@@ -12,30 +12,12 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Iterator;
 
 public class ParsedHDRPercentileRanks extends ParsedPercentileRanks {
 
     @Override
     public String getType() {
         return InternalHDRPercentileRanks.NAME;
-    }
-
-    @Override
-    public Iterator<Percentile> iterator() {
-        final Iterator<Percentile> iterator = super.iterator();
-        return new Iterator<Percentile>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public Percentile next() {
-                Percentile percentile = iterator.next();
-                return new Percentile(percentile.getValue(), percentile.getPercent());
-            }
-        };
     }
 
     private static final ObjectParser<ParsedHDRPercentileRanks, Void> PARSER = new ObjectParser<>(

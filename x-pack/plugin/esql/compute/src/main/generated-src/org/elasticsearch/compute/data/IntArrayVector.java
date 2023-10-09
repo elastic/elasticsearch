@@ -21,6 +21,8 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
 
     private final int[] values;
 
+    private final IntBlock block;
+
     public IntArrayVector(int[] values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -28,11 +30,12 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     public IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return new IntVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -52,7 +55,12 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
 
     @Override
     public IntVector filter(int... positions) {
-        return new FilterIntVector(this, positions);
+        try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendInt(values[pos]);
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated(int[] values) {

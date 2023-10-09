@@ -182,6 +182,17 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         assertThat(nodes.get(0), equalTo(new Tuple<>("node-1", 1)));
     }
 
+    public void testSingleRequestWith2Nodes() {
+        TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
+        builder.addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
+        builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
+        TrainedModelAssignment assignment = builder.build();
+
+        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1);
+        assertThat(nodes, hasSize(1));
+        assertEquals(nodes.get(0).v2(), Integer.valueOf(1));
+    }
+
     public void testSelectRandomStartedNodeWeighedOnAllocationsForNRequests_GivenMultipleStartedNodes() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(6));
         builder.addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""));

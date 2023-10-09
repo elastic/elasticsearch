@@ -102,7 +102,7 @@ public class ReproduceInfoPrinter extends RunListener {
         printToErr(b.toString());
     }
 
-    private boolean isRestApiCompatibilityTest() {
+    private static boolean isRestApiCompatibilityTest() {
         return Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
     }
 

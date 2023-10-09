@@ -88,7 +88,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -99,6 +98,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.lucene.LuceneOperator.NO_LIMIT;
 import static org.elasticsearch.compute.operator.LimitOperator.Factory;
@@ -239,9 +239,15 @@ public class LocalExecutionPlanner {
         if (physicalOperationProviders instanceof EsPhysicalOperationProviders == false) {
             throw new EsqlIllegalArgumentException("EsStatsQuery should only occur against a Lucene backend");
         }
-        EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
+        if (statsQuery.stats().size() > 1) {
+            throw new EsqlIllegalArgumentException("EsStatsQuery currently supports only one field statistic");
+        }
 
-        Function<SearchContext, Query> querySupplier = EsPhysicalOperationProviders.querySupplier(statsQuery.query());
+        // for now only one stat is supported
+        EsStatsQueryExec.Stat stat = statsQuery.stats().get(0);
+
+        EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
+        Function<SearchContext, Query> querySupplier = EsPhysicalOperationProviders.querySupplier(stat.filter(statsQuery.query()));
 
         Expression limitExp = statsQuery.limit();
         int limit = limitExp != null ? (Integer) limitExp.fold() : NO_LIMIT;
@@ -327,7 +333,7 @@ public class LocalExecutionPlanner {
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = p.getBlock(mappedPosition[i]);
             }
-            return new Page(blocks);
+            return p.newPageAndRelease(blocks);
         } : Function.identity();
 
         return transformer;
@@ -411,8 +417,8 @@ public class LocalExecutionPlanner {
         return source.with(
             new TopNOperatorFactory(
                 limit,
-                Arrays.asList(elementTypes),
-                Arrays.asList(encoders),
+                asList(elementTypes),
+                asList(encoders),
                 orders,
                 context.pageSize(2000 + topNExec.estimatedRowSize())
             ),

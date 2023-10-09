@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class MvExpandOperatorTests extends OperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
-        return new AbstractBlockSourceOperator(8 * 1024) {
+        return new AbstractBlockSourceOperator(blockFactory, 8 * 1024) {
             private int idx;
 
             @Override
@@ -113,7 +113,8 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         MvExpandOperator op = new MvExpandOperator(0);
         List<Page> result = drive(
             op,
-            List.of(new Page(IntVector.newVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())).iterator()
+            List.of(new Page(IntVector.newVectorBuilder(2).appendInt(1).appendInt(2).build().asBlock())).iterator(),
+            driverContext()
         );
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
@@ -125,11 +126,18 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     public void testExpandStatus() {
         MvExpandOperator op = new MvExpandOperator(0);
         var builder = IntBlock.newBlockBuilder(2).beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
-        List<Page> result = drive(op, List.of(new Page(builder.build())).iterator());
+        List<Page> result = drive(op, List.of(new Page(builder.build())).iterator(), driverContext());
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = (MvExpandOperator.Status) op.status();
         assertThat(status.pagesProcessed(), equalTo(1));
         assertThat(status.noops(), equalTo(0));
+    }
+
+    // TODO: remove this once possible
+    // https://github.com/elastic/elasticsearch/issues/99826
+    @Override
+    protected boolean canLeak() {
+        return true;
     }
 }

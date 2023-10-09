@@ -45,7 +45,7 @@ abstract class AbstractBlock implements Block {
         this.blockFactory = blockFactory;
         this.firstValueIndexes = firstValueIndexes;
         this.nullsMask = nullsMask == null || nullsMask.isEmpty() ? null : nullsMask;
-        assert (firstValueIndexes == null && this.nullsMask == null) == false;
+        assert nullsMask != null || firstValueIndexes != null : "Create VectorBlock instead";
     }
 
     @Override

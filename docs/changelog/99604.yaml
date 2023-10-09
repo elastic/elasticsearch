@@ -1,5 +1,5 @@
 pr: 99604
-summary: Show concrete error when enrich index not exist rather than NPE
+summary: Show a concrete error when the enrich index does not exist rather than a NullPointerException
 area: Ingest Node
 type: enhancement
 issues: []

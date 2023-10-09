@@ -26,12 +26,16 @@ import java.util.List;
 
 public class HttpClientManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
-
+    /**
+     * From googling around the connection pools maxTotal value should be close to the number of available threads.
+     *
+     * https://stackoverflow.com/questions/30989637/how-to-decide-optimal-settings-for-setmaxtotal-and-setdefaultmaxperroute
+     */
     static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_connections",
-        500,
+        // TODO pick a reasonable values here
+        20,
         1,
-        // TODO pick a reasonable value here
         1000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -64,7 +68,8 @@ public class HttpClientManager implements Closeable {
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService);
     }
 
-    public HttpClientManager(
+    // Default for testing
+    HttpClientManager(
         Settings settings,
         PoolingNHttpClientConnectionManager connectionManager,
         ThreadPool threadPool,

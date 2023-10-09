@@ -69,6 +69,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+    public static final String HTTP_CLIENT_SENDER_THREAD_POOL_NAME = "inference_http_client_sender";
     private final Settings settings;
     private final SetOnce<HttpClientManager> httpClientManager = new SetOnce<>();
 
@@ -155,17 +156,30 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings unused) {
-        ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
-            UTILITY_THREAD_POOL_NAME,
-            0,
-            1,
-            TimeValue.timeValueMinutes(10),
-            false,
-            "xpack.inference.utility_thread_pool"
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
+        return List.of(
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                0,
+                1,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            ),
+            /*
+             * This thread pool is specifically for enqueuing requests to be sent. The underlying
+             * connection pool used by the http client will block if there are no available connections to lease.
+             * See here for more info: https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html
+             */
+            new ScalingExecutorBuilder(
+                HTTP_CLIENT_SENDER_THREAD_POOL_NAME,
+                0,
+                1,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.http_client_sender_thread_pool"
+            )
         );
-
-        return List.of(utility);
     }
 
     @Override

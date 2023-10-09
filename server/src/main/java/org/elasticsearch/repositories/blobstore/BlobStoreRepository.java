@@ -1228,10 +1228,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         Map<String, BlobContainer> originalIndexContainers,
         Map<String, BlobMetadata> originalRootBlobs,
-        RepositoryData updatedRepoData,
+        RepositoryData newRepositoryData,
         ActionListener<Void> listener
     ) {
-        cleanupStaleBlobs(snapshotIds, originalIndexContainers, originalRootBlobs, updatedRepoData, listener.map(ignored -> null));
+        cleanupStaleBlobs(snapshotIds, originalIndexContainers, originalRootBlobs, newRepositoryData, listener.map(ignored -> null));
     }
 
     private void cleanupUnlinkedShardLevelBlobs(

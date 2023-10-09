@@ -382,23 +382,6 @@ public class MetadataCreateDataStreamService {
             failureStoreIndexName,
             failureStoreIndexName
         ).dataStreamName(dataStreamName)
-            .mappings("""
-                {
-                  "dynamic": false,
-                  "properties": {
-                    "@timestamp": {
-                      "type": "date"
-                    },
-                    "error": {
-                      "properties": {
-                        "type": {
-                          "type": "keyword"
-                        }
-                      }
-                    }
-                  }
-                }
-                """)
             .systemDataStreamDescriptor(systemDataStreamDescriptor)
             .nameResolvedInstant(request.startTime)
             .performReroute(false)

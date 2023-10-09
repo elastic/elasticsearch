@@ -1026,9 +1026,34 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(breaker.getUsed(), is(0L));
     }
 
+    public void testRefCountingConstantNullBlock() {
+        Block block = blockFactory.newConstantNullBlock(10);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(block);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testRefCountingDocBlock() {
+        int positionCount = randomIntBetween(0, 100);
+
+        var block = new DocVector(intVector(positionCount), intVector(positionCount), intVector(positionCount), true).asBlock();
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(block);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testRefCountingFilterBlock() {
+        int positionCount = randomIntBetween(0, 100);
+        IntBlock block = blockFactory.newIntArrayBlock(new int[] { randomInt() }, 1, new int[] {}, new BitSet(), randomOrdering());
+        Block filteredBlock = block.filter(0);
+        assertThat(breaker.getUsed(), greaterThan(0L));
+        assertRefCountingBehavior(filteredBlock);
+        assertThat(breaker.getUsed(), is(0L));
+    }
+
     public void testRefCountingVectorBlock() {
         int positionCount = randomIntBetween(0, 100);
-        IntBlock block = blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount).asBlock();
+        IntBlock block = intVector(positionCount).asBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
         assertThat(breaker.getUsed(), is(0L));
@@ -1067,5 +1092,9 @@ public class BasicBlockTests extends ESTestCase {
 
         expectThrows(IllegalStateException.class, b::close);
         expectThrows(IllegalStateException.class, b::incRef);
+    }
+
+    private IntVector intVector(int positionCount) {
+        return blockFactory.newIntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount);
     }
 }

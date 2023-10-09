@@ -76,7 +76,7 @@ PUT my-index
 in the {infer} pipeline configuration in the next step.
 <2> The field to contain the tokens is a `sparse_vector` field.
 <3> The name of the field from which to create the sparse vector representation. 
-In this example, the name of the field is `content`. It must be refrenced in the 
+In this example, the name of the field is `content`. It must be referenced in the 
 {infer} pipeline configuration in the next step.
 <4> The field type which is text in this example.
 

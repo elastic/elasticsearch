@@ -2589,7 +2589,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         if (foundId == null) {
                             if (snapshotEntries.stream()
                                 .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotOrPattern))) {
-                                final SnapshotMissingException snapshotMissingException = new SnapshotMissingException(repositoryName, snapshotOrPattern);
+                                final SnapshotMissingException snapshotMissingException = new SnapshotMissingException(
+                                    repositoryName,
+                                    snapshotOrPattern
+                                );
                                 logger.debug(snapshotMissingException.getMessage());
                                 throw snapshotMissingException;
                             }

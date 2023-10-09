@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +32,18 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, ElserMlNodeTaskSettings.NAME, ElserMlNodeTaskSettings::new)
+        );
+
+        // Hugging Face ELSER config
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                HuggingFaceElserServiceSettings.NAME,
+                HuggingFaceElserServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(SecretSettings.class, HuggingFaceElserSecretSettings.NAME, HuggingFaceElserSecretSettings::new)
         );
 
         return namedWriteables;

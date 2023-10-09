@@ -9,11 +9,27 @@ package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettings;
 
 public class HuggingFaceElserModel extends Model {
-    public HuggingFaceElserModel(String modelId, TaskType taskType, String service, ElserMlNodeServiceSettings serviceSettings) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings));
+    public HuggingFaceElserModel(
+        String modelId,
+        TaskType taskType,
+        String service,
+        HuggingFaceElserServiceSettings serviceSettings,
+        HuggingFaceElserSecretSettings secretSettings
+    ) {
+        super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
+    }
+
+    @Override
+    public HuggingFaceElserServiceSettings getServiceSettings() {
+        return (HuggingFaceElserServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public HuggingFaceElserSecretSettings getSecretSettings() {
+        return (HuggingFaceElserSecretSettings) super.getSecretSettings();
     }
 }

@@ -9,7 +9,7 @@ setup:
         body: >
           {
             "persistent": {
-              "logger.org.elasticsearch.index.mapper": "TRACE",
+              "logger.org.elasticsearch.index.mapper": "TRACE"
             }
           }
 
@@ -24,7 +24,7 @@ teardown:
           body: >
             {
               "persistent": {
-                "logger.org.elasticsearch.index.mapper": null,
+                "logger.org.elasticsearch.index.mapper": null
               }
             }
 ---

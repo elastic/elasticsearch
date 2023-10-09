@@ -235,7 +235,10 @@ does not complete successfully, or indicates poor performance, then your
 storage system is not fully compatible with AWS S3 and therefore unsuitable for
 use as a snapshot repository. However, these checks do not guarantee full
 compatibility. Incompatible error codes and consistency or performance issues
-may be rare and hard to reproduce.
+may be rare and hard to reproduce. Their resolution often require to analyze
+the requests and responses exchanged between Elasticsearch and the S3-compatible
+service, which can be done by enabling low-level logging in the
+https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-logging.html[AWS Java SDK].
 
 [[repository-s3-repository]]
 ==== Repository settings

@@ -1010,7 +1010,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void writeUpdatedShardMetaDataAndComputeDeletes(
         Collection<SnapshotId> snapshotIds,
         RepositoryData oldRepositoryData,
-        boolean useUUIDs,
+        boolean useShardGenerations,
         ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
     ) {
 
@@ -1082,7 +1082,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             final Set<String> blobs = shardContainer.listBlobs(OperationPurpose.SNAPSHOT).keySet();
                             final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
                             final long newGen;
-                            if (useUUIDs) {
+                            if (useShardGenerations) {
                                 newGen = -1L;
                                 blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(
                                     blobs,

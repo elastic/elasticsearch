@@ -1224,6 +1224,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Cleaning up dangling blobs
 
+    /**
+     * Delete any dangling blobs in the repository root (i.e. {@link RepositoryData}, {@link SnapshotInfo} and {@link Metadata} blobs)
+     * as well as any containers for indices that are now completely unreferenced.
+     */
     private void cleanupUnlinkedRootAndIndicesBlobs(
         Collection<SnapshotId> snapshotIds,
         Map<String, BlobContainer> originalIndexContainers,

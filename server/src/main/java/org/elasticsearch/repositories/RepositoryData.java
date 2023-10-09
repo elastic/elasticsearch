@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -689,10 +690,20 @@ public final class RepositoryData {
             } else {
                 minVersion = SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
             }
+            // Note that all known versions expect the MIN_VERSION field to be a string, and versions before 8.11.0 try and parse it as a
+            // major.minor.patch version number, so if we introduce a numeric format version in future then this will cause them to fail
+            // with an opaque parse error rather than the more helpful:
+            //
+            // IllegalStateException: this snapshot repository format requires Elasticsearch version [x.y.z] or later
+            //
+            // Likewise if we simply encode the numeric IndexVersion as a string then versions from 8.11.0 onwards will report the exact
+            // string in this message, which is not especially helpful to users. Slightly more helpful than the opaque parse error reported
+            // by earlier versions, but still not great. TODO rethink this if and when adding a new snapshot repository format version.
             if (minVersion.before(IndexVersion.V_8_10_0)) {
                 // write as a string
                 builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
             } else {
+                assert false : "writing a numeric version [" + minVersion + "] is unhelpful here, see preceding comment";
                 // write an int
                 builder.field(MIN_VERSION, minVersion.id());
             }
@@ -861,10 +872,14 @@ public final class RepositoryData {
                         case "7.12.0" -> IndexVersion.V_7_12_0;
                         case "7.9.0" -> IndexVersion.V_7_9_0;
                         case "7.6.0" -> IndexVersion.V_7_6_0;
-                        default -> throw new IllegalStateException(
-                            "this snapshot repository format requires Elasticsearch version [" + versionString + "] or later"
-                        );
+                        default ->
+                            // All (known) versions only ever emit one of the above strings for the format version, so if we see something
+                            // else it must be a newer version or else something wholly invalid. Report the raw string rather than trying
+                            // to parse it.
+                            throw new IllegalStateException(Strings.format("""
+                                this snapshot repository format requires Elasticsearch version [%s] or later""", versionString));
                     };
+
                     assert SnapshotsService.useShardGenerations(version);
                 }
                 case UUID -> {

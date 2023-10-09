@@ -1,5 +1,5 @@
 pr: 98061
-summary: Fix the `PersistentTask.getState()` return value may cause NPE
+summary: Fix possible NPE when getting transform stats for failed transforms
 area: Transform
 type: bug
 issues:

@@ -115,7 +115,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 return (int) Math.max(
                     Math.min(
                         maxAllocations,
-                        Math.floorDiv(availableMemoryBytes - estimateMemoryUsageBytes(0), minimumMemoryRequiredBytes())
+                        Math.floorDiv(availableMemoryBytes - estimateMemoryUsageBytes(0), perAllocationMemoryBytes)
                     ),
                     0
                 );

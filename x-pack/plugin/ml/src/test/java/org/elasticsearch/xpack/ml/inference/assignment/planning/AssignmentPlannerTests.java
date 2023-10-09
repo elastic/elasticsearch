@@ -105,6 +105,21 @@ public class AssignmentPlannerTests extends ESTestCase {
         }
     }
 
+    public void testSingleModelThatFitsFullyOnSingleNode_NewMemoryFields() {
+        {
+            Node node = new Node("n_1", ByteSizeValue.ofMb(500).getBytes(), 4);
+            Deployment deployment = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 1, 1, Map.of(), 0, ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(100).getBytes());
+            AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+            assertModelFullyAssignedToNode(plan, deployment, node);
+        }
+        {
+            Node node = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 8);
+            Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 8, 1, Map.of(), 0, ByteSizeValue.ofMb(100).getBytes(), ByteSizeValue.ofMb(100).getBytes());
+            AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+            assertModelFullyAssignedToNode(plan, deployment, node);
+        }
+    }
+
     public void testSingleModelThatFitsFullyOnSingleNode_GivenTwoNodes_ShouldBeFullyAssignedOnOneNode() {
         Node node1 = new Node("n_1", scaleNodeSize(100), 4);
         Node node2 = new Node("n_2", scaleNodeSize(100), 4);
@@ -113,7 +128,22 @@ public class AssignmentPlannerTests extends ESTestCase {
         AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
 
         Map<Node, Integer> assignments = plan.assignments(deployment).get();
-        if (assignments.get(node1) > 0) {
+        if (assignments.get(node1) != null) {
+            assertThat(assignments.get(node1), equalTo(4));
+        } else {
+            assertThat(assignments.get(node2), equalTo(4));
+        }
+    }
+
+    public void testSingleModelThatFitsFullyOnSingleNode_GivenTwoNodes_ShouldBeFullyAssignedOnOneNode_NewMemoryFields() {
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
+        AssignmentPlan.Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 4, 1, Map.of(), 0, ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(150).getBytes());
+
+        AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
+
+        Map<Node, Integer> assignments = plan.assignments(deployment).get();
+        if (assignments.get(node1) != null) {
             assertThat(assignments.get(node1), equalTo(4));
         } else {
             assertThat(assignments.get(node2), equalTo(4));
@@ -154,15 +184,49 @@ public class AssignmentPlannerTests extends ESTestCase {
         }
     }
 
+    public void testModelWithMoreAllocationsThanAvailableCores_GivenSingleThreadPerAllocation_NewMemoryFields() {
+        AssignmentPlan.Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 10, 1, Map.of(), 0, ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(100).getBytes());
+        // Single node
+        {
+            Node node = new Node("n_1", ByteSizeValue.ofMb(800).getBytes(), 4);
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node), equalTo(4));
+        }
+        // Two nodes
+        {
+            Node node1 = new Node("n_1",ByteSizeValue.ofMb(800).getBytes(), 4);
+            Node node2 = new Node("n_2", ByteSizeValue.ofMb(600).getBytes(), 2);
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1), equalTo(4));
+            assertThat(assignments.get(node2), equalTo(2));
+        }
+        // Three nodes
+        {
+            Node node1 = new Node("n_1", ByteSizeValue.ofMb(800).getBytes(), 4);
+            Node node2 = new Node("n_2", ByteSizeValue.ofMb(600).getBytes(), 2);
+            Node node3 = new Node("n_3", ByteSizeValue.ofMb(700).getBytes(), 3);
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
+            assertThat(assignments.get(node1), equalTo(4));
+            assertThat(assignments.get(node2), equalTo(2));
+            assertThat(assignments.get(node3), equalTo(3));
+        }
+    }
+
     public void testMultipleModelsAndNodesWithSingleSolution() {
         Node node1 = new Node("n_1", scaleNodeSize(100), 7);
         Node node2 = new Node("n_2", scaleNodeSize(100), 7);
         Node node3 = new Node("n_3", scaleNodeSize(100), 2);
         Node node4 = new Node("n_4", scaleNodeSize(100), 2);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 4, Map.of(), 0, 0, 0);
-        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 2, 3, Map.of(), 0, 0, 0);
-        Deployment deployment3 = new AssignmentPlan.Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, 0, 0);
-        AssignmentPlan.Deployment deployment4 = new AssignmentPlan.Deployment(
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 2, 3, Map.of(), 0, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, 0, 0);
+        Deployment deployment4 = new Deployment(
             "m_4",
             ByteSizeValue.ofMb(50).getBytes(),
             2,
@@ -172,6 +236,61 @@ public class AssignmentPlannerTests extends ESTestCase {
             0,
             0
         );
+
+        AssignmentPlan plan = new AssignmentPlanner(
+            List.of(node1, node2, node3, node4),
+            List.of(deployment1, deployment2, deployment3, deployment4)
+        ).computePlan();
+
+        {
+            assertThat(plan.assignments(deployment1).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(deployment1).get();
+            assertThat(assignments.get(node1), equalTo(1));
+            assertThat(assignments.get(node2), equalTo(1));
+            assertThat(assignments.get(node3), is(nullValue()));
+            assertThat(assignments.get(node4), is(nullValue()));
+        }
+        {
+            assertThat(plan.assignments(deployment2).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(deployment2).get();
+            assertThat(assignments.get(node1), equalTo(1));
+            assertThat(assignments.get(node2), equalTo(1));
+            assertThat(assignments.get(node3), is(nullValue()));
+            assertThat(assignments.get(node4), is(nullValue()));
+        }
+        {
+            assertThat(plan.assignments(deployment3).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(deployment3).get();
+            assertThat(assignments.get(node1), is(nullValue()));
+            assertThat(assignments.get(node2), is(nullValue()));
+            // Will either be on node 3 or 4
+            Node assignedNode = assignments.get(node3) != null ? node3 : node4;
+            Node otherNode = assignedNode.equals(node3) ? node4 : node3;
+            assertThat(assignments.get(assignedNode), equalTo(1));
+            assertThat(assignments.get(otherNode), is(nullValue()));
+        }
+        {
+            assertThat(plan.assignments(deployment4).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(deployment4).get();
+            assertThat(assignments.get(node1), is(nullValue()));
+            assertThat(assignments.get(node2), is(nullValue()));
+            // Will either be on node 3 or 4
+            Node assignedNode = assignments.get(node3) != null ? node3 : node4;
+            Node otherNode = assignedNode.equals(node3) ? node4 : node3;
+            assertThat(assignments.get(assignedNode), equalTo(2));
+            assertThat(assignments.get(otherNode), is(nullValue()));
+        }
+    }
+
+    public void testMultipleModelsAndNodesWithSingleSolution_NewMemoryFields() {
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(800).getBytes(), 7);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(800).getBytes(), 7);
+        Node node3 = new Node("n_3", ByteSizeValue.ofMb(900).getBytes(), 2);
+        Node node4 = new Node("n_4", ByteSizeValue.ofMb(900).getBytes(), 2);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 4, Map.of(), 0, ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(50).getBytes());
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 2, 3, Map.of(), 0, ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(50).getBytes());
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(50).getBytes());
+        Deployment deployment4 = new Deployment("m_4", ByteSizeValue.ofMb(50).getBytes(), 2, 1, Map.of(), 0, ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(50).getBytes());
 
         AssignmentPlan plan = new AssignmentPlanner(
             List.of(node1, node2, node3, node4),

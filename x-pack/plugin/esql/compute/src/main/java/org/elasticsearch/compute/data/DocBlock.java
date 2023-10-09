@@ -62,7 +62,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         if (obj instanceof DocBlock == false) {
             return false;
         }
-        return vector.equals(((DocBlock) obj).vector);
+        return this == obj || vector.equals(((DocBlock) obj).vector);
     }
 
     @Override

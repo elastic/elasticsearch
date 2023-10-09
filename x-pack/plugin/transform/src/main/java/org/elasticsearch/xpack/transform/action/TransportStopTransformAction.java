@@ -242,6 +242,20 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }
 
         if (ids.contains(transformTask.getTransformId())) {
+            if (request.isForce()) {
+                // If force==true, we skip the additional step (setShouldStopAtCheckpoint) and move directly to shutting down the task.
+                // This way we ensure that the persistent task is removed ASAP (as opposed to being removed in one of the listeners).
+                try {
+                    // Here the task is deregistered in scheduler and marked as completed in persistent task service.
+                    transformTask.shutdown();
+                    // Here the indexer is aborted so that its thread finishes work ASAP.
+                    transformTask.onCancelled();
+                    listener.onResponse(new Response(true));
+                } catch (ElasticsearchException ex) {
+                    listener.onFailure(ex);
+                }
+                return;
+            }
             // move the call to the generic thread pool, so we do not block the network thread
             threadPool.generic().execute(() -> {
                 transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {

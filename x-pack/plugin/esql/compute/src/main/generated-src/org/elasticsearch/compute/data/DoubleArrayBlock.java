@@ -110,10 +110,9 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
+        super.close();
+        if (hasReferences() == false) {
+            blockFactory.adjustBreaker(-ramBytesUsed(), true);
         }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

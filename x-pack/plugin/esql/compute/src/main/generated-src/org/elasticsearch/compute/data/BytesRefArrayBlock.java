@@ -112,11 +112,10 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     @Override
     public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
+        super.close();
+        if (hasReferences() == false) {
+            blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+            Releasables.closeExpectNoException(values);
         }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
-        Releasables.closeExpectNoException(values);
     }
 }

@@ -132,9 +132,9 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
 
     @Override
     public void close() {
-        if (block.isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
+        super.close();
+        if (hasReferences() == false) {
+            Releasables.closeExpectNoException(block);
         }
-        Releasables.closeExpectNoException(block);
     }
 }

@@ -12,7 +12,7 @@ import org.elasticsearch.core.Nullable;
 import java.util.BitSet;
 
 abstract class AbstractBlock implements Block {
-
+    private int references = 1;
     private final int positionCount;
 
     @Nullable
@@ -22,8 +22,6 @@ abstract class AbstractBlock implements Block {
     protected final BitSet nullsMask;
 
     protected final BlockFactory blockFactory;
-
-    protected boolean released = false;
 
     /**
      * @param positionCount the number of values in this block
@@ -99,6 +97,40 @@ abstract class AbstractBlock implements Block {
 
     @Override
     public boolean isReleased() {
-        return released;
+        return hasReferences() == false;
+    }
+
+    @Override
+    public void incRef() {
+        references++;
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        if (references <= 0) {
+            return false;
+        }
+        incRef();
+        return true;
+    }
+
+    @Override
+    public boolean decRef() {
+        references--;
+
+        return references <= 0;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return references >= 1;
+    }
+
+    @Override
+    public void close() {
+        if (hasReferences() == false) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        decRef();
     }
 }

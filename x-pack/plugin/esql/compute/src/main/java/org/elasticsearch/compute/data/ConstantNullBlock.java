@@ -128,11 +128,10 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public void close() {
-        if (isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
+        super.close();
+        if (hasReferences() == false) {
+            blockFactory.adjustBreaker(-ramBytesUsed(), true);
         }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 
     static class Builder implements Block.Builder {

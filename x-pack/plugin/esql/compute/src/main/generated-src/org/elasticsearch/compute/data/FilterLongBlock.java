@@ -132,9 +132,9 @@ final class FilterLongBlock extends AbstractFilterBlock implements LongBlock {
 
     @Override
     public void close() {
-        if (block.isReleased()) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
+        super.close();
+        if (hasReferences() == false) {
+            Releasables.closeExpectNoException(block);
         }
-        Releasables.closeExpectNoException(block);
     }
 }

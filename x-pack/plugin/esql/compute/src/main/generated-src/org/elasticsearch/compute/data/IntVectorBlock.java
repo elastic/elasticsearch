@@ -72,10 +72,9 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
+        super.close();
+        if (hasReferences() == false) {
+            Releasables.closeExpectNoException(vector);
         }
-        released = true;
-        Releasables.closeExpectNoException(vector);
     }
 }

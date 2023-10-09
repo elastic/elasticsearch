@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 abstract class AbstractFilterBlock implements Block {
-
+    private int references = 1;
     protected final int[] positions;
 
     private final Block block;
@@ -124,5 +124,39 @@ abstract class AbstractFilterBlock implements Block {
         assert (position >= 0 || position < getPositionCount())
             : "illegal position, " + position + ", position count:" + getPositionCount();
         return true;
+    }
+
+    @Override
+    public void incRef() {
+        references++;
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        if (references <= 0) {
+            return false;
+        }
+        incRef();
+        return true;
+    }
+
+    @Override
+    public boolean decRef() {
+        references--;
+
+        return references <= 0;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return references >= 1;
+    }
+
+    @Override
+    public void close() {
+        if (hasReferences() == false) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        decRef();
     }
 }

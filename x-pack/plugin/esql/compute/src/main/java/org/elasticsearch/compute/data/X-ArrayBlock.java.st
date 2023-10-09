@@ -133,15 +133,14 @@ $endif$
 
     @Override
     public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
+        super.close();
+        if (hasReferences() == false) {
     $if(BytesRef)$
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
-        Releasables.closeExpectNoException(values);
+            blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+            Releasables.closeExpectNoException(values);
     $else$
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+            blockFactory.adjustBreaker(-ramBytesUsed(), true);
     $endif$
+        }
     }
 }

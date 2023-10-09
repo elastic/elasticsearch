@@ -8,12 +8,18 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class NodeIndicesStatsTests extends ESTestCase {
@@ -27,6 +33,14 @@ public class NodeIndicesStatsTests extends ESTestCase {
             e,
             hasToString(containsString("level parameter must be one of [node] or [indices] or [shards] but was [" + level + "]"))
         );
+    }
+
+    public void testIncludeShardsStatsFlag() {
+        final Map<Index, List<IndexShardStats>> statsByShards = new HashMap<>();
+        NodeIndicesStats stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, true);
+        assertThat(stats.getStatsByShard(), sameInstance(statsByShards));
+        stats = new NodeIndicesStats(null, Collections.emptyMap(), statsByShards, false);
+        assertThat(stats.getStatsByShard(), sameInstance(Map.of()));
     }
 
 }

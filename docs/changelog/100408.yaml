@@ -1,0 +1,5 @@
+pr: 100408
+summary: "ESQL: Make blocks ref counted"
+area: ES|QL
+type: enhancement
+issues: []

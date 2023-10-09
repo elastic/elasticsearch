@@ -268,7 +268,8 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         return version1.id > version2.id ? version1 : version2;
     }
 
-    public static MlConfigVersion fromVersion(Version version) {
+    // Visible only for testing
+    static MlConfigVersion fromVersion(Version version) {
         if (version.equals(Version.V_8_10_0)) {
             return V_10;
         }

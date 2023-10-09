@@ -1039,6 +1039,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99916")
     public void testGetWithSearcherWrapper() throws Exception {
         engine.refresh("warm_up");
         engine.index(indexForDoc(createParsedDoc("1", null)));
@@ -2429,11 +2430,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startGun);
                 for (int op = 0; op < opsPerThread; op++) {
                     Engine.Get engineGet = new Engine.Get(true, false, doc.id());
                     try (Engine.GetResult get = engine.get(engineGet, mappingLookup, documentParser, randomSearcherWrapper())) {
@@ -4375,11 +4372,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startGun);
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < docs.size()) {
                     try {
@@ -4492,11 +4485,7 @@ public class InternalEngineTests extends EngineTestCase {
                 @Override
                 public void run() {
                     startGun.countDown();
-                    try {
-                        startGun.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(startGun);
                     assertThat(engine.getVersionMap().values(), empty());
                     int docOffset;
                     while ((docOffset = offset.incrementAndGet()) < docs.size()) {
@@ -4556,11 +4545,7 @@ public class InternalEngineTests extends EngineTestCase {
                     if (i == 1) {
                         throw new MockDirectoryWrapper.FakeIOException();
                     } else if (i == 2) {
-                        try {
-                            start.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(start);
                         throw new ElasticsearchException("something completely different");
                     }
                 }
@@ -4578,11 +4563,7 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.Index index = randomBoolean() ? indexForDoc(doc) : randomAppendOnly(doc, false, docId);
             internalEngine.index(index);
             Runnable r = () -> {
-                try {
-                    join.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(join);
                 try {
                     internalEngine.refresh("test");
                     fail();
@@ -7226,11 +7207,7 @@ public class InternalEngineTests extends EngineTestCase {
             @Override
             public void beforeRefresh() {
                 refreshStarted.countDown();
-                try {
-                    engineClosed.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(engineClosed);
             }
 
             @Override

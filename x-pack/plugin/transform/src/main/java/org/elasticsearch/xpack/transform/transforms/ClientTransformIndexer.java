@@ -395,7 +395,6 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void onStop() {
-        logger.debug(() -> format("[%s] transform initiating stop", transformConfig.getId()));
         closePointInTime();
         super.onStop();
     }

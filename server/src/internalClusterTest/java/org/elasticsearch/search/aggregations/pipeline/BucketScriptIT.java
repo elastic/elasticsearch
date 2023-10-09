@@ -17,7 +17,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
@@ -856,10 +855,10 @@ public class BucketScriptIT extends ESIntegTestCase {
             } else if (cause instanceof SearchPhaseExecutionException) {
                 SearchPhaseExecutionException spee = (SearchPhaseExecutionException) e;
                 Throwable rootCause = spee.getRootCause();
-                if ((rootCause instanceof AggregationExecutionException) == false) {
+                if ((rootCause instanceof IllegalArgumentException) == false) {
                     throw e;
                 }
-            } else if ((cause instanceof AggregationExecutionException) == false) {
+            } else if ((cause instanceof IllegalArgumentException) == false) {
                 throw e;
             }
         }

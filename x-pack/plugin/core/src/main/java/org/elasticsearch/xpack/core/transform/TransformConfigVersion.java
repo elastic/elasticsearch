@@ -302,7 +302,8 @@ public record TransformConfigVersion(int id) implements VersionId<TransformConfi
         return version1.id > version2.id ? version1 : version2;
     }
 
-    public static TransformConfigVersion fromVersion(Version version) {
+    // Visible only for testing
+    static TransformConfigVersion fromVersion(Version version) {
         if (version.equals(Version.V_8_10_0)) {
             return V_10;
         }

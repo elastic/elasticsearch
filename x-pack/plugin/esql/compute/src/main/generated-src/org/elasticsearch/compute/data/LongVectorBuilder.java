@@ -49,17 +49,17 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
 
     @Override
     public LongVector build() {
+        finish();
         LongVector vector;
         if (valueCount == 1) {
-            vector = new ConstantLongVector(values[0], 1, blockFactory);
+            vector = blockFactory.newConstantLongBlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
-            vector = new LongArrayVector(values, valueCount, blockFactory);
+            vector = blockFactory.newLongArrayVector(values, valueCount, estimatedBytes);
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        built();
         return vector;
     }
 }

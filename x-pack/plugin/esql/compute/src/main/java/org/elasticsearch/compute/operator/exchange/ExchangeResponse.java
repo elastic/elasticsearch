@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
@@ -23,20 +23,14 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
     private final RefCounted counted = AbstractRefCounted.of(this::close);
     private final Page page;
     private final boolean finished;
-    /**
-     * We always use the remote exchange framwork even for local exchanges, but
-     * local exchanges shouldn't close the Page. Remote exchanges totally should
-     * as soon as they've serialized the block. This is a clever hack Nhat mentioned
-     * that can do that. But I don't like it. But it works and might unstick us.
-     */
-    private boolean serialized = false;
+    private boolean pageTaken;
 
     public ExchangeResponse(Page page, boolean finished) {
         this.page = page;
         this.finished = finished;
     }
 
-    public ExchangeResponse(StreamInput in) throws IOException {
+    public ExchangeResponse(BlockStreamInput in) throws IOException {
         super(in);
         this.page = in.readOptionalWriteable(Page::new);
         this.finished = in.readBoolean();
@@ -44,16 +38,20 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        serialized = true;
         out.writeOptionalWriteable(page);
         out.writeBoolean(finished);
     }
 
     /**
-     * Returns a page responded by {@link RemoteSink}. This can be null and out of order.
+     * Take the ownership of the page responded by {@link RemoteSink}. This can be null and out of order.
      */
     @Nullable
-    public Page page() {
+    public Page takePage() {
+        if (pageTaken) {
+            assert false : "Page was taken already";
+            throw new IllegalStateException("Page was taken already");
+        }
+        pageTaken = true;
         return page;
     }
 
@@ -100,7 +98,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     @Override
     public void close() {
-        if (serialized && page != null) {
+        if (pageTaken == false && page != null) {
             page.releaseBlocks();
         }
     }

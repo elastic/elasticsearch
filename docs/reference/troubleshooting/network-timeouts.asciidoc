@@ -47,5 +47,7 @@ since it doesn't require any JVM threads.
 The threads involved in discovery and cluster membership are mainly
 `transport_worker` and `cluster_coordination` threads, for which there should
 never be a long wait. There may also be evidence of long waits for threads in
-the {es} logs. See <<modules-network-threading-model>> for more information.
+the {es} logs, particularly looking at warning logs from
+`org.elasticsearch.transport.InboundHandler`. See
+<<modules-network-threading-model>> for more information.
 end::troubleshooting-network-timeouts-threads[]

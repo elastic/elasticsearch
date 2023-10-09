@@ -58,7 +58,8 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ).documentMapper();
     }
 
-    private ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
+    private static ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
+        throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
         return docMapper.parse(source(null, b -> {
             f.accept(b);
@@ -66,7 +67,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }, null));
     }
 
-    private BytesRef parseAndGetTsid(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
+    private static BytesRef parseAndGetTsid(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
         return parseDocument(docMapper, f).rootDoc().getBinaryValue(TimeSeriesIdFieldMapper.NAME);
     }
 

@@ -13,12 +13,15 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 
 class ResultBuilderForDoc implements ResultBuilder {
+    private final BlockFactory blockFactory;
     private final int[] shards;
     private final int[] segments;
     private final int[] docs;
     private int position;
 
-    ResultBuilderForDoc(int positions) {
+    ResultBuilderForDoc(BlockFactory blockFactory, int positions) {
+        // TODO use fixed length builders
+        this.blockFactory = blockFactory;
         this.shards = new int[positions];
         this.segments = new int[positions];
         this.docs = new int[positions];
@@ -40,9 +43,9 @@ class ResultBuilderForDoc implements ResultBuilder {
     @Override
     public Block build() {
         return new DocVector(
-            BlockFactory.getNonBreakingInstance().newIntArrayVector(shards, position),
-            BlockFactory.getNonBreakingInstance().newIntArrayVector(segments, position),
-            BlockFactory.getNonBreakingInstance().newIntArrayVector(docs, position),
+            blockFactory.newIntArrayVector(shards, position),
+            blockFactory.newIntArrayVector(segments, position),
+            blockFactory.newIntArrayVector(docs, position),
             null
         ).asBlock();
     }
@@ -50,5 +53,10 @@ class ResultBuilderForDoc implements ResultBuilder {
     @Override
     public String toString() {
         return "ValueExtractorForDoc";
+    }
+
+    @Override
+    public void close() {
+        // TODO memory accounting
     }
 }

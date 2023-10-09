@@ -17,6 +17,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
@@ -45,40 +48,25 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
     public List<NamedWriteableRegistry.Entry> getInferenceServiceNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, TestServiceSettings.NAME, TestServiceSettings::new),
-            new NamedWriteableRegistry.Entry(TaskSettings.class, TestTaskSettings.NAME, TestTaskSettings::new)
+            new NamedWriteableRegistry.Entry(TaskSettings.class, TestTaskSettings.NAME, TestTaskSettings::new),
+            new NamedWriteableRegistry.Entry(SecretSettings.class, TestSecretSettings.NAME, TestSecretSettings::new)
         );
     }
 
-    public class TestInferenceService implements InferenceService {
+    public static class TestInferenceService implements InferenceService {
 
         private static final String NAME = "test_service";
 
-        public static TestServiceModel parseConfig(
-            boolean throwOnUnknownFields,
-            String modelId,
-            TaskType taskType,
-            Map<String, Object> settings
-        ) {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, Model.SERVICE_SETTINGS);
-            var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
-
+        private static Map<String, Object> getTaskSettingsMap(Map<String, Object> settings) {
             Map<String, Object> taskSettingsMap;
             // task settings are optional
-            if (settings.containsKey(Model.TASK_SETTINGS)) {
-                taskSettingsMap = removeFromMapOrThrowIfNull(settings, Model.TASK_SETTINGS);
+            if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+                taskSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.TASK_SETTINGS);
             } else {
                 taskSettingsMap = Map.of();
             }
 
-            var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
-
-            if (throwOnUnknownFields) {
-                throwIfNotEmptyMap(settings, NAME);
-                throwIfNotEmptyMap(serviceSettingsMap, NAME);
-                throwIfNotEmptyMap(taskSettingsMap, NAME);
-            }
-
-            return new TestServiceModel(modelId, taskType, NAME, serviceSettings, taskSettings);
+            return taskSettingsMap;
         }
 
         public TestInferenceService(InferenceServicePlugin.InferenceServiceFactoryContext context) {
@@ -91,22 +79,47 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         }
 
         @Override
-        public TestServiceModel parseConfigStrict(String modelId, TaskType taskType, Map<String, Object> config) {
-            return parseConfig(true, modelId, taskType, config);
+        public TestServiceModel parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
+            var secretSettings = TestSecretSettings.fromMap(serviceSettingsMap);
+
+            var taskSettingsMap = getTaskSettingsMap(config);
+            var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+
+            throwIfNotEmptyMap(config, NAME);
+            throwIfNotEmptyMap(serviceSettingsMap, NAME);
+            throwIfNotEmptyMap(taskSettingsMap, NAME);
+
+            return new TestServiceModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
         }
 
         @Override
-        public TestServiceModel parseConfigLenient(String modelId, TaskType taskType, Map<String, Object> config) {
-            return parseConfig(false, modelId, taskType, config);
+        public TestServiceModel parsePersistedConfig(
+            String modelId,
+            TaskType taskType,
+            Map<String, Object> config,
+            Map<String, Object> secrets
+        ) {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
+
+            var serviceSettings = TestServiceSettings.fromMap(serviceSettingsMap);
+            var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
+
+            var taskSettingsMap = getTaskSettingsMap(config);
+            var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
+
+            return new TestServiceModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
         }
 
         @Override
         public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
-            switch (model.getTaskType()) {
+            switch (model.getConfigurations().getTaskType()) {
                 case SPARSE_EMBEDDING -> listener.onResponse(TextExpansionResultsTests.createRandomResults(1, 10));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
-                        TaskType.unsupportedTaskTypeErrorMsg(model.getTaskType(), NAME),
+                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),
                         RestStatus.BAD_REQUEST
                     )
                 );
@@ -127,9 +140,10 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             TaskType taskType,
             String service,
             TestServiceSettings serviceSettings,
-            TestTaskSettings taskSettings
+            TestTaskSettings taskSettings,
+            TestSecretSettings secretSettings
         ) {
-            super(modelId, taskType, service, serviceSettings, taskSettings);
+            super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
         }
 
         @Override
@@ -141,9 +155,14 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         public TestTaskSettings getTaskSettings() {
             return (TestTaskSettings) super.getTaskSettings();
         }
+
+        @Override
+        public TestSecretSettings getSecretSettings() {
+            return (TestSecretSettings) super.getSecretSettings();
+        }
     }
 
-    public record TestServiceSettings(String model, String apiKey) implements ServiceSettings {
+    public record TestServiceSettings(String model) implements ServiceSettings {
 
         private static final String NAME = "test_service_settings";
 
@@ -151,31 +170,28 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             ValidationException validationException = new ValidationException();
 
             String model = MapParsingUtils.removeAsType(map, "model", String.class);
-            String apiKey = MapParsingUtils.removeAsType(map, "api_key", String.class);
 
             if (model == null) {
-                validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg("model", Model.SERVICE_SETTINGS));
-            }
-            if (apiKey == null) {
-                validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg("api_key", Model.SERVICE_SETTINGS));
+                validationException.addValidationError(
+                    MapParsingUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS)
+                );
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
                 throw validationException;
             }
 
-            return new TestServiceSettings(model, apiKey);
+            return new TestServiceSettings(model);
         }
 
         public TestServiceSettings(StreamInput in) throws IOException {
-            this(in.readString(), in.readString());
+            this(in.readString());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("model", model);
-            builder.field("api_key", apiKey);
             builder.endObject();
             return builder;
         }
@@ -193,7 +209,6 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(model);
-            out.writeString(apiKey);
         }
     }
 
@@ -221,6 +236,54 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             if (temperature != null) {
                 builder.field("temperature", temperature);
             }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+    }
+
+    public record TestSecretSettings(String apiKey) implements SecretSettings {
+
+        private static final String NAME = "test_secret_settings";
+
+        public static TestSecretSettings fromMap(Map<String, Object> map) {
+            ValidationException validationException = new ValidationException();
+
+            String apiKey = MapParsingUtils.removeAsType(map, "api_key", String.class);
+
+            if (apiKey == null) {
+                validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
+            }
+
+            if (validationException.validationErrors().isEmpty() == false) {
+                throw validationException;
+            }
+
+            return new TestSecretSettings(apiKey);
+        }
+
+        public TestSecretSettings(StreamInput in) throws IOException {
+            this(in.readString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(apiKey);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("api_key", apiKey);
             builder.endObject();
             return builder;
         }

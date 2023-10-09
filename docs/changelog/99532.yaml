@@ -1,0 +1,5 @@
+pr: 99532
+summary: Adds `nested` support for indexed `dense_vector` fields
+area: Vector Search
+type: enhancement
+issues: []

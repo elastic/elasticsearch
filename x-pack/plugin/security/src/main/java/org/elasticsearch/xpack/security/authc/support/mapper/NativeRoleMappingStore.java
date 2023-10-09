@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -62,6 +62,8 @@ import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -223,9 +225,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request(),
-                new ActionListener<IndexResponse>() {
+                new ActionListener<DocWriteResponse>() {
                     @Override
-                    public void onResponse(IndexResponse indexResponse) {
+                    public void onResponse(DocWriteResponse indexResponse) {
                         boolean created = indexResponse.getResult() == CREATED;
                         listener.onResponse(created);
                     }
@@ -242,11 +244,11 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
-        } else if (securityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (securityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(
@@ -290,19 +292,18 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     private void getMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-        if (securityIndex.isAvailable()) {
-            loadMappings(listener);
-        } else {
-            logger.info("The security index is not yet available - no role mappings can be loaded");
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "Security Index [{}] [exists: {}] [available: {}]",
-                    SECURITY_MAIN_ALIAS,
-                    securityIndex.indexExists(),
-                    securityIndex.isAvailable()
-                );
-            }
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("The security does not index exist - no role mappings can be loaded");
             listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.indexIsClosed()) {
+            logger.debug("The security index exists but is closed - no role mappings can be loaded");
+            listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            logger.debug("The security index exists but is not available - no role mappings can be loaded");
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            loadMappings(listener);
         }
     }
 
@@ -316,7 +317,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
      * </ul>
      */
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        if (securityIndex.isAvailable() == false) {
+        if (securityIndex.isAvailable(SEARCH_SHARDS) == false) {
             reportStats(listener, Collections.emptyList());
         } else {
             getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));

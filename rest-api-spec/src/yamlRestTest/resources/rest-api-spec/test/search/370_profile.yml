@@ -220,8 +220,6 @@ dfs knn vector profiling:
   - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.score: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.compute_max_score_count: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.compute_max_score: 0 }
-  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.advance_count: 0 }
-  - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.advance: 0 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.build_scorer_count: 0 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.build_scorer: 0 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.breakdown.create_weight: 0 }

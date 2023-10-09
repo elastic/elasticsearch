@@ -7,12 +7,18 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,10 +33,13 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -55,17 +64,24 @@ import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.test.MockAppender;
+import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -77,7 +93,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
@@ -87,9 +109,12 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
     private NodeLoadDetector nodeLoadDetector;
     private SystemAuditor systemAuditor;
     private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private Client client;
+    private static MockAppender appender;
+    private static Logger testLogger1 = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
     @Before
-    public void setupObjects() {
+    public void setupObjects() throws IllegalAccessException {
         clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
@@ -111,6 +136,122 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         nodeLoadDetector = new NodeLoadDetector(memoryTracker);
 
         systemAuditor = mock(SystemAuditor.class);
+        client = mock(Client.class);
+
+        appender = new MockAppender("trace_appender");
+        appender.start();
+        Loggers.addAppender(testLogger1, appender);
+    }
+
+    @After
+    public void cleanup() {
+        appender.stop();
+        Loggers.removeAppender(testLogger1, appender);
+    }
+
+    public void testLogMlNodeHeterogeneity_GivenZeroOrOneArchitectures_ThenNothing() throws InterruptedException {
+        Set<String> architecturesSet = new HashSet<>(randomList(0, 1, () -> randomAlphaOfLength(10)));
+
+        final ActionListener<Set<String>> underTestListener = TrainedModelAssignmentClusterService.getArchitecturesSetActionListener();
+
+        underTestListener.onResponse(architecturesSet);
+
+        LogEvent lastEvent = appender.getLastEventAndReset();
+        assertNull(lastEvent);
+    }
+
+    public void testLogMlNodeHeterogeneity_GivenTwoArchitecture_ThenWarn() throws InterruptedException {
+        String nodeArch = randomAlphaOfLength(10);
+        Set<String> architecturesSet = Set.of(nodeArch, nodeArch + "2"); // architectures must be different
+
+        final ActionListener<Set<String>> underTestListener = TrainedModelAssignmentClusterService.getArchitecturesSetActionListener();
+        underTestListener.onResponse(architecturesSet);
+
+        LogEvent lastEvent = appender.getLastEventAndReset();
+
+        assertEquals(Level.WARN, lastEvent.getLevel());
+
+        Message m = lastEvent.getMessage();
+        String fm = m.getFormattedMessage();
+        String expected = Strings.format(
+            "Heterogeneous platform architectures were detected among ML nodes. "
+                + "This will prevent the deployment of some trained models. Distinct platform architectures detected: %s",
+            architecturesSet
+        );
+
+        assertEquals(expected, fm);
+    }
+
+    public void testLogMlNodeHeterogeneity_GivenFailure_ThenError() throws InterruptedException {
+        RuntimeException e = new RuntimeException("Test Runtime Exception");
+        final ActionListener<Set<String>> underTestListener = TrainedModelAssignmentClusterService.getArchitecturesSetActionListener();
+        underTestListener.onFailure(e);
+
+        LogEvent lastEvent = appender.getLastEventAndReset();
+
+        assertEquals(Level.ERROR, lastEvent.getLevel());
+
+        Message m = lastEvent.getMessage();
+        String fm = m.getFormattedMessage();
+
+        assertEquals("Failed to detect heterogeneity among ML nodes with exception: ", fm);
+        assertEquals(e, lastEvent.getThrown());
+    }
+
+    public void testClusterChanged_GivenNodesAdded_ThenLogMlNodeHeterogeneityCalled() {
+        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
+        doNothing().when(serviceSpy).logMlNodeHeterogeneity();
+        doReturn(false).when(serviceSpy).eventStateHasGlobalBlockStateNotRecoveredBlock(any());
+        doReturn(false).when(serviceSpy).eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(any());
+
+        ClusterChangedEvent mockNodesAddedEvent = mock(ClusterChangedEvent.class);
+        ClusterState mockState = mock(ClusterState.class);
+        doReturn(mockState).when(mockNodesAddedEvent).state();
+        Metadata mockMetadata = mock(Metadata.class);
+        doReturn(mockMetadata).when(mockState).getMetadata();
+        doReturn(null).when(mockState).custom(anyString());
+
+        doReturn(true).when(mockNodesAddedEvent).localNodeMaster();
+        doReturn(true).when(mockNodesAddedEvent).nodesAdded();
+
+        serviceSpy.clusterChanged(mockNodesAddedEvent);
+        Mockito.verify(serviceSpy).logMlNodeHeterogeneity();
+        Mockito.verify(mockNodesAddedEvent).nodesAdded();
+    }
+
+    public void testStopPlatformSpecificModelsInHeterogeneousClusters_GivenMultipleMlNodeArchitectures_ThenCallSetToStopping() {
+        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        TrainedModelAssignmentClusterService serviceSpy = spy(createClusterService(randomInt(5)));
+
+        Set<String> architecturesSet = new HashSet<>(randomList(2, 5, () -> randomAlphaOfLength(10)));
+        ClusterState mockUpdatedState = mock(ClusterState.class);
+        ClusterState mockClusterState = mock(ClusterState.class);
+        StartTrainedModelDeploymentAction.TaskParams mockModelToAdd = mock(StartTrainedModelDeploymentAction.TaskParams.class);
+        Optional<StartTrainedModelDeploymentAction.TaskParams> optionalModelToAdd = Optional.of(mockModelToAdd);
+        String modelId = randomAlphaOfLength(10);
+        String deploymentId = randomAlphaOfLength(10);
+        when(mockModelToAdd.getModelId()).thenReturn(modelId);
+        when(mockModelToAdd.getDeploymentId()).thenReturn(deploymentId);
+
+        String reasonToStop = format(
+            "ML nodes in this cluster have multiple platform architectures, "
+                + "but can only have one for this model ([%s]); "
+                + "detected architectures: %s",
+            modelId,
+            architecturesSet
+        );
+
+        doReturn(mockUpdatedState).when(serviceSpy).callSetToStopping(reasonToStop, deploymentId, mockClusterState);
+
+        ClusterState updatedMockClusterState = serviceSpy.stopPlatformSpecificModelsInHeterogeneousClusters(
+            mockUpdatedState,
+            architecturesSet,
+            optionalModelToAdd,
+            mockClusterState
+        );
+
+        verify(serviceSpy).callSetToStopping(reasonToStop, deploymentId, mockClusterState);
     }
 
     public void testUpdateModelRoutingTable() {
@@ -1878,7 +2019,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             threadPool,
             nodeLoadDetector,
             systemAuditor,
-            nodeAvailabilityZoneMapper
+            nodeAvailabilityZoneMapper,
+            client
         );
     }
 
@@ -1946,6 +2088,38 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             0L,
             0L
         );
+    }
+
+    protected <T> void assertAsync(
+        Consumer<ActionListener<T>> function,
+        T expected,
+        CheckedConsumer<T, ? extends Exception> onAnswer,
+        Consumer<Exception> onException
+    ) throws InterruptedException {
+
+        CountDownLatch latch = new CountDownLatch(1);
+
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+            if (expected == null) {
+                fail("expected an exception but got a response");
+            } else {
+                assertThat(r, equalTo(expected));
+            }
+            if (onAnswer != null) {
+                onAnswer.accept(r);
+            }
+        }, e -> {
+            if (onException == null) {
+                logger.error("got unexpected exception", e);
+                fail("got unexpected exception: " + e.getMessage());
+            } else {
+                onException.accept(e);
+            }
+        }), latch);
+
+        function.accept(listener);
+        latch.countDown();
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
     }
 
 }

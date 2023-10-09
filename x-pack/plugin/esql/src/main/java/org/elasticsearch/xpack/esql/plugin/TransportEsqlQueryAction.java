@@ -60,7 +60,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ExchangeService exchangeService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        BlockFactory blockFactory
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -69,8 +70,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        EsqlBlockFactoryParams.init(bigArrays);
-        var blockFactory = BlockFactory.getGlobalInstance();
         this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.computeService = new ComputeService(
@@ -100,7 +99,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService.getClusterName().value(),
             request.pragmas(),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(settings),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(settings)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(settings),
+            request.query()
         );
         String sessionId = sessionID(task);
         planExecutor.esql(

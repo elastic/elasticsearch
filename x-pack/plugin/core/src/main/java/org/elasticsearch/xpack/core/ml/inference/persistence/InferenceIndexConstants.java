@@ -42,11 +42,15 @@ public final class InferenceIndexConstants {
     public static final ParseField DOC_TYPE = new ParseField("doc_type");
 
     private static final String NATIVE_INDEX_PREFIX = INDEX_NAME_PREFIX + "native-";
-    private static final String NATIVE_INDEX_VERSION = "000001";
+
+    // 000002 added support for platform specific models
+    private static final String NATIVE_INDEX_VERSION = "000002";
     private static final String NATIVE_LATEST_INDEX = NATIVE_INDEX_PREFIX + NATIVE_INDEX_VERSION;
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    public static final int INFERENCE_INDEX_MAPPINGS_VERSION = 1;
+
+    // 2 added support for platform specific models
+    public static final int INFERENCE_INDEX_MAPPINGS_VERSION = 2;
 
     public static String mapping() {
         return TemplateUtils.loadTemplate(

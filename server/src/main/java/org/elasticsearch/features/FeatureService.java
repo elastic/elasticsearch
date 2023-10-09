@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
  */
 public class FeatureService {
 
+    public static final Version MAX_HISTORICAL_VERSION_EXCLUSIVE = Version.V_8_12_0;
+
     private static Map<Class<? extends FeatureSpecification>, FeatureSpecification> FEATURE_SPECS;
 
     private static volatile Set<String> NODE_FEATURES;
@@ -112,7 +114,7 @@ public class FeatureService {
                     );
                 }
 
-                if (hfe.getValue().onOrAfter(Version.V_8_12_0)) {
+                if (hfe.getValue().onOrAfter(MAX_HISTORICAL_VERSION_EXCLUSIVE)) {
                     throw new IllegalArgumentException(
                         Strings.format(
                             "Historical feature [%s] declared by [%s] for version [%s] is not a historical version",

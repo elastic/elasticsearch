@@ -351,6 +351,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             versionInfo = inferVersionInformation(Version.readVersion(in));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.DISCOVERY_NODE_FEATURES_ADDED)) {
+            boolean containsFeatures = in.readBoolean();    // placeholder for shared feature serialization
+            assert containsFeatures : "Shared feature serialization is not supported yet";
             features = in.readCollectionAsSet(StreamInput::readString);
         } else {
             features = Set.of();
@@ -395,6 +397,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             Version.writeVersion(versionInfo.nodeVersion(), out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.DISCOVERY_NODE_FEATURES_ADDED)) {
+            out.writeBoolean(true); // placeholder for shared feature serialization
             out.writeCollection(features, StreamOutput::writeString);
         }
         if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {

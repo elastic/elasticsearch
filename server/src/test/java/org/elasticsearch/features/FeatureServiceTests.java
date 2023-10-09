@@ -12,11 +12,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Map.entry;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -26,8 +29,60 @@ import static org.hamcrest.Matchers.not;
 
 public class FeatureServiceTests extends ESTestCase {
 
-    private static final NodeFeature ELIDED_FEATURE = new NodeFeature("elided_v6", FeatureEra.V_6);
-    private static final NodeFeature ELIDED_HISTORICAL_FEATURE = new NodeFeature("elided_hf_v6", FeatureEra.V_6);
+    private static List<FeatureEra> ELIDED_ERAS;
+    private static List<FeatureEra> PUBLISHABLE_ERAS;
+
+    private static NodeFeature ELIDED_FEATURE;
+    private static NodeFeature ELIDED_HISTORICAL_FEATURE;
+
+    @BeforeClass
+    public static void findEras() {
+        ELIDED_ERAS = Arrays.stream(FeatureEra.values()).filter(e -> e.isPublishable() == false).toList();
+        PUBLISHABLE_ERAS = Arrays.stream(FeatureEra.values()).filter(FeatureEra::isPublishable).toList();
+        ELIDED_FEATURE = new NodeFeature("elided_v6", elidedEra());
+        ELIDED_HISTORICAL_FEATURE = new NodeFeature("elided_hf_v6", elidedEra());
+    }
+
+    private static FeatureEra elidedEra() {
+        return randomFrom(ELIDED_ERAS);
+    }
+
+    private static FeatureEra publishableEra() {
+        return randomFrom(PUBLISHABLE_ERAS);
+    }
+
+    private static FeatureEra publishableEra(int num) {
+        return PUBLISHABLE_ERAS.get(num);
+    }
+
+    private static Version randomVersionFor(FeatureEra era) {
+        if (era.isPublishable()) {
+            return VersionUtils.randomVersionBetween(
+                random(),
+                Version.fromString(era.era() + ".0.0"),
+                VersionUtils.getPreviousVersion(
+                    Version.min(Version.fromString((era.era() + 1) + ".0.0"), FeatureService.MAX_HISTORICAL_VERSION_EXCLUSIVE)
+                )
+            );
+        } else {
+            // this could reference unreleased Versions, we need to be a bit sneaky here
+            return Version.fromId(
+                randomIntBetween(Version.fromString(era.era() + ".0.0").id, Version.fromString((era.era() + 1) + ".0.0").id - 100)
+            );
+        }
+    }
+
+    private static Version versionFor(FeatureEra era, String minorString) {
+        return Version.fromString(era.era() + "." + minorString);
+    }
+
+    private static Map.Entry<NodeFeature, Version> generateHistoricalFeature(String featureId, FeatureEra era) {
+        return entry(new NodeFeature(featureId, era), randomVersionFor(era));
+    }
+
+    private static Map.Entry<NodeFeature, Version> generateHistoricalFeature(String featureId, FeatureEra era, String minorString) {
+        return entry(new NodeFeature(featureId, era), versionFor(era, minorString));
+    }
 
     @Before
     public void loadTestSpecs() {
@@ -36,25 +91,21 @@ public class FeatureServiceTests extends ESTestCase {
         FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
-                return Set.of(new NodeFeature("f1", FeatureEra.V_8), new NodeFeature("f2", FeatureEra.V_8));
+                return Set.of(new NodeFeature("f1", publishableEra()), new NodeFeature("f2", publishableEra()));
             }
         }, new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
-                return Set.of(ELIDED_FEATURE, new NodeFeature("f1_v7", FeatureEra.V_7));
+                return Set.of(ELIDED_FEATURE, new NodeFeature("f1_v7", publishableEra()));
             }
         }, new FeatureSpecification() {
             @Override
             public Map<NodeFeature, Version> getHistoricalFeatures() {
-                return Map.of(
-                    new NodeFeature("hf1", FeatureEra.V_8),
-                    Version.V_8_2_0,
-                    new NodeFeature("hf2", FeatureEra.V_8),
-                    Version.V_8_7_0,
-                    new NodeFeature("hf3", FeatureEra.V_8),
-                    Version.V_8_8_0,
-                    ELIDED_HISTORICAL_FEATURE,
-                    Version.fromString("6.8.0")
+                return Map.ofEntries(
+                    generateHistoricalFeature("hf1", publishableEra(1), "2.0"),
+                    generateHistoricalFeature("hf2", publishableEra(1), "4.0"),
+                    generateHistoricalFeature("hf3", publishableEra(1), "6.0"),
+                    entry(ELIDED_HISTORICAL_FEATURE, randomVersionFor(ELIDED_HISTORICAL_FEATURE.era()))
                 );
             }
         }));
@@ -64,7 +115,7 @@ public class FeatureServiceTests extends ESTestCase {
         FeatureSpecification dupSpec = new FeatureSpecification() {
             @Override
             public Set<NodeFeature> getFeatures() {
-                return Set.of(new NodeFeature("f1", FeatureEra.V_8));
+                return Set.of(new NodeFeature("f1", publishableEra()));
             }
         };
         var iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupSpec)));
@@ -73,7 +124,7 @@ public class FeatureServiceTests extends ESTestCase {
         FeatureSpecification dupHistoricalSpec = new FeatureSpecification() {
             @Override
             public Map<NodeFeature, Version> getHistoricalFeatures() {
-                return Map.of(new NodeFeature("f1", FeatureEra.V_8), Version.V_8_1_0);
+                return Map.ofEntries(generateHistoricalFeature("f1", publishableEra()));
             }
         };
         iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupHistoricalSpec)));
@@ -81,10 +132,12 @@ public class FeatureServiceTests extends ESTestCase {
     }
 
     public void testServiceRejectsIncorrectHistoricalEra() {
+        FeatureEra era = publishableEra();
+        Version incorrectVersion = Version.fromString((era.era() + 1) + ".0.0");
         FeatureSpecification dupSpec = new FeatureSpecification() {
             @Override
             public Map<NodeFeature, Version> getHistoricalFeatures() {
-                return Map.of(new NodeFeature("hf1_era", FeatureEra.V_7), Version.V_8_0_0);
+                return Map.of(new NodeFeature("hf1_era", era), incorrectVersion);
             }
         };
         var iae = expectThrows(IllegalArgumentException.class, () -> FeatureService.registerSpecificationsFrom(List.of(dupSpec)));
@@ -92,25 +145,29 @@ public class FeatureServiceTests extends ESTestCase {
     }
 
     public void testHistoricalFeaturesLoaded() {
+        Version hf3Version = versionFor(publishableEra(1), "6.0");
+        Version hf2Version = versionFor(publishableEra(1), "4.0");
+        Version hf1Version = versionFor(publishableEra(1), "2.0");
+        Version emptyVersion = versionFor(publishableEra(1), "0.0");
         assertThat(
-            FeatureService.readHistoricalFeatures(VersionUtils.randomVersionBetween(random(), Version.V_8_8_0, Version.CURRENT)),
+            FeatureService.readHistoricalFeatures(VersionUtils.randomVersionBetween(random(), hf3Version, Version.CURRENT)),
             contains("hf1", "hf2", "hf3")
         );
         assertThat(
             FeatureService.readHistoricalFeatures(
-                VersionUtils.randomVersionBetween(random(), Version.V_8_7_0, VersionUtils.getPreviousVersion(Version.V_8_8_0))
+                VersionUtils.randomVersionBetween(random(), hf2Version, VersionUtils.getPreviousVersion(hf3Version))
             ),
             contains("hf1", "hf2")
         );
         assertThat(
             FeatureService.readHistoricalFeatures(
-                VersionUtils.randomVersionBetween(random(), Version.V_8_2_0, VersionUtils.getPreviousVersion(Version.V_8_7_0))
+                VersionUtils.randomVersionBetween(random(), hf1Version, VersionUtils.getPreviousVersion(hf2Version))
             ),
             contains("hf1")
         );
         assertThat(
             FeatureService.readHistoricalFeatures(
-                VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, VersionUtils.getPreviousVersion(Version.V_8_2_0))
+                VersionUtils.randomVersionBetween(random(), emptyVersion, VersionUtils.getPreviousVersion(hf1Version))
             ),
             empty()
         );
@@ -118,10 +175,11 @@ public class FeatureServiceTests extends ESTestCase {
 
     public void testElidedFeatureAccepted() {
         assertThat(new FeatureService().readPublishableFeatures(), not(hasItem("f1_v6")));
-        assertThat(FeatureService.nodeHasFeature(Version.V_8_0_0, Set.of(), ELIDED_FEATURE), is(true));
-        assertThat(FeatureService.nodeHasFeature(Version.V_8_0_0, Set.of(), ELIDED_HISTORICAL_FEATURE), is(true));
-        assertThat(FeatureService.nodeHasFeature(Version.V_7_0_0, Set.of(), ELIDED_FEATURE), is(true));
-        assertThat(FeatureService.nodeHasFeature(Version.V_7_0_0, Set.of(), ELIDED_HISTORICAL_FEATURE), is(true));
+        for (int i = 0; i < PUBLISHABLE_ERAS.size(); i++) {
+            Version ver = versionFor(publishableEra(i), "0.0");
+            assertThat(FeatureService.nodeHasFeature(ver, Set.of(), ELIDED_FEATURE), is(true));
+            assertThat(FeatureService.nodeHasFeature(ver, Set.of(), ELIDED_HISTORICAL_FEATURE), is(true));
+        }
     }
 
     public void testLoadingNewSpecsChangesOutputs() {
@@ -137,7 +195,7 @@ public class FeatureServiceTests extends ESTestCase {
 
             @Override
             public Map<NodeFeature, Version> getHistoricalFeatures() {
-                return Map.of(new NodeFeature("new_hist_feature", FeatureEra.V_7), Version.V_7_5_0);
+                return Map.ofEntries(generateHistoricalFeature("new_hist_feature", FeatureEra.V_7));
             }
         }));
 

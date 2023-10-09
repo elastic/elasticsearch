@@ -12,7 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -22,9 +24,19 @@ import static org.hamcrest.Matchers.is;
 
 public class NodeFeaturesIT extends ESIntegTestCase {
 
-    private static final NodeFeature FEATURE = new NodeFeature("f1", FeatureEra.V_8);
-    private static final NodeFeature HISTORICAL_FEATURE = new NodeFeature("hf1", FeatureEra.V_7);
-    private static final NodeFeature ELIDED_FEATURE = new NodeFeature("ef1", FeatureEra.V_6);
+    private static NodeFeature FEATURE;
+    private static NodeFeature HISTORICAL_FEATURE;
+    private static NodeFeature ELIDED_FEATURE;
+
+    @BeforeClass
+    public static void featureSetup() {
+        List<FeatureEra> publishableEras = Arrays.stream(FeatureEra.values()).filter(FeatureEra::isPublishable).toList();
+        List<FeatureEra> elidedEras = Arrays.stream(FeatureEra.values()).filter(e -> e.isPublishable() == false).toList();
+
+        FEATURE = new NodeFeature("f1", publishableEras.get(1));
+        HISTORICAL_FEATURE = new NodeFeature("hf1", publishableEras.get(0));
+        ELIDED_FEATURE = new NodeFeature("ef1", elidedEras.get(0));
+    }
 
     private static class TestFeatures implements FeatureSpecification {
         @Override
@@ -34,7 +46,12 @@ public class NodeFeaturesIT extends ESIntegTestCase {
 
         @Override
         public Map<NodeFeature, Version> getHistoricalFeatures() {
-            return Map.of(HISTORICAL_FEATURE, Version.V_7_17_0, ELIDED_FEATURE, Version.fromString("6.8.0"));
+            return Map.of(
+                HISTORICAL_FEATURE,
+                Version.fromString(HISTORICAL_FEATURE.era().era() + ".0.0"),
+                ELIDED_FEATURE,
+                Version.fromString(ELIDED_FEATURE.era().era() + ".0.0")
+            );
         }
     }
 

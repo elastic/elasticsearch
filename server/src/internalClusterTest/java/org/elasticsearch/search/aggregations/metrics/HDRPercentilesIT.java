@@ -80,22 +80,22 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         assertEquals(pcts.length, percentileList.size());
         for (int i = 0; i < pcts.length; ++i) {
             final Percentile percentile = percentileList.get(i);
-            assertThat(percentile.getPercent(), equalTo(pcts[i]));
-            double value = percentile.getValue();
+            assertThat(percentile.percent(), equalTo(pcts[i]));
+            double value = percentile.value();
             double allowedError = value / Math.pow(10, numberSigDigits);
             assertThat(value, greaterThanOrEqualTo(minValue - allowedError));
             assertThat(value, lessThanOrEqualTo(maxValue + allowedError));
 
-            if (percentile.getPercent() == 0) {
+            if (percentile.percent() == 0) {
                 assertThat(value, closeTo(minValue, allowedError));
             }
-            if (percentile.getPercent() == 100) {
+            if (percentile.percent() == 100) {
                 assertThat(value, closeTo(maxValue, allowedError));
             }
         }
 
         for (int i = 1; i < percentileList.size(); ++i) {
-            assertThat(percentileList.get(i).getValue(), greaterThanOrEqualTo(percentileList.get(i - 1).getValue()));
+            assertThat(percentileList.get(i).value(), greaterThanOrEqualTo(percentileList.get(i - 1).value()));
         }
     }
 

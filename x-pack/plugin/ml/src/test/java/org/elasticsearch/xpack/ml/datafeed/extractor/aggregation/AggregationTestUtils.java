@@ -159,7 +159,7 @@ public final class AggregationTestUtils {
         List<Percentile> percentileList = new ArrayList<>();
         for (double value : values) {
             Percentile percentile = mock(Percentile.class);
-            when(percentile.getValue()).thenReturn(value);
+            when(percentile.value()).thenReturn(value);
             percentileList.add(percentile);
         }
         when(percentiles.iterator()).thenReturn(percentileList.iterator());

@@ -195,7 +195,7 @@ class RandomizedAssignmentRounding {
             // assign any extra cores this node has to the models in descending size order.
             for (AssignmentPlan.Deployment m : deployments.stream()
                 .filter(m -> assignments.get(Tuple.tuple(m, n)) == 1 && resourceTracker.remainingModelAllocations.get(m) > 0)
-                .sorted(Comparator.comparingDouble(this::remainingModelOrder))
+                .sorted(Comparator.comparingDouble(AssignmentHolder::remainingModelOrder))
                 .toList()) {
                 if (resourceTracker.remainingNodeCores.get(n) <= 0) {
                     break;
@@ -214,7 +214,7 @@ class RandomizedAssignmentRounding {
             zeroSoftAssignmentsOfSatisfiedModels();
         }
 
-        private double remainingModelOrder(AssignmentPlan.Deployment m) {
+        private static double remainingModelOrder(AssignmentPlan.Deployment m) {
             return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -m.minimumMemoryRequiredBytes();
         }
 
@@ -341,7 +341,7 @@ class RandomizedAssignmentRounding {
 
             for (Deployment m : deployments.stream()
                 .filter(m -> resourceTracker.remainingModelAllocations.get(m) > 0)
-                .sorted(Comparator.comparingDouble(this::remainingModelOrder))
+                .sorted(Comparator.comparingDouble(AssignmentHolder::remainingModelOrder))
                 .toList()) {
                 for (Node n : nodes.stream()
                     .filter(
@@ -381,7 +381,7 @@ class RandomizedAssignmentRounding {
             return resultAllocations;
         }
 
-        private double remainingNodeOrder(
+        private static double remainingNodeOrder(
             Node n,
             AssignmentPlan.Deployment m,
             int remainingNodeCores,

@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
-        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
+        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
     );
     private static final ByteSizeValue PART_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
+import org.elasticsearch.xpack.spatial.common.CartesianBoundingBox;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
@@ -189,6 +190,11 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory(), GeoGridProcessor.TYPE, new GeoGridProcessor.Factory());
+    }
+
+    @Override
+    public List<GenericNamedWriteableSpec> getGenericNamedWriteables() {
+        return List.of(new GenericNamedWriteableSpec("CartesianBoundingBox", CartesianBoundingBox::new));
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {

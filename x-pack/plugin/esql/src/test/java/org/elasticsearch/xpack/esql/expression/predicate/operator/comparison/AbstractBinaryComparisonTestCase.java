@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.AbstractBinaryOperatorTestCase;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -41,7 +43,7 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
     }
 
     @Override
-    protected Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    protected Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         Number lhs = (Number) typedData.get(0).data();
         Number rhs = (Number) typedData.get(1).data();
         if (typedData.stream().anyMatch(t -> t.type().equals(DataTypes.DOUBLE))) {
@@ -69,7 +71,12 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
         if (type == DataTypes.BOOLEAN) {
             return isEquality();
         }
-        return true;
+        return EsqlDataTypes.isRepresentable(type);
+    }
+
+    @Override
+    protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
+        return super.supportsTypes(lhsType, rhsType) && (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric());
     }
 
     @Override
@@ -94,7 +101,9 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
             );
             return;
         }
-        if (lhsType == rhsType || lhsType.isNumeric() && rhsType.isNumeric()) {
+        if (lhsType == rhsType
+            || lhsType.isNumeric() && rhsType.isNumeric()
+            || DataTypes.isString(lhsType) && DataTypes.isString(rhsType)) {
             assertThat(op.toString(), f, nullValue());
             return;
         }

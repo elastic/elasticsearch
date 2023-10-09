@@ -71,7 +71,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             ClusterAllocationExplainRequest::new,
             indexNameExpressionResolver,
             ClusterAllocationExplainResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;

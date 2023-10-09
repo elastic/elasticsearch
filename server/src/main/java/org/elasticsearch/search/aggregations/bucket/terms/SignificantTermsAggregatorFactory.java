@@ -371,7 +371,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     factories,
                     a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
                     ordinalsValuesSource,
-                    values,
+                    () -> TermsAggregatorFactory.globalOrdsValues(context, ordinalsValuesSource),
                     null,
                     format,
                     bucketCountThresholds,

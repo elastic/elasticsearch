@@ -297,3 +297,29 @@ setup:
   - match: {columns.2.type: "keyword"}
   - length: {values: 1}
   - match: {values.0: [1, 44, "green"]}
+
+---
+"Test Mixed Input Params":
+  - do:
+      esql.query:
+        body:
+          query: 'from test | eval x = ?, y = ?, z = ?, t = ?, u = ?, v = ? | keep x, y, z, t, u, v | limit 3'
+          params: [{"value": 1, "type": "keyword"}, {"value": 2, "type": "double"}, null, true, 123, {"value": 123, "type": "long"}]
+
+  - length: {columns: 6}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "z"}
+  - match: {columns.2.type: "null"}
+  - match: {columns.3.name: "t"}
+  - match: {columns.3.type: "boolean"}
+  - match: {columns.4.name: "u"}
+  - match: {columns.4.type: "integer"}
+  - match: {columns.5.name: "v"}
+  - match: {columns.5.type: "long"}
+  - length: {values: 3}
+  - match: {values.0: ["1",2.0,null,true,123,123]}
+  - match: {values.1: ["1",2.0,null,true,123,123]}
+  - match: {values.2: ["1",2.0,null,true,123,123]}

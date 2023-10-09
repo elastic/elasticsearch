@@ -1,5 +1,8 @@
 [[esql-pi]]
 === `PI`
+[.text-center]
+image::esql/functions/signature/pi.svg[Embedded,opts=inline]
+
 The {wikipedia}/Pi[ratio] of a circle's circumference to its diameter.
 
 [source.merge.styled,esql]

@@ -72,6 +72,7 @@ public class Metadata {
      * @param map the backing map for this metadata instance
      * @param properties the immutable map of defined properties for the type of metadata represented by this instance
      */
+    @SuppressWarnings("this-escape")
     protected Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
         this.map = map;
         // we can't tell the compiler that properties must be a java.util.ImmutableCollections.AbstractImmutableMap, but

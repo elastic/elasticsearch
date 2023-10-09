@@ -1,6 +1,6 @@
 [discrete]
 [[hashing-settings]]
-==== User cache and password hash algorithms
+=== User cache and password hash algorithms
 
 Certain realms store user credentials in memory. To limit exposure
 to credential theft and mitigate credential compromise, the cache only stores

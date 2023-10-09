@@ -188,7 +188,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                             runRecovery();
                         }
                     }
-                }, recoverAfterTime, ThreadPool.Names.GENERIC);
+                }, recoverAfterTime, threadPool.generic());
             }
         } else {
             if (recoveryInProgress.compareAndSet(false, true)) {

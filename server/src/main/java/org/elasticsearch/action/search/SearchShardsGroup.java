@@ -49,7 +49,7 @@ public class SearchShardsGroup implements Writeable {
 
     public SearchShardsGroup(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
-        this.allocatedNodes = in.readStringList();
+        this.allocatedNodes = in.readStringCollectionAsList();
         this.skipped = in.readBoolean();
         this.preFiltered = true;
     }

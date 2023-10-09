@@ -106,7 +106,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
         if (CollectionUtils.isEmpty(indices) == false) {
             request.indices(Strings.EMPTY_ARRAY);
             QueryBuilder indexQuery = indices.length == 1 ? termQuery(GetResult._INDEX, indices[0]) : termsQuery(GetResult._INDEX, indices);
-            RuntimeUtils.addFilter(indexQuery, source);
+            RuntimeUtils.combineFilters(source, indexQuery);
         }
     }
 

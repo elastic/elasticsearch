@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -41,9 +42,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         ensureStableCluster(nodeCount - 1);
 
         logger.info("-->  wait for cleanup to finish and disappear from cluster state");
-        awaitClusterState(
-            state -> state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress() == false
-        );
+        awaitClusterState(state -> RepositoryCleanupInProgress.get(state).hasCleanupInProgress() == false);
 
         try {
             cleanupFuture.get();
@@ -70,9 +69,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         unblockNode("test-repo", internalCluster().getMasterName());
 
         logger.info("-->  wait for cleanup to finish and disappear from cluster state");
-        awaitClusterState(
-            state -> state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress() == false
-        );
+        awaitClusterState(state -> RepositoryCleanupInProgress.get(state).hasCleanupInProgress() == false);
 
         final ExecutionException e = expectThrows(ExecutionException.class, cleanupFuture::get);
         final Throwable ioe = ExceptionsHelper.unwrap(e, IOException.class);
@@ -101,7 +98,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                     garbageFuture,
                     () -> repository.blobStore()
                         .blobContainer(repository.basePath())
-                        .writeBlob("snap-foo.dat", new BytesArray(new byte[1]), true)
+                        .writeBlob(OperationPurpose.SNAPSHOT, "snap-foo.dat", new BytesArray(new byte[1]), true)
                 )
             );
         garbageFuture.get();
@@ -119,9 +116,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
 
         final String masterNode = internalCluster().getMasterName();
         waitForBlock(masterNode, repoName);
-        awaitClusterState(
-            state -> state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()
-        );
+        awaitClusterState(state -> RepositoryCleanupInProgress.get(state).hasCleanupInProgress());
         return future;
     }
 
@@ -151,7 +146,12 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
                         createOldIndexNFuture,
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
-                            .writeBlob(BlobStoreRepository.INDEX_FILE_PREFIX + generation, new BytesArray(new byte[1]), true)
+                            .writeBlob(
+                                OperationPurpose.SNAPSHOT,
+                                BlobStoreRepository.INDEX_FILE_PREFIX + generation,
+                                new BytesArray(new byte[1]),
+                                true
+                            )
                     )
                 );
             createOldIndexNFuture.get();

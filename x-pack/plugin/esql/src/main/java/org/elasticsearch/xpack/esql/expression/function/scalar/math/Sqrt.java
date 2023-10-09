@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -21,47 +22,49 @@ import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
-    public Sqrt(Source source, Expression field) {
-        super(source, field);
+    public Sqrt(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+        super(source, n);
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
-        var eval = field.get();
 
         if (fieldType == DataTypes.DOUBLE) {
-            return () -> new SqrtDoubleEvaluator(eval);
+            return dvrCtx -> new SqrtDoubleEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return () -> new SqrtIntEvaluator(eval);
+            return dvrCtx -> new SqrtIntEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (fieldType == DataTypes.LONG) {
-            return () -> new SqrtLongEvaluator(eval);
+            return dvrCtx -> new SqrtLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return () -> new SqrtUnsignedLongEvaluator(eval);
+            return dvrCtx -> new SqrtUnsignedLongEvaluator(field.get(dvrCtx), dvrCtx);
         }
 
-        throw EsqlUnsupportedOperationException.unsupportedDataType(fieldType);
+        throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static double process(double val) {
+        if (val < 0) {
+            throw new ArithmeticException("Square root of negative");
+        }
         return Math.sqrt(val);
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = ArithmeticException.class)
     static double process(long val) {
+        if (val < 0) {
+            throw new ArithmeticException("Square root of negative");
+        }
         return Math.sqrt(val);
     }
 
@@ -70,8 +73,11 @@ public class Sqrt extends UnaryScalarFunction implements EvaluatorMapper {
         return Math.sqrt(NumericUtils.unsignedLongToDouble(val));
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
     static double process(int val) {
+        if (val < 0) {
+            throw new ArithmeticException("Square root of negative");
+        }
         return Math.sqrt(val);
     }
 

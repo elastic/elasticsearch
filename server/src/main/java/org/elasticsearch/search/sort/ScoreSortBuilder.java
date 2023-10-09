@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -43,6 +44,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     /**
      * Build a ScoreSortBuilder default to descending sort order.
      */
+    @SuppressWarnings("this-escape")
     public ScoreSortBuilder() {
         // order defaults to desc when sorting on the _score
         order(SortOrder.DESC);
@@ -51,6 +53,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public ScoreSortBuilder(StreamInput in) throws IOException {
         order(SortOrder.readFromStream(in));
     }
@@ -160,7 +163,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     @Override

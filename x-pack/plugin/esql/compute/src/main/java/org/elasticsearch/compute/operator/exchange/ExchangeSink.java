@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -33,5 +33,5 @@ public interface ExchangeSink {
     /**
      * Whether the sink is blocked on adding more pages
      */
-    ListenableActionFuture<Void> waitForWriting();
+    SubscribableListener<Void> waitForWriting();
 }

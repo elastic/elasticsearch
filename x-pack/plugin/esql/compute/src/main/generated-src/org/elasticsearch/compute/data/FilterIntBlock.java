@@ -7,11 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
+
 /**
  * Filter block for IntBlocks.
  * This class is generated. Do not edit it.
  */
 final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterIntBlock.class);
 
     private final IntBlock block;
 
@@ -50,19 +55,27 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
          * we've been assigned and expanding all multivalued fields
          * into single valued fields.
          */
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(positions.length);
-        for (int p : positions) {
-            if (block.isNull(p)) {
-                builder.appendNull();
-                continue;
+        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positions.length, blockFactory())) {
+            for (int p : positions) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = block.getFirstValueIndex(p);
+                int end = start + block.getValueCount(p);
+                for (int i = start; i < end; i++) {
+                    builder.appendInt(block.getInt(i));
+                }
             }
-            int start = block.getFirstValueIndex(p);
-            int end = start + block.getValueCount(p);
-            for (int i = start; i < end; i++) {
-                builder.appendInt(block.getInt(i));
-            }
+            return builder.build();
         }
-        return builder.build();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter blocks encapsulate
+        // their inner block, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(block) + RamUsageEstimator.sizeOf(positions);
     }
 
     @Override
@@ -82,9 +95,14 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName());
-        sb.append("[positions=" + getPositionCount() + ", values=[");
-        appendValues(sb);
-        sb.append("]]");
+        sb.append("[positions=" + getPositionCount());
+        sb.append(", released=" + isReleased());
+        if (isReleased() == false) {
+            sb.append(", values=[");
+            appendValues(sb);
+            sb.append("]");
+        }
+        sb.append("]");
         return sb.toString();
     }
 
@@ -110,5 +128,13 @@ final class FilterIntBlock extends AbstractFilterBlock implements IntBlock {
             }
             sb.append(']');
         }
+    }
+
+    @Override
+    public void close() {
+        if (block.isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        Releasables.closeExpectNoException(block);
     }
 }

@@ -32,7 +32,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -211,7 +210,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
     }
 
-    public void testJoinWaitsForClusterApplier() throws Exception {
+    public void testJoinWaitsForClusterApplier() {
         startCluster(3);
 
         final var masterName = internalCluster().getMasterName();
@@ -223,14 +222,14 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         final var barrier = new CyclicBarrier(2);
         internalCluster().getInstance(ClusterService.class, victimName).getClusterApplierService().onNewClusterState("block", () -> {
             try {
-                barrier.await(10, TimeUnit.SECONDS);
-                barrier.await(10, TimeUnit.SECONDS);
+                safeAwait(barrier);
+                safeAwait(barrier);
                 return null;
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
         }, ActionListener.noop());
-        barrier.await(10, TimeUnit.SECONDS);
+        safeAwait(barrier);
 
         // drop the victim from the cluster with a network disruption
         final var masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterName);
@@ -255,7 +254,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
         // release the cluster applier thread
         logger.info("--> releasing block on victim's applier service");
-        barrier.await(10, TimeUnit.SECONDS);
+        safeAwait(barrier);
 
         logger.info("--> waiting for cluster to heal");
         ensureStableCluster(3);

@@ -7,17 +7,28 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 /**
  * Vector implementation that stores a constant boolean value.
  * This class is generated. Do not edit it.
  */
 public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
+
     private final boolean value;
 
+    private final BooleanBlock block;
+
     public ConstantBooleanVector(boolean value, int positionCount) {
-        super(positionCount);
+        this(value, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public ConstantBooleanVector(boolean value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
+        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
@@ -27,7 +38,7 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public BooleanBlock asBlock() {
-        return new BooleanVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -46,6 +57,11 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
     }
 
     @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof BooleanVector that) {
             return BooleanVector.equals(this, that);
@@ -60,5 +76,10 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
+    }
+
+    @Override
+    public void close() {
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

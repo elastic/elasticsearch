@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -90,7 +91,7 @@ public record DownsampleShardTaskParams(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_500_054;
+        return TransportVersions.V_8_500_054;
     }
 
     @Override

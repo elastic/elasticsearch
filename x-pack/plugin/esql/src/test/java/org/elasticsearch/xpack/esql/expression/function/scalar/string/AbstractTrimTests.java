@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -69,9 +70,9 @@ public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    private static TestCase testCase(String name, DataType type, String data, String expected) {
-        return new TestCase(
-            List.of(new TypedData(new BytesRef(data), type, "str")),
+    private static TestCaseSupplier.TestCase testCase(String name, DataType type, String data, String expected) {
+        return new TestCaseSupplier.TestCase(
+            List.of(new TestCaseSupplier.TypedData(new BytesRef(data), type, "str")),
             name + "[val=Attribute[channel=0]]",
             type,
             equalTo(new BytesRef(expected))

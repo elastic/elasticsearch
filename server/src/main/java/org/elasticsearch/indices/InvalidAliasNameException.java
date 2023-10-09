@@ -17,6 +17,7 @@ import java.io.IOException;
 
 public class InvalidAliasNameException extends ElasticsearchException {
 
+    @SuppressWarnings("this-escape")
     public InvalidAliasNameException(Index index, String name, String desc) {
         super("Invalid alias name [{}], {}", name, desc);
         setIndex(index);

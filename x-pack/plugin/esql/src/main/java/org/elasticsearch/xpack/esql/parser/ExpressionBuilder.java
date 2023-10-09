@@ -12,6 +12,15 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -25,7 +34,6 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
@@ -35,15 +43,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -62,6 +63,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
@@ -233,7 +235,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
                 case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
 
-                default -> throw new ParsingException(source, "Unexpected numeric qualifier '{}'", qualifier);
+                default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
             };
             return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
         } catch (QlIllegalArgumentException | ArithmeticException e) {
@@ -312,12 +314,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
-        return new UnresolvedFunction(
-            source(ctx),
-            visitIdentifier(ctx.identifier()),
-            FunctionResolutionStrategy.DEFAULT,
-            ctx.booleanExpression().stream().map(this::expression).toList()
-        );
+        String name = visitIdentifier(ctx.identifier());
+        List<Expression> args = expressions(ctx.booleanExpression());
+        if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
+            // to simplify the registration, handle in the parser the special count cases
+            if (args.isEmpty() || ctx.ASTERISK() != null) {
+                args = singletonList(new Literal(source(ctx), "*", DataTypes.KEYWORD));
+            }
+        }
+        return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
     }
 
     @Override

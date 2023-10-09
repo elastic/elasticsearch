@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -182,7 +182,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
     }
 
     /**
-    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before TransportVersion.current() works
     */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """
@@ -206,7 +206,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
             "[fail_before_current_version] was released first in version %s, failed compatibility "
                 + "check trying to send it to node with version %s",
             FailBeforeCurrentVersionQueryBuilder.FUTURE_VERSION,
-            TransportVersion.MINIMUM_CCS_VERSION
+            TransportVersions.MINIMUM_CCS_VERSION
         );
         String actualCause = ex.getCause().getMessage();
         assertEquals(expectedCause, actualCause);

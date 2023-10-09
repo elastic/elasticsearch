@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -61,6 +64,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
@@ -69,7 +73,6 @@ import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 
 public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
@@ -84,11 +87,19 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>("Substitutions", Limiter.ONCE, new SubstituteSurrogates(), new ReplaceRegexMatch());
+        var substitutions = new Batch<>(
+            "Substitutions",
+            Limiter.ONCE,
+            new SubstituteSurrogates(),
+            new ReplaceRegexMatch(),
+            new ReplaceAliasingEvalWithProject()
+            // new ReplaceTextFieldAttributesWithTheKeywordSubfield()
+        );
 
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
+            new CombineEvals(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
@@ -141,7 +152,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             // existing aggregate and their respective attributes
             Map<AggregateFunction, Attribute> aggFuncToAttr = new HashMap<>();
             // surrogate functions eval
-            List<NamedExpression> transientEval = new ArrayList<>();
+            List<Alias> transientEval = new ArrayList<>();
             boolean changed = false;
 
             // first pass to check existing aggregates (to avoid duplication and alias waste)
@@ -300,6 +311,26 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         private static Expression trimAliases(Expression e) {
             return e.transformDown(Alias.class, Alias::child);
+        }
+    }
+
+    /**
+     * Combine multiple Evals into one in order to reduce the number of nodes in a plan.
+     * TODO: eliminate unnecessary fields inside the eval as well
+     */
+    static class CombineEvals extends OptimizerRules.OptimizerRule<Eval> {
+
+        CombineEvals() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            LogicalPlan plan = eval;
+            if (eval.child() instanceof Eval subEval) {
+                plan = new Eval(eval.source(), subEval.child(), CollectionUtils.combine(subEval.fields(), eval.fields()));
+            }
+            return plan;
         }
     }
 
@@ -470,7 +501,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private static LocalSupplier aggsFromEmpty(List<? extends NamedExpression> aggs) {
-            var result = new ArrayList<Object>(aggs.size());
+            var result = new ArrayList<>(aggs.size());
             for (var agg : aggs) {
                 // there needs to be an alias
                 if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
@@ -479,7 +510,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
                 }
             }
-            var blocks = BlockUtils.fromListRow(result);
+            var blocks = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), result);
             return LocalSupplier.of(blocks);
         }
     }
@@ -575,7 +606,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Eval eval) {
             LogicalPlan child = eval.child();
 
-            // TODO: combine with CombineEval from https://github.com/elastic/elasticsearch-internal/pull/511 when merged
             if (child instanceof OrderBy orderBy) {
                 return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
             } else if (child instanceof Project) {
@@ -786,10 +816,25 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn {
-        @Override
+    /**
+     * Combine disjunctions on the same field into an In expression.
+     * This rule looks for both simple equalities:
+     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
+     * and combinations of In
+     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
+     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
+     *
+     * This rule does NOT check for type compatibility as that phase has been
+     * already be verified in the analyzer.
+     */
+    public static class CombineDisjunctionsToIn extends OptimizerRules.CombineDisjunctionsToIn {
+
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values);
+        }
+
+        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
         }
     }
 
@@ -803,5 +848,93 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             }
             return p;
         }
+    }
+
+    public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {
+
+        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+            return new Equals(regexMatch.source(), regexMatch.field(), literal);
+        }
+    }
+
+    /**
+     * Replace aliasing evals (eval x=a) with a projection which can be further combined / simplified.
+     * The rule gets applied only if there's another project (Project/Stats) above it.
+     *
+     * Needs to take into account shadowing of potentially intermediate fields:
+     * eval x = a + 1, y = x, z = y + 1, y = z, w = y + 1
+     * The output should be
+     * eval x = a + 1, z = a + 1 + 1, w = a + 1 + 1
+     * project x, z, z as y, w
+     */
+    static class ReplaceAliasingEvalWithProject extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan logicalPlan) {
+            Holder<Boolean> enabled = new Holder<>(false);
+
+            return logicalPlan.transformDown(p -> {
+                // found projection, turn enable flag on
+                if (p instanceof Aggregate || p instanceof Project) {
+                    enabled.set(true);
+                } else if (enabled.get() && p instanceof Eval eval) {
+                    p = rule(eval);
+                }
+
+                return p;
+            });
+        }
+
+        private LogicalPlan rule(Eval eval) {
+            LogicalPlan plan = eval;
+
+            // holds simple aliases such as b = a, c = b, d = c
+            AttributeMap<Expression> basicAliases = new AttributeMap<>();
+            // same as above but keeps the original expression
+            AttributeMap<NamedExpression> basicAliasSources = new AttributeMap<>();
+
+            List<Alias> keptFields = new ArrayList<>();
+
+            var fields = eval.fields();
+            for (int i = 0, size = fields.size(); i < size; i++) {
+                Alias field = fields.get(i);
+                Expression child = field.child();
+                var attribute = field.toAttribute();
+                // put the aliases in a separate map to separate the underlying resolve from other aliases
+                if (child instanceof Attribute) {
+                    basicAliases.put(attribute, child);
+                    basicAliasSources.put(attribute, field);
+                } else {
+                    // be lazy and start replacing name aliases only if needed
+                    if (basicAliases.size() > 0) {
+                        // update the child through the field
+                        field = (Alias) field.transformUp(e -> basicAliases.resolve(e, e));
+                    }
+                    keptFields.add(field);
+                }
+            }
+
+            // at least one alias encountered, move it into a project
+            if (basicAliases.size() > 0) {
+                // preserve the eval output (takes care of shadowing and order) but replace the basic aliases
+                List<NamedExpression> projections = new ArrayList<>(eval.output());
+                // replace the removed aliases with their initial definition - however use the output to preserve the shadowing
+                for (int i = projections.size() - 1; i >= 0; i--) {
+                    NamedExpression project = projections.get(i);
+                    projections.set(i, basicAliasSources.getOrDefault(project, project));
+                }
+
+                LogicalPlan child = eval.child();
+                if (keptFields.size() > 0) {
+                    // replace the eval with just the kept fields
+                    child = new Eval(eval.source(), eval.child(), keptFields);
+                }
+                // put the projection in place
+                plan = new Project(eval.source(), child, projections);
+            }
+
+            return plan;
+        }
+
     }
 }

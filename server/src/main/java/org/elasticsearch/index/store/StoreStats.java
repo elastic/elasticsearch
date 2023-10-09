@@ -9,6 +9,7 @@
 package org.elasticsearch.index.store;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,8 +28,8 @@ public class StoreStats implements Writeable, ToXContentFragment {
      */
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
-    public static final TransportVersion RESERVED_BYTES_VERSION = TransportVersion.V_7_9_0;
-    public static final TransportVersion TOTAL_DATA_SET_SIZE_SIZE_VERSION = TransportVersion.V_7_13_0;
+    public static final TransportVersion RESERVED_BYTES_VERSION = TransportVersions.V_7_9_0;
+    public static final TransportVersion TOTAL_DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
 
     private long sizeInBytes;
     private long totalDataSetSizeInBytes;

@@ -281,7 +281,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
     // with an empty cache gets closed. In that particular case, the eviction
     // callback is called with a number of evicted entries equal to 0
     // see https://github.com/elastic/elasticsearch/issues/15043
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98776")
     public void testStatsOnEviction() throws IOException {
         Directory dir1 = newDirectory();
         IndexWriter w1 = new IndexWriter(dir1, newIndexWriterConfig());

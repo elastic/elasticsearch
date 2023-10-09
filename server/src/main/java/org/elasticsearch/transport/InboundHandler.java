@@ -268,7 +268,7 @@ public class InboundHandler {
                 assert requestId > 0;
                 request.setRequestId(requestId);
                 verifyRequestReadFully(stream, requestId, action);
-                if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
+                if (reg.getExecutor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                         doHandleRequest(reg, request, transportChannel);
                     }
@@ -295,7 +295,7 @@ public class InboundHandler {
         boolean success = false;
         request.incRef();
         try {
-            threadPool.executor(reg.getExecutor()).execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+            reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
                     doHandleRequest(reg, request, channel);

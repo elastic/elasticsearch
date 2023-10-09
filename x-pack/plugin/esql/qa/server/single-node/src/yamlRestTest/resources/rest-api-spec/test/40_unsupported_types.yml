@@ -1,5 +1,6 @@
----
-unsupported:
+setup:
+  - skip:
+      features: allowed_warnings_regex
   - do:
       indices.create:
         index: test
@@ -98,10 +99,15 @@ unsupported:
             "some_doc": { "foo": "xy", "bar": 12 }
           }
 
+---
+unsupported:
   - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
       esql.query:
         body:
           query: 'from test'
+
   - match: { columns.0.name: aggregate_metric_double }
   - match: { columns.0.type: unsupported }
   - match: { columns.1.name: binary }
@@ -158,29 +164,29 @@ unsupported:
   - match: { columns.26.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: "<unsupported>" }
-  - match: { values.0.1: "<unsupported>" }
-  - match: { values.0.2: "<unsupported>" }
-  - match: { values.0.3: "<unsupported>" }
-  - match: { values.0.4: "<unsupported>" }
-  - match: { values.0.5: "<unsupported>" }
-  - match: { values.0.6: "<unsupported>" }
-  - match: { values.0.7: "<unsupported>" }
-  - match: { values.0.8: "<unsupported>" }
-  - match: { values.0.9: "<unsupported>" }
-  - match: { values.0.10: "<unsupported>" }
-  - match: { values.0.11: "<unsupported>" }
-  - match: { values.0.12: "<unsupported>" }
-  - match: { values.0.13: "<unsupported>" }
+  - match: { values.0.0: null }
+  - match: { values.0.1: null }
+  - match: { values.0.2: null }
+  - match: { values.0.3: null }
+  - match: { values.0.4: null }
+  - match: { values.0.5: null }
+  - match: { values.0.6: null }
+  - match: { values.0.7: null }
+  - match: { values.0.8: null }
+  - match: { values.0.9: null }
+  - match: { values.0.10: null }
+  - match: { values.0.11: null }
+  - match: { values.0.12: null }
+  - match: { values.0.13: null }
   - match: { values.0.14: "foo bar baz" }
   - match: { values.0.15: Alice }
-  - match: { values.0.16: "<unsupported>" }
-  - match: { values.0.17: "<unsupported>" }
-  - match: { values.0.18: "<unsupported>" }
-  - match: { values.0.19: "<unsupported>" }
-  - match: { values.0.20: "<unsupported>" }
-  - match: { values.0.21: "<unsupported>" }
-  - match: { values.0.22: "<unsupported>" }
+  - match: { values.0.16: null }
+  - match: { values.0.17: null }
+  - match: { values.0.18: null }
+  - match: { values.0.19: null }
+  - match: { values.0.20: null }
+  - match: { values.0.21: null }
+  - match: { values.0.22: null }
   - match: { values.0.23: 12 }
   - match: { values.0.24: xy }
   - match: { values.0.25: "foo bar" }

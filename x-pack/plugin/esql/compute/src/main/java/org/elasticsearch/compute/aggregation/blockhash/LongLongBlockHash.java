@@ -14,11 +14,13 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -30,7 +32,8 @@ final class LongLongBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final LongLongHash hash;
 
-    LongLongBlockHash(BigArrays bigArrays, int channel1, int channel2, int emitBatchSize) {
+    LongLongBlockHash(DriverContext driverContext, int channel1, int channel2, int emitBatchSize) {
+        super(driverContext);
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.emitBatchSize = emitBatchSize;
@@ -49,24 +52,30 @@ final class LongLongBlockHash extends BlockHash {
         LongVector vector1 = block1.asVector();
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
-            addInput.add(0, add(vector1, vector2));
+            try (IntBlock groupIds = add(vector1, vector2).asBlock()) {
+                addInput.add(0, groupIds.asVector());
+            }
         } else {
-            new AddBlock(block1, block2, addInput).add();
+            try (var addBlock = new AddBlock(block1, block2, addInput)) {
+                addBlock.add();
+            }
         }
     }
 
-    private LongVector add(LongVector vector1, LongVector vector2) {
+    private IntVector add(LongVector vector1, LongVector vector2) {
         int positions = vector1.getPositionCount();
-        final long[] ords = new long[positions];
-        for (int i = 0; i < positions; i++) {
-            ords[i] = hashOrdToGroup(hash.add(vector1.getLong(i), vector2.getLong(i)));
+        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendInt(Math.toIntExact(hashOrdToGroup(hash.add(vector1.getLong(i), vector2.getLong(i)))));
+            }
+            return builder.build();
         }
-        return new LongArrayVector(ords, positions);
     }
 
     private static final long[] EMPTY = new long[0];
 
-    private class AddBlock extends AbstractAddBlock {
+    // TODO: this uses the non-breaking block factory - update to use this blockFactory
+    private class AddBlock extends AbstractAddBlock implements Releasable {
         private final LongBlock block1;
         private final LongBlock block2;
 
@@ -92,7 +101,7 @@ final class LongLongBlockHash extends BlockHash {
                 int count1 = block1.getValueCount(p);
                 int count2 = block2.getValueCount(p);
                 if (count1 == 1 && count2 == 1) {
-                    ords.appendLong(hashOrdToGroup(hash.add(block1.getLong(start1), block2.getLong(start2))));
+                    ords.appendInt(Math.toIntExact(hashOrdToGroup(hash.add(block1.getLong(start1), block2.getLong(start2)))));
                     addedValue(p);
                     continue;
                 }
@@ -113,20 +122,25 @@ final class LongLongBlockHash extends BlockHash {
                     seenSize2 = LongLongBlockHash.add(seen2, seenSize2, block2.getLong(i));
                 }
                 if (seenSize1 == 1 && seenSize2 == 1) {
-                    ords.appendLong(hashOrdToGroup(hash.add(seen1[0], seen2[0])));
+                    ords.appendInt(Math.toIntExact(hashOrdToGroup(hash.add(seen1[0], seen2[0]))));
                     addedValue(p);
                     continue;
                 }
                 ords.beginPositionEntry();
                 for (int s1 = 0; s1 < seenSize1; s1++) {
                     for (int s2 = 0; s2 < seenSize2; s2++) {
-                        ords.appendLong(hashOrdToGroup(hash.add(seen1[s1], seen2[s2])));
+                        ords.appendInt(Math.toIntExact(hashOrdToGroup(hash.add(seen1[s1], seen2[s2]))));
                         addedValueInMultivaluePosition(p);
                     }
                 }
                 ords.endPositionEntry();
             }
             emitOrds();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(block1, block2);
         }
     }
 
@@ -136,13 +150,13 @@ final class LongLongBlockHash extends BlockHash {
 
         private int positionOffset = 0;
         private int added = 0;
-        protected LongBlock.Builder ords;
+        protected IntBlock.Builder ords;
 
         AbstractAddBlock(int emitBatchSize, GroupingAggregatorFunction.AddInput addInput) {
             this.emitBatchSize = emitBatchSize;
             this.addInput = addInput;
 
-            this.ords = LongBlock.newBlockBuilder(emitBatchSize);
+            this.ords = IntBlock.newBlockBuilder(emitBatchSize);
         }
 
         protected final void addedValue(int position) {
@@ -166,7 +180,7 @@ final class LongLongBlockHash extends BlockHash {
         private void rollover(int position) {
             emitOrds();
             positionOffset = position;
-            ords = LongBlock.newBlockBuilder(emitBatchSize); // TODO add a clear method to the builder?
+            ords = IntBlock.newBlockBuilder(emitBatchSize); // TODO add a clear method to the builder?
         }
     }
 
@@ -183,8 +197,8 @@ final class LongLongBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         int positions = (int) hash.size();
-        LongVector.Builder keys1 = LongVector.newVectorBuilder(positions);
-        LongVector.Builder keys2 = LongVector.newVectorBuilder(positions);
+        LongVector.Builder keys1 = blockFactory.newLongVectorBuilder(positions);
+        LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions);
         for (long i = 0; i < positions; i++) {
             keys1.appendLong(hash.getKey1(i));
             keys2.appendLong(hash.getKey2(i));
@@ -194,7 +208,7 @@ final class LongLongBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(hash.size()));
+        return IntVector.range(0, Math.toIntExact(hash.size()), blockFactory);
     }
 
     @Override

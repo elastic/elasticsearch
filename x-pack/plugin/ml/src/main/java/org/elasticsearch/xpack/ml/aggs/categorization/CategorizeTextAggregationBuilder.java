@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -50,7 +51,7 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     // some nodes are pre-8.3 and others are newer, so we throw an error in
     // this situation. The aggregation was experimental at the time this change
     // was made, so this is acceptable.
-    public static final TransportVersion ALGORITHM_CHANGED_VERSION = TransportVersion.V_8_3_0;
+    public static final TransportVersion ALGORITHM_CHANGED_VERSION = TransportVersions.V_8_3_0;
 
     static final ParseField FIELD_NAME = new ParseField("field");
     static final ParseField SIMILARITY_THRESHOLD = new ParseField("similarity_threshold");

@@ -811,13 +811,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         AuditLevel eventType,
         Authentication authentication,
         String action,
-        String index,
+        String[] indices,
         String requestName,
         InetSocketAddress remoteAddress,
         AuthorizationInfo authorizationInfo
     ) {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
-        final String[] indices = index == null ? null : new String[] { index };
         final User user = authentication.getEffectiveSubject().getUser();
         if (user instanceof InternalUser && eventType == ACCESS_GRANTED) {
             eventType = SYSTEM_ACCESS_GRANTED;
@@ -830,7 +829,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         // can be null for API keys created before version 7.7
                         Optional.ofNullable(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.of(authorizationInfo),
-                        Optional.ofNullable(indices),
+                        Optional.of(indices),
                         Optional.of(action)
                     )
                 ) == false) {
@@ -1276,7 +1275,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        private void withRequestBody(XContentBuilder builder, AbstractCreateApiKeyRequest abstractCreateApiKeyRequest) throws IOException {
+        private static void withRequestBody(XContentBuilder builder, AbstractCreateApiKeyRequest abstractCreateApiKeyRequest)
+            throws IOException {
             TimeValue expiration = abstractCreateApiKeyRequest.getExpiration();
             builder.startObject("apikey")
                 .field("id", abstractCreateApiKeyRequest.getId())
@@ -1294,21 +1294,23 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.endObject(); // apikey
         }
 
-        private void withRequestBody(final XContentBuilder builder, final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest)
-            throws IOException {
+        private static void withRequestBody(
+            final XContentBuilder builder,
+            final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest
+        ) throws IOException {
             builder.startObject("apikey").field("id", baseSingleUpdateApiKeyRequest.getId());
             withBaseUpdateApiKeyFields(builder, baseSingleUpdateApiKeyRequest);
             builder.endObject();
         }
 
-        private void withRequestBody(final XContentBuilder builder, final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest)
+        private static void withRequestBody(final XContentBuilder builder, final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest)
             throws IOException {
             builder.startObject("apikeys").stringListField("ids", bulkUpdateApiKeyRequest.getIds());
             withBaseUpdateApiKeyFields(builder, bulkUpdateApiKeyRequest);
             builder.endObject();
         }
 
-        private void withBaseUpdateApiKeyFields(final XContentBuilder builder, final BaseUpdateApiKeyRequest baseUpdateApiKeyRequest)
+        private static void withBaseUpdateApiKeyFields(final XContentBuilder builder, final BaseUpdateApiKeyRequest baseUpdateApiKeyRequest)
             throws IOException {
             builder.field("type", baseUpdateApiKeyRequest.getType().value());
             if (baseUpdateApiKeyRequest.getRoleDescriptors() != null) {
@@ -1325,7 +1327,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
         }
 
-        private void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
+        private static void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
             builder.startObject().array(RoleDescriptor.Fields.CLUSTER.getPreferredName(), roleDescriptor.getClusterPrivileges());
             if (roleDescriptor.getConditionalClusterPrivileges() != null && roleDescriptor.getConditionalClusterPrivileges().length > 0) {
                 // This fails if this list contains multiple instances of the {@code ManageApplicationPrivileges}

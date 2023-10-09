@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -54,20 +56,27 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
@@ -202,6 +211,61 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
+    public void testRequestStatsWithOperationPurposes() throws IOException {
+        final String repoName = createRepository(randomRepositoryName());
+        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        final BlobStore blobStore = repository.blobStore();
+        assertThat(blobStore, instanceOf(BlobStoreWrapper.class));
+        final BlobStore delegateBlobStore = ((BlobStoreWrapper) blobStore).delegate();
+        assertThat(delegateBlobStore, instanceOf(S3BlobStore.class));
+        final S3BlobStore.StatsCollectors statsCollectors = ((S3BlobStore) delegateBlobStore).getStatsCollectors();
+
+        // Initial stats are collected with the default operation purpose
+        final Set<String> allOperations = EnumSet.allOf(S3BlobStore.Operation.class)
+            .stream()
+            .map(S3BlobStore.Operation::getKey)
+            .collect(Collectors.toUnmodifiableSet());
+        statsCollectors.collectors.keySet().forEach(statsKey -> assertThat(statsKey.purpose(), is(OperationPurpose.SNAPSHOT)));
+        final Map<String, Long> initialStats = blobStore.stats();
+        assertThat(initialStats.keySet(), equalTo(allOperations));
+
+        // Collect more stats with an operation purpose other than the default
+        final OperationPurpose purpose = randomValueOtherThan(OperationPurpose.SNAPSHOT, () -> randomFrom(OperationPurpose.values()));
+        final BlobPath blobPath = repository.basePath().add(randomAlphaOfLength(10));
+        final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
+        final BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
+        blobContainer.writeBlob(purpose, "test.txt", whatToWrite, true);
+        try (InputStream is = blobContainer.readBlob(purpose, "test.txt")) {
+            is.readAllBytes();
+        }
+        blobContainer.delete(purpose);
+
+        // Internal stats collection is fine-grained and records different purposes
+        assertThat(
+            statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::purpose).collect(Collectors.toUnmodifiableSet()),
+            equalTo(Set.of(OperationPurpose.SNAPSHOT, purpose))
+        );
+        // The stats report aggregates over different purposes
+        final Map<String, Long> newStats = blobStore.stats();
+        assertThat(newStats.keySet(), equalTo(allOperations));
+        assertThat(newStats, not(equalTo(initialStats)));
+
+        final Set<String> operationsSeenForTheNewPurpose = statsCollectors.collectors.keySet()
+            .stream()
+            .filter(sk -> sk.purpose() != OperationPurpose.SNAPSHOT)
+            .map(sk -> sk.operation().getKey())
+            .collect(Collectors.toUnmodifiableSet());
+
+        newStats.forEach((k, v) -> {
+            if (operationsSeenForTheNewPurpose.contains(k)) {
+                assertThat(newStats.get(k), greaterThan(initialStats.get(k)));
+            } else {
+                assertThat(newStats.get(k), equalTo(initialStats.get(k)));
+            }
+        });
+    }
+
     public void testEnforcedCooldownPeriod() throws IOException {
         final String repoName = randomRepositoryName();
         createRepository(
@@ -243,7 +307,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                         f,
                         () -> repository.blobStore()
                             .blobContainer(repository.basePath())
-                            .writeBlobAtomic(BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), serialized, true)
+                            .writeBlobAtomic(
+                                OperationPurpose.SNAPSHOT,
+                                BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
+                                serialized,
+                                true
+                            )
                     )
                 )
         );

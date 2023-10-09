@@ -10,43 +10,59 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class CoshTests extends AbstractScalarFunctionTestCase {
-    public CoshTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class CoshTests extends AbstractFunctionTestCase {
+    public CoshTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("large double value", () -> {
-            double arg = 1 / randomDouble();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "CoshEvaluator[val=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(Math.cosh(arg))
-            );
-        })));
-    }
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "CoshEvaluator",
+            "val",
+            Math::cosh,
+            -710d,
+            710d,  // Hyperbolic Cosine grows extremely fast. Values outside this range return Double.POSITIVE_INFINITY
+            List.of()
+        );
+        suppliers = anyNullIsNull(true, suppliers);
 
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()));
+        // Out of range cases
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "CoshEvaluator",
+                "val",
+                k -> null,
+                Double.NEGATIVE_INFINITY,
+                -711d,
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: cosh overflow"
+                )
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "CoshEvaluator",
+                "val",
+                k -> null,
+                711d,
+                Double.POSITIVE_INFINITY,
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: cosh overflow"
+                )
+            )
+        );
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
     }
 
     @Override

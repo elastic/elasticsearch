@@ -92,12 +92,16 @@ POST /_query?format=txt
 ----
 // TEST[setup:library]
 
+The above query's `LIMIT` command limits results to 5 rows.
+
+If not specified, `LIMIT` defaults to `500`. A single query will not return
+more than 10,000 rows, regardless of the `LIMIT` value.
+
 [discrete]
 ==== {kib}
 
-{esql} can be used in Discover to explore a data set, and in Lens to visualize it.
-First, enable the `enableTextBased` setting in *Advanced Settings*. Next, in
-Discover or Lens, from the data view dropdown, select *{esql}*.
+Use {esql} in Discover to explore a data set. From the data view dropdown,
+select *Try {esql}* to get started.
 
 NOTE: {esql} queries in Discover and Lens are subject to the time range selected
 with the time filter.
@@ -106,20 +110,23 @@ with the time filter.
 [[esql-limitations]]
 === Limitations
 
-{esql} currently supports the following <<mapping-types,field types>>:
+* {esql} currently supports the following <<mapping-types,field types>>:
 
-- `alias`
-- `boolean`
-- `date`
-- `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
-- `ip`
-- `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
-- `int` (`short` and `byte` are represented as `int`)
-- `long`
-- `null`
-- `text`
-- `unsigned_long`
-- `version`
+** `alias`
+** `boolean`
+** `date`
+** `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+** `ip`
+** `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+** `int` (`short` and `byte` are represented as `int`)
+** `long`
+** `null`
+** `text`
+** `unsigned_long`
+** `version`
+
+* A single query will not return more than 10,000 rows, regardless of the
+`LIMIT` command's value.
 --
 
 include::esql-get-started.asciidoc[]
@@ -135,6 +142,8 @@ include::esql-functions.asciidoc[]
 include::aggregation-functions.asciidoc[]
 
 include::multivalued-fields.asciidoc[]
+
+include::metadata-fields.asciidoc[]
 
 include::task-management.asciidoc[]
 

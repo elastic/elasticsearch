@@ -46,4 +46,9 @@ public class LoggingChunkedRestResponseBody implements ChunkedRestResponseBody {
     public String getResponseContentTypeString() {
         return inner.getResponseContentTypeString();
     }
+
+    @Override
+    public void close() {
+        inner.close();
+    }
 }

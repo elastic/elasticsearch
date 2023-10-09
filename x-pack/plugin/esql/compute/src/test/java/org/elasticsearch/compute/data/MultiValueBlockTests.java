@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
@@ -16,6 +18,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MultiValueBlockTests extends SerializationTestCase {
 
@@ -50,7 +53,7 @@ public class MultiValueBlockTests extends SerializationTestCase {
 
         // cannot get a Vector view
         assertNull(block.asVector());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, b -> serializeDeserializeBlock(b));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, this::serializeDeserializeBlock, null, Releasable::close);
     }
 
     public void testIntBlockTrivial() {
@@ -75,7 +78,7 @@ public class MultiValueBlockTests extends SerializationTestCase {
         assertThat(block.getValueCount(0), is(1));
         assertThat(block.getInt(block.getFirstValueIndex(0)), is(1));
         assertNull(block.asVector());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, b -> serializeDeserializeBlock(b));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, this::serializeDeserializeBlock, null, Releasable::close);
     }
 
     public void testEmpty() {
@@ -83,22 +86,22 @@ public class MultiValueBlockTests extends SerializationTestCase {
             IntBlock intBlock = IntBlock.newBlockBuilder(initialSize).build();
             assertThat(intBlock.getPositionCount(), is(0));
             assertThat(intBlock.asVector(), is(notNullValue()));
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
             LongBlock longBlock = LongBlock.newBlockBuilder(initialSize).build();
             assertThat(longBlock.getPositionCount(), is(0));
             assertThat(longBlock.asVector(), is(notNullValue()));
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(longBlock, block -> serializeDeserializeBlock(block));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(longBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
             DoubleBlock doubleBlock = DoubleBlock.newBlockBuilder(initialSize).build();
             assertThat(doubleBlock.getPositionCount(), is(0));
             assertThat(doubleBlock.asVector(), is(notNullValue()));
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(doubleBlock, block -> serializeDeserializeBlock(block));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(doubleBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
             BytesRefBlock bytesRefBlock = BytesRefBlock.newBlockBuilder(initialSize).build();
             assertThat(bytesRefBlock.getPositionCount(), is(0));
             assertThat(bytesRefBlock.asVector(), is(notNullValue()));
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(bytesRefBlock, block -> serializeDeserializeBlock(block));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(bytesRefBlock, this::serializeDeserializeBlock, null, Releasable::close);
         }
     }
 
@@ -108,25 +111,25 @@ public class MultiValueBlockTests extends SerializationTestCase {
             assertThat(intBlock.getPositionCount(), is(1));
             assertThat(intBlock.getValueCount(0), is(0));
             assertNull(intBlock.asVector());
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
             LongBlock longBlock = LongBlock.newBlockBuilder(initialSize).appendNull().build();
             assertThat(longBlock.getPositionCount(), is(1));
             assertThat(longBlock.getValueCount(0), is(0));
             assertNull(longBlock.asVector());
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(longBlock, block -> serializeDeserializeBlock(block));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(longBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
             DoubleBlock doubleBlock = DoubleBlock.newBlockBuilder(initialSize).appendNull().build();
             assertThat(doubleBlock.getPositionCount(), is(1));
             assertThat(doubleBlock.getValueCount(0), is(0));
             assertNull(doubleBlock.asVector());
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(doubleBlock, block -> serializeDeserializeBlock(block));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(doubleBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
             BytesRefBlock bytesRefBlock = BytesRefBlock.newBlockBuilder(initialSize).appendNull().build();
             assertThat(bytesRefBlock.getPositionCount(), is(1));
             assertThat(bytesRefBlock.getValueCount(0), is(0));
             assertNull(bytesRefBlock.asVector());
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(bytesRefBlock, block -> serializeDeserializeBlock(block));
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(bytesRefBlock, this::serializeDeserializeBlock, null, Releasable::close);
         }
     }
 
@@ -148,22 +151,22 @@ public class MultiValueBlockTests extends SerializationTestCase {
         Block intBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.INT);
         assertThat(intBlock.elementType(), is(equalTo(ElementType.INT)));
         BlockValueAsserter.assertBlockValues(intBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block longBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.LONG);
         assertThat(longBlock.elementType(), is(equalTo(ElementType.LONG)));
         BlockValueAsserter.assertBlockValues(longBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block doubleBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.DOUBLE);
         assertThat(doubleBlock.elementType(), is(equalTo(ElementType.DOUBLE)));
         BlockValueAsserter.assertBlockValues(doubleBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block bytesRefBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.BYTES_REF);
         assertThat(bytesRefBlock.elementType(), is(equalTo(ElementType.BYTES_REF)));
         BlockValueAsserter.assertBlockValues(bytesRefBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
     }
 
     public void testMultiValuesAndNullsSmall() {
@@ -180,22 +183,22 @@ public class MultiValueBlockTests extends SerializationTestCase {
         Block intBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.INT);
         assertThat(intBlock.elementType(), is(equalTo(ElementType.INT)));
         BlockValueAsserter.assertBlockValues(intBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block longBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.LONG);
         assertThat(longBlock.elementType(), is(equalTo(ElementType.LONG)));
         BlockValueAsserter.assertBlockValues(longBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block doubleBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.DOUBLE);
         assertThat(doubleBlock.elementType(), is(equalTo(ElementType.DOUBLE)));
         BlockValueAsserter.assertBlockValues(doubleBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block bytesRefBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.BYTES_REF);
         assertThat(bytesRefBlock.elementType(), is(equalTo(ElementType.BYTES_REF)));
         BlockValueAsserter.assertBlockValues(bytesRefBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
     }
 
     public void testMultiValuesAndNulls() {
@@ -216,21 +219,105 @@ public class MultiValueBlockTests extends SerializationTestCase {
         Block intBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.INT);
         assertThat(intBlock.elementType(), is(equalTo(ElementType.INT)));
         BlockValueAsserter.assertBlockValues(intBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block longBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.LONG);
         assertThat(longBlock.elementType(), is(equalTo(ElementType.LONG)));
         BlockValueAsserter.assertBlockValues(longBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block doubleBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.DOUBLE);
         assertThat(doubleBlock.elementType(), is(equalTo(ElementType.DOUBLE)));
         BlockValueAsserter.assertBlockValues(doubleBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
 
         Block bytesRefBlock = TestBlockBuilder.blockFromValues(blockValues, ElementType.BYTES_REF);
         assertThat(bytesRefBlock.elementType(), is(equalTo(ElementType.BYTES_REF)));
         BlockValueAsserter.assertBlockValues(bytesRefBlock, blockValues);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, block -> serializeDeserializeBlock(block));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
+    }
+
+    // Tests that the use of Block builder beginPositionEntry (or not) with just a single value,
+    // and no nulls, builds a block backed by a vector.
+    public void testSingleNonNullValues() throws IOException {
+        List<Object> blockValues = new ArrayList<>();
+        int positions = randomInt(512);
+        for (int i = 0; i < positions; i++) {
+            blockValues.add(randomInt());
+        }
+
+        var blocks = List.of(
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.BOOLEAN),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.BOOLEAN),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.INT),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.INT),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.LONG),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.LONG),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.DOUBLE),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.DOUBLE),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.BYTES_REF),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(List::of).toList(), ElementType.BYTES_REF)
+        );
+        try {
+            for (Block block : blocks) {
+                assertThat(block.asVector(), is(notNullValue()));
+                BlockValueAsserter.assertBlockValues(block, blockValues.stream().map(List::of).toList());
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, this::serializeDeserializeBlock, null, Releasable::close);
+            }
+        } finally {
+            Releasables.close(blocks);
+        }
+    }
+
+    // A default max iteration times, just to avoid an infinite loop.
+    static final int TIMES = 10_000;
+
+    // Tests that the use of Block builder beginPositionEntry (or not) with just a single value,
+    // with nulls, builds a block not backed by a vector.
+    public void testSingleWithNullValues() {
+        List<Object> blockValues = new ArrayList<>();
+        boolean atLeastOneNull = false;
+        int positions = randomIntBetween(1, 512);  // we must have at least one null entry
+        int times = 0;
+        while (atLeastOneNull == false && times < TIMES) {
+            times++;
+            for (int i = 0; i < positions; i++) {
+                boolean isNull = randomBoolean();
+                if (isNull) {
+                    atLeastOneNull = true;
+                    blockValues.add(null); // empty / null
+                } else {
+                    blockValues.add(randomInt());
+                }
+            }
+        }
+        assert atLeastOneNull : "Failed to create a values block with at least one null in " + times + " times";
+
+        var blocks = List.of(
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.BOOLEAN),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.BOOLEAN),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.INT),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.INT),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.LONG),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.LONG),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.DOUBLE),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.DOUBLE),
+            TestBlockBuilder.blockFromSingleValues(blockValues, ElementType.BYTES_REF),
+            TestBlockBuilder.blockFromValues(blockValues.stream().map(MultiValueBlockTests::mapToList).toList(), ElementType.BYTES_REF)
+        );
+        for (Block block : blocks) {
+            assertThat(block.asVector(), is(nullValue()));
+            BlockValueAsserter.assertBlockValues(block, blockValues.stream().map(MultiValueBlockTests::mapToList).toList());
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, this::serializeDeserializeBlock, null, Releasable::close);
+        }
+    }
+
+    // Returns a list containing the given obj, or an empty list if obj is null
+    static List<Object> mapToList(Object obj) {
+        if (obj == null) {
+            return List.of();
+        } else {
+            return List.of(obj);
+        }
     }
 }

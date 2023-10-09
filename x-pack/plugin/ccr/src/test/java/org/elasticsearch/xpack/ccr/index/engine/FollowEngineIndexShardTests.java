@@ -34,7 +34,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
@@ -103,7 +102,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             releasable.close();
             latch.countDown();
         });
-        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC);
+        indexShard.acquirePrimaryOperationPermit(actionListener, threadPool.generic());
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
         indexShard.refresh("test");

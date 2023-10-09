@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -140,7 +141,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     public MultiTermsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        terms = in.readList(MultiValuesSourceFieldConfig::new);
+        terms = in.readCollectionAsList(MultiValuesSourceFieldConfig::new);
         order = InternalOrder.Streams.readOrder(in);
         collectMode = in.readOptionalWriteable(Aggregator.SubAggCollectionMode::readFromStream);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
@@ -196,7 +197,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(terms);
+        out.writeCollection(terms);
         order.writeTo(out);
         out.writeOptionalWriteable(collectMode);
         bucketCountThresholds.writeTo(out);
@@ -438,6 +439,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_12_0;
+        return TransportVersions.V_7_12_0;
     }
 }

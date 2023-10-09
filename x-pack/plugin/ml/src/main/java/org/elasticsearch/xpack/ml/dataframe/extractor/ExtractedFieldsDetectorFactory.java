@@ -144,7 +144,7 @@ public class ExtractedFieldsDetectorFactory {
         ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
     }
 
-    private void buildFieldCardinalitiesMap(
+    private static void buildFieldCardinalitiesMap(
         DataFrameAnalyticsConfig config,
         SearchResponse searchResponse,
         ActionListener<Map<String, Long>> listener

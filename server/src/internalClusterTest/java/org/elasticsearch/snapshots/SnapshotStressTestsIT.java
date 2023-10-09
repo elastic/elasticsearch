@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -212,6 +213,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             // a single thread for "client" activities, to limit the number of activities all starting at once
             new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, true, CLIENT)
         );
+        private final Executor clientExecutor = threadPool.executor(CLIENT);
 
         private final AtomicBoolean shouldStop = new AtomicBoolean();
         private final InternalTestCluster cluster;
@@ -393,7 +395,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 return;
             }
 
-            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(between(1, 500)), CLIENT, mustSucceed(action));
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(between(1, 500)), clientExecutor, mustSucceed(action));
         }
 
         private void startRestorer() {
@@ -1068,27 +1070,26 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             Releasable onCompletion,
             Runnable onSuccess
         ) {
-            threadPool.executor(CLIENT)
-                .execute(
-                    mustSucceed(
-                        () -> client.admin()
-                            .cluster()
-                            .prepareGetSnapshots(repositoryName)
-                            .setCurrentSnapshot()
-                            .execute(mustSucceed(getSnapshotsResponse -> {
-                                if (getSnapshotsResponse.getSnapshots()
-                                    .stream()
-                                    .noneMatch(snapshotInfo -> snapshotInfo.snapshotId().getName().equals(snapshotName))) {
+            clientExecutor.execute(
+                mustSucceed(
+                    () -> client.admin()
+                        .cluster()
+                        .prepareGetSnapshots(repositoryName)
+                        .setCurrentSnapshot()
+                        .execute(mustSucceed(getSnapshotsResponse -> {
+                            if (getSnapshotsResponse.getSnapshots()
+                                .stream()
+                                .noneMatch(snapshotInfo -> snapshotInfo.snapshotId().getName().equals(snapshotName))) {
 
-                                    logger.info("--> snapshot [{}:{}] no longer running", repositoryName, snapshotName);
-                                    Releasables.close(onCompletion);
-                                    onSuccess.run();
-                                } else {
-                                    pollForSnapshotCompletion(client, repositoryName, snapshotName, onCompletion, onSuccess);
-                                }
-                            }))
-                    )
-                );
+                                logger.info("--> snapshot [{}:{}] no longer running", repositoryName, snapshotName);
+                                Releasables.close(onCompletion);
+                                onSuccess.run();
+                            } else {
+                                pollForSnapshotCompletion(client, repositoryName, snapshotName, onCompletion, onSuccess);
+                            }
+                        }))
+                )
+            );
         }
 
         private void startNodeRestarter() {

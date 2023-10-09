@@ -49,7 +49,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
@@ -200,7 +199,7 @@ public class SearchResponseTests extends ESTestCase {
             remoteClusterIndices.put("cluster_" + i, new OriginalIndices(new String[] { "foo", "bar*" }, IndicesOptions.lenientExpand()));
         }
 
-        SearchResponse.Clusters clusters = new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips);
+        var clusters = new SearchResponse.Clusters(localIndices, remoteClusterIndices, ccsMinimizeRoundtrips, alias -> false);
 
         int successful = successfulClusters;
         int skipped = skippedClusters;
@@ -213,10 +212,11 @@ public class SearchResponseTests extends ESTestCase {
             int totalShards = 5;
             int successfulShards;
             int skippedShards;
-            int failedShards = 0;
+            int failedShards;
             List<ShardSearchFailure> failureList = Arrays.asList(failures);
             TimeValue took = new TimeValue(1000L);
             if (successful > 0) {
+                failedShards = 0;
                 status = SearchResponse.Cluster.Status.SUCCESSFUL;
                 successfulShards = 5;
                 skippedShards = 1;
@@ -241,27 +241,27 @@ public class SearchResponseTests extends ESTestCase {
                 failedShards = 5;
                 failed--;
             } else {
+                failedShards = 0;
                 throw new IllegalStateException("Test setup coding error - should not get here");
             }
             String clusterAlias = "";
             if (i >= 0) {
                 clusterAlias = "cluster_" + i;
             }
-            AtomicReference<SearchResponse.Cluster> clusterRef = clusters.getCluster(clusterAlias);
-            SearchResponse.Cluster cluster = clusterRef.get();
-            SearchResponse.Cluster update = new SearchResponse.Cluster(
+            SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+            List<ShardSearchFailure> finalFailureList = failureList;
+            clusters.swapCluster(
                 cluster.getClusterAlias(),
-                cluster.getIndexExpression(),
-                status,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                failedShards,
-                failureList,
-                took,
-                false
+                (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status)
+                    .setTotalShards(totalShards)
+                    .setSuccessfulShards(successfulShards)
+                    .setSkippedShards(skippedShards)
+                    .setFailedShards(failedShards)
+                    .setFailures(finalFailureList)
+                    .setTook(took)
+                    .setTimedOut(false)
+                    .build()
             );
-            assertTrue(clusterRef.compareAndSet(cluster, update));
         }
         return clusters;
     }
@@ -429,7 +429,10 @@ public class SearchResponseTests extends ESTestCase {
                   "_clusters": {
                     "total": 5,
                     "successful": 3,
-                    "skipped": 2
+                    "skipped": 2,
+                    "running":0,
+                    "partial": 0,
+                    "failed": 0
                   },
                   "hits": {
                     "total": {
@@ -482,8 +485,11 @@ public class SearchResponseTests extends ESTestCase {
                   },
                   "_clusters": {
                     "total": 4,
-                    "successful": 2,
-                    "skipped": 2,
+                    "successful": 1,
+                    "skipped": 1,
+                    "running":0,
+                    "partial": 1,
+                    "failed": 1,
                     "details": {
                       "(local)": {
                         "status": "successful",
@@ -625,5 +631,45 @@ public class SearchResponseTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(0, Strings.toString(builder).length());
+    }
+
+    public void testClustersHasRemoteCluster() {
+        // local cluster search Clusters objects
+        assertFalse(SearchResponse.Clusters.EMPTY.hasRemoteClusters());
+        assertFalse(new SearchResponse.Clusters(1, 1, 0).hasRemoteClusters());
+
+        // CCS search Cluster objects
+
+        // TODO: this variant of Clusters should not be allowed in a future ticket, but adding to test for now
+        assertTrue(new SearchResponse.Clusters(3, 2, 1).hasRemoteClusters());
+        {
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+
+            var c = new SearchResponse.Clusters(null, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
+
+        {
+            OriginalIndices localIndices = new OriginalIndices(new String[] { "foo*" }, IndicesOptions.LENIENT_EXPAND_OPEN);
+
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+
+            var c = new SearchResponse.Clusters(localIndices, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
+
+        {
+            OriginalIndices localIndices = new OriginalIndices(new String[] { "foo*" }, IndicesOptions.LENIENT_EXPAND_OPEN);
+
+            Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
+            remoteClusterIndices.put("remote1", new OriginalIndices(new String[] { "*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+            remoteClusterIndices.put("remote2", new OriginalIndices(new String[] { "a*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+            remoteClusterIndices.put("remote3", new OriginalIndices(new String[] { "b*" }, IndicesOptions.LENIENT_EXPAND_OPEN));
+
+            var c = new SearchResponse.Clusters(localIndices, remoteClusterIndices, randomBoolean(), alias -> randomBoolean());
+            assertTrue(c.hasRemoteClusters());
+        }
     }
 }

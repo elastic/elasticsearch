@@ -25,5 +25,12 @@ or aliases:
 
 [source,esql]
 ----
-FROM employees-00001,employees-*
+FROM employees-00001,other-employees-*
+----
+
+Use the `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
+
+[source,esql]
+----
+FROM employees [METADATA _id]
 ----

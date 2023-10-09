@@ -1,5 +1,8 @@
 [[esql-tan]]
 === `TAN`
+[.text-center]
+image::esql/functions/signature/tan.svg[Embedded,opts=inline]
+
 https://en.wikipedia.org/wiki/Sine_and_cosine[Tangent] trigonometric function.
 
 [source.merge.styled,esql]
@@ -10,3 +13,7 @@ include::{esql-specs}/floats.csv-spec[tag=tan]
 |===
 include::{esql-specs}/floats.csv-spec[tag=tan-result]
 |===
+
+Supported types:
+
+include::types/tan.asciidoc[]

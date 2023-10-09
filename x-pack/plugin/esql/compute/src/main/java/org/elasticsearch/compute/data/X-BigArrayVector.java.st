@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.$if(boolean)$Bit$else$$Type$$endif$Array;
 import org.elasticsearch.core.Releasable;
 
@@ -16,16 +17,25 @@ import org.elasticsearch.core.Releasable;
  */
 public final class $Type$BigArrayVector extends AbstractVector implements $Type$Vector, Releasable {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$BigArrayVector.class);
+
     private final $if(boolean)$Bit$else$$Type$$endif$Array values;
 
+    private final $Type$Block block;
+
     public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return new $Type$VectorBlock(this);
+        return block;
     }
 
     @Override
@@ -41,6 +51,11 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
     @Override
     public boolean isConstant() {
         return false;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
     @Override

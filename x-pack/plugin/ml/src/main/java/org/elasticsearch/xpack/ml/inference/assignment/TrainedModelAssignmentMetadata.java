@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -155,12 +156,12 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_0_0;
+        return TransportVersions.V_8_0_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(deploymentRoutingEntries, StreamOutput::writeString, (o, w) -> w.writeTo(o));
+        out.writeMap(deploymentRoutingEntries, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -231,6 +232,14 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
             if (deploymentRoutingEntries.containsKey(deploymentId) == false) {
                 throw new ResourceNotFoundException("[{}] assignment does not exist", deploymentId);
             }
+            deploymentRoutingEntries.put(deploymentId, assignment);
+            return this;
+        }
+
+        /**
+         * Adds the assignment regardless of whether it already exists.
+         */
+        public Builder addOrOverwriteAssignment(String deploymentId, TrainedModelAssignment.Builder assignment) {
             deploymentRoutingEntries.put(deploymentId, assignment);
             return this;
         }
@@ -311,7 +320,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_8_0_0;
+            return TransportVersions.V_8_0_0;
         }
 
         @Override

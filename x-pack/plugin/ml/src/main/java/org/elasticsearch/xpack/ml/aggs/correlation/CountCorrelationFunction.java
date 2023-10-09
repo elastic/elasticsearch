@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.aggs.correlation;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -99,7 +98,7 @@ public class CountCorrelationFunction implements CorrelationFunction {
     @Override
     public double execute(CountCorrelationIndicator y) {
         if (indicator.getExpectations().length != y.getExpectations().length) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "value lengths do not match; indicator.expectations ["
                     + indicator.getExpectations().length
                     + "] and number of buckets ["
@@ -136,7 +135,7 @@ public class CountCorrelationFunction implements CorrelationFunction {
         }
         final double weight = MovingFunctions.sum(y.getExpectations()) / indicator.getDocCount();
         if (weight > 1.0) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "doc_count of indicator must be larger than the total count of the correlating values indicator count ["
                     + indicator.getDocCount()
                     + "] correlating value total count ["

@@ -12,6 +12,8 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
 import java.util.Arrays;
@@ -28,58 +30,61 @@ public class MultivalueDedupeLong {
      */
     private static final int ALWAYS_COPY_MISSING = 300;
 
+    private final Block.Ref ref;
     private final LongBlock block;
     private long[] work = new long[ArrayUtil.oversize(2, Long.BYTES)];
     private int w;
 
-    public MultivalueDedupeLong(LongBlock block) {
-        this.block = block;
+    public MultivalueDedupeLong(Block.Ref ref) {
+        this.ref = ref;
+        this.block = (LongBlock) ref.block();
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public LongBlock dedupeToBlockAdaptive() {
-        if (false == block.mayHaveMultivaluedFields()) {
-            return block;
+    public Block.Ref dedupeToBlockAdaptive(BlockFactory blockFactory) {
+        if (block.mvDeduplicated()) {
+            return ref;
         }
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-                case 1 -> builder.appendLong(block.getLong(first));
-                default -> {
-                    /*
-                     * It's better to copyMissing when there are few unique values
-                     * and better to copy and sort when there are many unique values.
-                     * The more duplicate values there are the more comparatively worse
-                     * copyAndSort is. But we don't know how many unique values there
-                     * because our job is to find them. So we use the count of values
-                     * as a proxy that is fast to test. It's not always going to be
-                     * optimal but it has the nice property of being quite quick on
-                     * short lists and not n^2 levels of terrible on long ones.
-                     *
-                     * It'd also be possible to make a truly hybrid mechanism that
-                     * switches from copyMissing to copyUnique once it collects enough
-                     * unique values. The trouble is that the switch is expensive and
-                     * makes kind of a "hole" in the performance of that mechanism where
-                     * you may as well have just gone with either of the two other
-                     * strategies. So we just don't try it for now.
-                     */
-                    if (count < ALWAYS_COPY_MISSING) {
-                        copyMissing(first, count);
-                        writeUniquedWork(builder);
-                    } else {
-                        copyAndSort(first, count);
-                        writeSortedWork(builder);
+        try (ref; LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendLong(block.getLong(first));
+                    default -> {
+                        /*
+                         * It's better to copyMissing when there are few unique values
+                         * and better to copy and sort when there are many unique values.
+                         * The more duplicate values there are the more comparatively worse
+                         * copyAndSort is. But we don't know how many unique values there
+                         * because our job is to find them. So we use the count of values
+                         * as a proxy that is fast to test. It's not always going to be
+                         * optimal but it has the nice property of being quite quick on
+                         * short lists and not n^2 levels of terrible on long ones.
+                         *
+                         * It'd also be possible to make a truly hybrid mechanism that
+                         * switches from copyMissing to copyUnique once it collects enough
+                         * unique values. The trouble is that the switch is expensive and
+                         * makes kind of a "hole" in the performance of that mechanism where
+                         * you may as well have just gone with either of the two other
+                         * strategies. So we just don't try it for now.
+                         */
+                        if (count < ALWAYS_COPY_MISSING) {
+                            copyMissing(first, count);
+                            writeUniquedWork(builder);
+                        } else {
+                            copyAndSort(first, count);
+                            writeSortedWork(builder);
+                        }
                     }
                 }
             }
+            return Block.Ref.floating(builder.build());
         }
-        return builder.build();
     }
 
     /**
@@ -88,24 +93,25 @@ public class MultivalueDedupeLong {
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public LongBlock dedupeToBlockUsingCopyAndSort() {
-        if (false == block.mayHaveMultivaluedFields()) {
-            return block;
+    public Block.Ref dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
+        if (block.mvDeduplicated()) {
+            return ref;
         }
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-                case 1 -> builder.appendLong(block.getLong(first));
-                default -> {
-                    copyAndSort(first, count);
-                    writeSortedWork(builder);
+        try (ref; LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendLong(block.getLong(first));
+                    default -> {
+                        copyAndSort(first, count);
+                        writeSortedWork(builder);
+                    }
                 }
             }
+            return Block.Ref.floating(builder.build());
         }
-        return builder.build();
     }
 
     /**
@@ -116,57 +122,59 @@ public class MultivalueDedupeLong {
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public LongBlock dedupeToBlockUsingCopyMissing() {
-        if (false == block.mayHaveMultivaluedFields()) {
-            return block;
+    public Block.Ref dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
+        if (block.mvDeduplicated()) {
+            return ref;
         }
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-                case 1 -> builder.appendLong(block.getLong(first));
-                default -> {
-                    copyMissing(first, count);
-                    writeUniquedWork(builder);
-                }
-            }
-        }
-        return builder.build();
-    }
-
-    /**
-     * Dedupe values and build a {@link LongBlock} suitable for passing
-     * as the grouping block to a {@link GroupingAggregatorFunction}.
-     */
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
-        boolean sawNull = false;
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> {
-                    sawNull = true;
-                    builder.appendLong(0);
-                }
-                case 1 -> {
-                    long v = block.getLong(first);
-                    hash(builder, hash, v);
-                }
-                default -> {
-                    if (count < ALWAYS_COPY_MISSING) {
+        try (ref; LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount(), blockFactory)) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendLong(block.getLong(first));
+                    default -> {
                         copyMissing(first, count);
-                        hashUniquedWork(hash, builder);
-                    } else {
-                        copyAndSort(first, count);
-                        hashSortedWork(hash, builder);
+                        writeUniquedWork(builder);
                     }
                 }
             }
+            return Block.Ref.floating(builder.build());
         }
-        return new MultivalueDedupe.HashResult(builder.build(), sawNull);
+    }
+
+    /**
+     * Dedupe values and build a {@link IntBlock} suitable for passing
+     * as the grouping block to a {@link GroupingAggregatorFunction}.
+     */
+    public MultivalueDedupe.HashResult hash(LongHash hash) {
+        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount())) {
+            boolean sawNull = false;
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> {
+                        sawNull = true;
+                        builder.appendInt(0);
+                    }
+                    case 1 -> {
+                        long v = block.getLong(first);
+                        hash(builder, hash, v);
+                    }
+                    default -> {
+                        if (count < ALWAYS_COPY_MISSING) {
+                            copyMissing(first, count);
+                            hashUniquedWork(hash, builder);
+                        } else {
+                            copyAndSort(first, count);
+                            hashSortedWork(hash, builder);
+                        }
+                    }
+                }
+            }
+            return new MultivalueDedupe.HashResult(builder.build(), sawNull);
+        }
     }
 
     /**
@@ -301,7 +309,7 @@ public class MultivalueDedupeLong {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashUniquedWork(LongHash hash, LongBlock.Builder builder) {
+    private void hashUniquedWork(LongHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hash(builder, hash, work[0]);
             return;
@@ -316,7 +324,7 @@ public class MultivalueDedupeLong {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashSortedWork(LongHash hash, LongBlock.Builder builder) {
+    private void hashSortedWork(LongHash hash, IntBlock.Builder builder) {
         if (w == 1) {
             hash(builder, hash, work[0]);
             return;
@@ -361,7 +369,7 @@ public class MultivalueDedupeLong {
         work = ArrayUtil.grow(work, size);
     }
 
-    private void hash(LongBlock.Builder builder, LongHash hash, long v) {
-        builder.appendLong(BlockHash.hashOrdToGroupNullReserved(hash.add(v)));
+    private void hash(IntBlock.Builder builder, LongHash hash, long v) {
+        builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v))));
     }
 }

@@ -88,6 +88,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     // Runs the tasks that promptly notify shards of aborted snapshots so that resources can be released ASAP
     private final ThrottledTaskRunner notifyOnAbortTaskRunner;
 
+    @SuppressWarnings("this-escape")
     public SnapshotShardsService(
         Settings settings,
         ClusterService clusterService,
@@ -128,9 +129,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
-            SnapshotsInProgress previousSnapshots = event.previousState().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            SnapshotsInProgress currentSnapshots = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            if (previousSnapshots.equals(currentSnapshots) == false) {
+            SnapshotsInProgress currentSnapshots = SnapshotsInProgress.get(event.state());
+            if (SnapshotsInProgress.get(event.previousState()).equals(currentSnapshots) == false) {
                 synchronized (shardSnapshots) {
                     cancelRemoved(currentSnapshots);
                     for (List<SnapshotsInProgress.Entry> snapshots : currentSnapshots.entriesByRepo()) {

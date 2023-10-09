@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -43,6 +44,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -152,6 +157,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -182,6 +188,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.RESTART);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.RESTART,
@@ -218,6 +225,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -229,6 +237,39 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
 
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
+    }
+
+    /**
+     * Ensures we check whether the task is cancelled during the computation
+     */
+    public void testCancelled() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 1, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        final var task = new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
+        TaskCancelHelper.cancel(task, "test");
+
+        expectThrows(
+            TaskCancelledException.class,
+            () -> TransportGetShutdownStatusAction.shardMigrationStatus(
+                task,
+                state,
+                SHUTTING_DOWN_NODE_ID,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                true,
+                clusterInfoService,
+                snapshotsInfoService,
+                allocationService,
+                allocationDeciders
+            )
+        );
     }
 
     /**
@@ -263,6 +304,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -315,6 +357,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -351,6 +394,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -441,6 +485,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -473,6 +518,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -517,37 +563,29 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            SHUTTING_DOWN_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            LIVE_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(LIVE_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                            OTHER_LIVE_NODE_ID
-                        )
+                        DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID)
+                            .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9202))
+                            .build()
                     )
             )
             .routingTable(routingTable.build())
             .build();
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             bogusNodeId,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -642,6 +680,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         state = setIlmOperationMode(state, operationMode);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -702,26 +741,23 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         Map<String, IndexMetadata> indicesTable = indices.stream().collect(toMap(imd -> imd.getIndex().getName(), Function.identity()));
         DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                    LIVE_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(LIVE_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                    .build()
             )
             .add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                    OTHER_LIVE_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(OTHER_LIVE_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9202))
+                    .build()
             );
         if (shuttingDownNodeAlreadyLeft == false) {
             discoveryNodesBuilder.add(
-                DiscoveryNode.createLocal(
-                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                    SHUTTING_DOWN_NODE_ID
-                )
+                DiscoveryNodeUtils.builder(SHUTTING_DOWN_NODE_ID)
+                    .applySettings(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build())
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                    .build()
             );
         }
 
@@ -810,6 +846,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
 
         return TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
             state,
             SHUTTING_DOWN_NODE_ID,
             SingleNodeShutdownMetadata.Type.REMOVE,

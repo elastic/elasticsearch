@@ -7,8 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 
 import java.util.List;
 
@@ -30,7 +33,7 @@ import java.util.List;
  *
  * <p> Block are immutable and can be passed between threads.
  */
-public interface Block extends NamedWriteable {
+public interface Block extends Accountable, NamedWriteable, Releasable {
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -55,6 +58,12 @@ public interface Block extends NamedWriteable {
      * {@return the element type of this block}
      */
     ElementType elementType();
+
+    /** The block factory associated with this block. */
+    BlockFactory blockFactory();
+
+    /** Tells if this block has been released. A block is released by calling its {@link Block#close()} method. */
+    boolean isReleased();
 
     /**
      * Returns true if the value stored at the given position is null, false otherwise.
@@ -94,12 +103,20 @@ public interface Block extends NamedWriteable {
 
     /**
      * How are multivalued fields ordered?
-     * <p>Note that there isn't a {@code DESCENDING} because we don't have
-     * anything that makes descending fields.</p>
+     * Some operators can enable its optimization when mv_values are sorted ascending or de-duplicated.
      */
     enum MvOrdering {
-        ASCENDING,
-        UNORDERED;
+        UNORDERED(false, false),
+        DEDUPLICATED_UNORDERD(true, false),
+        DEDUPLICATED_AND_SORTED_ASCENDING(true, true);
+
+        private final boolean deduplicated;
+        private final boolean sortedAscending;
+
+        MvOrdering(boolean deduplicated, boolean sortedAscending) {
+            this.deduplicated = deduplicated;
+            this.sortedAscending = sortedAscending;
+        }
     }
 
     /**
@@ -108,19 +125,42 @@ public interface Block extends NamedWriteable {
     MvOrdering mvOrdering();
 
     /**
+     * Are multivalued fields de-duplicated in each position
+     */
+    default boolean mvDeduplicated() {
+        return mayHaveMultivaluedFields() == false || mvOrdering().deduplicated;
+    }
+
+    /**
+     * Are multivalued fields sorted ascending in each position
+     */
+    default boolean mvSortedAscending() {
+        return mayHaveMultivaluedFields() == false || mvOrdering().sortedAscending;
+    }
+
+    /**
      * Expand multivalued fields into one row per value. Returns the
      * block if there aren't any multivalued fields to expand.
      */
     Block expand();
 
     /**
-     * {@return a constant null block with the given number of positions}.
+     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
      */
+    // Eventually, this should use the GLOBAL breaking instance
     static Block constantNullBlock(int positions) {
-        return new ConstantNullBlock(positions);
+        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
     }
 
-    interface Builder {
+    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantNullBlock(positions);
+    }
+
+    /**
+     * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
+     * This is {@link Releasable} and should be released after building the block or if building the block fails.
+     */
+    interface Builder extends Releasable {
 
         /**
          * Appends a null value to the block.
@@ -155,7 +195,7 @@ public interface Block extends NamedWriteable {
 
         /**
          * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
-         * but when you set it to {@link Block.MvOrdering#ASCENDING} some operators can optimize
+         * but when you set it to {@link Block.MvOrdering#DEDUPLICATED_AND_SORTED_ASCENDING} some operators can optimize
          * themselves. This is a <strong>promise</strong> that is never checked. If you set this
          * to anything other than {@link Block.MvOrdering#UNORDERED} be sure the values are in
          * that order or other operators will make mistakes. The actual ordering isn't checked
@@ -169,6 +209,48 @@ public interface Block extends NamedWriteable {
         Block build();
     }
 
+    /**
+     * A reference to a {@link Block}. This is {@link Releasable} and
+     * {@link Ref#close closing} it will {@link Block#close release}
+     * the underlying {@link Block} if it wasn't borrowed from a {@link Page}.
+     *
+     * The usual way to use this is:
+     * <pre>{@code
+     *   try (Block.Ref ref = eval.eval(page)) {
+     *     return ref.block().doStuff;
+     *   }
+     * }</pre>
+     *
+     * The {@code try} block will return the memory used by the block to the
+     * breaker if it was "free floating", but if it was attached to a {@link Page}
+     * then it'll do nothing.
+     *
+     * @param block the block referenced
+     * @param containedIn the page containing it or null, if it is "free floating".
+     */
+    record Ref(Block block, @Nullable Page containedIn) implements Releasable {
+        /**
+         * Create a "free floating" {@link Ref}.
+         */
+        public static Ref floating(Block block) {
+            return new Ref(block, null);
+        }
+
+        /**
+         * Is this block "free floating" or attached to a page?
+         */
+        public boolean floating() {
+            return containedIn == null;
+        }
+
+        @Override
+        public void close() {
+            if (floating()) {
+                block.close();
+            }
+        }
+    }
+
     static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             IntBlock.ENTRY,
@@ -176,11 +258,6 @@ public interface Block extends NamedWriteable {
             DoubleBlock.ENTRY,
             BytesRefBlock.ENTRY,
             BooleanBlock.ENTRY,
-            IntVectorBlock.ENTRY,
-            LongVectorBlock.ENTRY,
-            DoubleVectorBlock.ENTRY,
-            BytesRefVectorBlock.ENTRY,
-            BooleanVectorBlock.ENTRY,
             ConstantNullBlock.ENTRY
         );
     }

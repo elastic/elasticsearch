@@ -379,7 +379,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         String newIndexName = migrationInfo.getNextIndexName();
 
         /**
-         * This is on for all system indices except when the system index explicitly opts out
+         * This should be on for all System indices except for .kibana_ indices. See allowsTemplates in KibanaPlugin.java for more info.
          */
         if (migrationInfo.allowsTemplates() == false) {
             final String v2template = MetadataIndexTemplateService.findV2Template(clusterState.metadata(), newIndexName, false);

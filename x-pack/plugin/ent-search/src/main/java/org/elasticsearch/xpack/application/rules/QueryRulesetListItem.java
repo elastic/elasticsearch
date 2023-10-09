@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +28,7 @@ import java.util.Objects;
 public class QueryRulesetListItem implements Writeable, ToXContentObject {
 
     // TODO we need to actually bump transport version, but there's no point until main is merged. Placeholder for now.
-    public static final TransportVersion EXPANDED_RULESET_COUNT_TRANSPORT_VERSION = TransportVersion.V_8_500_052;
+    public static final TransportVersion EXPANDED_RULESET_COUNT_TRANSPORT_VERSION = TransportVersions.V_8_500_052;
 
     public static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
     public static final ParseField RULE_TOTAL_COUNT_FIELD = new ParseField("rule_total_count");

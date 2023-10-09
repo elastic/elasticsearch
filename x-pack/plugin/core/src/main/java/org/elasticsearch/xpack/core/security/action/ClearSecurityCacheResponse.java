@@ -32,12 +32,12 @@ public class ClearSecurityCacheResponse extends BaseNodesResponse<ClearSecurityC
 
     @Override
     protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::new);
+        return in.readCollectionAsList(Node::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Filter vector for BytesRefVectors.
@@ -15,11 +17,16 @@ import org.apache.lucene.util.BytesRef;
  */
 public final class FilterBytesRefVector extends AbstractFilterVector implements BytesRefVector {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FilterBytesRefVector.class);
+
     private final BytesRefVector vector;
 
+    private final BytesRefBlock block;
+
     FilterBytesRefVector(BytesRefVector vector, int... positions) {
-        super(positions);
+        super(positions, vector.blockFactory());
         this.vector = vector;
+        this.block = new BytesRefVectorBlock(this);
     }
 
     @Override
@@ -29,7 +36,7 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
 
     @Override
     public BytesRefBlock asBlock() {
-        return new BytesRefVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -45,6 +52,13 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
     @Override
     public BytesRefVector filter(int... positions) {
         return new FilterBytesRefVector(this, positions);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // from a usage and resource point of view filter vectors encapsulate
+        // their inner vector, rather than listing it as a child resource
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector) + RamUsageEstimator.sizeOf(positions);
     }
 
     @Override
@@ -78,5 +92,15 @@ public final class FilterBytesRefVector extends AbstractFilterVector implements 
             }
             sb.append(getBytesRef(i, new BytesRef()));
         }
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(vector);
     }
 }

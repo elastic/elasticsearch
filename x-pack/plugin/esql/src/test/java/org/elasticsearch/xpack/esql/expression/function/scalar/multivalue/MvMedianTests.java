@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -24,7 +25,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
-    public MvMedianTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public MvMedianTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -72,8 +73,8 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<1, 2>)",
-                () -> new TestCase(
-                    List.of(new TypedData(List.of(1, 2), DataTypes.INTEGER, "field")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataTypes.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
                     DataTypes.INTEGER,
                     equalTo(1)
@@ -83,8 +84,8 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<-1, -2>)",
-                () -> new TestCase(
-                    List.of(new TypedData(List.of(-1, -2), DataTypes.INTEGER, "field")),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataTypes.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
                     DataTypes.INTEGER,
                     equalTo(-2)

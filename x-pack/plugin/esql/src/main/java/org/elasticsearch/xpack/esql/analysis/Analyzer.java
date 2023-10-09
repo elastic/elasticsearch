@@ -323,13 +323,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveEnrich(p, childrenOutput);
             }
 
-            return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
+            return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
-        private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
+        private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             if (ua.customMessage()) {
                 return ua;
             }
+            return resolveAttribute(ua, childrenOutput);
+        }
+
+        private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             Attribute resolved = ua;
             var named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
@@ -348,13 +352,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
             List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
-            List<NamedExpression> newFields = new ArrayList<>();
+            List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
-            for (NamedExpression field : eval.fields()) {
-                NamedExpression result = (NamedExpression) field.transformUp(
-                    UnresolvedAttribute.class,
-                    ua -> resolveAttribute(ua, allResolvedInputs)
-                );
+            for (Alias field : eval.fields()) {
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
                 changed |= result != field;
                 newFields.add(result);
@@ -444,7 +445,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
                     projections.removeIf(x -> x.name().equals(alias.name()));
 
-                    var resolved = resolveAttribute(ua, childrenOutput);
+                    var resolved = maybeResolveAttribute(ua, childrenOutput);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
                         var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
@@ -493,7 +494,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
 
             if (enrich.matchField().toAttribute() instanceof UnresolvedAttribute ua) {
-                Attribute resolved = resolveAttribute(ua, childrenOutput);
+                Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
@@ -612,11 +613,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            return new Limit(
-                Source.EMPTY,
-                new Literal(Source.EMPTY, context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER),
-                logicalPlan
-            );
+            List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
+            var limit = limits.isEmpty() == false
+                ? context.configuration().resultTruncationMaxSize() // user provided a limit: cap result entries to the max
+                : context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+            return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
         }
     }
 

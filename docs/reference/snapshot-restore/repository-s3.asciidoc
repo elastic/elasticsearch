@@ -226,16 +226,16 @@ emulate S3's behaviour in full. The `repository-s3` type requires full
 compatibility with S3. In particular it must support the same set of API
 endpoints, return the same errors in case of failures, and offer consistency
 and performance at least as good as S3 even when accessed concurrently by
-multiple nodes. Incompatible error codes, consistency or performance may be
-particularly hard to track down since errors, consistency failures, and
-performance issues are usually rare and hard to reproduce.
+multiple nodes. You will need to work with the supplier of your storage system
+to address any incompatibilities you encounter.
 
 You can perform some basic checks of the suitability of your storage system
 using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
 does not complete successfully, or indicates poor performance, then your
 storage system is not fully compatible with AWS S3 and therefore unsuitable for
-use as a snapshot repository. You will need to work with the supplier of your
-storage system to address any incompatibilities you encounter.
+use as a snapshot repository. However, these checks do not guarantee full
+compatibility. Incompatible error codes and consistency or performance issues
+may be rare and hard to reproduce.
 
 [[repository-s3-repository]]
 ==== Repository settings

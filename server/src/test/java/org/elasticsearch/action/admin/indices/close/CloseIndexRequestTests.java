@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -55,10 +56,11 @@ public class CloseIndexRequestTests extends ESTestCase {
                     // to the addition of hidden indices as expand to hidden indices is always true when
                     // read from a prior version
                     // TODO update version on backport!
-                    if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
+                    if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)
+                        || request.indicesOptions().expandWildcardsHidden()) {
                         assertEquals(request.indicesOptions(), indicesOptions);
                     }
-                    if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+                    if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                         assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
                     } else {
                         assertEquals(0, in.available());
@@ -76,7 +78,7 @@ public class CloseIndexRequestTests extends ESTestCase {
                 out.writeTimeValue(sample.timeout());
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                     sample.waitForActiveShards().writeTo(out);
                 }
 
@@ -93,10 +95,10 @@ public class CloseIndexRequestTests extends ESTestCase {
                 // to the addition of hidden indices as expand to hidden indices is always true when
                 // read from a prior version
                 // TODO change version on backport
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
                     assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
                 }
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
                     assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
                 } else {
                     assertEquals(ActiveShardCount.NONE, deserializedRequest.waitForActiveShards());

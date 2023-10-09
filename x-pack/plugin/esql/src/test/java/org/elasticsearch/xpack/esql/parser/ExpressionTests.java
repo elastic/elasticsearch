@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -24,10 +28,6 @@ import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
@@ -84,7 +84,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(-123, INTEGER), whereExpression("+(-123)"));
         assertEquals(l(-123, INTEGER), whereExpression("+(+(-123))"));
         // we could do better here. ES SQL is smarter and accounts for the number of minuses
-        assertEquals(new Neg(null, l(-123, INTEGER)), whereExpression("-(-123)"));
+        assertEquals(new Neg(EMPTY, l(-123, INTEGER)), whereExpression("-(-123)"));
     }
 
     public void testStringLiterals() {
@@ -410,7 +410,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testUnknownNumericQualifier() {
-        assertParsingException(() -> whereExpression("1 decade"), "Unexpected numeric qualifier 'decade'");
+        assertParsingException(() -> whereExpression("1 decade"), "Unexpected time interval qualifier: 'decade'");
     }
 
     public void testQualifiedDecimalLiteral() {

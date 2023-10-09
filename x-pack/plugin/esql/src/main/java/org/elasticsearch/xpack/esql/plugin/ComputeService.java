@@ -16,15 +16,16 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -77,6 +78,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -85,6 +87,8 @@ public class ComputeService {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
     private final BigArrays bigArrays;
+    private final BlockFactory blockFactory;
+
     private final TransportService transportService;
     private final Executor esqlExecutor;
     private final DriverTaskRunner driverRunner;
@@ -97,19 +101,16 @@ public class ComputeService {
         ExchangeService exchangeService,
         EnrichLookupService enrichLookupService,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        BlockFactory blockFactory
     ) {
         this.searchService = searchService;
         this.transportService = transportService;
         this.bigArrays = bigArrays.withCircuitBreaking();
-        transportService.registerRequestHandler(
-            DATA_ACTION_NAME,
-            ESQL_THREAD_POOL_NAME,
-            DataNodeRequest::new,
-            new DataNodeRequestHandler()
-        );
+        this.blockFactory = blockFactory;
         this.esqlExecutor = threadPool.executor(ESQL_THREAD_POOL_NAME);
-        this.driverRunner = new DriverTaskRunner(transportService, ESQL_THREAD_POOL_NAME);
+        transportService.registerRequestHandler(DATA_ACTION_NAME, this.esqlExecutor, DataNodeRequest::new, new DataNodeRequestHandler());
+        this.driverRunner = new DriverTaskRunner(transportService, this.esqlExecutor);
         this.exchangeService = exchangeService;
         this.enrichLookupService = enrichLookupService;
     }
@@ -126,6 +127,10 @@ public class ComputeService {
             configuration
         );
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        listener = listener.delegateResponse((l, e) -> {
+            collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
+            l.onFailure(e);
+        });
         PhysicalPlan coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
 
@@ -139,6 +144,9 @@ public class ComputeService {
             return;
         }
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan);
+
+        LOGGER.debug("Sending data node plan\n{}\n with filter [{}]", dataNodePlan, requestFilter);
+
         String[] originalIndices = PlannerUtils.planOriginalIndices(physicalPlan);
         computeTargetNodes(
             rootTask,
@@ -187,7 +195,7 @@ public class ComputeService {
         Supplier<ActionListener<DataNodeResponse>> listener
     ) {
         // Do not complete the exchange sources until we have linked all remote sinks
-        final ListenableActionFuture<Void> blockingSinkFuture = new ListenableActionFuture<>();
+        final SubscribableListener<Void> blockingSinkFuture = new SubscribableListener<>();
         exchangeSource.addRemoteSink(
             (sourceFinished, l) -> blockingSinkFuture.addListener(l.map(ignored -> new ExchangeResponse(null, true))),
             1
@@ -239,6 +247,7 @@ public class ComputeService {
                 context.sessionId,
                 task,
                 bigArrays,
+                blockFactory,
                 context.configuration,
                 context.exchangeSource(),
                 context.exchangeSink(),
@@ -246,21 +255,28 @@ public class ComputeService {
                 new EsPhysicalOperationProviders(context.searchContexts)
             );
 
-            LOGGER.info("Received physical plan:\n{}", plan);
+            LOGGER.debug("Received physical plan:\n{}", plan);
             plan = PlannerUtils.localPlan(context.searchContexts, context.configuration, plan);
             LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
 
-            LOGGER.info("Local execution plan:\n{}", localExecutionPlan.describe());
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+            }
             drivers = localExecutionPlan.createDrivers(context.sessionId);
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
-            LOGGER.info("using {} drivers", drivers.size());
+            LOGGER.debug("using {} drivers", drivers.size());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
-        driverRunner.executeDrivers(task, drivers, ActionListener.releaseAfter(listener, () -> Releasables.close(drivers)));
+        driverRunner.executeDrivers(
+            task,
+            drivers,
+            transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+            ActionListener.releaseAfter(listener, () -> Releasables.close(drivers))
+        );
     }
 
     private void acquireSearchContexts(

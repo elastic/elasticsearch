@@ -35,22 +35,20 @@ import java.util.concurrent.Executor;
 public class DriverTaskRunner {
     public static final String ACTION_NAME = "internal:data/read/esql/compute";
     private final TransportService transportService;
-    private final Executor executor;
 
-    public DriverTaskRunner(TransportService transportService, String executorName) {
+    public DriverTaskRunner(TransportService transportService, Executor executor) {
         this.transportService = transportService;
-        this.executor = transportService.getThreadPool().executor(executorName);
-        transportService.registerRequestHandler(ACTION_NAME, executorName, DriverRequest::new, new DriverRequestHandler(executor));
+        transportService.registerRequestHandler(ACTION_NAME, executor, DriverRequest::new, new DriverRequestHandler());
     }
 
-    public void executeDrivers(Task parentTask, List<Driver> drivers, ActionListener<Void> listener) {
-        var runner = new DriverRunner() {
+    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener) {
+        var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
                 transportService.sendChildRequest(
                     transportService.getLocalNode(),
                     ACTION_NAME,
-                    new DriverRequest(driver),
+                    new DriverRequest(driver, executor),
                     parentTask,
                     TransportRequestOptions.EMPTY,
                     TransportResponseHandler.empty(executor, driverListener)
@@ -62,9 +60,11 @@ public class DriverTaskRunner {
 
     private static class DriverRequest extends ActionRequest {
         private final Driver driver;
+        private final Executor executor;
 
-        DriverRequest(Driver driver) {
+        DriverRequest(Driver driver, Executor executor) {
             this.driver = driver;
+            this.executor = executor;
         }
 
         DriverRequest(StreamInput in) {
@@ -107,11 +107,16 @@ public class DriverTaskRunner {
         }
     }
 
-    private record DriverRequestHandler(Executor executor) implements TransportRequestHandler<DriverRequest> {
+    private record DriverRequestHandler() implements TransportRequestHandler<DriverRequest> {
         @Override
         public void messageReceived(DriverRequest request, TransportChannel channel, Task task) {
             var listener = new ChannelActionListener<TransportResponse.Empty>(channel);
-            Driver.start(executor, request.driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(unused -> TransportResponse.Empty.INSTANCE));
+            Driver.start(
+                request.executor,
+                request.driver,
+                Driver.DEFAULT_MAX_ITERATIONS,
+                listener.map(unused -> TransportResponse.Empty.INSTANCE)
+            );
         }
     }
 }

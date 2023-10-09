@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
+
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator {
 
@@ -56,5 +59,10 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
     @Override
     public Nullability nullable() {
         return Nullability.FALSE;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return EsqlTypeResolutions.isExact(field(), sourceText(), DEFAULT);
     }
 }

@@ -15,6 +15,7 @@ import com.amazonaws.services.s3.model.MultipartUpload;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -126,7 +127,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 class TestHarness {
                     boolean tryCompareAndSet(BytesReference expected, BytesReference updated) {
                         return PlainActionFuture.<Boolean, RuntimeException>get(
-                            future -> blobContainer.compareAndSetRegister("key", expected, updated, future),
+                            future -> blobContainer.compareAndSetRegister(OperationPurpose.SNAPSHOT, "key", expected, updated, future),
                             10,
                             TimeUnit.SECONDS
                         );
@@ -134,7 +135,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
                     BytesReference readRegister() {
                         return PlainActionFuture.get(
-                            future -> blobContainer.getRegister("key", future.map(OptionalBytesReference::bytesReference)),
+                            future -> blobContainer.getRegister(
+                                OperationPurpose.SNAPSHOT,
+                                "key",
+                                future.map(OptionalBytesReference::bytesReference)
+                            ),
                             10,
                             TimeUnit.SECONDS
                         );
@@ -181,7 +186,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertThat(testHarness.listMultipartUploads(), hasSize(0));
                 assertEquals(bytes2, testHarness.readRegister());
             } finally {
-                blobContainer.delete();
+                blobContainer.delete(OperationPurpose.SNAPSHOT);
             }
         } finally {
             ThreadPool.terminate(threadpool, 10, TimeUnit.SECONDS);

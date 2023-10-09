@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -27,7 +28,7 @@ import java.util.stream.DoubleStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
-    public MvAvgTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public MvAvgTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 

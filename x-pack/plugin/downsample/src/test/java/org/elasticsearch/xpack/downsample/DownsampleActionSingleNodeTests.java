@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -339,7 +340,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         String downsampleIndex2 = downsampleIndex + "-2";
         DownsampleConfig config2 = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes * randomIntBetween(2, 50)));
         downsample(downsampleIndex, downsampleIndex2, config2);
-        assertDownsampleIndex(sourceIndex, downsampleIndex2, config2);
+        assertDownsampleIndex(downsampleIndex, downsampleIndex2, config2);
     }
 
     private Date randomDate() {
@@ -1278,6 +1279,18 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(sourceIndex, downsampleSettings.get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME_KEY));
         assertEquals(sourceSettings.get(IndexSettings.MODE.getKey()), downsampleSettings.get(IndexSettings.MODE.getKey()));
 
+        if (Strings.hasText(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(sourceSettings))) {
+            // if the source is a downsample index itself, we're in the "downsample of downsample" test case and both indices should have
+            // the same ORIGIN configured
+            assertEquals(
+                IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.get(sourceSettings),
+                IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.get(downsampleSettings)
+            );
+            assertEquals(
+                IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.get(sourceSettings),
+                IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_UUID.get(downsampleSettings)
+            );
+        }
         assertNotNull(sourceSettings.get(IndexSettings.TIME_SERIES_START_TIME.getKey()));
         assertNotNull(downsampleSettings.get(IndexSettings.TIME_SERIES_START_TIME.getKey()));
         assertEquals(

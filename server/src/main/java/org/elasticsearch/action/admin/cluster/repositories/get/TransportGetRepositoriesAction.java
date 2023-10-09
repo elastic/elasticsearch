@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,7 +56,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             GetRepositoriesRequest::new,
             indexNameExpressionResolver,
             GetRepositoriesResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
@@ -92,7 +93,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
      * @return a result with the repository metadata that were found in the cluster state and the missing repositories
      */
     public static RepositoriesResult getRepositories(ClusterState state, String[] repoNames) {
-        RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        RepositoriesMetadata repositories = RepositoriesMetadata.get(state);
         if (isMatchAll(repoNames)) {
             return new RepositoriesResult(repositories.repositories());
         }

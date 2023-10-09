@@ -8,11 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a BytesRefVector.
@@ -23,7 +19,7 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     private final BytesRefVector vector;
 
     BytesRefVectorBlock(BytesRefVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -52,44 +48,9 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
         return new FilterBytesRefVector(vector, positions).asBlock();
     }
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Block.class,
-        "BytesRefVectorBlock",
-        BytesRefVectorBlock::of
-    );
-
     @Override
-    public String getWriteableName() {
-        return "BytesRefVectorBlock";
-    }
-
-    static BytesRefVectorBlock of(StreamInput in) throws IOException {
-        final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return new BytesRefVectorBlock(new ConstantBytesRefVector(in.readBytesRef(), positions));
-        } else {
-            var builder = BytesRefVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendBytesRef(in.readBytesRef());
-            }
-            return new BytesRefVectorBlock(builder.build());
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        final BytesRefVector vector = this.vector;
-        final int positions = vector.getPositionCount();
-        out.writeVInt(positions);
-        out.writeBoolean(vector.isConstant());
-        if (vector.isConstant() && positions > 0) {
-            out.writeBytesRef(getBytesRef(0, new BytesRef()));
-        } else {
-            for (int i = 0; i < positions; i++) {
-                out.writeBytesRef(getBytesRef(i, new BytesRef()));
-            }
-        }
+    public long ramBytesUsed() {
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -108,5 +69,14 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

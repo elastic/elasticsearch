@@ -21,6 +21,9 @@ setup:
 
 ---
 Test Elastic Agent log ECS mappings:
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/97795
   - do:
       indices.get_data_stream:
         name: logs-generic-default

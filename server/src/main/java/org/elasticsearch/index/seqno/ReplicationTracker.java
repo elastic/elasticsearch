@@ -1602,7 +1602,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(clusterStateVersion);
-            out.writeMap(checkpoints, (streamOutput, s) -> out.writeString(s), (streamOutput, cps) -> cps.writeTo(out));
+            out.writeMap(checkpoints, StreamOutput::writeWriteable);
             IndexShardRoutingTable.Builder.writeTo(routingTable, out);
         }
 

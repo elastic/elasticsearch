@@ -11,9 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -34,7 +36,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SplitTests extends AbstractScalarFunctionTestCase {
-    public SplitTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public SplitTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -47,10 +49,10 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
                 .map(BytesRef::new)
                 .collect(Collectors.toList());
             String str = strings.stream().map(BytesRef::utf8ToString).collect(joining(delimiter));
-            return new TestCase(
+            return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TypedData(new BytesRef(delimiter), DataTypes.KEYWORD, "delim")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(delimiter), DataTypes.KEYWORD, "delim")
                 ),
                 "SplitVariableEvaluator[str=Attribute[channel=0], delim=Attribute[channel=1]]",
                 DataTypes.KEYWORD,
@@ -64,7 +66,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
         return DataTypes.KEYWORD;
     }
 
-    private Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
         String delim = ((BytesRef) typedData.get(1).data()).utf8ToString();
         List<BytesRef> split = Arrays.stream(str.split(Pattern.quote(delim))).map(BytesRef::new).toList();
@@ -82,19 +84,21 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testConstantDelimiter() {
-        EvalOperator.ExpressionEvaluator eval = evaluator(
-            new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
-        ).get();
-        /*
-         * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
-         * string because we aren't really sure it's printable. It could be a tab or a bell or some
-         * garbage.
-         */
-        assert ':' == 58;
-        assertThat(eval.toString(), equalTo("SplitSingleByteEvaluator[str=Attribute[channel=0], delim=58]"));
-        assertThat(
-            toJavaObject(eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1))), 0),
-            equalTo(List.of(new BytesRef("foo"), new BytesRef("bar")))
-        );
+        try (
+            EvalOperator.ExpressionEvaluator eval = evaluator(
+                new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
+            ).get(driverContext())
+        ) {
+            /*
+             * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
+             * string because we aren't really sure it's printable. It could be a tab or a bell or some
+             * garbage.
+             */
+            assert ':' == 58;
+            assertThat(eval.toString(), equalTo("SplitSingleByteEvaluator[str=Attribute[channel=0], delim=58]"));
+            try (Block.Ref ref = eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1)))) {
+                assertThat(toJavaObject(ref.block(), 0), equalTo(List.of(new BytesRef("foo"), new BytesRef("bar"))));
+            }
+        }
     }
 }

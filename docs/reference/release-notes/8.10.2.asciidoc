@@ -1,0 +1,6 @@
+[[release-notes-8.10.2]]
+== {es} version 8.10.2
+
+8.10.2 contains no significant changes.
+
+Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.

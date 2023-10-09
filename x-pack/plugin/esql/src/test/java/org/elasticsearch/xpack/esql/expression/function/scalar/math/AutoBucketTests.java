@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -27,17 +28,21 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AutoBucketTests extends AbstractScalarFunctionTestCase {
-    public AutoBucketTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public AutoBucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Autobucket Single date", () -> {
-            List<TypedData> args = List.of(
-                new TypedData(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"), DataTypes.DATETIME, "arg")
+            List<TestCaseSupplier.TypedData> args = List.of(
+                new TestCaseSupplier.TypedData(
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"),
+                    DataTypes.DATETIME,
+                    "arg"
+                )
             );
-            return new TestCase(
+            return new TestCaseSupplier.TestCase(
                 args,
                 "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                 DataTypes.DATETIME,
@@ -67,7 +72,7 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
         return argTypes.get(0);
     }
 
-    private static Matcher<Object> resultsMatcher(List<TypedData> typedData) {
+    private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         long millis = ((Number) typedData.get(0).data()).longValue();
         return equalTo(Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis));
     }

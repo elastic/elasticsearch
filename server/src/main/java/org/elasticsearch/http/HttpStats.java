@@ -31,14 +31,14 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
     }
 
     public HttpStats(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readList(ClientStats::new));
+        this(in.readVLong(), in.readVLong(), in.readCollectionAsList(ClientStats::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
-        out.writeList(clientStats);
+        out.writeCollection(clientStats);
     }
 
     public long getServerOpen() {

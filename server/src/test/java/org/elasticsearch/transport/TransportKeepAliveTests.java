@@ -21,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.concurrent.Executor;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -190,7 +191,11 @@ public class TransportKeepAliveTests extends ESTestCase {
         }
 
         @Override
-        public ScheduledCancellable schedule(Runnable task, TimeValue delay, String executor) {
+        public ScheduledCancellable schedule(Runnable task, TimeValue delay, Executor executor) {
+            return doSchedule(task, delay);
+        }
+
+        private ScheduledCancellable doSchedule(Runnable task, TimeValue delay) {
             scheduledTasks.add(new Tuple<>(delay, task));
             return null;
         }

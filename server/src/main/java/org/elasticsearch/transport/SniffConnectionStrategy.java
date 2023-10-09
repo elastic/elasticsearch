@@ -606,7 +606,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(seedNodes.toArray(new String[0]));
+            out.writeStringCollection(seedNodes);
             out.writeVInt(maxConnectionsPerCluster);
             out.writeVInt(numNodesConnected);
         }

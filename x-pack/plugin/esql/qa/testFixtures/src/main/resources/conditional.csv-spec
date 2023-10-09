@@ -1,5 +1,6 @@
 twoConditionsWithDefault
 from employees
+| sort emp_no
 | eval type = case(
     languages <= 1, "monolingual",
     languages <= 2, "bilingual",
@@ -22,6 +23,7 @@ emp_no:integer | type:keyword
 
 singleCondition
 from employees
+| sort emp_no
 | eval g = case(gender == "F", true)
 | keep gender, g
 | limit 10;
@@ -41,6 +43,7 @@ null           |null
 
 conditionIsNull
 from employees 
+| sort emp_no
 | eval g = case(
     gender == "F", 1,
     languages > 1, 2,
@@ -78,6 +81,7 @@ M              |null             |3
 
 nullValue
 from employees
+| sort emp_no
 | eval g = case(gender == "F", 1 + null, 10)
 | keep gender, g
 | limit 5;

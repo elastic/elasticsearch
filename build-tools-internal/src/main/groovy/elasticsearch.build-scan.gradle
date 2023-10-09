@@ -106,7 +106,7 @@ buildScan {
       // Add SCM information
       def prId = System.getenv('BUILDKITE_PULL_REQUEST')
       if (prId != 'false') {
-        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
+        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git").replaceFirst("git://", "https://")
         value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
         tag "pr/${prId}"
         tag 'pull-request'

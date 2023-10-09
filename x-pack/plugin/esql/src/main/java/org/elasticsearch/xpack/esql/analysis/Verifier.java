@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -29,8 +31,6 @@ import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
@@ -125,24 +125,24 @@ public class Verifier {
                 agg.aggregates().forEach(e -> {
                     var exp = e instanceof Alias ? ((Alias) e).child() : e;
                     if (exp instanceof AggregateFunction aggFunc) {
-                        aggFunc.arguments().forEach(a -> {
-                            // TODO: allow an expression?
-                            if ((a instanceof FieldAttribute
-                                || a instanceof MetadataAttribute
-                                || a instanceof ReferenceAttribute
-                                || a instanceof Literal) == false) {
-                                failures.add(
-                                    fail(
-                                        e,
-                                        "aggregate function's parameters must be an attribute or literal; found ["
-                                            + a.sourceText()
-                                            + "] of type ["
-                                            + a.nodeName()
-                                            + "]"
-                                    )
-                                );
-                            }
-                        });
+                        Expression field = aggFunc.field();
+
+                        // TODO: allow an expression?
+                        if ((field instanceof FieldAttribute
+                            || field instanceof MetadataAttribute
+                            || field instanceof ReferenceAttribute
+                            || field instanceof Literal) == false) {
+                            failures.add(
+                                fail(
+                                    e,
+                                    "aggregate function's field must be an attribute or literal; found ["
+                                        + field.sourceText()
+                                        + "] of type ["
+                                        + field.nodeName()
+                                        + "]"
+                                )
+                            );
+                        }
                     } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
                         failures.add(
                             fail(
@@ -172,6 +172,8 @@ public class Verifier {
                 }
             } else if (p instanceof Row row) {
                 failures.addAll(validateRow(row));
+            } else if (p instanceof Eval eval) {
+                failures.addAll(validateEval(eval));
             }
 
             p.forEachExpression(BinaryOperator.class, bo -> {
@@ -228,9 +230,22 @@ public class Verifier {
 
     private static Collection<Failure> validateRow(Row row) {
         List<Failure> failures = new ArrayList<>(row.fields().size());
-        row.fields().forEach(o -> {
-            if (EsqlDataTypes.isRepresentable(o.dataType()) == false && o instanceof Alias a) {
-                failures.add(fail(o, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+        row.fields().forEach(a -> {
+            if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
+                failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+            }
+        });
+        return failures;
+    }
+
+    private static Collection<Failure> validateEval(Eval eval) {
+        List<Failure> failures = new ArrayList<>(eval.fields().size());
+        eval.fields().forEach(field -> {
+            DataType dataType = field.dataType();
+            if (EsqlDataTypes.isRepresentable(dataType) == false) {
+                failures.add(
+                    fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
+                );
             }
         });
         return failures;
@@ -270,6 +285,9 @@ public class Verifier {
         );
         if (false == r.resolved()) {
             return fail(bc, r.message());
+        }
+        if (DataTypes.isString(bc.left().dataType()) && DataTypes.isString(bc.right().dataType())) {
+            return null;
         }
         if (bc.left().dataType() != bc.right().dataType()) {
             return fail(

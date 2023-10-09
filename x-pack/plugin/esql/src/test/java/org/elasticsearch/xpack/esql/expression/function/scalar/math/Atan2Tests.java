@@ -10,44 +10,33 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class Atan2Tests extends AbstractScalarFunctionTestCase {
-    public Atan2Tests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class Atan2Tests extends AbstractFunctionTestCase {
+    public Atan2Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("double", () -> {
-            double y = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
-            double x = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
-            return new TestCase(
-                List.of(new TypedData(y, DataTypes.DOUBLE, "y"), new TypedData(x, DataTypes.DOUBLE, "x")),
-                "Atan2Evaluator[y=Attribute[channel=0], x=Attribute[channel=1]]",
-                DataTypes.DOUBLE,
-                equalTo(Math.atan2(y, x))
-            );
-        })));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()), required(numerics()));
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forBinaryCastingToDouble(
+            "Atan2Evaluator",
+            "y",
+            "x",
+            Math::atan2,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            List.of()
+        );
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override

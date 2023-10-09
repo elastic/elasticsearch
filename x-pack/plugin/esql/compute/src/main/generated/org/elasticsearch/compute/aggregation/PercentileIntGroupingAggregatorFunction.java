@@ -17,9 +17,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link PercentileIntAggregator}.
@@ -33,21 +32,25 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final BigArrays bigArrays;
 
   private final double percentile;
 
   public PercentileIntGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, BigArrays bigArrays, double percentile) {
+      QuantileStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays,
+      double percentile) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
     this.bigArrays = bigArrays;
     this.percentile = percentile;
   }
 
   public static PercentileIntGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, double percentile) {
-    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
+      DriverContext driverContext, BigArrays bigArrays, double percentile) {
+    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(bigArrays, percentile), driverContext, bigArrays, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -67,11 +70,11 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
       state.enableGroupIdTracking(seenGroupIds);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, LongBlock groupIds) {
+        public void add(int positionOffset, IntBlock groupIds) {
         }
 
         @Override
-        public void add(int positionOffset, LongVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds) {
         }
       };
     }
@@ -83,32 +86,32 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, LongBlock groupIds) {
+        public void add(int positionOffset, IntBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
 
         @Override
-        public void add(int positionOffset, LongVector groupIds) {
+        public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, LongBlock groupIds) {
+      public void add(int positionOffset, IntBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
 
       @Override
-      public void add(int positionOffset, LongVector groupIds) {
+      public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
     };
   }
 
-  private void addRawInput(int positionOffset, LongVector groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      int groupId = Math.toIntExact(groups.getInt(groupPosition));
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -120,14 +123,14 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
     }
   }
 
-  private void addRawInput(int positionOffset, LongVector groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      int groupId = Math.toIntExact(groups.getInt(groupPosition));
       PercentileIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
     }
   }
 
-  private void addRawInput(int positionOffset, LongBlock groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -135,7 +138,7 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getLong(g));
+        int groupId = Math.toIntExact(groups.getInt(g));
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -148,7 +151,7 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
     }
   }
 
-  private void addRawInput(int positionOffset, LongBlock groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntBlock groups, IntVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -156,20 +159,20 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getLong(g));
+        int groupId = Math.toIntExact(groups.getInt(g));
         PercentileIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
       }
     }
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, LongVector groups, Page page) {
+  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getLong(groupPosition));
+      int groupId = Math.toIntExact(groups.getInt(groupPosition));
       PercentileIntAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
@@ -186,12 +189,13 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+      DriverContext driverContext) {
+    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.Releasable;
 
@@ -16,16 +17,25 @@ import org.elasticsearch.core.Releasable;
  */
 public final class IntBigArrayVector extends AbstractVector implements IntVector, Releasable {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntBigArrayVector.class);
+
     private final IntArray values;
 
+    private final IntBlock block;
+
     public IntBigArrayVector(IntArray values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public IntBigArrayVector(IntArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return new IntVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -41,6 +51,11 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     @Override
     public boolean isConstant() {
         return false;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
     @Override

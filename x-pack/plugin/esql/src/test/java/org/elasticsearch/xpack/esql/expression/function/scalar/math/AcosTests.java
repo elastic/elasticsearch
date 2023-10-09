@@ -10,43 +10,53 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class AcosTests extends AbstractScalarFunctionTestCase {
-    public AcosTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+public class AcosTests extends AbstractFunctionTestCase {
+    public AcosTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("double", () -> {
-            double arg = randomDouble();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
-                "AcosEvaluator[val=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
-                equalTo(Math.acos(arg))
-            );
-        })));
-    }
+        // values in range
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("AcosEvaluator", "val", Math::acos, -1d, 1d, List.of());
+        suppliers = anyNullIsNull(true, suppliers);
 
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()));
+        // Values out of range
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "AcosEvaluator",
+                "val",
+                k -> null,
+                Double.NEGATIVE_INFINITY,
+                Math.nextDown(-1d),
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: Acos input out of range"
+                )
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "AcosEvaluator",
+                "val",
+                k -> null,
+                Math.nextUp(1d),
+                Double.POSITIVE_INFINITY,
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: Acos input out of range"
+                )
+            )
+        );
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
     }
 
     @Override

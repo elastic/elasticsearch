@@ -209,7 +209,6 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98485")
     public void testDownsampleIndexWithRollingRestart() throws Exception {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
@@ -296,11 +295,10 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
         disruptionEnd.await();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98485")
     public void testDownsampleIndexWithFullClusterRestart() throws Exception {
         try (InternalTestCluster cluster = internalCluster()) {
             final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
@@ -428,7 +426,7 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         assertAcked(
             internalCluster().client()
                 .execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
-                .actionGet()
+                .actionGet(TIMEOUT.millis())
         );
     }
 

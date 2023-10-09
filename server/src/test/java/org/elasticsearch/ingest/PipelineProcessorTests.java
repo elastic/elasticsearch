@@ -20,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -60,7 +61,7 @@ public class PipelineProcessorTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("name", pipelineId);
         factory.create(Map.of(), null, null, config).execute(testIngestDocument, (result, e) -> {});
-        assertEquals(testIngestDocument, invoked.get());
+        assertIngestDocument(testIngestDocument, invoked.get());
     }
 
     public void testThrowsOnMissingPipeline() throws Exception {

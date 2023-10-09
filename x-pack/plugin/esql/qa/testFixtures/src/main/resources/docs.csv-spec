@@ -21,6 +21,7 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 docsEval
 // tag::eval[]
 FROM employees
+| SORT emp_no
 | KEEP first_name, last_name, height
 | EVAL height_feet = height * 3.281, height_cm = height * 100
 // end::eval[]
@@ -36,6 +37,7 @@ Georgi |Facello | 2.03 | 6.66043 | 202.99999999999997
 docsEvalReplace
 // tag::evalReplace[]
 FROM employees
+| SORT emp_no
 | KEEP first_name, last_name, height
 | EVAL height = height * 3.281
 // end::evalReplace[]
@@ -51,10 +53,10 @@ Georgi | Facello | 6.66043
 docsLimit
 // tag::limit[]
 FROM employees
+| SORT emp_no ASC
 | LIMIT 5
 // end::limit[]
 | KEEP emp_no
-| SORT emp_no ASC
 ;
 
 emp_no:integer
@@ -231,7 +233,7 @@ avg_lang:double | max_lang:integer
 docsStatsGroupByMultipleValues
 // tag::statsGroupByMultipleValues[]
 FROM employees
-| EVAL hired = DATE_FORMAT(hire_date, "YYYY")
+| EVAL hired = DATE_FORMAT("YYYY", hire_date)
 | STATS avg_salary = AVG(salary) BY hired, languages.long
 | EVAL avg_salary = ROUND(avg_salary)
 | SORT hired, languages.long
@@ -291,8 +293,8 @@ Uri            |Lenart         |1.75
 
 dateExtract
 // tag::dateExtract[]
-ROW date = DATE_PARSE("2022-05-06", "yyyy-MM-dd")
-| EVAL year = DATE_EXTRACT(date, "year")
+ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
+| EVAL year = DATE_EXTRACT("year", date)
 // end::dateExtract[]
 ;
 
@@ -402,10 +404,24 @@ Saniya         |Kalloufi       |2.1          |6.9
 dateParse
 // tag::dateParse[]
 ROW date_string = "2022-05-06"
-| EVAL date = DATE_PARSE(date_string, "yyyy-MM-dd")
+| EVAL date = DATE_PARSE("yyyy-MM-dd", date_string)
 // end::dateParse[]
 ;
 
 date_string:keyword | date:date
 2022-05-06          | 2022-05-06T00:00:00.000Z
+;
+
+docsReplace
+//tag::replaceString[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "World", "Universe")
+| KEEP str
+// end::replaceString[]
+;
+
+//tag::replaceString-result[]
+str:keyword
+Hello Universe
+// end::replaceString-result[]
 ;

@@ -20,6 +20,19 @@
         },
         "_meta_field": {
             "type" : "keyword"
+        },
+        "job": {
+            "type": "text",
+            "fields": {
+                "raw": {
+                  "type": "keyword"
+                }
+            }
+        },
+        "long_noidx": {
+          "type": "long",
+          "index": false,
+          "doc_values": false
         }
     }
 }

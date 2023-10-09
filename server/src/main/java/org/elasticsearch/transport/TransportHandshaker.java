@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -115,7 +116,7 @@ final class TransportHandshaker {
      */
 
     static final TransportVersion EARLIEST_HANDSHAKE_VERSION = TransportVersion.fromId(6080099);
-    static final TransportVersion REQUEST_HANDSHAKE_VERSION = TransportVersion.MINIMUM_COMPATIBLE;
+    static final TransportVersion REQUEST_HANDSHAKE_VERSION = TransportVersions.MINIMUM_COMPATIBLE;
     static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(EARLIEST_HANDSHAKE_VERSION, REQUEST_HANDSHAKE_VERSION);
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
@@ -159,7 +160,7 @@ final class TransportHandshaker {
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
                 timeout,
-                ThreadPool.Names.GENERIC
+                threadPool.generic()
             );
             success = true;
         } catch (Exception e) {
@@ -240,7 +241,7 @@ final class TransportHandshaker {
                             "Received message from unsupported version: ["
                                 + responseVersion
                                 + "] minimal compatible version is: ["
-                                + TransportVersion.MINIMUM_COMPATIBLE
+                                + TransportVersions.MINIMUM_COMPATIBLE
                                 + "]"
                         )
                     );

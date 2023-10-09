@@ -121,6 +121,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> ignoreMalformed;
 
+        @SuppressWarnings("this-escape")
         private final Parameter<EnumSet<Metric>> metrics = new Parameter<>(Names.METRICS, false, () -> Defaults.METRICS, (n, c, o) -> {
             @SuppressWarnings("unchecked")
             List<String> metricsList = (List<String>) o;

@@ -18,12 +18,15 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.mockfile.HandleLimitFS;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -63,9 +66,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.mockSearchContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * Tests for {@link ValuesSourceReaderOperator}. Turns off {@link HandleLimitFS}
+ * because it can make a large number of documents and doesn't want to allow
+ * lucene to merge. It intentionally tries to create many files to make sure
+ * that {@link ValuesSourceReaderOperator} works with it.
+ */
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private static final String[] PREFIX = new String[] { "a", "b", "c" };
     private static final boolean[][] BOOLEANS = new boolean[][] {
@@ -105,7 +116,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         // The test wants more than one segment. We shoot for about 10.
         int commitEvery = Math.max(1, size / 10);
         try (
@@ -142,7 +153,15 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), OperatorTestCase.randomPageSize(), LuceneOperator.NO_LIMIT);
+        var luceneFactory = new LuceneSourceOperator.Factory(
+            List.of(mockSearchContext(reader)),
+            ctx -> new MatchAllDocsQuery(),
+            randomFrom(DataPartitioning.values()),
+            randomIntBetween(1, 10),
+            randomPageSize(),
+            LuceneOperator.NO_LIMIT
+        );
+        return luceneFactory.get(driverContext());
     }
 
     @Override
@@ -180,21 +199,35 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     public void testLoadAll() {
-        loadSimpleAndAssert(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024))));
+        DriverContext driverContext = driverContext();
+        loadSimpleAndAssert(
+            driverContext,
+            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
+        );
     }
 
     public void testLoadAllInOnePage() {
+        DriverContext driverContext = driverContext();
         loadSimpleAndAssert(
-            List.of(CannedSourceOperator.mergePages(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024)))))
+            driverContext,
+            List.of(
+                CannedSourceOperator.mergePages(
+                    CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
+                )
+            )
         );
     }
 
     public void testEmpty() {
-        loadSimpleAndAssert(CannedSourceOperator.collectPages(simpleInput(0)));
+        DriverContext driverContext = driverContext();
+        loadSimpleAndAssert(driverContext, CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 0)));
     }
 
     public void testLoadAllInOnePageShuffled() {
-        Page source = CannedSourceOperator.mergePages(CannedSourceOperator.collectPages(simpleInput(between(1_000, 100 * 1024))));
+        DriverContext driverContext = driverContext();
+        Page source = CannedSourceOperator.mergePages(
+            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
+        );
         List<Integer> shuffleList = new ArrayList<>();
         IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
         Randomness.shuffle(shuffleList);
@@ -204,11 +237,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
         }
         source = new Page(shuffledBlocks);
-        loadSimpleAndAssert(List.of(source));
+        loadSimpleAndAssert(driverContext, List.of(source));
     }
 
-    private void loadSimpleAndAssert(List<Page> input) {
-        DriverContext driverContext = new DriverContext();
+    private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input) {
         List<Page> results = new ArrayList<>();
         List<Operator> operators = List.of(
             factory(
@@ -296,7 +328,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvKeywords.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvKeywords.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvKeywords.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
 
                 assertThat(bools.getBoolean(i), equalTo(key % 2 == 0));
@@ -306,7 +338,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvBools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvBools.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvBools.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
 
                 assertThat(mvInts.getValueCount(i), equalTo(key % 3 + 1));
@@ -315,7 +347,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvInts.getInt(offset + v), equalTo(1_000 * key + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvInts.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvInts.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
 
                 assertThat(mvLongs.getValueCount(i), equalTo(key % 3 + 1));
@@ -324,7 +356,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvLongs.getLong(offset + v), equalTo(-1_000L * key + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvLongs.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvLongs.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
 
                 assertThat(doubles.getDouble(i), equalTo(key / 123_456d));
@@ -333,7 +365,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvDoubles.getDouble(offset + v), equalTo(key / 123_456d + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvDoubles.mvOrdering(), equalTo(Block.MvOrdering.ASCENDING));
+                    assertThat(mvDoubles.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
                 }
             }
         }
@@ -352,7 +384,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         NumericDocValuesField intField = new NumericDocValuesField(intFt.name(), 0);
         NumericDocValuesField longField = new NumericDocValuesField(longFt.name(), 0);
         NumericDocValuesField doubleField = new DoubleDocValuesField(doubleFt.name(), 0);
-        final int numDocs = 100_000;
+        final int numDocs = between(100, 5000);
         try (RandomIndexWriter w = new RandomIndexWriter(random(), directory)) {
             Document doc = new Document();
             for (int i = 0; i < numDocs; i++) {
@@ -372,11 +404,19 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             reader = w.getReader();
         }
 
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
+        var luceneFactory = new LuceneSourceOperator.Factory(
+            List.of(mockSearchContext(reader)),
+            ctx -> new MatchAllDocsQuery(),
+            randomFrom(DataPartitioning.values()),
+            randomIntBetween(1, 10),
+            randomPageSize(),
+            LuceneOperator.NO_LIMIT
+        );
         try (
             Driver driver = new Driver(
                 driverContext,
-                new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomPageSize(), LuceneOperator.NO_LIMIT),
+                luceneFactory.get(driverContext),
                 List.of(
                     factory(reader, CoreValuesSourceType.NUMERIC, ElementType.INT, intFt).get(driverContext),
                     factory(reader, CoreValuesSourceType.NUMERIC, ElementType.LONG, longFt).get(driverContext),

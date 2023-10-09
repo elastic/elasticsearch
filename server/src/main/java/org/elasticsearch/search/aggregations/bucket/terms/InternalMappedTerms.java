@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -63,7 +63,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
      */
     protected InternalMappedTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
             if (in.readBoolean()) {
                 docCountError = in.readZLong();
             } else {
@@ -76,12 +76,12 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         shardSize = readSize(in);
         showTermDocCountError = in.readBoolean();
         otherDocCount = in.readVLong();
-        buckets = in.readList(stream -> bucketReader.read(stream, format, showTermDocCountError));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format, showTermDocCountError));
     }
 
     @Override
     protected final void writeTermTypeInfoTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
             if (docCountError != null) {
                 out.writeBoolean(true);
                 out.writeZLong(docCountError);
@@ -95,7 +95,7 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeList(buckets);
+        out.writeCollection(buckets);
     }
 
     @Override

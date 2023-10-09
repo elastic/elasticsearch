@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBooleanEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinBytesRefEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMinDoubleEvaluator;
@@ -30,7 +32,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
@@ -41,7 +42,11 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Least extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
-    public Least(Source source, Expression first, List<Expression> rest) {
+    public Least(
+        Source source,
+        @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
+        @Param(name = "rest", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) List<Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
@@ -60,12 +65,13 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
         }
 
         for (int position = 0; position < children().size(); position++) {
+            Expression child = children().get(position);
             if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+                dataType = child.dataType();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
-                children().get(position),
+                child,
                 t -> t == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
@@ -104,33 +110,43 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        List<Supplier<EvalOperator.ExpressionEvaluator>> evaluatorSuppliers = children().stream().map(toEvaluator).toList();
-        Supplier<Stream<EvalOperator.ExpressionEvaluator>> suppliers = () -> evaluatorSuppliers.stream().map(Supplier::get);
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var suppliers = children().stream().map(toEvaluator).toList();
         if (dataType == DataTypes.BOOLEAN) {
-            return () -> new LeastBooleanEvaluator(
-                suppliers.get().map(MvMinBooleanEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            return dvrCtx -> new LeastBooleanEvaluator(
+                suppliers.stream()
+                    .map(es -> es.get(dvrCtx))
+                    .map(ev -> new MvMinBooleanEvaluator(ev, dvrCtx))
+                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
+                dvrCtx
             );
         }
         if (dataType == DataTypes.DOUBLE) {
-            return () -> new LeastDoubleEvaluator(
-                suppliers.get().map(MvMinDoubleEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            return dvrCtx -> new LeastDoubleEvaluator(
+                suppliers.stream()
+                    .map(es -> es.get(dvrCtx))
+                    .map(ev -> new MvMinDoubleEvaluator(ev, dvrCtx))
+                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
+                dvrCtx
             );
         }
         if (dataType == DataTypes.INTEGER) {
-            return () -> new LeastIntEvaluator(
-                suppliers.get().map(MvMinIntEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            return dvrCtx -> new LeastIntEvaluator(
+                suppliers.stream()
+                    .map(es -> es.get(dvrCtx))
+                    .map(ev -> new MvMinIntEvaluator(ev, dvrCtx))
+                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
+                dvrCtx
             );
         }
         if (dataType == DataTypes.LONG) {
-            return () -> new LeastLongEvaluator(
-                suppliers.get().map(MvMinLongEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            return dvrCtx -> new LeastLongEvaluator(
+                suppliers.stream()
+                    .map(es -> es.get(dvrCtx))
+                    .map(ev -> new MvMinLongEvaluator(ev, dvrCtx))
+                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
+                dvrCtx
             );
-        }
-        if (dataType == NULL) {
-            return () -> EvalOperator.CONSTANT_NULL;
         }
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT
@@ -138,8 +154,12 @@ public class Least extends ScalarFunction implements EvaluatorMapper, OptionalAr
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {
 
-            return () -> new LeastBytesRefEvaluator(
-                suppliers.get().map(MvMinBytesRefEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
+            return dvrCtx -> new LeastBytesRefEvaluator(
+                suppliers.stream()
+                    .map(es -> es.get(dvrCtx))
+                    .map(ev -> new MvMinBytesRefEvaluator(ev, dvrCtx))
+                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
+                dvrCtx
             );
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);

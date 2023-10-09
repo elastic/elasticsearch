@@ -433,12 +433,12 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             clusterState
         );
         assertEquals("0", numberOfReplicas);
-        Version version = Version.fromId(
+        IndexVersion version = IndexVersion.fromId(
             Integer.valueOf(
                 (String) XContentMapValues.extractValue("metadata.indices." + index + ".settings.index.version.created", clusterState)
             )
         );
-        assertEquals(getOldClusterVersion(), version);
+        assertEquals(getOldClusterIndexVersion(), version);
 
     }
 
@@ -1869,7 +1869,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assumeTrue("the old transport.compress setting existed before 7.14", getOldClusterVersion().before(Version.V_7_14_0));
         assumeTrue(
             "Early versions of 6.x do not have cluster.remote* prefixed settings",
-            getOldClusterVersion().onOrAfter(Version.V_7_14_0.minimumCompatibilityVersion())
+            getOldClusterVersion().onOrAfter(Version.fromString("6.8.0"))
         );
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -61,7 +61,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
         super(in);
         keys = in.readDoubleArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             if (in.readBoolean()) {
                 state = TDigestState.read(in);
             } else {
@@ -77,7 +77,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             if (this.state != null) {
                 out.writeBoolean(true);
                 TDigestState.write(state, out);
@@ -114,7 +114,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      * Return the internal {@link TDigestState} sketch for this metric.
      */
     public TDigestState getState() {
-        return state;
+        return state == null ? EMPTY_HISTOGRAM : state;
     }
 
     /**
@@ -159,7 +159,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      * @param digest2 The second histogram to merge
      * @return One of the input histograms such that the one with larger compression is used as the one for merging
      */
-    private TDigestState merge(final TDigestState digest1, final TDigestState digest2) {
+    private static TDigestState merge(final TDigestState digest1, final TDigestState digest2) {
         TDigestState largerCompression = digest1;
         TDigestState smallerCompression = digest2;
         if (digest2.compression() > digest1.compression()) {
@@ -185,7 +185,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        TDigestState state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+        TDigestState state = getState();
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {

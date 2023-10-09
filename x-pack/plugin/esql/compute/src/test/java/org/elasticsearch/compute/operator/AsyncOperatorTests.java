@@ -10,16 +10,20 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -57,6 +61,7 @@ public class AsyncOperatorTests extends ESTestCase {
     }
 
     public void testBasic() {
+        DriverContext driverContext = driverContext();
         int positions = randomIntBetween(0, 10_000);
         List<Long> ids = new ArrayList<>(positions);
         Map<Long, String> dict = new HashMap<>();
@@ -67,7 +72,7 @@ public class AsyncOperatorTests extends ESTestCase {
                 dict.computeIfAbsent(id, k -> randomAlphaOfLength(5));
             }
         }
-        SourceOperator sourceOperator = new AbstractBlockSourceOperator(randomIntBetween(10, 1000)) {
+        SourceOperator sourceOperator = new AbstractBlockSourceOperator(driverContext.blockFactory(), randomIntBetween(10, 1000)) {
             @Override
             protected int remaining() {
                 return ids.size() - currentPosition;
@@ -115,13 +120,7 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(
-            new DriverContext(),
-            sourceOperator,
-            List.of(asyncOperator),
-            outputOperator,
-            () -> assertFalse(it.hasNext())
-        );
+        Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> assertFalse(it.hasNext()));
         Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
         future.actionGet();
     }
@@ -145,7 +144,7 @@ public class AsyncOperatorTests extends ESTestCase {
         Page page1 = new Page(Block.constantNullBlock(1));
         operator.addInput(page1);
         assertFalse(operator.isBlocked().isDone());
-        ListenableActionFuture<Void> blocked1 = operator.isBlocked();
+        SubscribableListener<Void> blocked1 = operator.isBlocked();
         assertTrue(operator.needsInput());
 
         Page page2 = new Page(Block.constantNullBlock(2));
@@ -202,7 +201,17 @@ public class AsyncOperatorTests extends ESTestCase {
                 }
             };
             TimeValue delay = TimeValue.timeValueMillis(randomIntBetween(0, 50));
-            threadPool.schedule(command, delay, ESQL_TEST_EXECUTOR);
+            threadPool.schedule(command, delay, threadPool.executor(ESQL_TEST_EXECUTOR));
         }
+    }
+
+    /**
+     * A {@link DriverContext} with a nonBreakingBigArrays.
+     */
+    DriverContext driverContext() {
+        return new DriverContext(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+            BlockFactory.getNonBreakingInstance()
+        );
     }
 }

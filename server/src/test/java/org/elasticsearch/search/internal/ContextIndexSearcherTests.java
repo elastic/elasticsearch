@@ -137,7 +137,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
             1f
         );
 
-        LeafReaderContext leaf = directoryReader.leaves().get(0);
+        LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
 
         CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {
@@ -228,12 +228,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     1
                 );
                 int numSegments = directoryReader.getContext().leaves().size();
-                assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
                 KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
                 vectorQuery.rewrite(searcher);
-                // Note: we expect one execute call less than segments since the last is executed on the caller thread, but no additional
-                // exceptions to the offloading of operations. For details see QueueSizeBasedExecutor#processTask.
-                assertBusy(() -> assertEquals(numSegments - 1, executor.getCompletedTaskCount()));
+                assertBusy(() -> assertEquals(numSegments, executor.getCompletedTaskCount()));
             }
         } finally {
             terminate(executor);

@@ -25,11 +25,9 @@ ingested in the pipeline.
 include::common-options.asciidoc[]
 |======
 
-IMPORTANT: The usage of `input_output` field and `target_field`, `field_map` 
-fields are incompatible. Either use the `input_output` option or the 
-`target_field` and `field_map` option. It is recommended to use the 
-`input_output` option for NLP models, and the `target_field`, `field_map` option 
-for {dfanalytics} models.
+IMPORTANT: You cannot use the `input_output` field with the `target_field` and 
+`field_map` fields. For NLP models, use the `input_output` option. For 
+{dfanalytics} models, use the `target_field` and `field_map` option.
 
 [discrete]
 [[inference-input-output-example]]

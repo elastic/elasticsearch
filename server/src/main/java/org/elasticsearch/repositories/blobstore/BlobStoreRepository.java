@@ -927,9 +927,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 for (ShardSnapshotMetaDeleteResult newGen : deleteResults) {
                     builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
                 }
-                final RepositoryData updatedRepoData = originalRepositoryData.removeSnapshots(snapshotIds, builder.build());
+                final RepositoryData newRepositoryData = originalRepositoryData.removeSnapshots(snapshotIds, builder.build());
                 writeIndexGen(
-                    updatedRepoData,
+                    newRepositoryData,
                     originalRepositoryDataGeneration,
                     repositoryFormatIndexVersion,
                     Function.identity(),
@@ -937,15 +937,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }, listener::onFailure));
             // Once we have updated the repository, run the clean-ups
-            writeUpdatedRepoDataStep.addListener(ActionListener.wrap(updatedRepoData -> {
-                listener.onRepositoryDataWritten(updatedRepoData);
+            writeUpdatedRepoDataStep.addListener(ActionListener.wrap(newRepositoryData -> {
+                listener.onRepositoryDataWritten(newRepositoryData);
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                 try (var refs = new RefCountingRunnable(listener::onDone)) {
                     cleanupUnlinkedRootAndIndicesBlobs(
                         snapshotIds,
                         originalIndexContainers,
                         originalRootBlobs,
-                        updatedRepoData,
+                        newRepositoryData,
                         refs.acquireListener()
                     );
                     asyncCleanupUnlinkedShardLevelBlobs(
@@ -958,15 +958,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, listener::onFailure));
         } else {
             // Write the new repository data first (with the removed snapshot), using no shard generations
-            final RepositoryData updatedRepoData = originalRepositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
             writeIndexGen(
-                updatedRepoData,
+                originalRepositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY),
                 originalRepositoryDataGeneration,
                 repositoryFormatIndexVersion,
                 Function.identity(),
-                ActionListener.wrap(newRepoData -> {
+                ActionListener.wrap(newRepositoryData -> {
                     try (var refs = new RefCountingRunnable(() -> {
-                        listener.onRepositoryDataWritten(newRepoData);
+                        listener.onRepositoryDataWritten(newRepositoryData);
                         listener.onDone();
                     })) {
                         // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
@@ -974,7 +973,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             snapshotIds,
                             originalIndexContainers,
                             originalRootBlobs,
-                            newRepoData,
+                            newRepositoryData,
                             refs.acquireListener()
                         );
 

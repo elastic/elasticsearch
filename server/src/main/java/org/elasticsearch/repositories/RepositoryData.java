@@ -730,6 +730,9 @@ public final class RepositoryData {
 
         // write the snapshots list
 
+        int numericIndexVersionMarkerPlaceholdersUsed = 0;
+        SnapshotId lastSnapshotWithNumericIndexVersionPlaceholder = null;
+
         builder.startArray(SNAPSHOTS);
         for (final SnapshotId snapshot : getSnapshotIds()) {
             builder.startObject();
@@ -752,7 +755,8 @@ public final class RepositoryData {
             final IndexVersion version = snapshotDetails.getVersion();
             if (version != null) {
                 if (version.equals(NUMERIC_INDEX_VERSION_MARKER)) {
-                    logger.error("snapshot [{}] is from 8.11.0 or later but has no version details, using 8.11.0 placeholder", snapshot);
+                    numericIndexVersionMarkerPlaceholdersUsed += 1;
+                    lastSnapshotWithNumericIndexVersionPlaceholder = snapshot;
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
                 } else if (version.onOrAfter(IndexVersion.V_8_500_000)) {
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
@@ -776,6 +780,18 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endArray();
+
+        if (numericIndexVersionMarkerPlaceholdersUsed > 0) {
+            // This shouldn't happen without other failures - we might see the 8.11.0 marker if the RepositoryData was previously written by
+            // a pre-8.11.0 version which does not know to write the INDEX_VERSION field, but in that case we will reload the correct
+            // version from SnapshotInfo before writing the new RepositoryData; this reload process is technically a best-effort thing so we
+            // must tolerate the case where it fails, but we can report the problem at least.
+            logger.warn(
+                "created RepositoryData with [{}] snapshot(s) using a placeholder version of '8.11.0', including [{}]",
+                numericIndexVersionMarkerPlaceholdersUsed,
+                lastSnapshotWithNumericIndexVersionPlaceholder
+            );
+        }
 
         // write the indices map
         builder.startObject(INDICES);

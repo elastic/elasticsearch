@@ -948,7 +948,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         newRepositoryData,
                         refs.acquireListener()
                     );
-                    asyncCleanupUnlinkedShardLevelBlobs(
+                    cleanupUnlinkedShardLevelBlobs(
                         originalRepositoryData,
                         snapshotIds,
                         writeShardMetaDataAndComputeDeletesStep.result(),
@@ -987,7 +987,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         originalRepositoryData,
                                         false,
                                         l0.delegateFailure(
-                                            (l, deleteResults) -> asyncCleanupUnlinkedShardLevelBlobs(
+                                            (l, deleteResults) -> cleanupUnlinkedShardLevelBlobs(
                                                 originalRepositoryData,
                                                 snapshotIds,
                                                 deleteResults,
@@ -1234,7 +1234,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         cleanupStaleBlobs(deletedSnapshots, foundIndices, rootBlobs, updatedRepoData, listener.map(ignored -> null));
     }
 
-    private void asyncCleanupUnlinkedShardLevelBlobs(
+    private void cleanupUnlinkedShardLevelBlobs(
         RepositoryData oldRepositoryData,
         Collection<SnapshotId> snapshotIds,
         Collection<ShardSnapshotMetaDeleteResult> deleteResults,

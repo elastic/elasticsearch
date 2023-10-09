@@ -890,7 +890,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * and then has all now unreferenced blobs in it deleted.
      *
      * @param snapshotIds       SnapshotIds to delete
-     * @param repositoryStateId Expected repository state id
+     * @param originalRepositoryDataGeneration {@link RepositoryData} generation at the start of the process.
      * @param foundIndices      All indices folders found in the repository before executing any writes to the repository during this
      *                          delete operation
      * @param rootBlobs         All blobs found at the root of the repository before executing any writes to the repository during this
@@ -900,7 +900,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private void doDeleteShardSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
+        long originalRepositoryDataGeneration,
         Map<String, BlobContainer> foundIndices,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData repositoryData,
@@ -928,7 +928,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, builder.build());
                 writeIndexGen(
                     updatedRepoData,
-                    repositoryStateId,
+                    originalRepositoryDataGeneration,
                     repoMetaVersion,
                     Function.identity(),
                     ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
@@ -951,36 +951,42 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             // Write the new repository data first (with the removed snapshot), using no shard generations
             final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
-            writeIndexGen(updatedRepoData, repositoryStateId, repoMetaVersion, Function.identity(), ActionListener.wrap(newRepoData -> {
-                try (var refs = new RefCountingRunnable(() -> {
-                    listener.onRepositoryDataWritten(newRepoData);
-                    listener.onDone();
-                })) {
-                    // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                    cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, refs.acquireListener());
+            writeIndexGen(
+                updatedRepoData,
+                originalRepositoryDataGeneration,
+                repoMetaVersion,
+                Function.identity(),
+                ActionListener.wrap(newRepoData -> {
+                    try (var refs = new RefCountingRunnable(() -> {
+                        listener.onRepositoryDataWritten(newRepoData);
+                        listener.onDone();
+                    })) {
+                        // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
+                        cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, refs.acquireListener());
 
-                    // writeIndexGen finishes on master-service thread so must fork here.
-                    threadPool.executor(ThreadPool.Names.SNAPSHOT)
-                        .execute(
-                            ActionRunnable.wrap(
-                                refs.acquireListener(),
-                                l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
-                                    snapshotIds,
-                                    repositoryData,
-                                    false,
-                                    l0.delegateFailure(
-                                        (l, deleteResults) -> asyncCleanupUnlinkedShardLevelBlobs(
-                                            repositoryData,
-                                            snapshotIds,
-                                            deleteResults,
-                                            l
+                        // writeIndexGen finishes on master-service thread so must fork here.
+                        threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                            .execute(
+                                ActionRunnable.wrap(
+                                    refs.acquireListener(),
+                                    l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
+                                        snapshotIds,
+                                        repositoryData,
+                                        false,
+                                        l0.delegateFailure(
+                                            (l, deleteResults) -> asyncCleanupUnlinkedShardLevelBlobs(
+                                                repositoryData,
+                                                snapshotIds,
+                                                deleteResults,
+                                                l
+                                            )
                                         )
                                     )
                                 )
-                            )
-                        );
-                }
-            }, listener::onFailure));
+                            );
+                    }
+                }, listener::onFailure)
+            );
         }
     }
 

@@ -1079,18 +1079,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         @Override
                         protected void doRun() throws Exception {
                             final BlobContainer shardContainer = shardContainer(indexId, shardId);
-                            final Set<String> blobs = shardContainer.listBlobs(OperationPurpose.SNAPSHOT).keySet();
+                            final Set<String> originalShardBlobs = shardContainer.listBlobs(OperationPurpose.SNAPSHOT).keySet();
                             final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
                             final long newGen;
                             if (useShardGenerations) {
                                 newGen = -1L;
                                 blobStoreIndexShardSnapshots = buildBlobStoreIndexShardSnapshots(
-                                    blobs,
+                                    originalShardBlobs,
                                     shardContainer,
                                     oldRepositoryData.shardGenerations().getShardGen(indexId, shardId)
                                 ).v1();
                             } else {
-                                Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+                                Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
+                                    originalShardBlobs,
+                                    shardContainer
+                                );
                                 newGen = tuple.v2() + 1;
                                 blobStoreIndexShardSnapshots = tuple.v1();
                             }
@@ -1101,7 +1104,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     shardId,
                                     snapshotIds,
                                     shardContainer,
-                                    blobs,
+                                    originalShardBlobs,
                                     blobStoreIndexShardSnapshots,
                                     newGen
                                 )

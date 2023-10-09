@@ -167,7 +167,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
                 "xpack.inference.utility_thread_pool"
             ),
             /*
-             * This thread pool is specifically for enqueuing requests to be sent. The underlying
+             * This executor is specifically for enqueuing requests to be sent. The underlying
              * connection pool used by the http client will block if there are no available connections to lease.
              * See here for more info: https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html
              */

@@ -65,25 +65,7 @@ public class HttpClientTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = new TestThreadPool(
-            getTestName(),
-            new ScalingExecutorBuilder(
-                UTILITY_THREAD_POOL_NAME,
-                1,
-                4,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.utility_thread_pool"
-            ),
-            new ScalingExecutorBuilder(
-                HTTP_CLIENT_SENDER_THREAD_POOL_NAME,
-                1,
-                4,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.utility_thread_pool"
-            )
-        );
+        threadPool = createThreadPool(getTestName());
     }
 
     @After
@@ -205,7 +187,7 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
-    private static HttpPost createHttpPost(int port, String paramKey, String paramValue) throws URISyntaxException {
+    public static HttpPost createHttpPost(int port, String paramKey, String paramValue) throws URISyntaxException {
         URI uri = new URIBuilder().setScheme("http")
             .setHost("localhost")
             .setPort(port)
@@ -225,11 +207,33 @@ public class HttpClientTests extends ESTestCase {
         return httpPost;
     }
 
+    public static ThreadPool createThreadPool(String name) {
+        return new TestThreadPool(
+            name,
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            ),
+            new ScalingExecutorBuilder(
+                HTTP_CLIENT_SENDER_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            )
+        );
+    }
+
     private static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {
         return new PoolingNHttpClientConnectionManager(new DefaultConnectingIOReactor());
     }
 
-    private static HttpSettings emptyHttpSettings() {
+    public static HttpSettings emptyHttpSettings() {
         return createHttpSettings(Settings.EMPTY);
     }
 

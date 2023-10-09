@@ -17,15 +17,11 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -80,16 +76,8 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         }
 
         @Override
-        protected StatelessCommitService createStatelessCommitService(
-            Settings settings,
-            ObjectStoreService objectStoreService,
-            ClusterService clusterService,
-            Client client,
-            StatelessCommitCleaner commitCleaner
-        ) {
-            StatelessCommitService commitService = spy(
-                super.createStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner)
-            );
+        protected StatelessCommitService wrapStatelessCommitService(StatelessCommitService instance) {
+            StatelessCommitService commitService = spy(instance);
             doAnswer(invocation -> {
                 ActionListener<Void> argument = invocation.getArgument(2);
                 argument.onResponse(null);

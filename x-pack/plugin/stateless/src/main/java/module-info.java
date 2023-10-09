@@ -32,6 +32,7 @@ module org.elasticsearch.stateless {
     exports co.elastic.elasticsearch.stateless.action to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.xpack to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.recovery to org.elasticsearch.server;
+    exports co.elastic.elasticsearch.stateless.commits to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.cache.action to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.metering.action to org.elasticsearch.server;
 

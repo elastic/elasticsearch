@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.logging.log4j.LogManager;
@@ -77,6 +78,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
+    private final StatelessCommitService statelessCommitService;
     private final Executor recoveryExecutor;
     private final ThreadContext threadContext;
 
@@ -86,13 +88,15 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         ClusterService clusterService,
         ActionFilters actionFilters,
         IndicesService indicesService,
-        PeerRecoveryTargetService peerRecoveryTargetService
+        PeerRecoveryTargetService peerRecoveryTargetService,
+        StatelessCommitService statelessCommitService
     ) {
         super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
+        this.statelessCommitService = statelessCommitService;
 
         final var threadPool = transportService.getThreadPool();
         this.recoveryExecutor = threadPool.generic();
@@ -193,8 +197,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             indexShard.relocated(request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 logger.trace("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
 
-                final var flushStep = new SubscribableListener<Engine.FlushResult>();
-                engine.flush(false, true, flushStep);
+                final var markedShardAsRelocating = new SubscribableListener<Void>();
+                // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
+                engine.flush(false, true, ActionListener.noop());
+                long lastFlushedGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
 
                 final var localCheckpoints = new HashMap<>(primaryContext.getCheckpointStates());
                 final var sourceCheckpoints = localCheckpoints.get(indexShard.routingEntry().allocationId().getId());
@@ -216,11 +222,40 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     throw new RetentionLeaseNotFoundException(leaseId);
                 }
 
-                flushStep.addListener(handoffResultListener.delegateFailureAndWrap((handoffResultListener0, flushResult) -> {
+                ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
+                    indexShard.shardId(),
+                    lastFlushedGeneration,
+                    markedShardAsRelocating
+                );
+
+                // Create a compound listener which will trigger both the stateless commit service listener and top-level
+                // handoffResultListener
+                ActionListener<TransportResponse.Empty> compoundHandoffListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(TransportResponse.Empty unused) {
+                        logger.trace("[{}] primary context handoff succeeded", request.shardId());
+                        try {
+                            handoffCompleteListener.onResponse(null);
+                            indexShard.recoveryStats().decCurrentAsSource();
+                        } finally {
+                            handoffResultListener.onResponse(null);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            handoffCompleteListener.onFailure(e);
+                        } finally {
+                            handoffResultListener.onFailure(e);
+                        }
+                    }
+                };
+
+                markedShardAsRelocating.addListener(compoundHandoffListener.delegateFailureAndWrap((finalHandoffListener, v) -> {
                     logger.trace("[{}] flush complete, handing off primary context", request.shardId());
 
                     assert assertLastCommitSequenceNumberConsistency(indexShard, sourceCheckpoints, false);
-
                     transportService.sendChildRequest(
                         request.targetNode(),
                         PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
@@ -236,11 +271,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         ),
                         task,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(handoffResultListener0.map(ignored -> {
-                            logger.trace("[{}] primary context handoff succeeded", request.shardId());
-                            indexShard.recoveryStats().decCurrentAsSource();
-                            return null;
-                        }), in -> TransportResponse.Empty.INSTANCE, recoveryExecutor)
+                        new ActionListenerResponseHandler<>(finalHandoffListener, in -> TransportResponse.Empty.INSTANCE, recoveryExecutor)
                     );
                 }), recoveryExecutor, threadContext);
             }, listener0);

@@ -201,7 +201,6 @@ public class InstallPluginAction implements Closeable {
     private Environment env;
     private boolean batch;
     private Proxy proxy = null;
-    private NamedComponentScanner scanner = new NamedComponentScanner();
 
     public InstallPluginAction(Terminal terminal, Environment env, boolean batch) {
         this.terminal = terminal;
@@ -394,7 +393,7 @@ public class InstallPluginAction implements Closeable {
         return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.current().qualifiedVersion());
     }
 
-    private String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
+    private static String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
         return String.format(
             Locale.ROOT,
             "https://%s.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s",
@@ -441,7 +440,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Returns all the official plugin names that look similar to pluginId.
      **/
-    private List<String> checkMisspelledPlugin(String pluginId) {
+    private static List<String> checkMisspelledPlugin(String pluginId) {
         LevenshteinDistance ld = new LevenshteinDistance();
         List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
         for (String officialPlugin : OFFICIAL_PLUGINS) {
@@ -819,7 +818,7 @@ public class InstallPluginAction implements Closeable {
         return target;
     }
 
-    private Path stagingDirectory(Path pluginsDir) throws IOException {
+    private static Path stagingDirectory(Path pluginsDir) throws IOException {
         try {
             return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(PLUGIN_DIR_PERMS));
         } catch (UnsupportedOperationException e) {
@@ -827,12 +826,12 @@ public class InstallPluginAction implements Closeable {
         }
     }
 
-    private Path stagingDirectoryWithoutPosixPermissions(Path pluginsDir) throws IOException {
+    private static Path stagingDirectoryWithoutPosixPermissions(Path pluginsDir) throws IOException {
         return Files.createTempDirectory(pluginsDir, ".installing-");
     }
 
     // checking for existing version of the plugin
-    private void verifyPluginName(Path pluginPath, String pluginName) throws UserException, IOException {
+    private static void verifyPluginName(Path pluginPath, String pluginName) throws UserException, IOException {
         // don't let user install plugin conflicting with module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(pluginName)) {
@@ -877,15 +876,15 @@ public class InstallPluginAction implements Closeable {
         return info;
     }
 
-    private void generateNameComponentFile(Path pluginRoot) throws IOException {
+    private static void generateNameComponentFile(Path pluginRoot) throws IOException {
         Stream<ClassReader> classPath = ClassReaders.ofClassPath().stream(); // contains plugin-api
         List<ClassReader> classReaders = Stream.concat(ClassReaders.ofDirWithJars(pluginRoot).stream(), classPath).toList();
-        Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
+        Map<String, Map<String, String>> namedComponentsMap = NamedComponentScanner.scanForNamedClasses(classReaders);
         Path outputFile = pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
-        scanner.writeToFile(namedComponentsMap, outputFile);
+        NamedComponentScanner.writeToFile(namedComponentsMap, outputFile);
     }
 
-    private boolean hasNamedComponentFile(Path pluginRoot) {
+    private static boolean hasNamedComponentFile(Path pluginRoot) {
         return Files.exists(pluginRoot.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME));
     }
 
@@ -949,7 +948,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Moves bin and config directories from the plugin if they exist
      */
-    private void installPluginSupportFiles(
+    private static void installPluginSupportFiles(
         PluginDescriptor info,
         Path tmpRoot,
         Path destBinDir,
@@ -973,7 +972,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Moves the plugin directory into its final destination.
      */
-    private void movePlugin(Path tmpRoot, Path destination) throws IOException {
+    private static void movePlugin(Path tmpRoot, Path destination) throws IOException {
         Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
         Files.walkFileTree(destination, new SimpleFileVisitor<>() {
             @Override
@@ -1000,7 +999,7 @@ public class InstallPluginAction implements Closeable {
     /**
      * Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent.
      */
-    private void installBin(PluginDescriptor info, Path tmpBinDir, Path destBinDir) throws Exception {
+    private static void installBin(PluginDescriptor info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "bin in plugin " + info.getName() + " is not a directory");
         }
@@ -1028,7 +1027,7 @@ public class InstallPluginAction implements Closeable {
      * Copies the files from {@code tmpConfigDir} into {@code destConfigDir}.
      * Any files existing in both the source and destination will be skipped.
      */
-    private void installConfig(PluginDescriptor info, Path tmpConfigDir, Path destConfigDir) throws Exception {
+    private static void installConfig(PluginDescriptor info, Path tmpConfigDir, Path destConfigDir) throws Exception {
         if (Files.isDirectory(tmpConfigDir) == false) {
             throw new UserException(PLUGIN_MALFORMED, "config in plugin " + info.getName() + " is not a directory");
         }

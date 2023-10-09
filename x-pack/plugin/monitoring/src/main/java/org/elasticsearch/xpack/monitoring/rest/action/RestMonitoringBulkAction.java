@@ -114,7 +114,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
      * @param version the system API version
      * @return true if supported, false otherwise
      */
-    private boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
+    private static boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
         final List<String> monitoredSystem = SUPPORTED_API_VERSIONS.getOrDefault(system, emptyList());
         return monitoredSystem.contains(version);
     }

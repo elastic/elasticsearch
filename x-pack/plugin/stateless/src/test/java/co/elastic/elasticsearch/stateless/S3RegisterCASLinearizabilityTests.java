@@ -110,14 +110,13 @@ public class S3RegisterCASLinearizabilityTests extends ESTestCase {
             final var threads = testState.registerThreads();
 
             final var history = testState.history();
-            final var linearizabilityChecker = new LinearizabilityChecker();
             final var sequentialSpec = testState.sequentialSpec();
 
             threads.forEach(RegisterUpdaterThread::await);
 
             assertThat(
                 LinearizabilityChecker.visualize(sequentialSpec, history, (invId -> { throw new IllegalStateException(); })),
-                linearizabilityChecker.isLinearizable(sequentialSpec, history),
+                LinearizabilityChecker.isLinearizable(sequentialSpec, history),
                 is(true)
             );
         });

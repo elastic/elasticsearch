@@ -893,8 +893,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param originalRepositoryDataGeneration {@link RepositoryData} generation at the start of the process.
      * @param originalIndexContainers          All index containers at the start of the operation, obtained by listing the repository
      *                                         contents.
-     * @param rootBlobs         All blobs found at the root of the repository before executing any writes to the repository during this
-     *                          delete operation
+     * @param originalRootBlobs                All blobs found at the root of the repository at the start of the operation, obtained by
+     *                                         listing the repository contents.
      * @param repositoryData    RepositoryData found the in the repository before executing this delete
      * @param listener          Listener to invoke once finished
      */
@@ -902,7 +902,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         long originalRepositoryDataGeneration,
         Map<String, BlobContainer> originalIndexContainers,
-        Map<String, BlobMetadata> rootBlobs,
+        Map<String, BlobMetadata> originalRootBlobs,
         RepositoryData repositoryData,
         IndexVersion repoMetaVersion,
         SnapshotDeleteListener listener
@@ -942,7 +942,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     cleanupUnlinkedRootAndIndicesBlobs(
                         snapshotIds,
                         originalIndexContainers,
-                        rootBlobs,
+                        originalRootBlobs,
                         updatedRepoData,
                         refs.acquireListener()
                     );
@@ -971,7 +971,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         cleanupUnlinkedRootAndIndicesBlobs(
                             snapshotIds,
                             originalIndexContainers,
-                            rootBlobs,
+                            originalRootBlobs,
                             newRepoData,
                             refs.acquireListener()
                         );

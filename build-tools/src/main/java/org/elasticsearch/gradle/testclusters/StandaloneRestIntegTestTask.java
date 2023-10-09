@@ -58,6 +58,7 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
                  */
                 taskSpec
             );
+        this.setMaxParallelForks(16);
         this.getOutputs().upToDateWhen(new NotSpec(taskSpec));
         this.getOutputs()
             .doNotCacheIf(

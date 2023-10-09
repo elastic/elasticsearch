@@ -25,13 +25,59 @@ Other versions:
 
 endif::[]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+
+[discrete]
+[[introducing_es_ql_new_query_language_for_flexible_iterative_analytics]]
+=== Introducing ES|QL — A new query language for flexible, iterative analytics
+As the Elastic Platform has become more widely adopted for search, security, observability, and general analytics,
+analyst users require the ability to take data-as-ingested, transform it to fit their investigative needs
+post-ingestion, and derive insights from underlying Elasticsearch index data. They need a concise, integrated,
+and efficient workflow enabled by rich and expressive queries where search, filter, aggregation,
+and transformation are performed via a single query expression with little-to-no UI context switching.
+
+To solve these challenges, the Elastic team is developing the <<esql,Elasticsearch Query Language (ES|QL)>>.
+ES|QL provides Elastic users with a flexible, powerful, and robust query expression language to interrogate data.
+ES|QL also provides a superior query UX with post-ingest processing capabilities that fundamentally transforms
+and expands the analytics and data processing capabilities of Elasticsearch.
+
+ES|QL introduces distributed compute capabilities to users in disparate roles and with varying skill levels.
+These compute capabilities enable ES|QL to simplify user workflows in several key ways.
+
+* Utilize a superior query UX: ES|QL query expressions support complex analytics and data processing.
+  They are easy to learn, read, and share.
+* Use the filter, aggregation, and transformation capabilities of Elasticsearch with subqueries and lookups,
+  made possible by new Elasticsearch compute and data processing capabilities.
+* Use ES|QL across Kibana in Discover, Kibana Lens, and Elastic Solutions, giving you seamless workflows.
+  You will be able to visualize ES|QL queries, share them with teams on dashboards or as queries,
+  and use queries to create custom alerts.
+
+[role="screenshot"]
+image:images/esql/esql_kibana_discover_logs.png[ES|QL usage in Kibana Discover for Analysing Proxy Logs]
+
+{es-pull}98309[#98309]
+
+[discrete]
+[[data_stream_lifecycle_in_technical_preview]]
+=== The data stream lifecycle is now in Technical Preview
+This marks the data stream lifecycle as available in Technical Preview. Data streams will be able to take advantage of a built-in simplified and resilient lifecycle implementation. Data streams with a configured lifecycle will be automatically rolled over and tail merged (a forcemerge implementation that's lightweight and only merges the long tail of small segments instead of the whole shard). With the shard and index maintenance tasks being handled automatically to ensure optimum performance, and trade-off between indexing and searching, you'll be able to focus on the business related lifecycle aspects like data retention.
+
+{es-pull}100187[#100187]
+
 // end::notable-highlights[]
 
+
+[discrete]
+[[use_indexwriter_flushnextbuffer_to_reclaim_memory_from_indexing_buffers]]
+=== Use `IndexWriter.flushNextBuffer()` to reclaim memory from indexing buffers
+Rather than forcing a refresh to reclaim memory from indexing buffers, which flushes all
+segments no matter how large, Elasticsearch now takes advantage of
+`IndexWriter#flushNextBuffer` which only flushes the largest pending segment. This should smooth
+out indexing allowing for larger segment sizes, fewer merges and higher throughput.
+
+Furthermore, the selection algorithm to pick which shard to reclaim memory from next was
+changed, from picking the shard that uses the most RAM to going over shards in a round-robin
+fashion. This approach has proved to work significantly better in practice.
+
+{es-pull}94607[#94607]
 

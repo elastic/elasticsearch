@@ -256,10 +256,6 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 }
                 return;
             }
-            if (1 == 1) {
-                // DO NOT MERGE!!! This is just for testing failure scenario: hanging stop task
-                return;
-            }
             // move the call to the generic thread pool, so we do not block the network thread
             threadPool.generic().execute(() -> {
                 transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {

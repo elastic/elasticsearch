@@ -102,12 +102,13 @@ teardown:
 "Test Change Target Index with Default Pipeline":
 
 - do:
-    indices.put_template:
+    indices.put_index_template:
       name: index_template
       body:
         index_patterns: test
-        settings:
-          default_pipeline: "retarget"
+        template:
+          settings:
+            default_pipeline: "retarget"
 
 - do:
     ingest.put_pipeline:

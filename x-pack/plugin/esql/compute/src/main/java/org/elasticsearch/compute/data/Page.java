@@ -235,12 +235,8 @@ public final class Page implements Writeable {
 
         blocksReleased = true;
 
-        // blocks can be used as multiple columns
-        var map = new IdentityHashMap<Block, Boolean>(mapSize(blocks.length));
         for (Block b : blocks) {
-            if (map.putIfAbsent(b, Boolean.TRUE) == null) {
-                Releasables.closeExpectNoException(b);
-            }
+            Releasables.closeExpectNoException(b);
         }
     }
 

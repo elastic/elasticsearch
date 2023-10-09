@@ -67,8 +67,10 @@ public class ProjectOperator extends AbstractPageMappingOperator {
             }
             var block = page.getBlock(source);
             blocks[b++] = block;
+            block.incRef();
         }
-        return page.newPageAndRelease(blocks);
+        page.releaseBlocks();
+        return new Page(blocks);
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -75,7 +76,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
             actionName,
             actionFilters,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
@@ -160,7 +162,8 @@ public class TransportActionFilterChainTests extends ESTestCase {
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
             actionName,
             actionFilters,
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {

@@ -174,7 +174,8 @@ public abstract class TransportReplicationAction<
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // TODO: consider passing the executor, investigate doExecute and let InboundHandler/TransportAction handle concurrency.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;

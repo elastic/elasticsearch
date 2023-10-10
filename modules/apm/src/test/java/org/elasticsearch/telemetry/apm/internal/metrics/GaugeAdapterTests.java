@@ -46,6 +46,7 @@ public class GaugeAdapterTests extends ESTestCase {
     }
 
     // testing that a value reported is then used in a callback
+    @SuppressWarnings("unchecked")
     public void testLongGaugeRecord() {
         LongGaugeAdapter longGaugeAdapter = new LongGaugeAdapter(testMeter, "name", "desc", "unit");
 
@@ -66,6 +67,7 @@ public class GaugeAdapterTests extends ESTestCase {
     }
 
     // testing that a value reported is then used in a callback
+    @SuppressWarnings("unchecked")
     public void testDoubleGaugeRecord() {
         DoubleGaugeAdapter doubleGaugeAdapter = new DoubleGaugeAdapter(testMeter, "name", "desc", "unit");
 

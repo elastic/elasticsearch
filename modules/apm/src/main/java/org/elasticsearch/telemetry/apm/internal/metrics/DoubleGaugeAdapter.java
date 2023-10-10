@@ -26,7 +26,7 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
 
     public DoubleGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
-        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0.0, Collections.emptyMap()));
+        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes<>(0.0, Collections.emptyMap()));
     }
 
     @Override

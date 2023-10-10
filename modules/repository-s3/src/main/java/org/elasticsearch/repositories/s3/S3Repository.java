@@ -317,7 +317,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
+        long repositoryDataGeneration,
         IndexVersion repositoryMetaVersion,
         SnapshotDeleteListener listener
     ) {
@@ -354,7 +354,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                 }
             };
         }
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, wrappedListener);
+        super.deleteSnapshots(snapshotIds, repositoryDataGeneration, repositoryMetaVersion, wrappedListener);
     }
 
     /**

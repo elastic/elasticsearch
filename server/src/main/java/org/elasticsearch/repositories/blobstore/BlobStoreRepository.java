@@ -832,7 +832,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
+        long repositoryDataGeneration,
         IndexVersion repositoryMetaVersion,
         SnapshotDeleteListener listener
     ) {
@@ -843,14 +843,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 @Override
                 protected void doRun() throws Exception {
                     final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
-                    final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
+                    final RepositoryData repositoryData = safeRepositoryData(repositoryDataGeneration, rootBlobs);
                     // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                     // delete an index that was created by another master node after writing this index-N blob.
                     final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath())
                         .children(OperationPurpose.SNAPSHOT);
                     doDeleteShardSnapshots(
                         snapshotIds,
-                        repositoryStateId,
+                        repositoryDataGeneration,
                         foundIndices,
                         rootBlobs,
                         repositoryData,

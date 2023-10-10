@@ -359,7 +359,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void deleteSnapshots(
             Collection<SnapshotId> snapshotIds,
-            long repositoryStateId,
+            long repositoryDataGeneration,
             IndexVersion repositoryMetaVersion,
             SnapshotDeleteListener listener
         ) {

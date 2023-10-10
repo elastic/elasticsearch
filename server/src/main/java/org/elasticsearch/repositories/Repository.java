@@ -138,13 +138,13 @@ public interface Repository extends LifecycleComponent {
      * Deletes snapshots
      *
      * @param snapshotIds           snapshot ids
-     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryDataGeneration the generation of the {@link RepositoryData} in the repository at the start of the deletion
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param listener              completion listener
      */
     void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
+        long repositoryDataGeneration,
         IndexVersion repositoryMetaVersion,
         SnapshotDeleteListener listener
     );

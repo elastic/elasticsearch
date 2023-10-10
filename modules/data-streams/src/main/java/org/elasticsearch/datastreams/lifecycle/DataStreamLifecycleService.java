@@ -323,7 +323,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
 
             try {
-                indicesToExcludeForRemainingRun.addAll(maybeExecuteRetention(state, dataStream));
+                indicesToExcludeForRemainingRun.addAll(maybeExecuteRetention(state, dataStream, indicesToExcludeForRemainingRun));
             } catch (Exception e) {
                 // individual index errors would be reported via the API action listener for every delete call
                 // we could potentially record errors at a data stream level and expose it via the _data_stream API?
@@ -749,11 +749,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * This method sends requests to delete any indices in the datastream that exceed its retention policy. It returns the set of indices
      * it has sent delete requests for.
-     * @param state The cluster state from which to get index metadata
-     * @param dataStream The datastream
+     *
+     * @param state                           The cluster state from which to get index metadata
+     * @param dataStream                      The datastream
+     * @param indicesToExcludeForRemainingRun Indices to exclude from retention even if it would be time for them to be deleted
      * @return The set of indices that delete requests have been sent for
      */
-    private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream) {
+    private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
         TimeValue retention = getRetentionConfiguration(dataStream);
         Set<Index> indicesToBeRemoved = new HashSet<>();
         if (retention != null) {
@@ -761,14 +763,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
 
             for (Index index : backingIndicesOlderThanRetention) {
-                indicesToBeRemoved.add(index);
-                IndexMetadata backingIndex = metadata.index(index);
-                assert backingIndex != null : "the data stream backing indices must exist";
+                if (indicesToExcludeForRemainingRun.contains(index) == false) {
+                    indicesToBeRemoved.add(index);
+                    IndexMetadata backingIndex = metadata.index(index);
+                    assert backingIndex != null : "the data stream backing indices must exist";
 
-                // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
-                // let's start simple and reevaluate
-                String indexName = backingIndex.getIndex().getName();
-                deleteIndexOnce(indexName, "the lapsed [" + retention + "] retention period");
+                    // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
+                    // let's start simple and reevaluate
+                    String indexName = backingIndex.getIndex().getName();
+                    deleteIndexOnce(indexName, "the lapsed [" + retention + "] retention period");
+                }
             }
         }
         return indicesToBeRemoved;

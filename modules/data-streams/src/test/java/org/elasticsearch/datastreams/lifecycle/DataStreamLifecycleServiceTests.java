@@ -250,6 +250,38 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
     }
 
+    public void testRetentionNotExecutedForTSIndicesWithinTimeBounds() {
+        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        // These ranges are on the edge of each other temporal boundaries.
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+        Instant start3 = currentTime.plus(2, ChronoUnit.HOURS);
+        Instant end3 = currentTime.plus(4, ChronoUnit.HOURS);
+
+        String dataStreamName = "logs_my-app_prod";
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
+        );
+        Metadata.Builder builder = Metadata.builder(clusterState.metadata());
+        DataStream dataStream = builder.dataStream(dataStreamName);
+        builder.put(new DataStream(dataStreamName, dataStream.getIndices(), dataStream.getGeneration() + 1, dataStream.getMetadata(),
+            dataStream.isHidden(), dataStream.isReplicated(), dataStream.isSystem(), dataStream.isAllowCustomRouting(),
+            dataStream.getIndexMode(), DataStreamLifecycle.newBuilder().dataRetention(0L).build()));
+        clusterState = ClusterState.builder(clusterState).metadata(builder).build();
+
+        dataStreamLifecycleService.run(clusterState);
+        assertThat(clientSeenRequests.size(), is(2)); // rollover the write index and one delete request for the index that's out of the
+        // TS time bounds
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        TransportRequest deleteIndexRequest = clientSeenRequests.get(1);
+        assertThat(deleteIndexRequest, instanceOf(DeleteIndexRequest.class));
+        // only the first generation index should be eligible for retention
+        assertThat(((DeleteIndexRequest) deleteIndexRequest).indices(), is(new String[] { dataStream.getIndices().get(0).getName() }));
+    }
+
     public void testIlmManagedIndicesAreSkipped() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;

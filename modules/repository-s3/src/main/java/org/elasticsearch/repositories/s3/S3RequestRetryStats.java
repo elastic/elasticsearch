@@ -28,14 +28,14 @@ public class S3RequestRetryStats {
     private static final Logger logger = LogManager.getLogger(S3RequestRetryStats.class);
 
     private final AtomicLong requests = new AtomicLong();
-    private final AtomicLong retries = new AtomicLong();
+    private final AtomicLong exceptions = new AtomicLong();
     private final AtomicLong throttles = new AtomicLong();
-    private final AtomicLongArray retriesHistogram;
+    private final AtomicLongArray exceptionsHistogram;
     private final AtomicLongArray throttlesHistogram;
 
     public S3RequestRetryStats(int maxRetries) {
-        this.retriesHistogram = new AtomicLongArray(maxRetries);
-        this.throttlesHistogram = new AtomicLongArray(maxRetries);
+        this.exceptionsHistogram = new AtomicLongArray(maxRetries + 1);
+        this.throttlesHistogram = new AtomicLongArray(maxRetries + 1);
     }
 
     public void addRequest(Request<?> request) {
@@ -44,14 +44,14 @@ public class S3RequestRetryStats {
         }
         var info = request.getAWSRequestMetrics().getTimingInfo();
         long requests = getCounter(info, AWSRequestMetrics.Field.RequestCount);
-        long retries = getCounter(info, AWSRequestMetrics.Field.Exception);
+        long exceptions = getCounter(info, AWSRequestMetrics.Field.Exception);
         long throttles = getCounter(info, AWSRequestMetrics.Field.ThrottleException);
 
         this.requests.addAndGet(requests);
-        this.retries.addAndGet(retries);
+        this.exceptions.addAndGet(exceptions);
         this.throttles.addAndGet(throttles);
-        if (retries >= 0 && retries < this.retriesHistogram.length()) {
-            this.retriesHistogram.incrementAndGet((int) retries);
+        if (exceptions >= 0 && exceptions < this.exceptionsHistogram.length()) {
+            this.exceptionsHistogram.incrementAndGet((int) exceptions);
         }
         if (throttles >= 0 && throttles < this.throttlesHistogram.length()) {
             this.throttlesHistogram.incrementAndGet((int) throttles);
@@ -66,10 +66,10 @@ public class S3RequestRetryStats {
     public void emitMetrics() {
         if (logger.isDebugEnabled()) {
             emitMetric("elasticsearch.s3.requests", requests.get());
-            emitMetric("elasticsearch.s3.retries", retries.get());
+            emitMetric("elasticsearch.s3.exceptions", exceptions.get());
             emitMetric("elasticsearch.s3.throttles", throttles.get());
-            for (int i = 0; i < retriesHistogram.length(); i++) {
-                emitMetric("elasticsearch.s3.retries." + i, retriesHistogram.get(i));
+            for (int i = 0; i < exceptionsHistogram.length(); i++) {
+                emitMetric("elasticsearch.s3.exceptions." + i, exceptionsHistogram.get(i));
             }
             for (int i = 0; i < throttlesHistogram.length(); i++) {
                 emitMetric("elasticsearch.s3.throttles." + i, throttlesHistogram.get(i));

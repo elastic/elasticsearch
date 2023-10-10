@@ -292,6 +292,10 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testFilterNonBoolField() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
 

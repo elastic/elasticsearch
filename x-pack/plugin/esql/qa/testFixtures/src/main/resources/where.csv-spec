@@ -76,3 +76,11 @@ emp_no:integer | first_name:keyword
 10010          |Duangkaew      
 10011          |Mary       
 ;
+
+
+whereNonBoolField
+from employees | where salary | keep salary | limit 3 | sort salary;
+
+salary:i
+0
+;

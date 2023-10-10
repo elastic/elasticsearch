@@ -19,6 +19,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
@@ -292,9 +293,16 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testNestedAggField() {
+        assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
+    }
+
+    public void testUnfinishedAggFunction() {
+        assertEquals("1:23: incomplete aggregate function declaration; add parenthesis to [avg]", error("from test | stats c = avg"));
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
-
     }
 
     private String error(String query, Object... params) {

@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -88,6 +90,19 @@ public class Verifier {
             // p is resolved, skip
             else if (p.resolved()) {
                 return;
+            }
+            // handle aggregate first to disambiguate between missing fields or incorrect function declaration
+            if (p instanceof Aggregate aggregate) {
+                for (NamedExpression agg : aggregate.aggregates()) {
+                    if (agg instanceof Alias as) {
+                        var child = as.child();
+                        if (child instanceof UnresolvedAttribute u) {
+                            failures.add(
+                                fail(child, "incomplete aggregate function declaration; add parenthesis to [{}]", child.sourceText())
+                            );
+                        }
+                    }
+                }
             }
             p.forEachExpression(e -> {
                 // everything is fine, skip expression

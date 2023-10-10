@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
@@ -80,9 +80,7 @@ public class DataTiersUsageRestCancellationIT extends ESIntegTestCase {
                 (handler, request, channel, task) -> {
                     tasksBlockedLatch.countDown();
                     nodeStatsRequestsReleaseListener.addListener(
-                        ActionListener.wrap(ignored -> handler.messageReceived(request, channel, task), e -> {
-                            throw new AssertionError("unexpected", e);
-                        })
+                        ActionTestUtils.assertNoFailureListener(ignored -> handler.messageReceived(request, channel, task))
                     );
                 }
             );

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -38,6 +39,7 @@ import java.util.Set;
 
 public class ClusterSearchShardsResponseTests extends ESTestCase {
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100482")
     public void testSerialization() throws Exception {
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
         Set<DiscoveryNode> nodes = new HashSet<>();

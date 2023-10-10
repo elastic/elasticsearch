@@ -51,7 +51,26 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
 
     @Override
     public DoubleBlock filter(int... positions) {
-        return new FilterDoubleBlock(this, positions);
+        try (var builder = blockFactory.newDoubleBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendDouble(getDouble(getFirstValueIndex(pos)));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendDouble(getDouble(first + c));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override

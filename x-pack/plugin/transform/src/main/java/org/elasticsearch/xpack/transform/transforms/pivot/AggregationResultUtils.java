@@ -330,10 +330,10 @@ public final class AggregationResultUtils {
             for (Percentile p : aggregation) {
                 // in case of sparse data percentiles might not have data, in this case it returns NaN,
                 // we need to guard the output and set null in this case
-                if (Numbers.isValidDouble(p.getValue()) == false) {
-                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), null);
+                if (Numbers.isValidDouble(p.value()) == false) {
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.percent()), null);
                 } else {
-                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.percent()), p.value());
                 }
             }
 

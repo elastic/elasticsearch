@@ -170,24 +170,21 @@ a:integer | b:integer | y:integer
 1 | 2 | null
 ;
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-rowWithNullsInCount-Ignore
+rowWithNullsInCount
 row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = count(s);
 
 c:long
 0
 ;
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-rowWithNullsInAvg-Ignore
+rowWithNullsInAvg
 row a = 1.5, b = 2.6, c = null | eval s = null + a + b | stats c = avg(s);
 
 c:double
 null
 ;
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-rowWithNullsInAvg2-Ignore
+rowWithNullsInAvg2
 row a = 1.5, b = 2.6, c = null | eval s = a - b * c | stats avg(s);
 
 avg(s):double
@@ -228,16 +225,14 @@ row a = 1 | limit 0;
 a:integer
 ;
 
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-rowWithMultipleStats-Ignore
+rowWithMultipleStats
 row a = 1+3, b = 2, ab = 5 | eval x = 1 + b + 5 | stats avg = avg(x), min(x), max(x), count(x), avg(x), avg(ab), avg(a);
 
 avg:double | min(x):integer | max(x):integer | count(x):long | avg(x):double | avg(ab):double | avg(a):double
        8.0 |              8 |              8 |             1 |           8.0 |            5.0 |           4.0
 ;
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-rowWithMultipleStatsOverNull-Ignore
+rowWithMultipleStatsOverNull
 row x=1, y=2 | eval tot = null + y + x | stats c=count(tot), a=avg(tot), mi=min(tot), ma=max(tot), s=sum(tot);
 
 c:long | a:double |   mi:integer |  ma:integer | s:long

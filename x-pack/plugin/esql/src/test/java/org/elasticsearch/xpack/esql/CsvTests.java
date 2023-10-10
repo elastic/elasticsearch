@@ -231,13 +231,16 @@ public class CsvTests extends ESTestCase {
     private void doTest() throws Exception {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         var actualResults = executePlan(bigArrays);
-        var expected = loadCsvSpecValues(testCase.expectedResults);
+        try {
+            var expected = loadCsvSpecValues(testCase.expectedResults);
 
-        var log = logResults() ? LOGGER : null;
-        assertResults(expected, actualResults, testCase.ignoreOrder, log);
-        assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
-        Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            var log = logResults() ? LOGGER : null;
+            assertResults(expected, actualResults, testCase.ignoreOrder, log);
+            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
+        } finally {
+            Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
+            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        }
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {

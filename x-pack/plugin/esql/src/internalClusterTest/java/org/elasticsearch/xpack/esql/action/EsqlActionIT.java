@@ -574,7 +574,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testFilterWithNullAndEvalFromIndex() {
         // append entry, with an absent count, to the index
         client().prepareBulk().add(new IndexRequest("test").id("no_count").source("data", 12, "data_d", 2d, "color", "red")).get();

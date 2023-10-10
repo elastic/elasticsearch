@@ -1,8 +1,6 @@
 [[release-notes-7.17.14]]
 == {es} version 7.17.14
 
-coming[7.17.14]
-
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
 [[bug-7.17.14]]

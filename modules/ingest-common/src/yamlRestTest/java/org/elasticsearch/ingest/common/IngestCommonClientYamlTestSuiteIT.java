@@ -19,6 +19,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class IngestCommonClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -38,6 +39,7 @@ public class IngestCommonClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
+    @ClassRule
     public static ElasticsearchCluster cluster = createCluster();
 
     private static ElasticsearchCluster createCluster() {

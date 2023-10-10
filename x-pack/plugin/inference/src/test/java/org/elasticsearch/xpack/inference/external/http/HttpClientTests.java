@@ -45,7 +45,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.HTTP_CLIENT_SENDER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -217,19 +216,11 @@ public class HttpClientTests extends ESTestCase {
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.utility_thread_pool"
-            ),
-            new ScalingExecutorBuilder(
-                HTTP_CLIENT_SENDER_THREAD_POOL_NAME,
-                1,
-                4,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.utility_thread_pool"
             )
         );
     }
 
-    private static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {
+    public static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {
         return new PoolingNHttpClientConnectionManager(new DefaultConnectingIOReactor());
     }
 

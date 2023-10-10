@@ -15,7 +15,6 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -26,7 +25,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.HTTP_CLIENT_SENDER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 public class HttpClient implements Closeable {
@@ -72,20 +70,10 @@ public class HttpClient implements Closeable {
         }
     }
 
-    public void send(HttpUriRequest request, ActionListener<HttpResult> listener) {
+    public void send(HttpUriRequest request, ActionListener<HttpResult> listener) throws IOException {
         // The caller must call start() first before attempting to send a request
         assert status.get() == Status.STARTED;
 
-        threadPool.executor(HTTP_CLIENT_SENDER_THREAD_POOL_NAME).execute(() -> {
-            try {
-                doPrivilegedSend(request, listener);
-            } catch (IOException e) {
-                listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
-            }
-        });
-    }
-
-    private void doPrivilegedSend(HttpUriRequest request, ActionListener<HttpResult> listener) throws IOException {
         SocketAccess.doPrivileged(() -> client.execute(request, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {

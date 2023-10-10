@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -72,6 +73,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     public static final String HTTP_CLIENT_SENDER_THREAD_POOL_NAME = "inference_http_client_sender";
     private final Settings settings;
     private final SetOnce<HttpClientManager> httpClientManager = new SetOnce<>();
+    private final SetOnce<HttpRequestSenderFactory> httpRequestSenderFactory = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -123,7 +125,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         IndicesService indicesService
     ) {
         httpClientManager.set(HttpClientManager.create(settings, threadPool, clusterService));
-
+        httpRequestSenderFactory.set(new HttpRequestSenderFactory(threadPool, httpClientManager.get()));
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
     }
@@ -165,19 +167,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.utility_thread_pool"
-            ),
-            /*
-             * This executor is specifically for enqueuing requests to be sent. The underlying
-             * connection pool used by the http client will block if there are no available connections to lease.
-             * See here for more info: https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html
-             */
-            new ScalingExecutorBuilder(
-                HTTP_CLIENT_SENDER_THREAD_POOL_NAME,
-                0,
-                1,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.http_client_sender_thread_pool"
             )
         );
     }

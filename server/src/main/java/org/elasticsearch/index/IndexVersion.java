@@ -147,6 +147,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_7_17_12 = registerIndexVersion(7_17_12_99, Version.LUCENE_8_11_1, "1a0719f2-96f4-4df5-b20d-62244e27d7d4");
     public static final IndexVersion V_7_17_13 = registerIndexVersion(7_17_13_99, Version.LUCENE_8_11_1, "171a73c6-3ece-4f10-804f-7104a97b557c");
     public static final IndexVersion V_7_17_14 = registerIndexVersion(7_17_14_99, Version.LUCENE_8_11_1, "3012f344-15f5-4971-a5ff-56a792d9b263");
+    public static final IndexVersion V_7_17_15 = registerIndexVersion(7_17_15_99, Version.LUCENE_8_11_1, "ec433c7a-2b35-4321-bf4a-d1766ee32b2f");
     public static final IndexVersion V_8_0_0 = registerIndexVersion(8_00_00_99, Version.LUCENE_9_0_0, "ff18a13c-1fa7-4cf7-a3b1-4fdcd9461d5b");
     public static final IndexVersion V_8_0_1 = registerIndexVersion(8_00_01_99, Version.LUCENE_9_0_0, "4bd5650f-3eff-418f-a7a6-ad46b2a9c941");
     public static final IndexVersion V_8_1_0 = registerIndexVersion(8_01_00_99, Version.LUCENE_9_0_0, "b4742461-ee43-4fd0-a260-29f8388b82ec");

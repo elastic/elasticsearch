@@ -24,7 +24,6 @@ import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodes
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryStats;
@@ -56,17 +55,17 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         logger.info("--> About to write test blob");
         BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath().add("subpath"));
         BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
-        blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "test.txt", whatToWrite, true);
+        blobContainer.writeBlob(operationPurpose, "test.txt", whatToWrite, true);
         logger.info("--> Wrote blob");
 
-        assertEquals(1, blobContainer.listBlobs(OperationPurpose.SNAPSHOT).size());
-        try (InputStream is = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "test.txt")) {
+        assertEquals(1, blobContainer.listBlobs(operationPurpose).size());
+        try (InputStream is = blobContainer.readBlob(operationPurpose, "test.txt")) {
             assertArrayEquals(whatToWrite.array(), is.readAllBytes());
         }
 
         logger.info("--> Deleting");
-        blobContainer.delete(OperationPurpose.SNAPSHOT);
-        assertEquals(0, blobContainer.listBlobs(OperationPurpose.SNAPSHOT).size());
+        blobContainer.delete(operationPurpose);
+        assertEquals(0, blobContainer.listBlobs(operationPurpose).size());
     }
 
     public void testBlobStoreStats() throws IOException {
@@ -78,11 +77,11 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         if (randomBoolean()) {
             BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath().add("subpath"));
             BytesArray whatToWrite = new BytesArray(randomByteArrayOfLength(randomIntBetween(100, 1000)));
-            blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "test.txt", whatToWrite, true);
-            try (InputStream is = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "test.txt")) {
+            blobContainer.writeBlob(operationPurpose, "test.txt", whatToWrite, true);
+            try (InputStream is = blobContainer.readBlob(operationPurpose, "test.txt")) {
                 is.readAllBytes();
             }
-            blobContainer.delete(OperationPurpose.SNAPSHOT);
+            blobContainer.delete(operationPurpose);
         }
 
         // Create a repository and perform some snapshot actions

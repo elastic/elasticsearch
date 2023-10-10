@@ -140,7 +140,7 @@ class BlobStoreSyncDirectory extends FilterDirectory {
                         if (closed.get()) {
                             return;
                         }
-                        blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, filesToDeleteInTask.iterator());
+                        blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.CLUSTER_STATE, filesToDeleteInTask.iterator());
                         onFilesDeleted(filesToDeleteInTask);
                     } catch (IOException e) {
                         logger.debug("Unable to delete cluster state stale files {}", filesToDeleteInTask);
@@ -176,14 +176,14 @@ class BlobStoreSyncDirectory extends FilterDirectory {
             final InputStream inputStream = new InputStreamIndexInput(input, length);
             if (atomic) {
                 blobContainer.writeMetadataBlob(
-                    OperationPurpose.SNAPSHOT,
+                    OperationPurpose.CLUSTER_STATE,
                     fileName,
                     false,
                     true,
                     out -> Streams.copy(inputStream, out, false)
                 );
             } else {
-                blobContainer.writeBlob(OperationPurpose.SNAPSHOT, fileName, inputStream, length, false);
+                blobContainer.writeBlob(OperationPurpose.CLUSTER_STATE, fileName, inputStream, length, false);
             }
         }
     }

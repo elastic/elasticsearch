@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
@@ -161,7 +160,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         internalCluster().stopNode(indexNode);
 
         for (TranslogReplicator.BlobTranslogFile translogFile : activeTranslogFiles) {
-            assertTrue(blobContainer.blobExists(OperationPurpose.SNAPSHOT, translogFile.blobName()));
+            assertTrue(blobContainer.blobExists(operationPurpose, translogFile.blobName()));
         }
     }
 
@@ -806,7 +805,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
     private Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
         var blobContainerPath = blobContainer.path().buildAsString();
-        return blobContainer.listBlobs(OperationPurpose.SNAPSHOT)
+        return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
             .map(blob -> blobContainerPath + blob)
@@ -832,7 +831,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         ObjectStoreService objectStoreService
     ) throws IOException {
         for (TranslogReplicator.BlobTranslogFile translogFile : shouldExist) {
-            assertTrue(objectStoreService.getTranslogBlobContainer().blobExists(OperationPurpose.SNAPSHOT, translogFile.blobName()));
+            assertTrue(objectStoreService.getTranslogBlobContainer().blobExists(operationPurpose, translogFile.blobName()));
         }
     }
 
@@ -841,7 +840,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         ObjectStoreService objectStoreService
     ) throws IOException {
         for (TranslogReplicator.BlobTranslogFile translogFile : doNotExist) {
-            assertFalse(objectStoreService.getTranslogBlobContainer().blobExists(OperationPurpose.SNAPSHOT, translogFile.blobName()));
+            assertFalse(objectStoreService.getTranslogBlobContainer().blobExists(operationPurpose, translogFile.blobName()));
         }
     }
 }

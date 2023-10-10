@@ -22,13 +22,9 @@ Full-text search::
 Use <<full-text-queries,full text queries>> to query <<analysis,unstructured
 textual data>> and find documents that best match query terms.
 
-Semantic search::
-<<semantic-search,Semantic search>> helps you find data based on the intent and
-contextual meaning of a search query, instead of a literal match on query terms.
-
 Vector search:: Store vectors in {es} and use <<knn-search,approximate nearest
 neighbor (ANN) or k-nearest neighbor (kNN) search>> to find vectors that are
-similar.
+similar, supporting use cases like <<semantic-search,semantic search>>.
 
 [discrete]
 === Run a search

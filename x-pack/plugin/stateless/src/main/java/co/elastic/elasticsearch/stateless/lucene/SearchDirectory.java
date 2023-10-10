@@ -20,6 +20,8 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -29,8 +31,14 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,6 +48,8 @@ import org.elasticsearch.index.store.Store;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,7 +60,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
+
 public class SearchDirectory extends ByteSizeDirectory {
+
+    private static final Logger logger = LogManager.getLogger(SearchDirectory.class);
 
     private final ShardId shardId;
 
@@ -103,8 +117,9 @@ public class SearchDirectory extends ByteSizeDirectory {
      * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
      *
      * @param newCommit map of file name to store metadata
+     * @return true if this update advanced the commit tracked by this directory
      */
-    public void updateCommit(StatelessCompoundCommit newCommit) {
+    public boolean updateCommit(StatelessCompoundCommit newCommit) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
         try {
@@ -118,7 +133,7 @@ public class SearchDirectory extends ByteSizeDirectory {
             currentDataSetSizeInBytes = commitSize;
             // TODO: Commits may not arrive in order. However, the maximum commit we have received is the commit of this directory since the
             // TODO: files always accumulate
-            currentCommit.getAndAccumulate(newCommit, (current, contender) -> {
+            return currentCommit.accumulateAndGet(newCommit, (current, contender) -> {
                 if (current == null) {
                     return contender;
                 } else if (current.generation() > contender.generation()) {
@@ -126,7 +141,7 @@ public class SearchDirectory extends ByteSizeDirectory {
                 } else {
                     return contender;
                 }
-            });
+            }).generation() == newCommit.generation();
         } finally {
             assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
         }
@@ -354,4 +369,52 @@ public class SearchDirectory extends ByteSizeDirectory {
         assert false : e;
         throw e;
     }
+
+    public void downloadCommit(StatelessCompoundCommit commit, ActionListener<Void> listener) {
+        try (RefCountingListener refCountingListener = new RefCountingListener(listener)) {
+            final String latestCompoundCommitLocation = StatelessCompoundCommit.blobNameFromGeneration(commit.generation());
+            commit.commitFiles().forEach((file, blobLocation) -> {
+                if (blobLocation.blobName().equals(latestCompoundCommitLocation) == false) {
+                    // only pre-fetch files that are part of the latest commit generation
+                    return;
+                }
+                FileCacheKey key = new FileCacheKey(shardId, blobLocation.primaryTerm(), blobLocation.blobName());
+                final var blobLength = blobLocation.blobLength();
+                final var container = blobContainer.get().apply(blobLocation.primaryTerm());
+                cacheService.maybeFetchFullEntry(key, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
+                    final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
+                        cacheService.getRangeSize(),
+                        relativePos,
+                        length,
+                        blobLength
+                    );
+                    final long streamStartPosition = rangeToWrite.start() + relativePos;
+                    try (InputStream in = container.readBlob(OperationPurpose.INDICES, key.fileName(), streamStartPosition, length)) {
+                        // assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                        logger.trace(
+                            "{}: writing channel {} pos {} length {} (details: {})",
+                            key.fileName(),
+                            channelPos,
+                            relativePos,
+                            length,
+                            key
+                        );
+                        SharedBytes.copyToCacheFileAligned(
+                            channel,
+                            in,
+                            channelPos,
+                            relativePos,
+                            length,
+                            progressUpdater,
+                            writeBuffer.get().clear()
+                        );
+                    }
+                }, refCountingListener.acquire());
+            });
+        }
+    }
+
+    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
+        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
+    );
 }

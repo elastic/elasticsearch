@@ -357,7 +357,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         }
     }
 
-    private static Set<String> segmentNFiles(SearchEngine searchEngine) throws IOException {
+    private static Set<String> segmentNFiles(SearchEngine searchEngine) {
         return listFiles(searchEngine).stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).collect(Collectors.toSet());
     }
 

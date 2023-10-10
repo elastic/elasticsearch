@@ -13,7 +13,6 @@ import io.opentelemetry.api.metrics.Meter;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -22,11 +21,11 @@ import java.util.concurrent.atomic.AtomicReference;
 public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableLongGauge>
     implements
         org.elasticsearch.telemetry.metric.LongGauge {
-    private final AtomicLong value = new AtomicLong(0);
-    private final AtomicReference<Map<String, Object>> attributes = new AtomicReference<>(Collections.emptyMap());
+    private final AtomicReference<ValueWithAttributes<Long>> valueWithAttributes;
 
     public LongGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
+        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0, Collections.emptyMap()));
     }
 
     @Override
@@ -36,18 +35,21 @@ public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.me
             .ofLongs()
             .setDescription(getDescription())
             .setUnit(getUnit())
-            .buildWithCallback(measurment -> measurment.record(value.get(), OtelHelper.fromMap(attributes.get())));
+            .buildWithCallback(
+                measurement -> measurement.record(
+                    valueWithAttributes.get().value(),
+                    OtelHelper.fromMap(valueWithAttributes.get().attributes())
+                )
+            );
     }
 
     @Override
     public void record(long value) {
-        this.value.set(value);
-        this.attributes.set(Collections.emptyMap());
+        this.valueWithAttributes.set(new ValueWithAttributes<>(value, Collections.emptyMap()));
     }
 
     @Override
     public void record(long value, Map<String, Object> attributes) {
-        this.value.set(value);
-        this.attributes.set(attributes);
+        this.valueWithAttributes.set(new ValueWithAttributes<>(value, attributes));
     }
 }

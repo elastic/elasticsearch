@@ -22,11 +22,11 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
     implements
         org.elasticsearch.telemetry.metric.DoubleGauge {
 
-    private final AtomicReference<Double> value = new AtomicReference<>(0.0);
-    private final AtomicReference<Map<String, Object>> attributes = new AtomicReference<>(Collections.emptyMap());
+    private final AtomicReference<ValueWithAttributes<Double>> valueWithAttributes;
 
     public DoubleGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
+        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0.0, Collections.emptyMap()));
     }
 
     @Override
@@ -34,18 +34,21 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
         var builder = Objects.requireNonNull(meter).gaugeBuilder(getName());
         return builder.setDescription(getDescription())
             .setUnit(getUnit())
-            .buildWithCallback(measurment -> measurment.record(value.get(), OtelHelper.fromMap(attributes.get())));
+            .buildWithCallback(
+                measurement -> measurement.record(
+                    valueWithAttributes.get().value(),
+                    OtelHelper.fromMap(valueWithAttributes.get().attributes())
+                )
+            );
     }
 
     @Override
     public void record(double value) {
-        this.value.set(value);
-        this.attributes.set(Collections.emptyMap());
+        this.valueWithAttributes.set(new ValueWithAttributes<>(value, Collections.emptyMap()));
     }
 
     @Override
     public void record(double value, Map<String, Object> attributes) {
-        this.value.set(value);
-        this.attributes.set(attributes);
+        this.valueWithAttributes.set(new ValueWithAttributes<>(value, attributes));
     }
 }

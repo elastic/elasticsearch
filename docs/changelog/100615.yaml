@@ -1,0 +1,5 @@
+pr: 100615
+summary: Use pagination when reading `BytesReferences` from `StreamInput`
+area: "Infra/Core, Search"
+type: enhancement
+issues: []

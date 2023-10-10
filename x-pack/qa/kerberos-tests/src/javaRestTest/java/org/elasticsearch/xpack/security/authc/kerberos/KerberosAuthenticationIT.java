@@ -19,15 +19,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.ietf.jgss.GSSException;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Paths;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
@@ -59,6 +64,35 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     private static final String TEST_USER_WITH_PWD_KEY = "test.userpwd";
     private static final String TEST_USER_WITH_PWD_PASSWD_KEY = "test.userpwd.password";
     private static final String TEST_KERBEROS_REALM_NAME = "kerberos";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the
+        // cluster but do not know the exact address that is first in the http ports file
+        .setting("http.host", "127.0.0.1")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.realms.file.file1.order", "0")
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.security.audit.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
+        // Kerberos realm
+        .setting("xpack.security.authc.realms.kerberos.kerberos.order", "1")
+        .setting("xpack.security.authc.realms.kerberos.kerberos.keytab.path", "es.keytab")
+        .setting("xpack.security.authc.realms.kerberos.kerberos.krb.debug", "true")
+        .setting("xpack.security.authc.realms.kerberos.kerberos.remove_realm_name", "false")
+        .systemProperty("java.security.krb5.conf", System.getProperty("test.krb5.conf"))
+        .systemProperty("sun.security.krb5.debug", "true")
+        .user("test_admin", "x-pack-test-password")
+        .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
+        .configFile("es.keytab", Resource.fromFile(Paths.get(System.getProperty("test.krb5.keytab"))))
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restAdminSettings() {

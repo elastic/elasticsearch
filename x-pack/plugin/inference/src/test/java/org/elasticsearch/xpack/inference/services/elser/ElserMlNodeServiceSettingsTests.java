@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elser;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -83,6 +84,33 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
         );
 
         assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
+    }
+
+    public void testTransportVersionIsCompatibleWithElserModelVersion() {
+        assertTrue(
+            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
+                TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED
+            )
+        );
+        assertTrue(
+            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
+                TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH
+            )
+        );
+
+        assertFalse(
+            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)
+        );
+        assertFalse(
+            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
+                TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME
+            )
+        );
+        assertFalse(
+            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
+                TransportVersions.UNIVERSAL_PROFILING_LICENSE_ADDED
+            )
+        );
     }
 
     public void testFromMapInvalidSettings() {

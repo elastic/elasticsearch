@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -27,9 +28,12 @@ public final class RateStates {
     private RateStates() {}
 
     static class SingleState implements AggregatorState {
-        private double currentDelta = 0;
         private double firstValue = Double.NaN;
         private double lastValue = Double.NaN;
+
+        private long firstTimestamp = 0;
+
+        private long lastTimestamp = 0;
 
         SingleState() {}
 
@@ -37,9 +41,10 @@ public final class RateStates {
             try {
                 try (ByteArrayStreamInput in = new ByteArrayStreamInput(other.bytes)) {
                     in.reset(other.bytes, other.offset, other.length);
-                    currentDelta = in.readDouble();
                     firstValue = in.readDouble();
                     lastValue = in.readDouble();
+                    firstTimestamp = in.readVLong();
+                    lastTimestamp = in.readVLong();
                 }
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -50,9 +55,10 @@ public final class RateStates {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(baos);
             try {
-                out.writeDouble(currentDelta);
                 out.writeDouble(firstValue);
                 out.writeDouble(lastValue);
+                out.writeVLong(firstTimestamp);
+                out.writeVLong(lastTimestamp);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -62,28 +68,34 @@ public final class RateStates {
         @Override
         public void close() {}
 
-        void add(double v) {
-            if (Double.isNaN(lastValue) == false) {
-                currentDelta += (v - lastValue);
-            }
+        void add(double v, long ts) {
             if (Double.isNaN(firstValue)) {
                 firstValue = v;
+                firstTimestamp = ts;
             }
             lastValue = v;
+            lastTimestamp = ts;
         }
 
         void add(SingleState other) {
-            currentDelta += other.currentDelta;
-            if (Double.compare(firstValue, other.firstValue) > 0) {
-                if (Double.isNaN(firstValue) == false && Double.isNaN(other.lastValue) == false) {
-                    currentDelta += firstValue - other.lastValue;
+            if (Double.isNaN(firstValue)) {
+                if (Double.isNaN(other.firstValue) == false) {
+                    firstValue = other.firstValue;
+                    lastValue = other.lastValue;
+                    firstTimestamp = other.firstTimestamp;
+                    lastTimestamp = other.lastTimestamp;
                 }
-                firstValue = other.firstValue;
-            } else {
-                if (Double.isNaN(lastValue) == false && Double.isNaN(other.firstValue) == false) {
-                    currentDelta += other.firstValue - lastValue;
+            } else if (Double.isNaN(other.firstValue) == false) {
+                if (firstTimestamp > other.firstTimestamp) {
+                    assert firstTimestamp > other.lastTimestamp;
+                    firstValue = other.firstValue;
+                    firstTimestamp = other.firstTimestamp;
+                } else {
+                    assert lastTimestamp < other.firstTimestamp;
+                    lastValue = other.lastValue;
+                    lastTimestamp = other.lastTimestamp;
+                    ;
                 }
-                lastValue = other.lastValue;
             }
         }
 
@@ -98,11 +110,15 @@ public final class RateStates {
             blocks[offset] = new ConstantBytesRefVector(serialize(), 1).asBlock();
         }
 
+        private double delta() {
+            return (Double.compare(firstValue, lastValue) != 0) ? (lastValue - firstValue) / (lastTimestamp - firstTimestamp) * 1000 : 0;
+        }
+
         Block evaluateDelta(DriverContext driverContext) {
             if (Double.isNaN(lastValue)) {
                 return Block.constantNullBlock(1);
             }
-            return DoubleBlock.newConstantBlockWith(currentDelta, 1);
+            return DoubleBlock.newConstantBlockWith(delta(), 1);
         }
     }
 
@@ -125,8 +141,8 @@ public final class RateStates {
             return state;
         }
 
-        void add(int groupId, double v) {
-            getOrAddGroup(groupId).add(v);
+        void add(int groupId, double v, long ts) {
+            getOrAddGroup(groupId).add(v, ts);
         }
 
         void add(int groupId, SingleState other) {
@@ -172,8 +188,13 @@ public final class RateStates {
             }
         }
 
-        Block evaluateDelta(IntVector selected, DriverContext driverContext) {
+        Block evaluateDelta(IntVector selected, BytesRefVector tsids, DriverContext driverContext) {
             final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
+            BytesRef current = new BytesRef();
+            BytesRef next = new BytesRef();
+            tsids.getBytesRef(0, current);
+            long lastTimestamp = 0;
+            double lastValue = 0;
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (si >= states.size()) {
@@ -182,7 +203,20 @@ public final class RateStates {
                 }
                 final SingleState state = states.get(si);
                 if (state != null) {
-                    builder.appendDouble(state.currentDelta);
+                    if (tsids.getBytesRef(i, next).compareTo(current) == 0) {
+                        if (lastTimestamp > 0) {
+                            state.firstTimestamp = lastTimestamp;
+                            state.firstValue = lastValue;
+                        }
+                    } else {
+                        BytesRef temp = current;
+                        current = next;
+                        next = temp;
+                    }
+
+                    lastTimestamp = state.lastTimestamp;
+                    lastValue = state.lastValue;
+                    builder.appendDouble(state.delta());
                 } else {
                     builder.appendNull();
                 }

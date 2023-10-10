@@ -642,6 +642,16 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 7.17.14
+      - label: 7.17.15 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.15#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.15
       - label: 8.0.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.0.0#bwcTest
         timeout_in_minutes: 300
@@ -1176,6 +1186,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
       - label: third-party / s3
         command: |
           export amazon_s3_bucket=elasticsearch-ci.us-west-2

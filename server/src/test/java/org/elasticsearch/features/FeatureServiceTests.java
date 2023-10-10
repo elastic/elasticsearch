@@ -174,7 +174,7 @@ public class FeatureServiceTests extends ESTestCase {
     }
 
     public void testElidedFeatureAccepted() {
-        assertThat(new FeatureService().readPublishableFeatures(), not(hasItem("f1_v6")));
+        assertThat(new FeatureService().getPublishableFeatures(), not(hasItem("f1_v6")));
         for (int i = 0; i < PUBLISHABLE_ERAS.size(); i++) {
             Version ver = versionFor(publishableEra(i), "0.0");
             assertThat(FeatureService.nodeHasFeature(ver, Set.of(), ELIDED_FEATURE), is(true));
@@ -205,6 +205,6 @@ public class FeatureServiceTests extends ESTestCase {
 
     public void testSpecificFeaturesOverridesSpecs() {
         Set<String> features = Set.of("nf1", "nf2", "nf3");
-        assertThat(new FeatureService(features).readPublishableFeatures(), contains(features.toArray()));
+        assertThat(new FeatureService(features).getPublishableFeatures(), contains(features.toArray()));
     }
 }

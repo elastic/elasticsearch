@@ -218,7 +218,7 @@ public class FeatureService {
     /**
      * Returns the set of features published by this node
      */
-    public Set<String> readPublishableFeatures() {
+    public Set<String> getPublishableFeatures() {
         return features;
     }
 

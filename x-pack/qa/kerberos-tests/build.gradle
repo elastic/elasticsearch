@@ -45,4 +45,5 @@ tasks.named("javaRestTest").configure {
   ])
   dependsOn "copyKeytabToGeneratedResources", "copyConfToGeneratedResources"
   classpath += files("$buildDir/generated-resources/keytabs")
+  classpath += files("$buildDir/generated-resources/conf")
 }

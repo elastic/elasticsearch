@@ -109,8 +109,8 @@ class S3BlobStore implements BlobStore {
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meter = meter;
-        this.requestCounter = this.meter.getLongCounter(repositoryMetadata.type() + "_request_counter");
-        this.requestGauge = this.meter.getLongGauge(repositoryMetadata.type() + "_request_gauge");
+        this.requestCounter = this.meter.getLongCounter(S3Repository.TYPE + "_request_counter");
+        this.requestGauge = this.meter.getLongGauge(S3Repository.TYPE + "_request_gauge");
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {

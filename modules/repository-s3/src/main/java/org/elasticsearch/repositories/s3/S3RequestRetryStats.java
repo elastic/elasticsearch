@@ -15,8 +15,8 @@ import com.amazonaws.util.TimingInfo;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.util.Maps;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
 
@@ -65,19 +65,23 @@ public class S3RequestRetryStats {
 
     public void emitMetrics() {
         if (logger.isDebugEnabled()) {
-            emitMetric("elasticsearch.s3.requests", requests.get());
-            emitMetric("elasticsearch.s3.exceptions", exceptions.get());
-            emitMetric("elasticsearch.s3.throttles", throttles.get());
+            var metrics = Maps.<String, Object>newMapWithExpectedSize(3);
+            metrics.put("elasticsearch.metrics.s3.requests", requests.get());
+            metrics.put("elasticsearch.metrics.s3.exceptions", exceptions.get());
+            metrics.put("elasticsearch.metrics.s3.throttles", throttles.get());
             for (int i = 0; i < exceptionsHistogram.length(); i++) {
-                emitMetric("elasticsearch.s3.exceptions." + i, exceptionsHistogram.get(i));
+                long exceptions = exceptionsHistogram.get(i);
+                if (exceptions != 0) {
+                    metrics.put("elasticsearch.metrics.s3.exceptions.h" + i, exceptions);
+                }
             }
             for (int i = 0; i < throttlesHistogram.length(); i++) {
-                emitMetric("elasticsearch.s3.throttles." + i, throttlesHistogram.get(i));
+                long throttles = throttlesHistogram.get(i);
+                if (throttles != 0) {
+                    metrics.put("elasticsearch.metrics.s3.throttles.h" + i, throttles);
+                }
             }
+            logger.debug(new ESLogMessage().withFields(metrics));
         }
-    }
-
-    private void emitMetric(String name, long value) {
-        logger.debug(new ESLogMessage().withFields(Map.of(name, value)));
     }
 }

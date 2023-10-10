@@ -35,6 +35,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -285,8 +287,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final LongAdder evictCount = new LongAdder();
 
-    public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {
-        this(environment, settings, threadPool, ioExecutor, ioExecutor);
+    private final LongCounter evictedCountNonZeroFrequency;
+
+    public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor, Meter meter) {
+        this(environment, settings, threadPool, ioExecutor, ioExecutor, meter);
     }
 
     // gradlew requires 'rawtypes' even if IntelliJ doesn't
@@ -296,7 +300,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Settings settings,
         ThreadPool threadPool,
         String ioExecutor,
-        String bulkExecutor
+        String bulkExecutor,
+        Meter meter
     ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
@@ -340,6 +345,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         decayTask.rescheduleIfNecessary();
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
+        this.evictedCountNonZeroFrequency = meter.registerLongCounter(
+            "blobCacheEvictionCountNonZeroFrequency",
+            "blobCacheEvictionCountNonZeroFrequency",
+            "count"
+        );
+
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -623,6 +634,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         for (int i = 0; i < maxFreq; i++) {
             for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
                 boolean evicted = entry.chunk.tryEvict();
+                if (evicted && entry.freq > 0) {
+                    evictedCountNonZeroFrequency.increment();
+                }
                 if (evicted && entry.chunk.io != null) {
                     unlink(entry);
                     keyMapping.remove(entry.chunk.regionKey, entry);
@@ -721,6 +735,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             synchronized (this) {
                 for (Entry<CacheFileRegion> entry : matchingEntries) {
                     boolean evicted = entry.chunk.forceEvict();
+                    if (evicted && entry.freq > 0) {
+                        evictedCountNonZeroFrequency.increment();
+                    }
                     if (evicted && entry.chunk.io != null) {
                         unlink(entry);
                         keyMapping.remove(entry.chunk.regionKey, entry);

@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
@@ -376,6 +377,16 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         PrimaryContextHandoffRequest(StreamInput in) throws IOException {
             super(in);
             recoveryId = in.readVLong();
+
+            if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.DUMMY_PRIMARY_RELOCATION_CHANGE)) {
+                if (in.readBoolean()) {
+                    // Normally the next bits read from the stream would be a string length (inside shardid).
+                    // Here we have added a boolean which will fail if the sender did not add a false value.
+                    // This dummy change is to test our transport patching ability.
+                    throw new AssertionError("Unexpected handoff request stream, should contain a false boolean");
+                }
+            }
+
             shardId = new ShardId(in);
             primaryContext = new ReplicationTracker.PrimaryContext(in);
             retentionLeases = new RetentionLeases(in);
@@ -385,6 +396,12 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(recoveryId);
+
+            // See note in StreamInput ctor about this temporary boolean for testing transport patching
+            if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.DUMMY_PRIMARY_RELOCATION_CHANGE)) {
+                out.writeBoolean(false);
+            }
+
             shardId.writeTo(out);
             primaryContext.writeTo(out);
             retentionLeases.writeTo(out);

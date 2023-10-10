@@ -16,6 +16,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
@@ -43,12 +44,21 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        getGlobalCheckpoints(indicesService, request.getShards(), listener);
+        getGlobalCheckpoints(indicesService, task, request.getShards(), listener);
     }
 
-    protected static void getGlobalCheckpoints(IndicesService indicesService, Set<ShardId> shards, ActionListener<Response> listener) {
+    protected static void getGlobalCheckpoints(
+        IndicesService indicesService,
+        Task task,
+        Set<ShardId> shards,
+        ActionListener<Response> listener
+    ) {
         Map<String, long[]> checkpointsByIndexOfThisNode = new HashMap<>();
         for (ShardId shardId : shards) {
+            if (task instanceof CancellableTask) {
+                // There is no point continuing this work if the task has been cancelled.
+                ((CancellableTask) task).ensureNotCancelled();
+            }
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
 

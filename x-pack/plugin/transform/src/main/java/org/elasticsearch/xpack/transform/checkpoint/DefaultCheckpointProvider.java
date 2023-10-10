@@ -18,7 +18,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
@@ -58,7 +58,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
     protected final Clock clock;
-    protected final Client client;
+    protected final ParentTaskAssigningClient client;
     protected final RemoteClusterResolver remoteClusterResolver;
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
@@ -69,7 +69,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
     DefaultCheckpointProvider(
         final Clock clock,
-        final Client client,
+        final ParentTaskAssigningClient client,
         final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
@@ -133,7 +133,10 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             }
 
             for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
-                Client remoteClient = client.getRemoteClusterClient(remoteIndex.getKey(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                ParentTaskAssigningClient remoteClient = client.getRemoteClusterClient(
+                    remoteIndex.getKey(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
                 getCheckpointsFromOneCluster(
                     remoteClient,
                     transformConfig.getHeaders(),
@@ -148,7 +151,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     private void getCheckpointsFromOneCluster(
-        Client client,
+        ParentTaskAssigningClient client,
         Map<String, String> headers,
         String[] indices,
         String cluster,
@@ -184,14 +187,13 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     private static void getCheckpointsFromOneClusterV2(
-        Client client,
+        ParentTaskAssigningClient client,
         Map<String, String> headers,
         String[] indices,
         String cluster,
         ActionListener<Map<String, long[]>> listener
     ) {
         GetCheckpointAction.Request getCheckpointRequest = new GetCheckpointAction.Request(indices, IndicesOptions.LENIENT_EXPAND_OPEN);
-
         ActionListener<GetCheckpointAction.Response> checkpointListener;
         if (RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
             checkpointListener = ActionListener.wrap(
@@ -230,7 +232,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
      * BWC fallback for nodes/cluster older than 8.2
      */
     private static void getCheckpointsFromOneClusterBWC(
-        Client client,
+        ParentTaskAssigningClient client,
         Map<String, String> headers,
         String[] indices,
         String cluster,

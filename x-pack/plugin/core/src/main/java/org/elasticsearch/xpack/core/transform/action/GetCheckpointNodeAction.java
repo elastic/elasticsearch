@@ -17,6 +17,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,6 +27,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.Response> {
 
@@ -146,5 +151,9 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             return originalIndices.indicesOptions();
         }
 
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_checkpoint_node[%d]", id), parentTaskId, headers);
+        }
     }
 }

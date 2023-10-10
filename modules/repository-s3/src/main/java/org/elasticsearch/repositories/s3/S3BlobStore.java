@@ -118,11 +118,12 @@ class S3BlobStore implements BlobStore {
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
+        var collector = statsCollectors.getMetricCollector(operation, purpose);
         return new RequestMetricCollector() {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
                 s3RequestRetryStats.addRequest(request);
-                statsCollectors.getMetricCollector(operation, purpose);
+                collector.collectMetrics(request, response);
             }
         };
     }

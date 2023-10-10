@@ -39,6 +39,9 @@ public class S3RequestRetryStats {
     }
 
     public void addRequest(Request<?> request) {
+        if (request == null) {
+            return;
+        }
         var info = request.getAWSRequestMetrics().getTimingInfo();
         long requests = getCounter(info, AWSRequestMetrics.Field.RequestCount);
         long retries = getCounter(info, AWSRequestMetrics.Field.Exception);

@@ -69,6 +69,7 @@ public class IdLoaderTests extends ESTestCase {
         prepareIndexReader(indexAndForceMerge(routing, docs), verify, false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100580")
     public void testSynthesizeIdMultipleSegments() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);

@@ -266,7 +266,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private boolean licenseIsCompatible(License license, Version version) {
+    private static boolean licenseIsCompatible(License license, Version version) {
         final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
         return license.version() <= maxVersion;
     }
@@ -276,7 +276,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         return allowedLicenseTypes.contains(type);
     }
 
-    private TimeValue days(int days) {
+    private static TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
     }
 

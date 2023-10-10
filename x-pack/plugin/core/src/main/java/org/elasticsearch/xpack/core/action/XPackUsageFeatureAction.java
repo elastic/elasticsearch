@@ -50,6 +50,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction HEALTH = new XPackUsageFeatureAction(XPackField.HEALTH_API);
     public static final XPackUsageFeatureAction REMOTE_CLUSTERS = new XPackUsageFeatureAction(XPackField.REMOTE_CLUSTERS);
     public static final XPackUsageFeatureAction ENTERPRISE_SEARCH = new XPackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
+    public static final XPackUsageFeatureAction UNIVERSAL_PROFILING = new XPackUsageFeatureAction(XPackField.UNIVERSAL_PROFILING);
 
     static final List<XPackUsageFeatureAction> ALL = List.of(
         AGGREGATE_METRIC,
@@ -78,7 +79,8 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         ARCHIVE,
         HEALTH,
         REMOTE_CLUSTERS,
-        ENTERPRISE_SEARCH
+        ENTERPRISE_SEARCH,
+        UNIVERSAL_PROFILING
     );
 
     // public for testing

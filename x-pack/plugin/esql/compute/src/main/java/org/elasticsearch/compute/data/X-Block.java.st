@@ -21,7 +21,7 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits Filter$Type$Block, $Type$ArrayBlock, $Type$VectorBlock {
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock {
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
@@ -132,6 +132,9 @@ $endif$
      * equals method works properly across different implementations of the $Type$Block interface.
      */
     static boolean equals($Type$Block block1, $Type$Block block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

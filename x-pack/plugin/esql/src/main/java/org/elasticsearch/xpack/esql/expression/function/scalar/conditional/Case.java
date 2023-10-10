@@ -209,26 +209,28 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
                     Page limited = new Page(
                         IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
                     );
-                    for (ConditionEvaluator condition : conditions) {
-                        try (Block.Ref conditionRef = condition.condition.eval(limited)) {
-                            if (conditionRef.block().areAllValuesNull()) {
-                                continue;
-                            }
-                            BooleanBlock b = (BooleanBlock) conditionRef.block();
-                            if (b.isNull(0)) {
-                                continue;
-                            }
-                            if (false == b.getBoolean(b.getFirstValueIndex(0))) {
-                                continue;
-                            }
-                            try (Block.Ref valueRef = condition.value.eval(limited)) {
-                                result.copyFrom(valueRef.block(), 0, 1);
-                                continue position;
+                    try (Releasable ignored = limited::releaseBlocks) {
+                        for (ConditionEvaluator condition : conditions) {
+                            try (Block.Ref conditionRef = condition.condition.eval(limited)) {
+                                if (conditionRef.block().areAllValuesNull()) {
+                                    continue;
+                                }
+                                BooleanBlock b = (BooleanBlock) conditionRef.block();
+                                if (b.isNull(0)) {
+                                    continue;
+                                }
+                                if (false == b.getBoolean(b.getFirstValueIndex(0))) {
+                                    continue;
+                                }
+                                try (Block.Ref valueRef = condition.value.eval(limited)) {
+                                    result.copyFrom(valueRef.block(), 0, 1);
+                                    continue position;
+                                }
                             }
                         }
-                    }
-                    try (Block.Ref elseRef = elseVal.eval(limited)) {
-                        result.copyFrom(elseRef.block(), 0, 1);
+                        try (Block.Ref elseRef = elseVal.eval(limited)) {
+                            result.copyFrom(elseRef.block(), 0, 1);
+                        }
                     }
                 }
                 return Block.Ref.floating(result.build());

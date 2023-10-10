@@ -1982,23 +1982,3 @@ coming::[8.11.0]
 === Set up CORS for Behavioral Analytics
 
 coming::[8.11.0]
-
-[role="exclude",id="search-application-overview"]
-=== Elastic Search Applications
-
-coming::[8.11.0]
-
-[role="exclude",id="search-application-api"]
-=== Search Applications search API and templates
-
-coming::[8.11.0]
-
-[role="exclude",id="search-application-client"]
-=== Search Applications client
-
-coming::[8.11.0]
-
-[role="exclude",id="search-application-security"]
-=== Search Applications security
-
-coming::[8.11.0]

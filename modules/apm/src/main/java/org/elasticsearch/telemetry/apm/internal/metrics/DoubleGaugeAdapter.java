@@ -44,7 +44,7 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
 
     @Override
     public void record(double value) {
-        this.valueWithAttributes.set(new ValueWithAttributes<>(value, Collections.emptyMap()));
+        record(value, Collections.emptyMap());
     }
 
     @Override

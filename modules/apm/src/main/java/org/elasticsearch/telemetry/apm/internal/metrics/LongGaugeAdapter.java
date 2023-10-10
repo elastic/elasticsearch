@@ -45,7 +45,7 @@ public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.me
 
     @Override
     public void record(long value) {
-        this.valueWithAttributes.set(new ValueWithAttributes<>(value, Collections.emptyMap()));
+        record(value, Collections.emptyMap());
     }
 
     @Override

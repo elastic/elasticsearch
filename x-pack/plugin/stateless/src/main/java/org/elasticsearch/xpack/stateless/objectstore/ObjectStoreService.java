@@ -461,7 +461,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             return null;
         }
         String commitFileName = blobNameFromGeneration(maxGeneration.getAsLong());
-        try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.SNAPSHOT, commitFileName))) {
+        try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, commitFileName))) {
             long fileLength = allBlobs.get(commitFileName).length();
             return StatelessCompoundCommit.readFromStore(streamInput, fileLength);
         }
@@ -469,7 +469,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     private static List<Tuple<Long, BlobContainer>> getContainersToSearch(BlobContainer shardContainer, long primaryTerm)
         throws IOException {
-        return shardContainer.children(OperationPurpose.SNAPSHOT).entrySet().stream().filter(e -> {
+        return shardContainer.children(OperationPurpose.INDICES).entrySet().stream().filter(e -> {
             try {
                 Long.parseLong(e.getKey());
                 return true;
@@ -489,7 +489,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         for (Tuple<Long, BlobContainer> container : containersToSearch) {
             final var blobContainer = container.v2();
 
-            Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
+            Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs(OperationPurpose.INDICES);
             logger.trace(() -> format("listing blobs in [%s]: %s", blobContainer.path().buildAsString(), allBlobs));
 
             latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
@@ -510,7 +510,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             final long blobContainerPrimaryTerm = container.v1();
             final var blobContainer = container.v2();
 
-            Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
+            Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs(OperationPurpose.INDICES);
             logger.trace(() -> format("listing blobs in [%s]: %s", blobContainer.path().buildAsString(), allBlobs));
 
             if (latestCommit == null) {
@@ -544,8 +544,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public static StatelessCompoundCommit readStatelessCompoundCommit(BlobContainer blobContainer, long generation) throws IOException {
         String commitFileName = blobNameFromGeneration(generation);
-        try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.SNAPSHOT, commitFileName))) {
-            long fileLength = blobContainer.listBlobs(OperationPurpose.SNAPSHOT).get(commitFileName).length();
+        try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(OperationPurpose.INDICES, commitFileName))) {
+            long fileLength = blobContainer.listBlobs(OperationPurpose.INDICES).get(commitFileName).length();
             return StatelessCompoundCommit.readFromStore(streamInput, fileLength);
         }
     }
@@ -612,7 +612,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             final BlobContainer blobContainer = getTranslogBlobContainer();
 
             var before = threadPool.relativeTimeInMillis();
-            blobContainer.writeBlob(OperationPurpose.SNAPSHOT, fileName, reference, false);
+            blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
             var after = threadPool.relativeTimeInMillis();
             logger.debug(
                 () -> format(
@@ -679,7 +679,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 // TODO: Ensure that out usage of this method for writing files is appropriate. The javadoc is a bit concerning. "This
                 // method is only used for streaming serialization of repository metadata that is known to be of limited size at any point
                 // in time and across all concurrent invocations of this method."
-                blobContainer.writeMetadataBlob(OperationPurpose.SNAPSHOT, commitFileName, false, true, out -> {
+                blobContainer.writeMetadataBlob(OperationPurpose.INDICES, commitFileName, false, true, out -> {
                     long written = pendingCommit.writeToStore(out, directory);
                     bytesWritten.set(written);
                 });
@@ -746,7 +746,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         protected void doRun() throws Exception {
             boolean success = false;
             try {
-                blobContainer.get().deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, toDeleteInThisTask.iterator());
+                blobContainer.get().deleteBlobsIgnoringIfNotExists(OperationPurpose.TRANSLOG, toDeleteInThisTask.iterator());
                 success = true;
             } finally {
                 if (success == false) {
@@ -795,7 +795,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             try {
                 getObjectStore().blobStore()
                     .deleteBlobsIgnoringIfNotExists(
-                        OperationPurpose.SNAPSHOT,
+                        OperationPurpose.INDICES,
                         toDeleteInThisTask.stream()
                             .map(commit -> commit.absoluteBlobPath(getBlobContainer(commit.shardId(), commit.primaryTerm()).path()))
                             .iterator()

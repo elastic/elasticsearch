@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +47,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode2);
         var blobContainerForTermLease = objectStoreService.getTermLeaseBlobContainer();
         final long nodeLeftGenerationBeforeNodeLeft;
-        try (InputStream inputStream = blobContainerForTermLease.readBlob(OperationPurpose.SNAPSHOT, "lease")) {
+        try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
             StreamInput input = rootBlob.streamInput();
             input.readLong();
@@ -59,7 +58,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
 
         ensureStableCluster(2);
 
-        try (InputStream inputStream = blobContainerForTermLease.readBlob(OperationPurpose.SNAPSHOT, "lease")) {
+        try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray newRootBlob = new BytesArray(inputStream.readAllBytes());
             assertThat(newRootBlob.length(), equalTo(16));
             StreamInput input = newRootBlob.streamInput();
@@ -77,7 +76,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode1);
         var blobContainerForTermLease = objectStoreService.getTermLeaseBlobContainer();
         final long termBeforeRootDeleted;
-        try (InputStream inputStream = blobContainerForTermLease.readBlob(OperationPurpose.SNAPSHOT, "lease")) {
+        try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
             StreamInput input = rootBlob.streamInput();
             termBeforeRootDeleted = input.readLong();
@@ -86,8 +85,8 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
 
         byte[] bytes = new byte[Long.BYTES];
         ByteUtils.writeLongBE(termBeforeRootDeleted + 1, bytes, 0);
-        blobContainerForTermLease.writeBlob(OperationPurpose.SNAPSHOT, "lease", new BytesArray(bytes), false);
-        blobContainerForTermLease.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, List.of("heartbeat").iterator());
+        blobContainerForTermLease.writeBlob(operationPurpose, "lease", new BytesArray(bytes), false);
+        blobContainerForTermLease.deleteBlobsIgnoringIfNotExists(operationPurpose, List.of("heartbeat").iterator());
 
         // Add a node to force a cluster state update
 
@@ -95,7 +94,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(3);
 
         final Matcher<Long> nodeLeftGenerationMatcher;
-        try (InputStream inputStream = blobContainerForTermLease.readBlob(OperationPurpose.SNAPSHOT, "lease")) {
+        try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
             StreamInput input = rootBlob.streamInput();
             assertThat(input.readLong(), greaterThan(termBeforeRootDeleted + 1));
@@ -111,7 +110,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         internalCluster().stopNode(indexNode2);
         ensureStableCluster(2);
 
-        try (InputStream inputStream = blobContainerForTermLease.readBlob(OperationPurpose.SNAPSHOT, "lease")) {
+        try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
             StreamInput input = rootBlob.streamInput();
             input.readLong();

@@ -159,7 +159,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
             for (String file : luceneFilesToDownload) {
                 throttledTaskRunner.enqueueTask(refCountingListener.acquire().map(r -> {
                     // TODO: retry
-                    try (r; var inputStream = termBlobContainer.readBlob(OperationPurpose.SNAPSHOT, file)) {
+                    try (r; var inputStream = termBlobContainer.readBlob(OperationPurpose.CLUSTER_STATE, file)) {
                         Streams.copy(
                             inputStream,
                             new IndexOutputOutputStream(((Directory) downloadDirectory).createOutput(file, IOContext.DEFAULT))
@@ -286,7 +286,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         private TermBlobDirectory(BlobContainer blobContainer) throws IOException {
             super(NoLockFactory.INSTANCE);
             this.termBlobs = Collections.unmodifiableMap(
-                blobContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT, IndexFileNames.SEGMENTS)
+                blobContainer.listBlobsByPrefix(OperationPurpose.CLUSTER_STATE, IndexFileNames.SEGMENTS)
             );
             this.blobContainer = blobContainer;
         }
@@ -307,7 +307,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
             // TODO: download to disk?
             return new BytesReferenceIndexInput(
                 name,
-                org.elasticsearch.common.io.Streams.readFully(blobContainer.readBlob(OperationPurpose.SNAPSHOT, name))
+                org.elasticsearch.common.io.Streams.readFully(blobContainer.readBlob(OperationPurpose.CLUSTER_STATE, name))
             );
         }
 

@@ -52,7 +52,7 @@ public class StatelessHeartbeatStore implements HeartbeatStore {
                 ActionRunnable.run(
                     listener,
                     () -> getHeartbeatBlobContainer().writeMetadataBlob(
-                        OperationPurpose.SNAPSHOT,
+                        OperationPurpose.CLUSTER_STATE,
                         HEARTBEAT_BLOB,
                         false,
                         true,
@@ -65,7 +65,7 @@ public class StatelessHeartbeatStore implements HeartbeatStore {
     @Override
     public void readLatestHeartbeat(ActionListener<Heartbeat> listener) {
         threadPool.executor(getExecutor()).execute(ActionRunnable.supply(listener, () -> {
-            try (InputStream inputStream = getHeartbeatBlobContainer().readBlob(OperationPurpose.SNAPSHOT, HEARTBEAT_BLOB)) {
+            try (InputStream inputStream = getHeartbeatBlobContainer().readBlob(OperationPurpose.CLUSTER_STATE, HEARTBEAT_BLOB)) {
                 return deserialize(inputStream);
             } catch (NoSuchFileException e) {
                 return null;

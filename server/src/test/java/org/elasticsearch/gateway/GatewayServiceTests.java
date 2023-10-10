@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -56,7 +57,6 @@ public class GatewayServiceTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
     private AtomicInteger rerouteCount;
-    private ClusterService clusterService;
     private String dataNodeIdPrefix;
 
     @Override
@@ -69,12 +69,34 @@ public class GatewayServiceTests extends ESTestCase {
         dataNodeIdPrefix = randomAlphaOfLength(10) + "-";
     }
 
-    private GatewayService createService(final Settings.Builder settingsBuilder, final ClusterState initialState) {
+    private GatewayService createGatewayService(final Settings.Builder settingsBuilder, final ClusterState initialState) {
+        return createGatewayService(createClusterService(settingsBuilder, initialState));
+    }
+
+    private GatewayService createGatewayService(final ClusterService clusterService) {
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            rerouteCount.incrementAndGet();
+            listener.onResponse(null);
+        };
+
+        final var gatewayService = new GatewayService(
+            clusterService.getSettings(),
+            rerouteService,
+            clusterService,
+            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
+            clusterService.threadPool()
+        );
+
+        gatewayService.start();
+        return gatewayService;
+    }
+
+    private ClusterService createClusterService(final Settings.Builder settingsBuilder, final ClusterState initialState) {
         final var threadPool = deterministicTaskQueue.getThreadPool();
         final var settings = settingsBuilder.build();
         final var clusterSettings = createBuiltInClusterSettings(settings);
 
-        clusterService = new ClusterService(
+        final var clusterService = new ClusterService(
             settings,
             clusterSettings,
             new FakeThreadPoolMasterService(initialState.nodes().getLocalNodeId(), threadPool, deterministicTaskQueue::scheduleNow),
@@ -92,46 +114,31 @@ public class GatewayServiceTests extends ESTestCase {
             .setClusterStatePublisher(ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService()));
         clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();
-
-        final RerouteService rerouteService = (reason, priority, listener) -> {
-            rerouteCount.incrementAndGet();
-            listener.onResponse(null);
-        };
-
-        final var gatewayService = new GatewayService(
-            settings,
-            rerouteService,
-            clusterService,
-            ShardRoutingRoleStrategy.NO_SHARD_CREATION,
-            threadPool
-        );
-
-        gatewayService.start();
-        return gatewayService;
+        return clusterService;
     }
 
     public void testDefaultRecoverAfterTime() {
         // check that the default is not set
         final ClusterState initialState = buildClusterState(1, 1);
-        GatewayService service = createService(Settings.builder(), initialState);
+        GatewayService service = createGatewayService(Settings.builder(), initialState);
         assertNull(service.recoverAfterTime());
 
         // ensure default is set when setting expected_data_nodes
-        service = createService(Settings.builder().put("gateway.expected_data_nodes", 1), initialState);
+        service = createGatewayService(Settings.builder().put("gateway.expected_data_nodes", 1), initialState);
         assertThat(service.recoverAfterTime(), equalTo(GatewayService.DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET));
 
         // ensure settings override default
         final TimeValue timeValue = TimeValue.timeValueHours(3);
 
         // ensure default is set when setting expected_nodes
-        service = createService(Settings.builder().put("gateway.recover_after_time", timeValue.toString()), initialState);
+        service = createGatewayService(Settings.builder().put("gateway.recover_after_time", timeValue.toString()), initialState);
         assertThat(service.recoverAfterTime().millis(), equalTo(timeValue.millis()));
     }
 
     public void testRecoverStateUpdateTask() throws Exception {
         final long expectedTerm = randomLongBetween(1, 42);
         ClusterState stateWithBlock = buildClusterState(1, expectedTerm);
-        GatewayService service = createService(Settings.builder(), stateWithBlock);
+        GatewayService service = createGatewayService(Settings.builder(), stateWithBlock);
         ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm);
 
         ClusterState recoveredState = clusterStateUpdateTask.execute(stateWithBlock);
@@ -145,7 +152,7 @@ public class GatewayServiceTests extends ESTestCase {
     public void testRecoveryWillAbortIfExpectedTermDoesNotMatch() throws Exception {
         final long expectedTerm = randomLongBetween(1, 42);
         final ClusterState stateWithBlock = buildClusterState(1, randomLongBetween(43, 99));
-        final GatewayService service = createService(Settings.builder(), stateWithBlock);
+        final GatewayService service = createGatewayService(Settings.builder(), stateWithBlock);
         final ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask(expectedTerm);
 
         final ClusterState recoveredState = clusterStateUpdateTask.execute(stateWithBlock);
@@ -170,21 +177,22 @@ public class GatewayServiceTests extends ESTestCase {
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         when(clusterChangedEvent.state()).thenReturn(initialState);
 
-        final GatewayService gatewayService = createService(Settings.builder(), initialState);
+        final GatewayService gatewayService = createGatewayService(Settings.builder(), initialState);
         gatewayService.clusterChanged(clusterChangedEvent);
         assertThat(deterministicTaskQueue.hasAnyTasks(), is(false));
         assertThat(gatewayService.currentPendingStateRecovery, nullValue());
     }
 
     public void testNoActionWhenStateIsAlreadyRecovered() {
-        final GatewayService gatewayService = createService(
+        final ClusterService clusterService = createClusterService(
             Settings.builder()
                 .put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2)
                 .put(GatewayService.EXPECTED_DATA_NODES_SETTING.getKey(), 4)
                 .put(GatewayService.RECOVER_AFTER_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(10)),
             ClusterState.builder(buildClusterState(2, randomIntBetween(1, 42))).blocks(ClusterBlocks.builder()).build()
         );
-        assertClusterStateBlocks(false);
+        final GatewayService gatewayService = createGatewayService(clusterService);
+        assertClusterStateBlocks(clusterService, false);
         assertThat(rerouteCount.get(), equalTo(0));
 
         final var taskQueue = createSetDataNodeCountTaskQueue(clusterService);
@@ -192,7 +200,7 @@ public class GatewayServiceTests extends ESTestCase {
         taskQueue.submitTask(randomAlphaOfLength(5), new SetDataNodeCountTask(newDataNodeCount), null);
         deterministicTaskQueue.runAllTasksInTimeOrder();
 
-        assertClusterStateBlocks(false);
+        assertClusterStateBlocks(clusterService, false);
         assertThat(rerouteCount.get(), equalTo(0));
         assertThat(gatewayService.currentPendingStateRecovery, nullValue());
         assertThat(clusterService.state().nodes().getDataNodes().size(), equalTo(newDataNodeCount));
@@ -208,8 +216,9 @@ public class GatewayServiceTests extends ESTestCase {
         }
 
         final ClusterState initialState = buildClusterState(expectedNumberOfDataNodes, 0);
-        final GatewayService gatewayService = createService(settingsBuilder, initialState);
-        assertClusterStateBlocks(true);
+        final ClusterService clusterService = createClusterService(settingsBuilder, initialState);
+        final GatewayService gatewayService = createGatewayService(clusterService);
+        assertClusterStateBlocks(clusterService, true);
         assertThat(rerouteCount.get(), equalTo(0));
 
         // Recover immediately
@@ -218,7 +227,7 @@ public class GatewayServiceTests extends ESTestCase {
         setClusterStateTaskQueue.submitTask(randomAlphaOfLength(5), new SetClusterStateTask(clusterStateOfTerm1), null);
         assertThat(deterministicTaskQueue.hasRunnableTasks(), is(true));
         deterministicTaskQueue.runAllRunnableTasks();
-        assertClusterStateBlocks(false);
+        assertClusterStateBlocks(clusterService, false);
         assertThat(rerouteCount.get(), equalTo(1));
         final var pendingStateRecoveryOfTerm1 = gatewayService.currentPendingStateRecovery;
         assertThat(pendingStateRecoveryOfTerm1, notNullValue());
@@ -228,7 +237,7 @@ public class GatewayServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks();
         assertThat(deterministicTaskQueue.hasAnyTasks(), is(false));
         assertThat(rerouteCount.get(), equalTo(1));
-        assertClusterStateBlocks(true);
+        assertClusterStateBlocks(clusterService, true);
         assertThat(gatewayService.currentPendingStateRecovery, sameInstance(pendingStateRecoveryOfTerm1));
 
         // Will run recover again for a newer term
@@ -238,7 +247,7 @@ public class GatewayServiceTests extends ESTestCase {
         setClusterStateTaskQueue.submitTask(randomAlphaOfLength(5), new SetClusterStateTask(clusterStateOfTerm2), null);
         assertThat(deterministicTaskQueue.hasRunnableTasks(), is(true));
         deterministicTaskQueue.runAllRunnableTasks();
-        assertClusterStateBlocks(false);
+        assertClusterStateBlocks(clusterService, false);
         assertThat(rerouteCount.get(), equalTo(2));
         assertThat(gatewayService.currentPendingStateRecovery, not(sameInstance(pendingStateRecoveryOfTerm1)));
 
@@ -249,11 +258,11 @@ public class GatewayServiceTests extends ESTestCase {
 
     public void testScheduledRecovery() {
         final var hasRecoverAfterTime = randomBoolean();
-        createGatewayServiceForScheduledRecovery(randomIntBetween(2, 5), hasRecoverAfterTime);
+        final ClusterService clusterService = createServicesTupleForScheduledRecovery(randomIntBetween(2, 5), hasRecoverAfterTime).v1();
 
         // Recover when the scheduled recovery is ready to run
         deterministicTaskQueue.runAllTasksInTimeOrder();
-        assertClusterStateBlocks(false);
+        assertClusterStateBlocks(clusterService, false);
         assertThat(rerouteCount.get(), equalTo(1));
         assertTimeElapsed(TimeValue.timeValueMinutes(hasRecoverAfterTime ? 10 : 5).millis());
     }
@@ -261,14 +270,16 @@ public class GatewayServiceTests extends ESTestCase {
     public void testScheduledRecoveryCancelledWhenClusterCanRecoverImmediately() {
         final var expectedNumberOfDataNodes = randomIntBetween(2, 5);
         final boolean hasRecoverAfterTime = randomBoolean();
-        final var gatewayService = createGatewayServiceForScheduledRecovery(expectedNumberOfDataNodes, hasRecoverAfterTime);
+        final var servicesTuple = createServicesTupleForScheduledRecovery(expectedNumberOfDataNodes, hasRecoverAfterTime);
+        final ClusterService clusterService = servicesTuple.v1();
+        final GatewayService gatewayService = servicesTuple.v2();
         final var pendingStateRecoveryOfTerm1 = gatewayService.currentPendingStateRecovery;
 
         // The 1st schedule is cancelled when the cluster has enough nodes
         final var setDataNodeCountTaskQueue = createSetDataNodeCountTaskQueue(clusterService);
         setDataNodeCountTaskQueue.submitTask(randomAlphaOfLength(5), new SetDataNodeCountTask(expectedNumberOfDataNodes), null);
         deterministicTaskQueue.runAllRunnableTasks();
-        assertClusterStateBlocks(false);
+        assertClusterStateBlocks(clusterService, false);
         assertThat(rerouteCount.get(), equalTo(1));
         assertThat(gatewayService.currentPendingStateRecovery, sameInstance(pendingStateRecoveryOfTerm1));
         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(0L));
@@ -280,7 +291,9 @@ public class GatewayServiceTests extends ESTestCase {
 
     public void testScheduledRecoveryNoOpWhenNewTermBegins() {
         final var hasRecoverAfterTime = randomBoolean();
-        final var gatewayService = createGatewayServiceForScheduledRecovery(randomIntBetween(2, 5), hasRecoverAfterTime);
+        final var servicesTuple = createServicesTupleForScheduledRecovery(randomIntBetween(2, 5), hasRecoverAfterTime);
+        final ClusterService clusterService = servicesTuple.v1();
+        final GatewayService gatewayService = servicesTuple.v2();
         final var setClusterStateTaskQueue = createSetClusterStateTaskQueue(clusterService);
         final var pendingStateRecoveryOfTerm1 = gatewayService.currentPendingStateRecovery;
 
@@ -301,24 +314,28 @@ public class GatewayServiceTests extends ESTestCase {
             deterministicTaskQueue.getCurrentTimeMillis(),
             equalTo(TimeValue.timeValueMinutes(hasRecoverAfterTime ? 10 : 5).millis())
         );
-        assertClusterStateBlocks(true);
+        assertClusterStateBlocks(clusterService, true);
         assertThat(rerouteCount.get(), equalTo(0));
         // The 2nd schedule will perform the recovery
         deterministicTaskQueue.runAllTasksInTimeOrder();
-        assertClusterStateBlocks(false);
+        assertClusterStateBlocks(clusterService, false);
         assertThat(rerouteCount.get(), equalTo(1));
         assertTimeElapsed(elapsed.millis() + TimeValue.timeValueMinutes(hasRecoverAfterTime ? 10 : 5).millis());
     }
 
-    private GatewayService createGatewayServiceForScheduledRecovery(int expectedNumberOfDataNodes, boolean hasRecoverAfterTime) {
+    private Tuple<ClusterService, GatewayService> createServicesTupleForScheduledRecovery(
+        int expectedNumberOfDataNodes,
+        boolean hasRecoverAfterTime
+    ) {
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(EXPECTED_DATA_NODES_SETTING.getKey(), expectedNumberOfDataNodes);
         if (hasRecoverAfterTime) {
             settingsBuilder.put(RECOVER_AFTER_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(10));
         }
         final ClusterState initialState = buildClusterState(1, 0);
-        final GatewayService gatewayService = createService(settingsBuilder, initialState);
-        assertClusterStateBlocks(true);
+        final ClusterService clusterService = createClusterService(settingsBuilder, initialState);
+        final GatewayService gatewayService = createGatewayService(clusterService);
+        assertClusterStateBlocks(clusterService, true);
 
         final ClusterState clusterStateOfTerm1 = incrementTerm(initialState);
         final var setClusterStateTaskQueue = createSetClusterStateTaskQueue(clusterService);
@@ -326,11 +343,11 @@ public class GatewayServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllRunnableTasks(); // publish cluster state term change
         // recovery is scheduled but has not run yet
         assertThat(deterministicTaskQueue.hasDeferredTasks(), is(true));
-        assertClusterStateBlocks(true);
+        assertClusterStateBlocks(clusterService, true);
         assertThat(rerouteCount.get(), equalTo(0));
         final GatewayService.PendingStateRecovery pendingStateRecoveryOfInitialTerm = gatewayService.currentPendingStateRecovery;
         assertThat(pendingStateRecoveryOfInitialTerm, notNullValue());
-        return gatewayService;
+        return new Tuple<>(clusterService, gatewayService);
     }
 
     public void testScheduledRecoveryWithRecoverAfterNodes() {
@@ -346,15 +363,16 @@ public class GatewayServiceTests extends ESTestCase {
         settingsBuilder.put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), recoverAfterNodes);
 
         final ClusterState initialState = buildClusterState(1, 1);
-        final GatewayService gatewayService = createService(settingsBuilder, initialState);
-        assertClusterStateBlocks(true);
+        final ClusterService clusterService = createClusterService(settingsBuilder, initialState);
+        final GatewayService gatewayService = createGatewayService(clusterService);
+        assertClusterStateBlocks(clusterService, true);
 
         // Not recover because recoverAfterDataNodes not met
         final var setDataNodeCountTaskQueue = createSetDataNodeCountTaskQueue(clusterService);
         setDataNodeCountTaskQueue.submitTask(randomAlphaOfLength(5), new SetDataNodeCountTask(recoverAfterNodes - 1), null);
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(0L));
-        assertClusterStateBlocks(true);
+        assertClusterStateBlocks(clusterService, true);
         final var pendingStateRecoveryOfInitialTerm = gatewayService.currentPendingStateRecovery;
         assertThat(pendingStateRecoveryOfInitialTerm, notNullValue());
 
@@ -391,17 +409,17 @@ public class GatewayServiceTests extends ESTestCase {
             deterministicTaskQueue.getCurrentTimeMillis(),
             equalTo(TimeValue.timeValueMinutes(hasRecoverAfterTime ? 10 : 5).millis())
         );
-        assertClusterStateBlocks(true);
+        assertClusterStateBlocks(clusterService, true);
         assertThat(rerouteCount.get(), equalTo(0));
 
         // The 2nd scheduled recovery will recover the state
         deterministicTaskQueue.runAllTasksInTimeOrder();
-        assertClusterStateBlocks(false);
+        assertClusterStateBlocks(clusterService, false);
         assertThat(rerouteCount.get(), equalTo(1));
         assertTimeElapsed(elapsed.millis() * 2 + TimeValue.timeValueMinutes(hasRecoverAfterTime ? 10 : 5).millis());
     }
 
-    private void assertClusterStateBlocks(boolean isBlocked) {
+    private void assertClusterStateBlocks(ClusterService clusterService, boolean isBlocked) {
         assertThat(clusterService.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK), is(isBlocked));
     }
 

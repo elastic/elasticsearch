@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.util.Optional;
@@ -126,20 +125,33 @@ public class AggregationErrors {
      * Indicates that an aggregation path (e.g. from a pipeline agg) references an aggregation of the wrong type, for example
      * attempting to take a cumulative cardinality of something other than a cardinality aggregation.
      *
-     * @param aggPath the path element found to be invalid
-     * @param got What we actually got; this may be null.
+     * @param aggPath    the path element found to be invalid
+     * @param expected
+     * @param got        What we actually got; this may be null.
      * @param currentAgg The name of the aggregation in question
      * @return an appropriate exception
      */
-    public static RuntimeException incompatibleAggregationType(String aggPath, String got, String currentAgg) {
+    public static RuntimeException incompatibleAggregationType(String aggPath, String expected, String got, String currentAgg) {
 
-        return new IllegalArgumentException(
+        return new AggregationExecutionException.InvalidBucketPath(
             aggPath
-                + " must reference a cardinality aggregation, got: ["
+                + " must reference a " + expected + " aggregation, got: ["
                 + (got == null ? "null" : got)
                 + "] at aggregation ["
                 + currentAgg
                 + "]"
         );
+    }
+
+    /**
+     * This is a 500 class error indicating a programming error.  Hopefully we never see this outside of tests.
+     * @param bucketOrds - the ords we are processing
+     * @param got - the ordinal we got
+     * @param expected - the ordinal we expected
+     * @return an appropriate exception
+     */
+    public static RuntimeException iterationOrderChangedWithoutMutating(String bucketOrds, long got, long expected) {
+        return new AggregationExecutionException(
+            "Iteration order of [" + bucketOrds + "] changed without mutating. [" + got + "] should have been [" + expected + "]" );
     }
 }

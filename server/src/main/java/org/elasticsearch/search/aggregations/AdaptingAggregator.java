@@ -112,7 +112,6 @@ public abstract class AdaptingAggregator extends Aggregator {
             return adapt(delegate.buildEmptyAggregation());
         } catch (IOException e) {
             // We don't expect this to happen, but computers are funny.
-            // 500 class error, because we believe it to be unreachable?
             throw new AggregationExecutionException("io error while building empty agg", e);
         }
     }

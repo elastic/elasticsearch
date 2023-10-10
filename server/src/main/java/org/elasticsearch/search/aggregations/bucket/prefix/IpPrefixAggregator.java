@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -195,16 +196,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             while (ordsEnum.next()) {
                 long ordinal = ordsEnum.ord();
                 if (bucketOrdsToCollect[b] != ordinal) {
-                    // Not sure what can cause this; 500 seems appropriate, maybe?
-                    throw new AggregationExecutionException(
-                        "Iteration order of ["
-                            + bucketOrds
-                            + "] changed without mutating. ["
-                            + ordinal
-                            + "] should have been ["
-                            + bucketOrdsToCollect[b]
-                            + "]"
-                    );
+                    throw AggregationErrors.iterationOrderChangedWithoutMutating(bucketOrds.toString(), ordinal, bucketOrdsToCollect[b]);
                 }
                 BytesRef ipAddress = new BytesRef();
                 ordsEnum.readValue(ipAddress);

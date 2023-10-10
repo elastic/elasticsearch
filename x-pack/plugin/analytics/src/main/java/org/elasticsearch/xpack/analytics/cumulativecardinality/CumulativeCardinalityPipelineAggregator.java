@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -92,7 +91,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         if (propertyValue == null) {
             throw AggregationErrors.incompatibleAggregationType(
                 AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName(),
-                "null",
+                "cardinality", "null",
                 currentAggName
             );
         }
@@ -103,7 +102,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
 
         throw AggregationErrors.incompatibleAggregationType(
             AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName(),
-            propertyValue.getClass().getSimpleName(),
+            "cardinality", propertyValue.getClass().getSimpleName(),
             currentAggName
         );
     }

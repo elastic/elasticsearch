@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
@@ -340,8 +341,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
             totalOrdsToCollect += bucketCount;
         }
         if (totalOrdsToCollect > Integer.MAX_VALUE) {
-            // Seems like this should be a 400; also, should this check the bucket limit instead of Integer.MAX_VALUE?
-            throw new AggregationExecutionException(
+            // TODO: We should instrument this error.  While it is correct for it to be a 400 class IllegalArgumentException, there is not
+            // much the user can do about that. If this occurs with any frequency, we should do something about it.
+            throw new IllegalArgumentException(
                 "Can't collect more than [" + Integer.MAX_VALUE + "] buckets but attempted [" + totalOrdsToCollect + "]"
             );
         }
@@ -362,16 +364,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
             while (ordsEnum.next()) {
                 if (bucketOrdsToCollect[b] != ordsEnum.ord()) {
-                    // Not sure what can cause this; 500 seems appropriate, maybe?
-                    throw new AggregationExecutionException(
-                        "Iteration order of ["
-                            + bucketOrds
-                            + "] changed without mutating. ["
-                            + ordsEnum.ord()
-                            + "] should have been ["
-                            + bucketOrdsToCollect[b]
-                            + "]"
-                    );
+                    // If we hit this, something has gone horribly wrong and we need to investigate
+                    throw AggregationErrors.iterationOrderChangedWithoutMutating(bucketOrds.toString(), ordsEnum.ord(), bucketOrdsToCollect[b]);
                 }
                 buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults[b++]));
             }

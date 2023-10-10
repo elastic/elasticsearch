@@ -56,7 +56,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                 Aggregation currentAgg = aggregation;
                 while (currElement < parsedPath.size() - 1) {
                     if (currentAgg == null) {
-                        throw new IllegalArgumentException(
+                        throw new AggregationExecutionException.InvalidBucketPath(
                             "bucket_path ["
                                 + bucketsPaths()[0]
                                 + "] expected aggregation with name ["
@@ -74,7 +74,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                                 );
                             if (bucket == null) {
                                 // seems not retryable, and therefore should be 400?
-                                throw new AggregationExecutionException(
+                                throw new AggregationExecutionException.InvalidBucketPath(
                                     "missing bucket ["
                                         + parsedPath.get(currElement).key()
                                         + "] for agg ["
@@ -93,7 +93,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                             currentAgg = bucket.getAggregations().get(parsedPath.get(++currElement).name());
                         } else {
                             // Seems not retryable, should be 400
-                            throw new AggregationExecutionException(
+                            throw new AggregationExecutionException.InvalidBucketPath(
                                 "bucket_path ["
                                     + bucketsPaths()[0]
                                     + "] indicates bucket_key ["
@@ -114,7 +114,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                     String msg = currentAgg == null
                         ? "did not find multi-bucket aggregation for extraction."
                         : "did not find multi-bucket aggregation for extraction. Found [" + currentAgg.getName() + "]";
-                    throw new AggregationExecutionException(msg);
+                    throw new AggregationExecutionException.InvalidBucketPath(msg);
                 }
                 List<String> sublistedPath = AggregationPath.pathElementsAsStringList(parsedPath.subList(currElement, parsedPath.size()));
                 // First element is the current agg, so we want the rest of the path

@@ -126,7 +126,7 @@ public class RestGraphAction extends BaseRestHandler {
         return channel -> client.execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 
-    private void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
+    private static void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
         String fieldName = null;
         XContentParser.Token token;
 
@@ -163,7 +163,7 @@ public class RestGraphAction extends BaseRestHandler {
         }
     }
 
-    private void parseVertices(XContentParser parser, Hop currentHop) throws IOException {
+    private static void parseVertices(XContentParser parser, Hop currentHop) throws IOException {
         XContentParser.Token token;
 
         String fieldName = null;
@@ -320,7 +320,7 @@ public class RestGraphAction extends BaseRestHandler {
 
     }
 
-    private void parseControls(XContentParser parser, GraphExploreRequest graphRequest) throws IOException {
+    private static void parseControls(XContentParser parser, GraphExploreRequest graphRequest) throws IOException {
         XContentParser.Token token;
 
         String fieldName = null;

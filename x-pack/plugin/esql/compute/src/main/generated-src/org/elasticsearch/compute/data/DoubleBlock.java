@@ -17,7 +17,7 @@ import java.io.IOException;
  * Block that stores double values.
  * This class is generated. Do not edit it.
  */
-public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, DoubleArrayBlock, DoubleVectorBlock {
+public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock {
 
     /**
      * Retrieves the double value stored at the given value index.
@@ -112,6 +112,9 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
      * equals method works properly across different implementations of the DoubleBlock interface.
      */
     static boolean equals(DoubleBlock block1, DoubleBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

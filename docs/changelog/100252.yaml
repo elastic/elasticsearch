@@ -1,5 +1,0 @@
-pr: 100252
-summary: Implement matches() on `SourceConfirmedTextQuery`
-area: Highlighting
-type: bug
-issues: []

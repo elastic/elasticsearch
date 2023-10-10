@@ -308,12 +308,16 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         var indexName = "test-index";
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
-        var docs = randomIntBetween(100, 200);
+        var docs = randomIntBetween(500, 1000);
         for (int write = 0; write < docs; write++) {
+            if (randomBoolean()) {
+                // Parallel async refreshes randomly
+                indicesAdmin().prepareRefresh(indexName).execute(ActionListener.noop());
+            }
             var indexResponse = client().prepareIndex(indexName).setSource("date", randomPositiveTimeValue(), "value", randomInt()).get();
             var id = indexResponse.getId();
             assertNotEquals(id, "");
-            var gets = randomIntBetween(10, 20);
+            var gets = randomIntBetween(20, 50);
             for (int read = 0; read < gets; read++) {
                 var getResponse = client().prepareGet(indexName, id).setRealtime(true).get();
                 assertTrue(Strings.format("(write %d): failed to get '%s' at read %s", write, id, read), getResponse.isExists());

@@ -1028,17 +1028,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener());
 
                             // writeIndexGen finishes on master-service thread so must fork here.
-                            threadPool.executor(ThreadPool.Names.SNAPSHOT)
-                                .execute(
-                                    ActionRunnable.wrap(
-                                        refs.acquireListener(),
-                                        l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
-                                            l0.delegateFailure(
-                                                (l, shardDeleteResults) -> cleanupUnlinkedShardLevelBlobs(shardDeleteResults, l)
-                                            )
-                                        )
+                            snapshotExecutor.execute(
+                                ActionRunnable.wrap(
+                                    refs.acquireListener(),
+                                    l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
+                                        l0.delegateFailure((l, shardDeleteResults) -> cleanupUnlinkedShardLevelBlobs(shardDeleteResults, l))
                                     )
-                                );
+                                )
+                            );
                         }
                     }, listener::onFailure)
                 );
@@ -1053,7 +1050,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
         ) {
 
-            final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             final List<IndexId> indices = originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds);
 
             if (indices.isEmpty()) {
@@ -1083,7 +1079,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
                 final BlobContainer indexContainer = indexContainer(indexId);
                 for (String indexMetaGeneration : indexMetaGenerations) {
-                    executor.execute(ActionRunnable.supply(allShardCountsListener, () -> {
+                    snapshotExecutor.execute(ActionRunnable.supply(allShardCountsListener, () -> {
                         try {
                             return INDEX_METADATA_FORMAT.read(metadata.name(), indexContainer, indexMetaGeneration, namedXContentRegistry)
                                 .getNumberOfShards();
@@ -1117,7 +1113,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     );
                     for (int i = 0; i < shardCount; i++) {
                         final int shardId = i;
-                        executor.execute(new AbstractRunnable() {
+                        snapshotExecutor.execute(new AbstractRunnable() {
                             @Override
                             protected void doRun() throws Exception {
                                 final BlobContainer shardContainer = shardContainer(indexId, shardId);
@@ -1271,7 +1267,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 listener.onResponse(null);
                 return;
             }
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+            snapshotExecutor.execute(ActionRunnable.wrap(listener, l -> {
                 try {
                     deleteFromContainer(blobContainer(), filesToDelete);
                     l.onResponse(null);

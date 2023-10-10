@@ -22,24 +22,23 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
     implements
         org.elasticsearch.telemetry.metric.DoubleGauge {
 
-    private final AtomicReference<ValueWithAttributes<Double>> valueWithAttributes;
+    private final AtomicReference<ValueWithAttributes> valueWithAttributes;
 
     public DoubleGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
-        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes<>(0.0, Collections.emptyMap()));
+        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0.0, Collections.emptyMap()));
     }
 
     @Override
     io.opentelemetry.api.metrics.ObservableDoubleGauge buildInstrument(Meter meter) {
-        var builder = Objects.requireNonNull(meter).gaugeBuilder(getName());
-        return builder.setDescription(getDescription())
+        return Objects.requireNonNull(meter)
+            .gaugeBuilder(getName())
+            .setDescription(getDescription())
             .setUnit(getUnit())
-            .buildWithCallback(
-                measurement -> measurement.record(
-                    valueWithAttributes.get().value(),
-                    OtelHelper.fromMap(valueWithAttributes.get().attributes())
-                )
-            );
+            .buildWithCallback(measurement -> {
+                var localValueWithAttributed = valueWithAttributes.get();
+                measurement.record(localValueWithAttributed.value(), OtelHelper.fromMap(localValueWithAttributed.attributes()));
+            });
     }
 
     @Override
@@ -49,6 +48,8 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
 
     @Override
     public void record(double value, Map<String, Object> attributes) {
-        this.valueWithAttributes.set(new ValueWithAttributes<>(value, attributes));
+        this.valueWithAttributes.set(new ValueWithAttributes(value, attributes));
     }
+
+    private record ValueWithAttributes(double value, Map<String, Object> attributes) {}
 }

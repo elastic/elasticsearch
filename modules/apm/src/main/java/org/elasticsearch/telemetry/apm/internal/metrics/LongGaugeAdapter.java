@@ -21,26 +21,25 @@ import java.util.concurrent.atomic.AtomicReference;
 public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableLongGauge>
     implements
         org.elasticsearch.telemetry.metric.LongGauge {
-    private final AtomicReference<ValueWithAttributes<Long>> valueWithAttributes;
+    private final AtomicReference<ValueWithAttributes> valueWithAttributes;
 
     public LongGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
-        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes<>(0L, Collections.emptyMap()));
+        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0L, Collections.emptyMap()));
     }
 
     @Override
     io.opentelemetry.api.metrics.ObservableLongGauge buildInstrument(Meter meter) {
+
         return Objects.requireNonNull(meter)
             .gaugeBuilder(getName())
             .ofLongs()
             .setDescription(getDescription())
             .setUnit(getUnit())
-            .buildWithCallback(
-                measurement -> measurement.record(
-                    valueWithAttributes.get().value(),
-                    OtelHelper.fromMap(valueWithAttributes.get().attributes())
-                )
-            );
+            .buildWithCallback(measurement -> {
+                var localValueWithAttributed = valueWithAttributes.get();
+                measurement.record(localValueWithAttributed.value(), OtelHelper.fromMap(localValueWithAttributed.attributes()));
+            });
     }
 
     @Override
@@ -50,6 +49,8 @@ public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.me
 
     @Override
     public void record(long value, Map<String, Object> attributes) {
-        this.valueWithAttributes.set(new ValueWithAttributes<>(value, attributes));
+        this.valueWithAttributes.set(new ValueWithAttributes(value, attributes));
     }
+
+    private record ValueWithAttributes(long value, Map<String, Object> attributes) {}
 }

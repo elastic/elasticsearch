@@ -75,7 +75,7 @@ public class EsQueryExec extends LeafExec {
         new BasicQueryClient(session).query(request, new AsEventListener(listener));
     }
 
-    private boolean shouldReverse(QueryRequest query) {
+    private static boolean shouldReverse(QueryRequest query) {
         SearchSourceBuilder searchSource = query.searchSource();
         // since all results need to be ASC, use this hack to figure out whether the results need to be flipped
         for (SortBuilder<?> sort : searchSource.sorts()) {

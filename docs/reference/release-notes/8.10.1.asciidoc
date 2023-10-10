@@ -3,6 +3,12 @@
 
 Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
 
+[[known-issues-8.10.1]]
+[float]
+=== Known issues
+
+include::8.10.0.asciidoc[tag=repositorydata-format-change]
+
 [[bug-8.10.1]]
 [float]
 === Bug fixes

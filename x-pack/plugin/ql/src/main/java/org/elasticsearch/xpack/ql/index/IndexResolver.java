@@ -134,7 +134,7 @@ public class IndexResolver {
     );
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
-    private static final String UNMAPPED = "unmapped";
+    public static final String UNMAPPED = "unmapped";
 
     private final Client client;
     private final String clusterName;
@@ -295,7 +295,7 @@ public class IndexResolver {
         }
     }
 
-    private void filterResults(String javaRegex, Set<IndexInfo> indexInfos, ActionListener<Set<IndexInfo>> listener) {
+    private static void filterResults(String javaRegex, Set<IndexInfo> indexInfos, ActionListener<Set<IndexInfo>> listener) {
 
         // since the index name does not support ?, filter the results manually
         Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
@@ -340,17 +340,34 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         ActionListener<IndexResolution> listener
     ) {
+        resolveAsMergedMapping(indexWildcard, fieldNames, includeFrozen, runtimeMappings, listener, (fieldName, types) -> null);
+    }
+
+    /**
+     * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
+     */
+    public void resolveAsMergedMapping(
+        String indexWildcard,
+        Set<String> fieldNames,
+        boolean includeFrozen,
+        Map<String, Object> runtimeMappings,
+        ActionListener<IndexResolution> listener,
+        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
+    ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
         client.fieldCaps(
             fieldRequest,
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response)))
+            listener.delegateFailureAndWrap(
+                (l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response, specificValidityVerifier))
+            )
         );
     }
 
     public static IndexResolution mergedMappings(
         DataTypeRegistry typeRegistry,
         String indexPattern,
-        FieldCapabilitiesResponse fieldCapsResponse
+        FieldCapabilitiesResponse fieldCapsResponse,
+        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
     ) {
 
         if (fieldCapsResponse.getIndices().length == 0) {
@@ -358,9 +375,13 @@ public class IndexResolver {
         }
 
         // merge all indices onto the same one
-        List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, (n, types) -> {
-            StringBuilder errorMessage = new StringBuilder();
+        List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, (fieldName, types) -> {
+            InvalidMappedField f = specificValidityVerifier.apply(fieldName, types);
+            if (f != null) {
+                return f;
+            }
 
+            StringBuilder errorMessage = new StringBuilder();
             boolean hasUnmapped = types.containsKey(UNMAPPED);
 
             if (types.size() > (hasUnmapped ? 2 : 1)) {
@@ -384,7 +405,7 @@ public class IndexResolver {
 
                 errorMessage.insert(0, "mapped as [" + (types.size() - (hasUnmapped ? 1 : 0)) + "] incompatible types: ");
 
-                return new InvalidMappedField(n, errorMessage.toString());
+                return new InvalidMappedField(fieldName, errorMessage.toString());
             }
             // type is okay, check aggregation
             else {
@@ -404,7 +425,7 @@ public class IndexResolver {
                 }
 
                 if (errorMessage.length() > 0) {
-                    return new InvalidMappedField(n, errorMessage.toString());
+                    return new InvalidMappedField(fieldName, errorMessage.toString());
                 }
             }
 
@@ -426,6 +447,14 @@ public class IndexResolver {
             EsIndex idx = indices.get(0);
             return IndexResolution.valid(new EsIndex(idx.name(), idx.mapping(), Set.of(indexNames)));
         }
+    }
+
+    public static IndexResolution mergedMappings(
+        DataTypeRegistry typeRegistry,
+        String indexPattern,
+        FieldCapabilitiesResponse fieldCapsResponse
+    ) {
+        return mergedMappings(typeRegistry, indexPattern, fieldCapsResponse, (fieldName, types) -> null);
     }
 
     private static EsField createField(
@@ -581,7 +610,7 @@ public class IndexResolver {
 
     }
 
-    private GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
+    private static GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
         return new GetAliasesRequest().local(true)
             .aliases("*")
             .indices(response.getIndices())

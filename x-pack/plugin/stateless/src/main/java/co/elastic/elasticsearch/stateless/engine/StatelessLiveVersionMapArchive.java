@@ -34,26 +34,40 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     // Keeps track of the evacuated old map entries and the generation at the time of the refresh
     // to decide which evacuated maps can be removed upon a flush.
     private final NavigableMap<Long, LiveVersionMap.VersionLookup> archivePerGeneration = new TreeMap<>(Comparator.reverseOrder());
-    private final Supplier<Long> generationSupplier;
+    // Provides the generation for the currently ongoing commit or the last successful commit.
+    // See {@link org.elasticsearch.index.engine.InternalEngine#getPreCommitSegmentGeneration}.
+    private final Supplier<Long> preCommitGenerationSupplier;
     private final Object mutex = new Object();
     private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
+    // Keeps track of an unsafe old map that has been passed to the archive and the archive has not yet received an unpromotable
+    // refresh response for a generation that includes the changes that happened during the unsafe map. We need to track this, to
+    // be able to correctly remember across local refreshes, that we were indexing using an unsafe map, and trigger a flush once
+    // the first get request forces switching to a safe map.
+    private volatile boolean isUnsafe = false;
+    // Records the generation that we need to receive unpromotable refresh for, in order to consider the archive map safe.
+    private long minSafeGeneration = -1;
 
-    StatelessLiveVersionMapArchive(Supplier<Long> generationSupplier) {
-        this.generationSupplier = generationSupplier;
+    StatelessLiveVersionMapArchive(Supplier<Long> preCommitGenerationSupplier) {
+        this.preCommitGenerationSupplier = preCommitGenerationSupplier;
     }
 
     @Override
     public void afterRefresh(LiveVersionMap.VersionLookup old) {
-        // Even if the old version lookup to archive is empty, we might need to keep track of it since it
-        // might have seen a delete that we will need to calculate the archive's min delete timestamp.
-        if (old.isEmpty() && old.minDeleteTimestamp() == Long.MAX_VALUE) {
-            return;
-        }
         LiveVersionMap.VersionLookup existing;
         synchronized (mutex) {
+            if (old.isUnsafe()) {
+                isUnsafe = true;
+                // todo: this can allegedly lead to double flush when going out of unsafe
+                minSafeGeneration = preCommitGenerationSupplier.get() + 1;
+            }
+            // Even if the old version lookup to archive is empty, we might need to keep track of it since it
+            // might have seen a delete that we will need to calculate the archive's min delete timestamp.
+            if (old.isEmpty() && old.minDeleteTimestamp() == Long.MAX_VALUE) {
+                return;
+            }
             minDeleteTimestamp.accumulateAndGet(old.minDeleteTimestamp(), Math::min);
             // we record the generation that these new entries would go into once a flush happens.
-            long generation = generationSupplier.get() + 1;
+            long generation = preCommitGenerationSupplier.get() + 1;
             existing = archivePerGeneration.get(generation);
             if (existing == null) {
                 archivePerGeneration.put(generation, old);
@@ -65,6 +79,9 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
 
     public void afterUnpromotablesRefreshed(long generation) {
         synchronized (mutex) {
+            if (generation >= minSafeGeneration) {
+                isUnsafe = false;
+            }
             // go through the map and remove all entries with key <= generation
             archivePerGeneration.entrySet().removeIf(entry -> entry.getKey() <= generation);
             // update min delete timestamp
@@ -99,5 +116,10 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     // package private for testing
     Map<Long, LiveVersionMap.VersionLookup> archivePerGeneration() {
         return archivePerGeneration;
+    }
+
+    @Override
+    public boolean isUnsafe() {
+        return isUnsafe;
     }
 }

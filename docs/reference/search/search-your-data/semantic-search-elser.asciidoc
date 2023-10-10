@@ -118,6 +118,14 @@ and the `output_field` that will contain the {infer} results.
 <2> The `text_expansion` {infer} type needs to be used in the {infer} ingest
 processor.
 
+////
+[source,console]
+----
+DELETE _ingest/pipeline/elser-v2-test
+----
+// TEST[continued]
+////
+
 
 [discrete]
 [[load-data]]

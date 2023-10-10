@@ -85,7 +85,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.translogBlobContainer = translogBlobContainer;
-        blobsToRead = translogBlobContainer.listBlobs(OperationPurpose.SNAPSHOT)
+        blobsToRead = translogBlobContainer.listBlobs(OperationPurpose.TRANSLOG)
             .entrySet()
             .stream()
             .filter(e -> Long.parseLong(e.getKey()) >= translogRecoveryStartFile)
@@ -116,7 +116,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {
         try (
             StreamInput streamInput = new InputStreamStreamInput(
-                translogBlobContainer.readBlob(OperationPurpose.SNAPSHOT, blobMetadata.name())
+                translogBlobContainer.readBlob(OperationPurpose.TRANSLOG, blobMetadata.name())
             )
         ) {
             CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);

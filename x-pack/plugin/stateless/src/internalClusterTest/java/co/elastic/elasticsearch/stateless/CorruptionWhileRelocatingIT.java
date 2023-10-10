@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -212,7 +211,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         var blobContainer = objectStoreService.getBlobContainer(sourceShard.shardId(), primaryTerm);
 
         // Check that the blob has not been uploaded
-        assertFalse(blobContainer.blobExists(OperationPurpose.SNAPSHOT, finalCommitBlobName));
+        assertFalse(blobContainer.blobExists(operationPurpose, finalCommitBlobName));
 
         logger.info("--> resuming relocation");
         resumeHandoff.countDown();
@@ -220,7 +219,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         logger.info("--> waiting for search node to receive the notification for the post-handoff commit");
         assertBusy(() -> assertThat(receivedNotifications.get(), equalTo(1)));
 
-        assertTrue(blobContainer.blobExists(OperationPurpose.SNAPSHOT, finalCommitBlobName));
+        assertTrue(blobContainer.blobExists(operationPurpose, finalCommitBlobName));
     }
 
     public void testRelocationHandoffFailure() throws Exception {

@@ -116,7 +116,7 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                 var writtenFile = writtenFilesOrderedBySize.get(i);
                 assertThat(uploadedFiles.get(i), is(equalTo(writtenFile.v1())));
 
-                try (var inputStream = termBlobContainer.readBlob(OperationPurpose.SNAPSHOT, writtenFile.v1())) {
+                try (var inputStream = termBlobContainer.readBlob(randomFrom(OperationPurpose.values()), writtenFile.v1())) {
                     var outputStream = new ByteArrayOutputStream();
                     Streams.copy(inputStream, outputStream);
 
@@ -158,7 +158,7 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
                         CheckedConsumer<OutputStream, IOException> writer
                     ) throws IOException {
                         trackUpload(blobName);
-                        super.writeMetadataBlob(OperationPurpose.SNAPSHOT, blobName, failIfAlreadyExists, atomic, writer);
+                        super.writeMetadataBlob(randomFrom(OperationPurpose.values()), blobName, failIfAlreadyExists, atomic, writer);
                     }
 
                     private void trackUpload(String blobName) {

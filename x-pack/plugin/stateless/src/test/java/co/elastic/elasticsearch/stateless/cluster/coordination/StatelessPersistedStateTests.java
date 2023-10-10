@@ -105,7 +105,8 @@ public class StatelessPersistedStateTests extends ESTestCase {
             assertThat(persistedClusterState.metadata().getIndices().keySet().containsAll(indexNames), is(true));
 
             assertThat(
-                ctx.statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1).listBlobs(OperationPurpose.SNAPSHOT),
+                ctx.statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1)
+                    .listBlobs(randomFrom(OperationPurpose.values())),
                 is(not(emptyMap()))
             );
         }
@@ -517,7 +518,10 @@ public class StatelessPersistedStateTests extends ESTestCase {
             } catch (NoSuchFileException e) {
                 // ignore
             }
-            assertThat(statelessNode.objectStoreService.getTermLeaseBlobContainer().listBlobs(OperationPurpose.SNAPSHOT), is(emptyMap()));
+            assertThat(
+                statelessNode.objectStoreService.getTermLeaseBlobContainer().listBlobs(randomFrom(OperationPurpose.values())),
+                is(emptyMap())
+            );
             IOUtils.close(persistedState, statelessNode);
         }
 

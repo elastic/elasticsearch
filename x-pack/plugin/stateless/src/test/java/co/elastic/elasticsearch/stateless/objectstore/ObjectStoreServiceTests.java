@@ -202,7 +202,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertEquals(
                 commitCount,
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId, 1)
-                    .listBlobs(OperationPurpose.SNAPSHOT)
+                    .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
                     .filter(StatelessCompoundCommit::startsWithBlobPrefix)

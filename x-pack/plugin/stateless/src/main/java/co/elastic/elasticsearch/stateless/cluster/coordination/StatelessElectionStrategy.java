@@ -104,7 +104,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
             final Lease newLease = new Lease(Math.max(proposedTerm, currentLease.currentTerm + 1), 0);
 
             blobContainer().compareAndSetRegister(
-                OperationPurpose.SNAPSHOT,
+                OperationPurpose.CLUSTER_STATE,
                 LEASE_BLOB,
                 currentLease.asBytes(),
                 newLease.asBytes(),
@@ -143,7 +143,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 return;
             }
             blobContainer().compareAndSetRegister(
-                OperationPurpose.SNAPSHOT,
+                OperationPurpose.CLUSTER_STATE,
                 LEASE_BLOB,
                 currentLease.asBytes(),
                 newLease.asBytes(),
@@ -218,7 +218,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
             .execute(
                 ActionRunnable.wrap(
                     listener,
-                    l -> blobContainer().getRegister(OperationPurpose.SNAPSHOT, LEASE_BLOB, l.map(optionalBytesReference -> {
+                    l -> blobContainer().getRegister(OperationPurpose.CLUSTER_STATE, LEASE_BLOB, l.map(optionalBytesReference -> {
                         if (optionalBytesReference.isPresent()) {
                             Lease result;
                             BytesReference bytesReference = optionalBytesReference.bytesReference();

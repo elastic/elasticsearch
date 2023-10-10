@@ -162,7 +162,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                     final long length = input.length();
                     final String blobName = "_blob_" + fileName;
                     final InputStream inputStream = new InputStreamIndexInput(input, length);
-                    blobContainer.writeBlob(OperationPurpose.SNAPSHOT, blobName, inputStream, length, randomBoolean());
+                    blobContainer.writeBlob(randomFrom(OperationPurpose.values()), blobName, inputStream, length, randomBoolean());
 
                     directory.updateCommit(
                         new StatelessCompoundCommit(

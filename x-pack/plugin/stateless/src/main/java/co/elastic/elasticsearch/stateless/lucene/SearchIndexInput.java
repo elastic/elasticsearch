@@ -176,7 +176,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                     final long streamStartPosition = rangeToWrite.start() + relativePos;
                     try (
                         InputStream in = blobContainer.readBlob(
-                            OperationPurpose.SNAPSHOT,
+                            OperationPurpose.INDICES,
                             this.cacheFile.getCacheKey().fileName(),
                             streamStartPosition,
                             len
@@ -208,7 +208,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                     int len = length - bytesRead;
                     try (
                         InputStream in = blobContainer.readBlob(
-                            OperationPurpose.SNAPSHOT,
+                            OperationPurpose.INDICES,
                             this.cacheFile.getCacheKey().fileName(),
                             position,
                             len

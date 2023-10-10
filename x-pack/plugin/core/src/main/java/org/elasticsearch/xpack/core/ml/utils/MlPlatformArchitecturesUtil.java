@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.deployment;
+package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -16,13 +16,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -31,9 +30,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class MlPlatformArchitecturesUtil {
 
-    public static void getMlNodesArchitecturesSet(ActionListener<Set<String>> architecturesListener, Client client, ThreadPool threadPool) {
+    public static void getMlNodesArchitecturesSet(
+        ActionListener<Set<String>> architecturesListener,
+        Client client,
+        ExecutorService executor
+    ) {
         ActionListener<NodesInfoResponse> listener = MlPlatformArchitecturesUtil.getArchitecturesSetFromNodesInfoResponseListener(
-            threadPool,
+            executor,
             architecturesListener
         );
 
@@ -42,13 +45,11 @@ public class MlPlatformArchitecturesUtil {
     }
 
     static ActionListener<NodesInfoResponse> getArchitecturesSetFromNodesInfoResponseListener(
-        ThreadPool threadPool,
+        ExecutorService executor,
         ActionListener<Set<String>> architecturesListener
     ) {
         return ActionListener.wrap(nodesInfoResponse -> {
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                architecturesListener.onResponse(getArchitecturesSetFromNodesInfoResponse(nodesInfoResponse));
-            });
+            executor.execute(() -> { architecturesListener.onResponse(getArchitecturesSetFromNodesInfoResponse(nodesInfoResponse)); });
         }, architecturesListener::onFailure);
     }
 
@@ -70,7 +71,7 @@ public class MlPlatformArchitecturesUtil {
     public static void verifyMlNodesAndModelArchitectures(
         ActionListener<TrainedModelConfig> successOrFailureListener,
         Client client,
-        ThreadPool threadPool,
+        ExecutorService executor,
         TrainedModelConfig configToReturn
     ) {
         String modelID = configToReturn.getModelId();
@@ -81,7 +82,7 @@ public class MlPlatformArchitecturesUtil {
             successOrFailureListener.onResponse(configToReturn);
         }, successOrFailureListener::onFailure);
 
-        getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
+        getMlNodesArchitecturesSet(architecturesListener, client, executor);
     }
 
     static void verifyMlNodesAndModelArchitectures(Set<String> architectures, String modelPlatformArchitecture, String modelID)

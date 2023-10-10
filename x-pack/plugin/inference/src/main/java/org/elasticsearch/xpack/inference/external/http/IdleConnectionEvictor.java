@@ -16,6 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
@@ -36,7 +37,7 @@ public class IdleConnectionEvictor {
     private final NHttpClientConnectionManager connectionManager;
     private final TimeValue sleepTime;
     private final TimeValue maxIdleTime;
-    private Scheduler.Cancellable cancellableTask;
+    private final AtomicReference<Scheduler.Cancellable> cancellableTask = new AtomicReference<>();
 
     public IdleConnectionEvictor(
         ThreadPool threadPool,
@@ -51,13 +52,13 @@ public class IdleConnectionEvictor {
     }
 
     public synchronized void start() {
-        if (cancellableTask == null) {
+        if (cancellableTask.get() == null) {
             startInternal();
         }
     }
 
     private void startInternal() {
-        cancellableTask = threadPool.scheduleWithFixedDelay(() -> {
+        Scheduler.Cancellable task = threadPool.scheduleWithFixedDelay(() -> {
             try {
                 connectionManager.closeExpiredConnections();
                 if (maxIdleTime != null) {
@@ -67,13 +68,17 @@ public class IdleConnectionEvictor {
                 logger.warn("HTTP connection eviction failed", e);
             }
         }, sleepTime, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+
+        cancellableTask.set(task);
     }
 
     public void stop() {
-        cancellableTask.cancel();
+        if (cancellableTask.get() != null) {
+            cancellableTask.get().cancel();
+        }
     }
 
     public boolean isRunning() {
-        return cancellableTask != null && cancellableTask.isCancelled() == false;
+        return cancellableTask.get() != null && cancellableTask.get().isCancelled() == false;
     }
 }

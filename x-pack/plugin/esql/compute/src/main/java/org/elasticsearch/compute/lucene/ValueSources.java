@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +50,20 @@ public final class ValueSources {
         List<ValueSourceInfo> sources = new ArrayList<>(searchContexts.size());
 
         for (SearchContext searchContext : searchContexts) {
-            SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
+            // TODO: remove this workaround
+            // Create a separate SearchExecutionContext for each ValuesReader, as it seems that
+            // the synthetic source doesn't work properly with inter-segment or intra-segment parallelism.
+            ShardSearchRequest shardRequest = searchContext.request();
+            SearchExecutionContext ctx = searchContext.readerContext()
+                .indexService()
+                .newSearchExecutionContext(
+                    shardRequest.shardId().id(),
+                    shardRequest.shardRequestIndex(),
+                    searchContext.searcher(),
+                    shardRequest::nowInMillis,
+                    shardRequest.getClusterAlias(),
+                    shardRequest.getRuntimeMappings()
+                );
             var fieldType = ctx.getFieldType(fieldName);
             if (fieldType == null) {
                 sources.add(new ValueSourceInfo(new NullValueSourceType(), new NullValueSource(), elementType, ctx.getIndexReader()));

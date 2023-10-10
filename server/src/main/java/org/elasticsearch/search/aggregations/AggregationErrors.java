@@ -135,7 +135,9 @@ public class AggregationErrors {
 
         return new AggregationExecutionException.InvalidBucketPath(
             aggPath
-                + " must reference a " + expected + " aggregation, got: ["
+                + " must reference a "
+                + expected
+                + " aggregation, got: ["
                 + (got == null ? "null" : got)
                 + "] at aggregation ["
                 + currentAgg
@@ -152,6 +154,7 @@ public class AggregationErrors {
      */
     public static RuntimeException iterationOrderChangedWithoutMutating(String bucketOrds, long got, long expected) {
         return new AggregationExecutionException(
-            "Iteration order of [" + bucketOrds + "] changed without mutating. [" + got + "] should have been [" + expected + "]" );
+            "Iteration order of [" + bucketOrds + "] changed without mutating. [" + got + "] should have been [" + expected + "]"
+        );
     }
 }

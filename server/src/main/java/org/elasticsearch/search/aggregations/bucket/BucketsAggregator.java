@@ -12,7 +12,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.AggregationErrors;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -341,7 +340,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             totalOrdsToCollect += bucketCount;
         }
         if (totalOrdsToCollect > Integer.MAX_VALUE) {
-            // TODO: We should instrument this error.  While it is correct for it to be a 400 class IllegalArgumentException, there is not
+            // TODO: We should instrument this error. While it is correct for it to be a 400 class IllegalArgumentException, there is not
             // much the user can do about that. If this occurs with any frequency, we should do something about it.
             throw new IllegalArgumentException(
                 "Can't collect more than [" + Integer.MAX_VALUE + "] buckets but attempted [" + totalOrdsToCollect + "]"
@@ -365,7 +364,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
             while (ordsEnum.next()) {
                 if (bucketOrdsToCollect[b] != ordsEnum.ord()) {
                     // If we hit this, something has gone horribly wrong and we need to investigate
-                    throw AggregationErrors.iterationOrderChangedWithoutMutating(bucketOrds.toString(), ordsEnum.ord(), bucketOrdsToCollect[b]);
+                    throw AggregationErrors.iterationOrderChangedWithoutMutating(
+                        bucketOrds.toString(),
+                        ordsEnum.ord(),
+                        bucketOrdsToCollect[b]
+                    );
                 }
                 buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults[b++]));
             }

@@ -91,7 +91,8 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         if (propertyValue == null) {
             throw AggregationErrors.incompatibleAggregationType(
                 AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName(),
-                "cardinality", "null",
+                "cardinality",
+                "null",
                 currentAggName
             );
         }
@@ -102,7 +103,8 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
 
         throw AggregationErrors.incompatibleAggregationType(
             AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName(),
-            "cardinality", propertyValue.getClass().getSimpleName(),
+            "cardinality",
+            propertyValue.getClass().getSimpleName(),
             currentAggName
         );
     }

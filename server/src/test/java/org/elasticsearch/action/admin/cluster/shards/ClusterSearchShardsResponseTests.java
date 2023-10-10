@@ -28,7 +28,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,6 +36,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 
 public class ClusterSearchShardsResponseTests extends ESTestCase {
 
@@ -51,10 +52,9 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             String nodeId = randomAlphaOfLength(10);
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, randomBoolean(), ShardRoutingState.STARTED);
             clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[] { shardRouting });
-            Version nodeVersion = VersionUtils.randomVersion(random());
             DiscoveryNodeUtils.Builder node = DiscoveryNodeUtils.builder(shardRouting.currentNodeId())
                 .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-                .version(nodeVersion, IndexVersion.getMinimumCompatibleIndexVersion(nodeVersion.id), IndexVersion.fromId(nodeVersion.id));
+                .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current());
             nodes.add(node.build());
             AliasFilter aliasFilter;
             if (randomBoolean()) {

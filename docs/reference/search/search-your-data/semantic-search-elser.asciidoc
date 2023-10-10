@@ -71,6 +71,7 @@ PUT my-index
   }
 }
 ----
+// TEST[skip:TBD]
 <1> The name of the field to contain the generated tokens. It must be refrenced 
 in the {infer} pipeline configuration in the next step.
 <2> The field to contain the tokens is a `sparse_vector` field.

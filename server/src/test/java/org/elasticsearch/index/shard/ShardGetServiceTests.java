@@ -94,7 +94,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         String sourceOptions = noSource ? "\"enabled\": false" : randomBoolean() ? "\"excludes\": [\"fo*\"]" : "\"includes\": [\"ba*\"]";
         runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo", false);
     }
-    
+
     public void testGetFromTranslogWithLongSourceMappingOptionsAndStoredFields() throws IOException {
         String docToIndex = """
             {"foo" : 7, "bar" : 42}

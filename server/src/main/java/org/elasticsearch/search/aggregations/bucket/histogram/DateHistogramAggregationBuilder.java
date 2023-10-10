@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -156,7 +157,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(LongBounds::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             hardBounds = in.readOptionalWriteable(LongBounds::new);
         }
     }
@@ -179,7 +180,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeOptionalWriteable(hardBounds);
         }
     }
@@ -519,7 +520,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 
     @Override

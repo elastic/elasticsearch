@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Tuple;
@@ -69,13 +69,12 @@ public class NodesDeprecationCheckResponseTests extends AbstractWireSerializingT
         );
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
-        return new DiscoveryNode(
+        return DiscoveryNodeUtils.create(
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             transportAddress,
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
     }
 

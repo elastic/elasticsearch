@@ -2,10 +2,6 @@
 [[breaking_80_plugin_changes]]
 ==== Plugin changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 TIP: {ess-skip-section}
 
 .The S3, GCS and Azure repository plugins are now included in Elasticsearch
@@ -66,5 +62,3 @@ check with the plugin author and ensure that the plugin is available for your
 target version of {es} before upgrading.
 
 ====
-
-//end::notable-breaking-changes[]

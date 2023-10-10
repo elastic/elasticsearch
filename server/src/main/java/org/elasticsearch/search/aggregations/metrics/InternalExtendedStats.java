@@ -49,6 +49,15 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
         }
+
+        public static boolean hasMetric(String name) {
+            try {
+                InternalExtendedStats.Metrics.resolve(name);
+                return true;
+            } catch (IllegalArgumentException iae) {
+                return false;
+            }
+        }
     }
 
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
@@ -92,6 +101,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public String getWriteableName() {
         return ExtendedStatsAggregationBuilder.NAME;
+    }
+
+    static InternalExtendedStats empty(String name, double sigma, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, metadata);
     }
 
     @Override

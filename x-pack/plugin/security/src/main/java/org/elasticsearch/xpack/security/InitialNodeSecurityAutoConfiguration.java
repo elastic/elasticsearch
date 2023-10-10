@@ -187,7 +187,7 @@ public class InitialNodeSecurityAutoConfiguration {
                             }
                         }, backoff);
                     }
-                }, TimeValue.timeValueSeconds(9), ThreadPool.Names.GENERIC));
+                }, TimeValue.timeValueSeconds(9), threadPool.generic()));
             }
         });
     }

@@ -112,6 +112,8 @@ class CliToolLauncher {
         final String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
         LogConfigurator.configureWithoutConfig(settings);
+        // a temporary fix to allow a cli-launcher.jar replacement. That method should is called in configureWithoutConfig
+        LogConfigurator.configureESLogging();
     }
 
     /**

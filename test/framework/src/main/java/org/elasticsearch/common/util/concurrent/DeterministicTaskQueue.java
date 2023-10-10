@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -81,7 +82,7 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasks() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasDeferredTasks() && random.nextBoolean()) {
                 advanceTime();
             } else if (hasRunnableTasks()) {
@@ -91,7 +92,7 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasksInTimeOrder() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasRunnableTasks()) {
                 runRandomTask();
             } else {
@@ -112,6 +113,13 @@ public class DeterministicTaskQueue {
      */
     public boolean hasDeferredTasks() {
         return deferredTasks.isEmpty() == false;
+    }
+
+    /**
+     * @return whether there are any runnable or deferred tasks
+     */
+    public boolean hasAnyTasks() {
+        return hasDeferredTasks() || hasRunnableTasks();
     }
 
     /**
@@ -249,7 +257,7 @@ public class DeterministicTaskQueue {
 
                 @Override
                 public boolean isShutdown() {
-                    throw new UnsupportedOperationException();
+                    return false;
                 }
 
                 @Override
@@ -354,7 +362,7 @@ public class DeterministicTaskQueue {
             }
 
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 final int NOT_STARTED = 0;
                 final int STARTED = 1;
                 final int CANCELLED = 2;
@@ -397,11 +405,6 @@ public class DeterministicTaskQueue {
                     }
 
                 };
-            }
-
-            @Override
-            public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-                return super.scheduleWithFixedDelay(command, interval, executor);
             }
 
             @Override

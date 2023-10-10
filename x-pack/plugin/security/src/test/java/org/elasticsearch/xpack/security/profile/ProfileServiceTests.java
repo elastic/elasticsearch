@@ -46,6 +46,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -189,7 +190,7 @@ public class ProfileServiceTests extends ESTestCase {
                     1,
                     1000,
                     "xpack.security.crypto.thread_pool",
-                    false
+                    EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 )
             )
         );
@@ -296,8 +297,8 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(resultsAndErrors.errors().size(), is(0));
         when(profileIndex.indexExists()).thenReturn(true);
         ElasticsearchException unavailableException = new ElasticsearchException("mock profile index unavailable");
-        when(profileIndex.isAvailable()).thenReturn(false);
-        when(profileIndex.getUnavailableReason()).thenReturn(unavailableException);
+        when(profileIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(profileIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(unavailableException);
         PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future2 = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future2);
         ExecutionException e = expectThrows(ExecutionException.class, () -> future2.get());

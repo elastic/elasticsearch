@@ -61,7 +61,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             GetAliasesRequest::new,
             indexNameExpressionResolver,
             GetAliasesResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.systemIndices = systemIndices;
     }

@@ -26,22 +26,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public final class KeyedLock<T> {
 
     private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-    private final boolean fair;
-
-    /**
-     * Creates a new lock
-     * @param fair Use fair locking, ie threads get the lock in the order they requested it
-     */
-    public KeyedLock(boolean fair) {
-        this.fair = fair;
-    }
-
-    /**
-     * Creates a non-fair lock
-     */
-    public KeyedLock() {
-        this(false);
-    }
 
     /**
      * Acquires a lock for the given key. The key is compared by it's equals method not by object identity. The lock can be acquired
@@ -56,7 +40,6 @@ public final class KeyedLock<T> {
                     return newLock;
                 }
             } else {
-                assert perNodeLock != null;
                 int i = perNodeLock.count.get();
                 if (i > 0 && perNodeLock.count.compareAndSet(i, i + 1)) {
                     perNodeLock.lock();
@@ -90,7 +73,7 @@ public final class KeyedLock<T> {
     }
 
     private ReleasableLock tryCreateNewLock(T key) {
-        KeyLock newLock = new KeyLock(fair);
+        KeyLock newLock = new KeyLock();
         newLock.lock();
         KeyLock keyLock = map.putIfAbsent(key, newLock);
         if (keyLock == null) {
@@ -120,10 +103,9 @@ public final class KeyedLock<T> {
         assert decrementAndGet >= 0 : decrementAndGet + " must be >= 0 but wasn't";
     }
 
-    private final class ReleasableLock implements Releasable {
+    private final class ReleasableLock extends AtomicBoolean implements Releasable {
         final T key;
         final KeyLock lock;
-        final AtomicBoolean closed = new AtomicBoolean();
 
         private ReleasableLock(T key, KeyLock lock) {
             this.key = key;
@@ -132,7 +114,7 @@ public final class KeyedLock<T> {
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (compareAndSet(false, true)) {
                 release(key, lock);
             }
         }
@@ -140,8 +122,8 @@ public final class KeyedLock<T> {
 
     @SuppressWarnings("serial")
     private static final class KeyLock extends ReentrantLock {
-        KeyLock(boolean fair) {
-            super(fair);
+        KeyLock() {
+            super();
         }
 
         private final AtomicInteger count = new AtomicInteger(1);

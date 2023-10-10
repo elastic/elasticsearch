@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
@@ -132,7 +133,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             }
 
             for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
-                Client remoteClient = client.getRemoteClusterClient(remoteIndex.getKey());
+                Client remoteClient = client.getRemoteClusterClient(remoteIndex.getKey(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 getCheckpointsFromOneCluster(
                     remoteClient,
                     transformConfig.getHeaders(),

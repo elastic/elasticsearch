@@ -10,16 +10,25 @@ package org.elasticsearch.common.blobstore.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 
 public class BlobContainerUtils {
     private BlobContainerUtils() {
         // no instances
+    }
+
+    public static final int MAX_REGISTER_CONTENT_LENGTH = 2 * Long.BYTES;
+
+    public static void ensureValidRegisterContent(BytesReference bytesReference) {
+        if (bytesReference.length() > MAX_REGISTER_CONTENT_LENGTH) {
+            final var message = "invalid register content with length [" + bytesReference.length() + "]";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
     }
 
     /**
@@ -29,16 +38,14 @@ public class BlobContainerUtils {
      * NB it is not safe for the supplied stream to resume a partial downloads, because the resumed stream may see a different state from
      * the original.
      */
-    public static long getRegisterUsingConsistentRead(InputStream inputStream, String container, String key) throws IOException {
-        int len = Long.BYTES;
+    public static BytesReference getRegisterUsingConsistentRead(InputStream inputStream, String container, String key) throws IOException {
+        int len = MAX_REGISTER_CONTENT_LENGTH;
         int pos = 0;
         final byte[] bytes = new byte[len];
         while (len > 0) {
             final var read = inputStream.read(bytes, pos, len);
             if (read == -1) {
-                throw new IllegalStateException(
-                    Strings.format("[%s] failed reading register [%s] due to truncation at [%d] bytes", container, key, pos)
-                );
+                break;
             }
             len -= read;
             pos += read;
@@ -48,17 +55,7 @@ public class BlobContainerUtils {
                 Strings.format("[%s] failed reading register [%s] due to unexpected trailing data", container, key)
             );
         }
-        return ByteBuffer.wrap(bytes).getLong();
-    }
-
-    /**
-     * Convert the {@code long} value into its representation in bytes for storage in a blob store register.
-     */
-    public static BytesReference getRegisterBlobContents(long value) throws IOException {
-        try (var bos = new BytesStreamOutput(Long.BYTES)) {
-            bos.writeLong(value);
-            return bos.bytes();
-        }
+        return new BytesArray(bytes, 0, pos);
     }
 
 }

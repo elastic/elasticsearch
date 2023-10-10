@@ -114,14 +114,7 @@ Contributing to the Elasticsearch codebase
 
 JDK 17 is required to build Elasticsearch. You must have a JDK 17 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 17 installation. By default, tests use the same runtime as `JAVA_HOME`.
-However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 17 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
-pointing to the Java home of a JDK 11 installation. Note that this mechanism can
-be used to test against other JDKs as well, this is not only limited to JDK 11.
-
-> Note: It is also required to have `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA17_HOME`
-available so that the tests can pass.
+your JDK 17 installation.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
@@ -657,6 +650,36 @@ node cannot continue to operate as a member of the cluster:
     logger.error(() -> "health check of [" + path + "] failed", ex);
 
 Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
+
+### Version numbers in the Elasticsearch codebase
+
+Starting in 8.8.0, we have separated out the version number representations
+of various aspects of Elasticsearch into their own classes, using their own
+numbering scheme separate to release version. The main ones are
+`TransportVersion` and `IndexVersion`, representing the version of the
+inter-node binary protocol and index data + metadata respectively.
+
+Separated version numbers are comprised of an integer number. The semantic
+meaing of a version number are defined within each `*Version` class.  There
+is no direct mapping between separated version numbers and the release version.
+The versions used by any particular instance of Elasticsearch can be obtained
+by querying `/_nodes/info` on the node.
+
+#### Using separated version numbers
+
+Whenever a change is made to a component versioned using a separated version
+number, there are a few rules that need to be followed:
+
+1. Each version number represents a specific modification to that component,
+   and should not be modified once it is defined. Each version is immutable
+   once merged into `main`.
+2. To create a new component version, add a new constant to the respective class
+   with a descriptive name of the change being made. Increment the integer
+   number according to the partciular `*Version` class.
+
+If your pull request has a conflict around your new version constant,
+you need to update your PR from `main` and change your PR to use the next
+available version number.
 
 ### Creating A Distribution
 

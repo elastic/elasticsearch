@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBu
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -94,6 +95,8 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
             final GrantApiKeyRequest grantRequest = PARSER.parse(parser, null);
             if (refresh != null) {
                 grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refresh));
+            } else {
+                grantRequest.setRefreshPolicy(ApiKeyService.defaultCreateDocRefreshPolicy(settings));
             }
             return channel -> client.execute(
                 GrantApiKeyAction.INSTANCE,

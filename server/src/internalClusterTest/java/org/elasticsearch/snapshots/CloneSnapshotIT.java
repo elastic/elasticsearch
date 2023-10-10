@@ -128,7 +128,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         indexRandomDocs(indexName, randomIntBetween(20, 100));
         if (randomBoolean()) {
-            assertAcked(admin().indices().prepareDelete(indexName));
+            assertAcked(indicesAdmin().prepareDelete(indexName));
         }
         final String targetSnapshot = "target-snapshot";
         assertAcked(startClone(repoName, sourceSnapshot, targetSnapshot, indexName).get());
@@ -306,7 +306,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
 
-        assertAcked(admin().indices().prepareDelete(indexBlocked).get());
+        assertAcked(indicesAdmin().prepareDelete(indexBlocked).get());
 
         final String targetSnapshot1 = "target-snapshot";
         blockMasterOnShardClone(repoName);
@@ -642,8 +642,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for clone to start fully with shards assigned in the cluster state");
         try {
             awaitClusterState(clusterState -> {
-                final List<SnapshotsInProgress.Entry> entries = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                    .forRepo(repoName);
+                final List<SnapshotsInProgress.Entry> entries = SnapshotsInProgress.get(clusterState).forRepo(repoName);
                 return entries.size() == 2 && entries.get(1).shardsByRepoShardId().isEmpty() == false;
             });
             assertFalse(blockedSnapshot.isDone());
@@ -680,7 +679,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, "target-snapshot", indexName);
         logger.info("--> waiting for snapshot clone to be fully initialized");
         awaitClusterState(state -> {
-            for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repoName)) {
+            for (SnapshotsInProgress.Entry entry : SnapshotsInProgress.get(state).forRepo(repoName)) {
                 if (entry.shardsByRepoShardId().isEmpty() == false) {
                     assertEquals(sourceSnapshot, entry.source().getName());
                     for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardsByRepoShardId().values()) {
@@ -707,7 +706,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String sourceSnapshot = "source-snapshot";
         createFullSnapshot(repoName, sourceSnapshot);
-        assertAcked(admin().indices().prepareDelete(testIndex).get());
+        assertAcked(indicesAdmin().prepareDelete(testIndex).get());
 
         final MockRepository repo = getRepositoryOnMaster(repoName);
         repo.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
@@ -721,12 +720,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<AcknowledgedResponse> clone2 = startClone(repoName, sourceSnapshot, "target-snapshot-2", testIndex);
 
         awaitNumberOfSnapshotsInProgress(2);
-        awaitClusterState(
-            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .forRepo(repoName)
-                .stream()
-                .anyMatch(entry -> entry.state().completed())
-        );
+        awaitClusterState(state -> SnapshotsInProgress.get(state).forRepo(repoName).stream().anyMatch(entry -> entry.state().completed()));
         repo.unblock();
 
         assertAcked(clone1.get());
@@ -780,8 +774,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> fullSnapshotFuture1 = startFullSnapshot(repoName, "full-snapshot-1");
         waitForBlock(dataNode, repoName);
         // make sure we don't have so many files in the shard that will get blocked to fully clog up the snapshot pool on the data node
-        final var files = admin().indices()
-            .prepareStats("test-index-3")
+        final var files = indicesAdmin().prepareStats("test-index-3")
             .setSegments(true)
             .setIncludeSegmentFileSizes(true)
             .get()

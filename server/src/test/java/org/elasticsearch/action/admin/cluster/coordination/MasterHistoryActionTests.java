@@ -13,11 +13,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -29,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 public class MasterHistoryActionTests extends ESTestCase {
     public void testSerialization() {
-        List<DiscoveryNode> masterHistory = List.of(TestDiscoveryNode.create("_id1"), TestDiscoveryNode.create("_id2"));
+        List<DiscoveryNode> masterHistory = List.of(DiscoveryNodeUtils.create("_id1"), DiscoveryNodeUtils.create("_id2"));
         MasterHistoryAction.Response response = new MasterHistoryAction.Response(masterHistory);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,
@@ -49,7 +50,7 @@ public class MasterHistoryActionTests extends ESTestCase {
         switch (randomIntBetween(1, 4)) {
             case 1 -> {
                 List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
-                newNodes.add(TestDiscoveryNode.create("_id3"));
+                newNodes.add(DiscoveryNodeUtils.create("_id3"));
                 return new MasterHistoryAction.Response(newNodes);
             }
             case 2 -> {
@@ -60,7 +61,7 @@ public class MasterHistoryActionTests extends ESTestCase {
             case 3 -> {
                 List<DiscoveryNode> newNodes = new ArrayList<>(nodes);
                 newNodes.remove(0);
-                newNodes.add(0, TestDiscoveryNode.create("_id1"));
+                newNodes.add(0, DiscoveryNodeUtils.create("_id1"));
                 return new MasterHistoryAction.Response(newNodes);
             }
             case 4 -> {
@@ -74,12 +75,12 @@ public class MasterHistoryActionTests extends ESTestCase {
     }
 
     public void testTransportDoExecute() {
-        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         ActionFilters actionFilters = mock(ActionFilters.class);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(masterHistory);

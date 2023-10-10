@@ -1,5 +1,0 @@
-pr: 95590
-summary: Avoid expensive source parsing by using doc values when querying model definition meta fields
-area: Machine Learning
-type: bug
-issues: []

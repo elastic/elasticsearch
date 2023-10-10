@@ -219,7 +219,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final TimeValue delay = periodicTaskInterval;
                 if (delay.getMillis() > 0L) {
                     final PeriodicMaintenanceTask task = new PeriodicMaintenanceTask(periodicTaskKeepAlive, periodicTaskBatchSize);
-                    periodicTask = threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
+                    periodicTask = threadPool.schedule(task, delay, threadPool.generic());
                 } else {
                     periodicTask = null;
                 }
@@ -506,8 +506,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         final ClusterState state = clusterService.state();
                         // compute the list of existing searchable snapshots and repositories once
                         existingSnapshots = listSearchableSnapshots(state);
-                        existingRepositories = state.metadata()
-                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+                        existingRepositories = RepositoriesMetadata.get(state)
                             .repositories()
                             .stream()
                             .map(RepositoryMetadata::name)

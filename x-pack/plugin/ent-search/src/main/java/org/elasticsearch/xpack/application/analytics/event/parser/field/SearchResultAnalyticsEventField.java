@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_FIELD;
@@ -24,20 +24,20 @@ public class SearchResultAnalyticsEventField {
 
     public static ParseField SEARCH_RESULT_ITEMS_FIELD = new ParseField("items");
 
-    private static final ObjectParser<MapBuilder<String, Object>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
+    private static final ObjectParser<Map<String, Object>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         "search_results",
-        MapBuilder::newMapBuilder
+        HashMap::new
     );
 
-    private static final ObjectParser<MapBuilder<String, Object>, AnalyticsEvent.Context> ITEM_PARSER = new ObjectParser<>(
+    private static final ObjectParser<Map<String, Object>, AnalyticsEvent.Context> ITEM_PARSER = new ObjectParser<>(
         "search_results_item",
-        MapBuilder::newMapBuilder
+        HashMap::new
     );
 
     static {
         PARSER.declareObjectArray(
             (b, v) -> b.put(SEARCH_RESULT_ITEMS_FIELD.getPreferredName(), v),
-            (p, c) -> ITEM_PARSER.parse(p, c).immutableMap(),
+            (p, c) -> Map.copyOf(ITEM_PARSER.parse(p, c)),
             SEARCH_RESULT_ITEMS_FIELD
         );
         PARSER.declareInt((b, v) -> b.put(SEARCH_RESULTS_TOTAL_FIELD.getPreferredName(), v), SEARCH_RESULTS_TOTAL_FIELD);
@@ -53,6 +53,6 @@ public class SearchResultAnalyticsEventField {
     private SearchResultAnalyticsEventField() {}
 
     public static Map<String, Object> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
-        return PARSER.parse(parser, context).immutableMap();
+        return Map.copyOf(PARSER.parse(parser, context));
     }
 }

@@ -59,7 +59,7 @@ public final class FrequentItemSetCollector {
         }
 
         public FrequentItemSet(StreamInput in) throws IOException {
-            this.fields = in.readMapOfLists(StreamInput::readString, StreamInput::readGenericValue);
+            this.fields = in.readMapOfLists(StreamInput::readGenericValue);
             this.docCount = in.readVLong();
             this.support = in.readDouble();
         }
@@ -97,7 +97,7 @@ public final class FrequentItemSetCollector {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMapOfLists(fields, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            out.writeMap(fields, (o, v) -> o.writeCollection(v, StreamOutput::writeGenericValue));
             out.writeVLong(getDocCount());
             out.writeDouble(support);
         }

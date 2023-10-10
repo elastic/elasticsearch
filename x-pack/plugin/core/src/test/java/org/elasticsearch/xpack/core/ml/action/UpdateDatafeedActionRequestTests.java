@@ -45,11 +45,6 @@ public class UpdateDatafeedActionRequestTests extends AbstractXContentSerializin
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(datafeedId, null, parser);
     }

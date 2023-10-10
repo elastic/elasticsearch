@@ -415,7 +415,7 @@ public class MockScriptEngine implements ScriptEngine {
         );
     }
 
-    private Map<String, Object> createVars(Map<String, Object> params) {
+    private static Map<String, Object> createVars(Map<String, Object> params) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("params", params);
         return vars;
@@ -484,10 +484,6 @@ public class MockScriptEngine implements ScriptEngine {
                     return (boolean) script.apply(ctx);
                 }
 
-                @Override
-                public void setDocument(int doc) {
-                    docReader.setDocument(doc);
-                }
             };
         }
     }

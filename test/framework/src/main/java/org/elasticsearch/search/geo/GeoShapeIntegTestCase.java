@@ -17,8 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayOutputStream;
-
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
@@ -49,14 +47,7 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
         mapping.endObject().endObject().endObject();
 
         // create index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(settings(randomSupportedVersion()).build())
-                .setMapping(mapping)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = """
@@ -108,12 +99,7 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
         }
     }
 
-    /** Override this method if there is need to modify the test data for specific tests */
-    protected byte[] convertTestData(ByteArrayOutputStream out) {
-        return out.toByteArray();
-    }
-
-    private double distance(double lat1, double lon1, double lat2, double lon2) {
+    private static double distance(double lat1, double lon1, double lat2, double lon2) {
         return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
     }
 }

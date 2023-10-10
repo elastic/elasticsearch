@@ -240,7 +240,7 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
         private final GeoBoundingBox bbox;
         private final GeoHexVisitor visitor;
         private final int resolution;
-        private static final double FACTOR = 0.35;
+        private static final double FACTOR = 0.36;
 
         BoundedGeoHexGridTiler(int resolution, GeoBoundingBox bbox) {
             super(resolution);

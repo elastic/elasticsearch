@@ -36,7 +36,7 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
 
     public void testSearchUsageStats() throws IOException {
         {
-            SearchUsageStats stats = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
+            SearchUsageStats stats = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
             assertEquals(0, stats.getTotalSearchCount());
             assertEquals(0, stats.getQueryUsage().size());
             assertEquals(0, stats.getSectionsUsage().size());
@@ -62,7 +62,7 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
             getRestClient().performRequest(request);
         }
         {
-            assertAcked(client().admin().cluster().preparePutStoredScript().setId("testTemplate").setContent(new BytesArray("""
+            assertAcked(clusterAdmin().preparePutStoredScript().setId("testTemplate").setContent(new BytesArray("""
                 {
                   "script": {
                     "lang": "mustache",
@@ -97,7 +97,7 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
             getRestClient().performRequest(request);
         }
 
-        SearchUsageStats stats = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
+        SearchUsageStats stats = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSearchUsageStats();
         assertEquals(4, stats.getTotalSearchCount());
         assertEquals(1, stats.getQueryUsage().size());
         assertEquals(4, stats.getQueryUsage().get("match").longValue());

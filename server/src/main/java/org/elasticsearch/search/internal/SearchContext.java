@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -19,6 +17,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -375,16 +374,6 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract long getRelativeTimeInMillis();
 
-    /**
-     * Registers the collector to be run for the aggregations phase
-     */
-    public abstract void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager);
-
-    /**
-     * Returns the collector to be run for the aggregations phase
-     */
-    public abstract CollectorManager<Collector, Void> getAggsCollectorManager();
-
     public abstract SearchExecutionContext getSearchExecutionContext();
 
     @Override
@@ -410,4 +399,6 @@ public abstract class SearchContext implements Releasable {
      * Build something to load source {@code _source}.
      */
     public abstract SourceLoader newSourceLoader();
+
+    public abstract IdLoader newIdLoader();
 }

@@ -77,22 +77,22 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         assertEquals(pcts.length, percentileList.size());
         for (int i = 0; i < pcts.length; ++i) {
             final Percentile percentile = percentileList.get(i);
-            assertThat(percentile.getValue(), equalTo(pcts[i]));
-            assertThat(percentile.getPercent(), greaterThanOrEqualTo(0.0));
-            assertThat(percentile.getPercent(), lessThanOrEqualTo(100.0));
+            assertThat(percentile.value(), equalTo(pcts[i]));
+            assertThat(percentile.percent(), greaterThanOrEqualTo(0.0));
+            assertThat(percentile.percent(), lessThanOrEqualTo(100.0));
 
-            if (percentile.getPercent() == 0) {
+            if (percentile.percent() == 0) {
                 double allowedError = minValue / Math.pow(10, numberSigDigits);
-                assertThat(percentile.getValue(), lessThanOrEqualTo(minValue + allowedError));
+                assertThat(percentile.value(), lessThanOrEqualTo(minValue + allowedError));
             }
-            if (percentile.getPercent() == 100) {
+            if (percentile.percent() == 100) {
                 double allowedError = maxValue / Math.pow(10, numberSigDigits);
-                assertThat(percentile.getValue(), greaterThanOrEqualTo(maxValue - allowedError));
+                assertThat(percentile.value(), greaterThanOrEqualTo(maxValue - allowedError));
             }
         }
 
         for (int i = 1; i < percentileList.size(); ++i) {
-            assertThat(percentileList.get(i).getValue(), greaterThanOrEqualTo(percentileList.get(i - 1).getValue()));
+            assertThat(percentileList.get(i).value(), greaterThanOrEqualTo(percentileList.get(i - 1).value()));
         }
     }
 
@@ -567,25 +567,11 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
 
         // Make sure we are starting with a clear cache
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
@@ -601,25 +587,11 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
@@ -635,25 +607,11 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(1L)
         );
 
@@ -665,25 +623,11 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(2L)
         );
     }

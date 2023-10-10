@@ -54,8 +54,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
             actionFilters,
             NodesUsageRequest::new,
             NodeUsageRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeUsage.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.restUsageService = restUsageService;
         this.aggregationUsageService = aggregationUsageService;

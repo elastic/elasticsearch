@@ -1,0 +1,5 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+arg1 | arg2 | result
+double | integer | double
+|===

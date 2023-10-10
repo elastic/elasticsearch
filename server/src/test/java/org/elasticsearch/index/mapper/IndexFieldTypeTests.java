@@ -9,18 +9,18 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.function.Predicate;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 
 public class IndexFieldTypeTests extends ESTestCase {
@@ -53,7 +53,7 @@ public class IndexFieldTypeTests extends ESTestCase {
 
     private SearchExecutionContext createContext() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -67,7 +67,7 @@ public class IndexFieldTypeTests extends ESTestCase {
             null,
             null,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             null,
             parserConfig(),
@@ -79,7 +79,7 @@ public class IndexFieldTypeTests extends ESTestCase {
             indexNameMatcher,
             () -> true,
             null,
-            emptyMap()
+            Collections.emptyMap()
         );
     }
 }

@@ -92,7 +92,7 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
         }
 
         public Response(StreamInput in) throws IOException {
-            this.lifecycles = in.readList(SnapshotLifecyclePolicyItem::new);
+            this.lifecycles = in.readCollectionAsList(SnapshotLifecyclePolicyItem::new);
         }
 
         public List<SnapshotLifecyclePolicyItem> getPolicies() {
@@ -116,7 +116,7 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(lifecycles);
+            out.writeCollection(lifecycles);
         }
 
         @Override

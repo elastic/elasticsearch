@@ -21,6 +21,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -47,7 +48,6 @@ import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.time.Instant.ofEpochMilli;
@@ -89,11 +89,12 @@ class MlMemoryAutoscalingDecider {
 
         this.maxMachineMemoryPercent = MAX_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
-        this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.useAuto = MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         setMaxMlNodeSize(MachineLearning.MAX_ML_NODE_SIZE.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMlNodeSize);
     }
 
@@ -119,7 +120,12 @@ class MlMemoryAutoscalingDecider {
         }
     }
 
-    public MlMemoryAutoscalingCapacity scale(Settings configuration, AutoscalingDeciderContext context, MlAutoscalingContext mlContext) {
+    public MlMemoryAutoscalingCapacity scale(
+        Settings configuration,
+        AutoscalingDeciderContext context,
+        MlAutoscalingContext mlContext,
+        int allocatedProcessorsScale
+    ) {
         final ClusterState clusterState = context.state();
 
         scaleTimer.lastScaleToScaleIntervalMillis()
@@ -259,7 +265,11 @@ class MlMemoryAutoscalingDecider {
                 }
                 // We should keep this check here as well as in the processor decider while cloud is not
                 // reacting to processor autoscaling.
-                if (modelAssignmentsRequireMoreThanHalfCpu(mlContext.modelAssignments.values(), mlContext.mlNodes)) {
+                if (modelAssignmentsRequireMoreThanHalfCpu(
+                    mlContext.modelAssignments.values(),
+                    mlContext.mlNodes,
+                    allocatedProcessorsScale
+                )) {
                     logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
                     return null;
                 }
@@ -454,12 +464,7 @@ class MlMemoryAutoscalingDecider {
         if (unassignedJobs.isEmpty()) {
             return Optional.empty();
         }
-        List<Long> jobSizes = unassignedJobs.stream()
-            .map(sizeFunction)
-            .map(l -> l == null ? 0L : l)
-            .sorted(Comparator.comparingLong(Long::longValue).reversed())
-            .collect(Collectors.toList());
-
+        List<Long> jobSizes = computeJobSizes(unassignedJobs, sizeFunction);
         long tierMemory = 0L;
         // Node memory needs to be AT LEAST the size of the largest job + the required overhead.
         long nodeMemory = jobSizes.get(0);
@@ -720,11 +725,7 @@ class MlMemoryAutoscalingDecider {
         for (NodeLoad load : nodeLoads) {
             mostFreeMemoryFirst.add(NodeLoad.builder(load));
         }
-        List<Long> jobSizes = unassignedJobs.stream()
-            .map(sizeFunction)
-            .map(l -> l == null ? 0L : l)
-            .sorted(Comparator.comparingLong(Long::longValue).reversed())
-            .collect(Collectors.toList());
+        List<Long> jobSizes = computeJobSizes(unassignedJobs, sizeFunction);
 
         Iterator<Long> assignmentIter = jobSizes.iterator();
         while (jobSizes.size() > maxNumInQueue && assignmentIter.hasNext()) {
@@ -825,11 +826,15 @@ class MlMemoryAutoscalingDecider {
         return newCapacity;
     }
 
-    static boolean modelAssignmentsRequireMoreThanHalfCpu(Collection<TrainedModelAssignment> assignments, List<DiscoveryNode> mlNodes) {
+    static boolean modelAssignmentsRequireMoreThanHalfCpu(
+        Collection<TrainedModelAssignment> assignments,
+        List<DiscoveryNode> mlNodes,
+        int allocatedProcessorsScale
+    ) {
         int totalRequiredProcessors = assignments.stream()
             .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())
             .sum();
-        int totalMlProcessors = mlNodes.stream().mapToInt(node -> MlProcessors.get(node).roundUp()).sum();
+        int totalMlProcessors = mlNodes.stream().mapToInt(node -> MlProcessors.get(node, allocatedProcessorsScale).roundUp()).sum();
         return totalRequiredProcessors * 2 > totalMlProcessors;
     }
 
@@ -944,5 +949,14 @@ class MlMemoryAutoscalingDecider {
 
     private Long getAnomalyMemoryRequirement(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         return getAnomalyMemoryRequirement(MlTasks.jobId(task.getId()));
+    }
+
+    private static List<Long> computeJobSizes(List<String> unassignedJobs, Function<String, Long> sizeFunction) {
+        List<Long> jobSizes = new ArrayList<>(unassignedJobs.size());
+        for (String unassignedJob : unassignedJobs) {
+            jobSizes.add(Objects.requireNonNullElse(sizeFunction.apply(unassignedJob), 0L));
+        }
+        jobSizes.sort(Comparator.comparingLong(Long::longValue).reversed());
+        return jobSizes;
     }
 }

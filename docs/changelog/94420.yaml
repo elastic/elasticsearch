@@ -1,5 +1,0 @@
-pr: 94420
-summary: Secondary credentials used with transforms should only require source and destination index privileges, not transform privileges
-area: Transform
-type: bug
-issues: []

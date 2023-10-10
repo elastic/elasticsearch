@@ -14,11 +14,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -156,7 +157,7 @@ public class HealthNodeExecutorTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
 
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), localNodeId));
+        nodes.add(DiscoveryNodeUtils.create(localNodeId));
         nodes.localNodeId(localNodeId);
         nodes.masterNodeId(localNodeId);
 
@@ -172,6 +173,11 @@ public class HealthNodeExecutorTests extends ESTestCase {
                     .setReason("shutdown for a unit test")
                     .setType(type)
                     .setStartedAtMillis(randomNonNegativeLong())
+                    .setGracePeriod(
+                        type == SingleNodeShutdownMetadata.Type.SIGTERM
+                            ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+                            : null
+                    )
                     .build()
             )
         );

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -22,6 +23,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -64,7 +67,12 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     public interface PreferredTierFunction {
-        Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes, DesiredNodes desiredNodes);
+        Optional<String> apply(
+            List<String> tierPreference,
+            DiscoveryNodes nodes,
+            DesiredNodes desiredNodes,
+            NodesShutdownMetadata shutdownMetadata
+        );
     }
 
     private static final Decision YES_PASSES = Decision.single(Decision.YES.type(), NAME, "node passes tier preference filters");
@@ -76,10 +84,15 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         RoutingAllocation allocation
     ) {
         List<String> tierPreference = indexMd.getTierPreference();
-        if (tierPreference.isEmpty() != false) {
+        if (tierPreference.isEmpty()) {
             return YES_PASSES;
         }
-        Optional<String> tier = preferredTierFunction.apply(tierPreference, allocation.nodes(), allocation.desiredNodes());
+        Optional<String> tier = preferredTierFunction.apply(
+            tierPreference,
+            allocation.nodes(),
+            allocation.desiredNodes(),
+            allocation.getClusterState().metadata().nodeShutdowns()
+        );
         if (tier.isPresent()) {
             String tierName = tier.get();
             if (allocationAllowed(tierName, node)) {
@@ -136,14 +149,20 @@ public final class DataTierAllocationDecider extends AllocationDecider {
      * in order to know if there are planned topology changes in the cluster
      * that can remove a tier that's part of the cluster now.
      */
-    public static Optional<String> preferredAvailableTier(List<String> prioritizedTiers, DiscoveryNodes nodes, DesiredNodes desiredNodes) {
+    public static Optional<String> preferredAvailableTier(
+        List<String> prioritizedTiers,
+        DiscoveryNodes nodes,
+        DesiredNodes desiredNodes,
+        NodesShutdownMetadata shutdownMetadata
+    ) {
+
         final var desiredNodesPreferredTier = getPreferredTierFromDesiredNodes(prioritizedTiers, nodes, desiredNodes);
 
         if (desiredNodesPreferredTier.isPresent()) {
             return desiredNodesPreferredTier;
         }
 
-        return getPreferredAvailableTierFromClusterMembers(prioritizedTiers, nodes);
+        return getPreferredAvailableTierFromClusterMembers(prioritizedTiers, nodes, removingNodeIds(shutdownMetadata));
     }
 
     /**
@@ -199,9 +218,13 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return tierNodesPresent(tier, desiredNodes.pending()) && tierNodesPresent(tier, discoveryNodes);
     }
 
-    private static Optional<String> getPreferredAvailableTierFromClusterMembers(List<String> prioritizedTiers, DiscoveryNodes nodes) {
+    private static Optional<String> getPreferredAvailableTierFromClusterMembers(
+        List<String> prioritizedTiers,
+        DiscoveryNodes nodes,
+        Set<String> removingNodeIds
+    ) {
         for (String tier : prioritizedTiers) {
-            if (tierNodesPresent(tier, nodes)) {
+            if (tierNodesPresentConsideringRemovals(tier, nodes, removingNodeIds)) {
                 return Optional.of(tier);
             }
         }
@@ -219,10 +242,40 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return false;
     }
 
+    // This overload for Desired Nodes codepaths, which do not consider Node Shutdown, as Desired Nodes takes precedence
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
+        return tierNodesPresentConsideringRemovals(singleTier, nodes, Collections.emptySet());
+    }
+
+    static boolean tierNodesPresentConsideringRemovals(String singleTier, DiscoveryNodes nodes, Set<String> removingNodeIds) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier)
             : "tier " + singleTier + " is an invalid tier name";
-        return nodes.isRoleAvailable(DiscoveryNodeRole.DATA_ROLE.roleName()) || nodes.isRoleAvailable(singleTier);
+        var rolesToNodes = nodes.getTiersToNodeIds();
+        Set<String> nodesWithTier = rolesToNodes.getOrDefault(singleTier, Collections.emptySet());
+        Set<String> dataNodes = rolesToNodes.getOrDefault(DiscoveryNodeRole.DATA_ROLE.roleName(), Collections.emptySet());
+
+        if (removingNodeIds.isEmpty()) {
+            return nodesWithTier.isEmpty() == false || dataNodes.isEmpty() == false;
+        } else if (removingNodeIds.size() < nodesWithTier.size() || removingNodeIds.size() < dataNodes.size()) {
+            // There are more nodes in the tier (or more generic data nodes) than there are nodes that are being removed, so
+            // there's at least one node that can hold data for the preferred tier that isn't being removed
+            return true;
+        }
+
+        // A tier might be unavailable because all remaining nodes in the tier are being removed, so now we have to check if there are any
+        // nodes with appropriate roles that aren't being removed.
+        for (String nodeId : dataNodes) {
+            if (removingNodeIds.contains(nodeId) == false) {
+                return true;
+            }
+        }
+        for (String nodeId : nodesWithTier) {
+            if (removingNodeIds.contains(nodeId) == false) {
+                return true;
+            }
+        }
+        // All the nodes with roles appropriate for this tier are being removed, so this tier is not available.
+        return false;
     }
 
     public static boolean allocationAllowed(String tierName, DiscoveryNode node) {
@@ -243,5 +296,19 @@ public final class DataTierAllocationDecider extends AllocationDecider {
             }
         }
         return false;
+    }
+
+    private static Set<String> removingNodeIds(NodesShutdownMetadata shutdownMetadata) {
+        if (shutdownMetadata.getAll().isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Set<String> removingNodes = new HashSet<>();
+        for (var shutdownEntry : shutdownMetadata.getAll().values()) {
+            if (shutdownEntry.getType().isRemovalType()) {
+                removingNodes.add(shutdownEntry.getNodeId());
+            }
+        }
+        return Collections.unmodifiableSet(removingNodes);
     }
 }

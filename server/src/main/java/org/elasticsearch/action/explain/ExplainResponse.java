@@ -9,17 +9,17 @@
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -33,7 +33,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 /**
  * Response containing the score explanation.
  */
-public class ExplainResponse extends ActionResponse implements StatusToXContentObject {
+public class ExplainResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField _INDEX = new ParseField("_index");
     private static final ParseField _ID = new ParseField("_id");
@@ -44,9 +44,9 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     private static final ParseField DETAILS = new ParseField("details");
     private static final ParseField GET = new ParseField("get");
 
-    private String index;
-    private String id;
-    private boolean exists;
+    private final String index;
+    private final String id;
+    private final boolean exists;
     private Explanation explanation;
     private GetResult getResult;
 
@@ -69,7 +69,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     public ExplainResponse(StreamInput in) throws IOException {
         super(in);
         index = in.readString();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readString();
         }
         id = in.readString();
@@ -110,7 +110,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         return getResult;
     }
 
-    @Override
     public RestStatus status() {
         return exists ? RestStatus.OK : RestStatus.NOT_FOUND;
     }
@@ -118,7 +117,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);

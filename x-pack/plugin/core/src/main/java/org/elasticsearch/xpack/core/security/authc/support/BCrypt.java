@@ -1399,13 +1399,13 @@ public class BCrypt {
             c2 = char64(s.charAt(off++));
             if (c1 == -1 || c2 == -1) break;
             o = (byte) (c1 << 2);
-            o |= (c2 & 0x30) >> 4;
+            o |= (byte) ((c2 & 0x30) >> 4);
             rs.append((char) o);
             if (++olen >= maxolen || off >= slen) break;
             c3 = char64(s.charAt(off++));
             if (c3 == -1) break;
             o = (byte) ((c2 & 0x0f) << 4);
-            o |= (c3 & 0x3c) >> 2;
+            o |= (byte) ((c3 & 0x3c) >> 2);
             rs.append((char) o);
             if (++olen >= maxolen || off >= slen) break;
             c4 = char64(s.charAt(off++));

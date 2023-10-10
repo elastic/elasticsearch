@@ -9,6 +9,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -242,8 +243,8 @@ public class SuggestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         TransportVersion bwcVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersion.CURRENT
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.current()
         );
 
         final Suggest suggest = createTestItem();
@@ -265,10 +266,10 @@ public class SuggestTests extends ESTestCase {
         final Suggest backAgain;
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersion.CURRENT);
+            out.setTransportVersion(TransportVersion.current());
             bwcSuggest.writeTo(out);
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                in.setTransportVersion(TransportVersion.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 backAgain = new Suggest(in);
             }
         }

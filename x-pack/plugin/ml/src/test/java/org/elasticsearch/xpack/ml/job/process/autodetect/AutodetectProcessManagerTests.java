@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +27,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
@@ -211,7 +212,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                                 .put(SETTING_INDEX_HIDDEN, true)
-                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(SETTING_VERSION_CREATED, IndexVersion.current())
                                 .build()
                         )
                         .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).isHidden(true).build())
@@ -223,7 +224,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                                 .put(SETTING_INDEX_HIDDEN, true)
-                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(SETTING_VERSION_CREATED, IndexVersion.current())
                                 .build()
                         )
                         .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).isHidden(true).build())
@@ -575,7 +576,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         );
 
         FlushJobParams params = FlushJobParams.builder().build();
-        manager.flushJob(jobTask, params, ActionListener.wrap(flushAcknowledgement -> {}, e -> fail(e.getMessage())));
+        manager.flushJob(jobTask, params, ActionTestUtils.assertNoFailureListener(flushAcknowledgement -> {}));
 
         verify(autodetectCommunicator).flushJob(same(params), any());
     }

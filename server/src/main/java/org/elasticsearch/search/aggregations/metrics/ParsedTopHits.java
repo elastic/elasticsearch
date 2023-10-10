@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -33,7 +34,7 @@ public class ParsedTopHits extends ParsedAggregation implements TopHits {
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return searchHits.toXContent(builder, params);
+        return ChunkedToXContent.wrapAsToXContent(searchHits).toXContent(builder, params);
     }
 
     private static final ObjectParser<ParsedTopHits, Void> PARSER = new ObjectParser<>(

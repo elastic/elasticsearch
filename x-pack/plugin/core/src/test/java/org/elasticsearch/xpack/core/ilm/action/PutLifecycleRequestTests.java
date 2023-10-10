@@ -124,10 +124,6 @@ public class PutLifecycleRequestTests extends AbstractXContentSerializingTestCas
         return new NamedXContentRegistry(entries);
     }
 
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
     @Override
     protected Request mutateInstance(Request request) {
         String name = randomBoolean() ? lifecycleName : randomAlphaOfLength(5);

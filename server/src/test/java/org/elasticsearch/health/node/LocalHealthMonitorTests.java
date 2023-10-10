@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,7 +39,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,6 +61,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
     private ClusterService clusterService;
     private DiscoveryNode node;
     private DiscoveryNode frozenNode;
+    private DiscoveryNode searchNode;
+    private DiscoveryNode searchAndIndexNode;
     private HealthMetadata healthMetadata;
     private ClusterState clusterState;
     private Client client;
@@ -89,24 +90,22 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 .build(),
             HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(999).maxShardsPerNodeFrozen(100).build()
         );
-        node = new DiscoveryNode(
-            "node",
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        frozenNode = new DiscoveryNode(
-            "frozen-node",
-            "frozen-node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
-            Version.CURRENT
-        );
-        clusterState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
-            .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        node = DiscoveryNodeUtils.create("node", "node");
+        frozenNode = DiscoveryNodeUtils.builder("frozen-node")
+            .name("frozen-node")
+            .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+            .build();
+        searchNode = DiscoveryNodeUtils.builder("search-node").name("search-node").roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
+        searchAndIndexNode = DiscoveryNodeUtils.builder("search-and-index-node")
+            .name("search-and-index-node")
+            .roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE))
+            .build();
+        clusterState = ClusterStateCreationUtils.state(
+            node,
+            node,
+            node,
+            new DiscoveryNode[] { node, frozenNode, searchNode, searchAndIndexNode }
+        ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
         // Set-up cluster service
         clusterService = mock(ClusterService.class);
@@ -261,6 +260,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(false)
             )
         ).thenReturn(nodeStats());
@@ -310,15 +310,44 @@ public class LocalHealthMonitorTests extends ESTestCase {
         assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD)));
     }
 
-    public void testYellowStatusForNonDataNode() {
-        DiscoveryNode dedicatedMasterNode = new DiscoveryNode(
-            "master-node",
-            "master-node-1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+    public void testSearchNodeGreenDiskStatus() {
+        // Search-only nodes behave like frozen nodes -- they are RED at 95% full, GREEN otherwise.
+        initializeIncreasedDiskSpaceUsage();
+        ClusterState clusterStateSearchLocalNode = clusterState.copyAndUpdate(
+            b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchNode).localNodeId(searchNode.getId()).build())
         );
+        LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
+        DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateSearchLocalNode);
+        assertThat(diskHealth, equalTo(GREEN));
+    }
+
+    public void testSearchNodeRedDiskStatus() {
+        // Search-only nodes behave like frozen nodes -- they are RED at 95% full, GREEN otherwise.
+        simulateDiskOutOfSpace();
+        ClusterState clusterStateSearchLocalNode = clusterState.copyAndUpdate(
+            b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchNode).localNodeId(searchNode.getId()).build())
+        );
+        LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
+        DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateSearchLocalNode);
+        assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD)));
+    }
+
+    public void testSearchAndIndexNodesYellowDiskStatus() {
+        // A search role mixed with another data node role behaves like an ordinary data node -- YELLOW at 90% full.
+        initializeIncreasedDiskSpaceUsage();
+        ClusterState clusterStateSearchLocalNode = clusterState.copyAndUpdate(
+            b -> b.nodes(DiscoveryNodes.builder().add(node).add(searchAndIndexNode).localNodeId(searchAndIndexNode.getId()).build())
+        );
+        LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
+        DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateSearchLocalNode);
+        assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD)));
+    }
+
+    public void testYellowStatusForNonDataNode() {
+        DiscoveryNode dedicatedMasterNode = DiscoveryNodeUtils.builder("master-node-1")
+            .name("master-node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         clusterState = ClusterStateCreationUtils.state(
             dedicatedMasterNode,
             dedicatedMasterNode,
@@ -339,14 +368,10 @@ public class LocalHealthMonitorTests extends ESTestCase {
         DiscoveryNode localNode = state.nodes().getLocalNode();
         assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(state, localNode), is(true));
 
-        DiscoveryNode dedicatedMasterNode = new DiscoveryNode(
-            "master-node",
-            "master-node-1",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        DiscoveryNode dedicatedMasterNode = DiscoveryNodeUtils.builder("master-node-1")
+            .name("master-node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         ClusterState newState = ClusterState.builder(state)
             .nodes(new DiscoveryNodes.Builder(state.nodes()).add(dedicatedMasterNode))
             .build();
@@ -362,6 +387,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(true),
+                eq(false),
                 eq(false),
                 eq(false),
                 eq(false),
@@ -392,6 +418,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(false)
             )
         ).thenReturn(nodeStats(1000, 80));
@@ -406,6 +433,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(true),
+                eq(false),
                 eq(false),
                 eq(false),
                 eq(false),
@@ -438,6 +466,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
             null,
             null,
             fs,
+            null,
             null,
             null,
             null,

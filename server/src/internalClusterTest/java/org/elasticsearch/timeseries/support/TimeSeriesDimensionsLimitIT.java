@@ -8,7 +8,7 @@
 
 package org.elasticsearch.timeseries.support;
 
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -141,7 +141,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         for (int i = 0; i < dimensionFieldLimit; i++) {
             source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1024));
         }
-        final IndexResponse indexResponse = client().prepareIndex("test").setSource(source).get();
+        final DocWriteResponse indexResponse = client().prepareIndex("test").setSource(source).get();
         assertEquals(RestStatus.CREATED.getStatus(), indexResponse.status().getStatus());
     }
 
@@ -194,7 +194,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             settings.put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), dimensionsFieldLimit);
         }
 
-        client().admin().indices().prepareCreate("test").setSettings(settings.build()).setMapping(mapping).get();
+        indicesAdmin().prepareCreate("test").setSettings(settings.build()).setMapping(mapping).get();
     }
 
 }

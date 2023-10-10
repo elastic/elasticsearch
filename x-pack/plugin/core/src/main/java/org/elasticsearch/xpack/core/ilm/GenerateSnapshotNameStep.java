@@ -60,7 +60,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
         // this fails prior to the snapshot repository being recorded in the ilm metadata, the policy can just be corrected
         // and everything will pass on the subsequent retry
-        if (clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(snapshotRepository) == null) {
+        if (RepositoriesMetadata.get(clusterState).repository(snapshotRepository) == null) {
             throw new IllegalStateException(
                 "repository ["
                     + snapshotRepository
@@ -78,7 +78,8 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         newLifecycleState.setSnapshotRepository(snapshotRepository);
         if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
-            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policyName + ">").toLowerCase(Locale.ROOT);
+            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + Strings.stripDisallowedChars(policyName) + ">") //
+                .toLowerCase(Locale.ROOT);
             String snapshotName = generateSnapshotName(snapshotNamePrefix);
             ActionRequestValidationException validationException = validateGeneratedSnapshotName(snapshotNamePrefix, snapshotName);
             if (validationException != null) {

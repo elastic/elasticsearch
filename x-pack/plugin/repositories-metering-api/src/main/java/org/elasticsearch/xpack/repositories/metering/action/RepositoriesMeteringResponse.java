@@ -34,12 +34,12 @@ public final class RepositoriesMeteringResponse extends BaseNodesResponse<Reposi
 
     @Override
     protected List<RepositoriesNodeMeteringResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(RepositoriesNodeMeteringResponse::new);
+        return in.readCollectionAsList(RepositoriesNodeMeteringResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<RepositoriesNodeMeteringResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

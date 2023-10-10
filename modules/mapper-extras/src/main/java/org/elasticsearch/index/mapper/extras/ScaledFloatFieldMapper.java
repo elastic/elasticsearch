@@ -195,7 +195,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -246,6 +246,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
             return context.fieldExistsInIndex(name());
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return isIndexed() || hasDocValues();
         }
 
         @Override

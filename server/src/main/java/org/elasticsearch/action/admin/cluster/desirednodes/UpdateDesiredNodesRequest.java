@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -25,7 +26,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesiredNodesRequest> {
-    private static final TransportVersion DRY_RUN_VERSION = TransportVersion.V_8_4_0;
+    private static final TransportVersion DRY_RUN_VERSION = TransportVersions.V_8_4_0;
 
     private final String historyID;
     private final long version;
@@ -58,7 +59,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         super(in);
         this.historyID = in.readString();
         this.version = in.readLong();
-        this.nodes = in.readList(DesiredNode::readFrom);
+        this.nodes = in.readCollectionAsList(DesiredNode::readFrom);
         if (in.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
             this.dryRun = in.readBoolean();
         } else {
@@ -71,7 +72,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         super.writeTo(out);
         out.writeString(historyID);
         out.writeLong(version);
-        out.writeList(nodes);
+        out.writeCollection(nodes);
         if (out.getTransportVersion().onOrAfter(DRY_RUN_VERSION)) {
             out.writeBoolean(dryRun);
         }

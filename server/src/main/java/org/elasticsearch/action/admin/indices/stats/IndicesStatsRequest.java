@@ -270,15 +270,19 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
+    public IndicesStatsRequest denseVector(boolean denseVector) {
+        flags.set(Flag.DenseVector, denseVector);
+        return this;
+    }
+
+    public boolean denseVector() {
+        return flags.isSet(Flag.DenseVector);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         flags.writeTo(out);
-    }
-
-    @Override
-    public boolean includeDataStreams() {
-        return true;
     }
 
     @Override

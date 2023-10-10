@@ -11,12 +11,14 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -282,37 +284,38 @@ public final class MoveDecision extends AbstractAllocationDecision {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         checkDecisionState();
-        if (targetNode != null) {
-            builder.startObject("target_node");
-            discoveryNodeToXContent(targetNode, true, builder);
-            builder.endObject();
-        }
-        builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
-        if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
-            builder.startArray("can_remain_decisions");
-            canRemainDecision.toXContent(builder, params);
-            builder.endArray();
-        }
-        if (clusterRebalanceDecision != null) {
-            AllocationDecision rebalanceDecision = AllocationDecision.fromDecisionType(clusterRebalanceDecision.type());
-            builder.field("can_rebalance_cluster", rebalanceDecision);
-            if (rebalanceDecision != AllocationDecision.YES && clusterRebalanceDecision.getDecisions().isEmpty() == false) {
-                builder.startArray("can_rebalance_cluster_decisions");
-                clusterRebalanceDecision.toXContent(builder, params);
+        return Iterators.concat(Iterators.single((builder, p) -> {
+            if (targetNode != null) {
+                builder.startObject("target_node");
+                discoveryNodeToXContent(targetNode, true, builder);
+                builder.endObject();
+            }
+            builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
+            if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
+                builder.startArray("can_remain_decisions");
+                canRemainDecision.toXContent(builder, params);
                 builder.endArray();
             }
-        }
-        if (clusterRebalanceDecision != null) {
-            builder.field("can_rebalance_to_other_node", allocationDecision);
-            builder.field("rebalance_explanation", getExplanation());
-        } else {
-            builder.field("can_move_to_other_node", forceMove() ? "yes" : "no");
-            builder.field("move_explanation", getExplanation());
-        }
-        nodeDecisionsToXContent(nodeDecisions, builder, params);
-        return builder;
+            if (clusterRebalanceDecision != null) {
+                AllocationDecision rebalanceDecision = AllocationDecision.fromDecisionType(clusterRebalanceDecision.type());
+                builder.field("can_rebalance_cluster", rebalanceDecision);
+                if (rebalanceDecision != AllocationDecision.YES && clusterRebalanceDecision.getDecisions().isEmpty() == false) {
+                    builder.startArray("can_rebalance_cluster_decisions");
+                    clusterRebalanceDecision.toXContent(builder, params);
+                    builder.endArray();
+                }
+            }
+            if (clusterRebalanceDecision != null) {
+                builder.field("can_rebalance_to_other_node", allocationDecision);
+                builder.field("rebalance_explanation", getExplanation());
+            } else {
+                builder.field("can_move_to_other_node", forceMove() ? "yes" : "no");
+                builder.field("move_explanation", getExplanation());
+            }
+            return builder;
+        }), nodeDecisionsToXContentChunked(nodeDecisions));
     }
 
     @Override

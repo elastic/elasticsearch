@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.client.NoOpClient;
@@ -55,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -199,9 +200,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         client.assertNoResponder();
         assertMatchesResponse(nodes, response, responseInfo);
 
-        ClusterState notMasterState = ClusterState.builder(masterState)
-            .nodes(DiscoveryNodes.builder(masterState.nodes()).masterNodeId(null))
-            .build();
+        ClusterState notMasterState = ClusterState.builder(masterState).nodes(masterState.nodes().withMasterNodeId(null)).build();
 
         // client throws if called.
         service.onClusterChanged(new ClusterChangedEvent("test", notMasterState, masterState));
@@ -336,11 +335,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         client.respondStats((request, listener) -> {
             CountDownLatch latch = new CountDownLatch(1);
             threads.add(startThread(() -> {
-                try {
-                    assertThat(latch.await(10, TimeUnit.SECONDS), is(true));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 listener.onResponse(response);
             }));
             threads.add(startThread(() -> {
@@ -442,6 +437,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
     }
@@ -450,8 +446,10 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         OsInfo osInfo = new OsInfo(randomLong(), processors, Processors.of((double) processors), null, null, null, null);
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
-            TransportVersion.CURRENT,
-            Build.CURRENT,
+            TransportVersion.current(),
+            IndexVersion.current(),
+            Map.of(),
+            Build.current(),
             node,
             null,
             osInfo,
@@ -564,10 +562,16 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode newNode(String nodeName, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(nodeName, UUIDs.randomBase64UUID(), buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).name(nodeName).roles(roles).build();
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {
-        return new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), node.getAttributes(), node.getRoles(), node.getVersion());
+        return DiscoveryNodeUtils.builder(node.getId())
+            .name(node.getName())
+            .address(node.getAddress())
+            .attributes(node.getAttributes())
+            .roles(node.getRoles())
+            .version(node.getVersionInformation())
+            .build();
     }
 }

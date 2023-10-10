@@ -9,9 +9,12 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -97,9 +100,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(matchAssertion.getField(), equalTo("matches"));
         assertThat(matchAssertion.getExpectedValue(), instanceOf(List.class));
         List<?> strings = (List<?>) matchAssertion.getExpectedValue();
-        assertThat(strings.size(), equalTo(2));
-        assertThat(strings.get(0).toString(), equalTo("test_percolator_1"));
-        assertThat(strings.get(1).toString(), equalTo("test_percolator_2"));
+        assertThat(strings, transformedItemsMatch(Object::toString, contains("test_percolator_1", "test_percolator_2")));
     }
 
     @SuppressWarnings("unchecked")
@@ -169,5 +170,19 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         parser = createParser(YamlXContent.yamlXContent, "{ field: { foo: 13, bar: 15 } }");
         exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
+    }
+
+    public void testExists() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
+
+        ExistsAssertion existsAssertion = ExistsAssertion.parse(parser);
+
+        assertThat(existsAssertion, notNullValue());
+        assertThat(existsAssertion.getField(), equalTo("get.fields._timestamp"));
+
+        existsAssertion.doAssert(randomFrom(1, "", "non-empty", List.of(), Map.of()), existsAssertion.getExpectedValue());
+
+        AssertionError e = expectThrows(AssertionError.class, () -> existsAssertion.doAssert(null, existsAssertion.getExpectedValue()));
+        assertThat(e.getMessage(), containsString("field [get.fields._timestamp] does not exist"));
     }
 }

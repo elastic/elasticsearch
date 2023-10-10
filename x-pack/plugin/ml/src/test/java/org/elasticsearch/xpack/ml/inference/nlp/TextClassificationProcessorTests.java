@@ -54,7 +54,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testBuildRequest() throws IOException {
         NlpTokenizer tokenizer = NlpTokenizer.build(
-            new Vocabulary(TEST_CASED_VOCAB, randomAlphaOfLength(10), List.of()),
+            new Vocabulary(TEST_CASED_VOCAB, randomAlphaOfLength(10), List.of(), List.of()),
             new BertTokenization(null, null, 512, Tokenization.Truncate.NONE, -1)
         );
 

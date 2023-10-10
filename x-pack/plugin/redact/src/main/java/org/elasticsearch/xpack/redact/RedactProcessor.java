@@ -384,7 +384,7 @@ public class RedactProcessor extends AbstractProcessor {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
-            boolean skipIfUnlicensed = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "skip_if_unlicensed", true);
+            boolean skipIfUnlicensed = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "skip_if_unlicensed", false);
 
             String redactStart = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "prefix", DEFAULT_REDACTED_START);
             String redactEnd = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "suffix", DEFAULT_REDACTED_END);

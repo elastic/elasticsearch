@@ -50,6 +50,17 @@ public class InternalCartesianBounds extends InternalBounds<CartesianPoint> impl
         out.writeDouble(right);
     }
 
+    static InternalCartesianBounds empty(String name, Map<String, Object> metadata) {
+        return new InternalCartesianBounds(
+            name,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            metadata
+        );
+    }
+
     @Override
     public String getWriteableName() {
         return CartesianBoundsAggregationBuilder.NAME;

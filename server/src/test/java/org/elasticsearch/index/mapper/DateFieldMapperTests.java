@@ -10,18 +10,18 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -230,7 +230,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(Version.V_8_0_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")))
+            () -> createDocumentMapper(IndexVersion.V_8_0_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")))
         );
 
         assertThat(
@@ -241,7 +241,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             )
         );
 
-        createDocumentMapper(Version.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
+        createDocumentMapper(IndexVersion.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
 
         assertWarnings("Error parsing [foo] as date in [null_value] on field [field]); [null_value] will be ignored");
     }
@@ -697,7 +697,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testLegacyField() throws Exception {
         // check that unknown date formats are treated leniently on old indices
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("mydate");
             b.field("type", "date");
             b.field("format", "unknown-format");
@@ -724,8 +724,12 @@ public class DateFieldMapperTests extends MapperTestCase {
             null,
             mock(ScriptService.class),
             true,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_8_0_0)) // BWC compatible
-                                                                                                                           // index, e.g 7.x
+            // BWC compatible index, e.g 7.x
+            IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersion.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+            )
         );
 
         // Check that we allow the use of camel case date formats on 7.x indices
@@ -743,7 +747,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             null,
             mock(ScriptService.class),
             true,
-            Version.CURRENT
+            IndexVersion.current()
         );
 
         @SuppressWarnings("unchecked")

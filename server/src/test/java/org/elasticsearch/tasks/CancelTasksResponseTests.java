@@ -80,11 +80,6 @@ public class CancelTasksResponseTests extends AbstractXContentTestCase<CancelTas
         return true;
     }
 
-    @Override
-    protected boolean assertToXContentEquivalence() {
-        return true;
-    }
-
     /**
      * Test parsing {@link ListTasksResponse} with inner failures as they don't support asserting on xcontent equivalence, given that
      * exceptions are not parsed back as the same original class. We run the usual {@link AbstractXContentTestCase#testFromXContent()}

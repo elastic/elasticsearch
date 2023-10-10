@@ -43,7 +43,7 @@ public record Profile(
         public ProfileUser(StreamInput in) throws IOException {
             this(
                 in.readString(),
-                in.readStringList(),
+                in.readStringCollectionAsList(),
                 in.readString(),
                 in.readOptionalString(),
                 in.readOptionalString(),

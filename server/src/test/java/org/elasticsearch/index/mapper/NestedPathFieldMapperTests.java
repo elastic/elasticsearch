@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -24,8 +24,8 @@ public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
-    protected boolean isSupportedOn(Version version) {
-        return version.onOrAfter(Version.V_8_0_0);
+    protected boolean isSupportedOn(IndexVersion version) {
+        return version.onOrAfter(IndexVersion.V_8_0_0);
     }
 
     @Override

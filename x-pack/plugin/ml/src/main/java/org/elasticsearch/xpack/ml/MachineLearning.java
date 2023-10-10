@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -51,6 +50,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -77,10 +77,10 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
@@ -135,6 +136,7 @@ import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobModelSnapshotsUpgradeStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
@@ -190,6 +192,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -236,6 +239,7 @@ import org.elasticsearch.xpack.ml.action.TransportGetInfluencersAction;
 import org.elasticsearch.xpack.ml.action.TransportGetJobModelSnapshotsUpgradeStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetJobsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction;
+import org.elasticsearch.xpack.ml.action.TransportGetMlAutoscalingStats;
 import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
@@ -330,6 +334,8 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
+import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerBuilder;
+import org.elasticsearch.xpack.ml.inference.rescorer.InferenceRescorerFeature;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -576,6 +582,29 @@ public class MachineLearning extends Plugin
     public static final String PRE_V_8_5_ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors";
 
     public static final String ALLOCATED_PROCESSORS_NODE_ATTR = "ml.allocated_processors_double";
+
+    /**
+     * For the NLP model assignment planner.
+     * The {@link #ALLOCATED_PROCESSORS_NODE_ATTR} attribute may be
+     * measured in hyper-threaded or virtual cores when the user
+     * would like the planner to consider logical cores.
+     *
+     * ALLOCATED_PROCESSORS_NODE_ATTR is divided by this setting,
+     * the default value of 1 means the attribute is unchanged, a value
+     * of 2 accounts for hyper-threaded cores with 2 threads per core.
+     * Increasing this setting above 1 reduces the number of model
+     * allocations that can be deployed on a node.
+     */
+    public static final Setting<Integer> ALLOCATED_PROCESSORS_SCALE = Setting.intSetting(
+        "xpack.ml.allocated_processors_scale",
+        1,
+        1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final String ML_CONFIG_VERSION_NODE_ATTR = MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR;
+
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS = Setting.intSetting(
         "xpack.ml.node_concurrent_job_allocations",
         2,
@@ -595,6 +624,7 @@ public class MachineLearning extends Plugin
     // Settings higher than available memory are only recommended for OEM type situations where a wrapper tightly
     // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
     // can handle.
+    // See also {@link MachineLearningField#USE_AUTO_MACHINE_MEMORY_PERCENT}
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT = Setting.intSetting(
         "xpack.ml.max_machine_memory_percent",
         30,
@@ -603,19 +633,7 @@ public class MachineLearning extends Plugin
         Property.OperatorDynamic,
         Property.NodeScope
     );
-    /**
-     * This boolean value indicates if `max_machine_memory_percent` should be ignored and a automatic calculation is used instead.
-     *
-     * This calculation takes into account total node size and the size of the JVM on that node.
-     *
-     * If the calculation fails, we fall back to `max_machine_memory_percent`.
-     */
-    public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
-        "xpack.ml.use_auto_machine_memory_percent",
-        false,
-        Property.OperatorDynamic,
-        Property.NodeScope
-    );
+
     public static final Setting<Integer> MAX_LAZY_ML_NODES = Setting.intSetting(
         "xpack.ml.max_lazy_ml_nodes",
         0,
@@ -753,6 +771,7 @@ public class MachineLearning extends Plugin
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
+            ALLOCATED_PROCESSORS_SCALE,
             MachineLearningField.AUTODETECT_PROCESS,
             PROCESS_CONNECT_TIMEOUT,
             CONCURRENT_JOB_ALLOCATIONS,
@@ -768,7 +787,7 @@ public class MachineLearning extends Plugin
             ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
-            USE_AUTO_MACHINE_MEMORY_PERCENT,
+            MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ
         );
@@ -781,9 +800,10 @@ public class MachineLearning extends Plugin
         String jvmSizeAttrName = "node.attr." + MAX_JVM_SIZE_NODE_ATTR;
         String deprecatedAllocatedProcessorsAttrName = "node.attr." + PRE_V_8_5_ALLOCATED_PROCESSORS_NODE_ATTR;
         String allocatedProcessorsAttrName = "node.attr." + ALLOCATED_PROCESSORS_NODE_ATTR;
+        String mlConfigVersionAttrName = "node.attr." + ML_CONFIG_VERSION_NODE_ATTR;
 
         if (enabled == false) {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName);
+            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, mlConfigVersionAttrName);
             return Settings.EMPTY;
         }
 
@@ -812,6 +832,7 @@ public class MachineLearning extends Plugin
                 allocatedProcessorsAttrName
             );
         }
+        addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
         return additionalSettings.build();
     }
 
@@ -836,7 +857,7 @@ public class MachineLearning extends Plugin
         }
     }
 
-    private void reportClashingNodeAttribute(String attrName) {
+    private static void reportClashingNodeAttribute(String attrName) {
         throw new IllegalArgumentException(
             "Directly setting ["
                 + attrName
@@ -845,6 +866,21 @@ public class MachineLearning extends Plugin
                 + attrName.replace("node.attr.", "xpack.")
                 + "] setting instead."
         );
+    }
+
+    @Override
+    public List<RescorerSpec<?>> getRescorers() {
+        if (enabled && InferenceRescorerFeature.isEnabled()) {
+            // Inference rescorer requires access to the model loading service
+            return List.of(
+                new RescorerSpec<>(
+                    InferenceRescorerBuilder.NAME,
+                    in -> new InferenceRescorerBuilder(in, modelLoadingService::get),
+                    parser -> InferenceRescorerBuilder.fromXContent(parser, modelLoadingService::get)
+                )
+            );
+        }
+        return List.of();
     }
 
     @Override
@@ -860,12 +896,14 @@ public class MachineLearning extends Plugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
+        TelemetryProvider telemetryProvider,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         if (enabled == false) {
-            // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
-            return List.of(new JobManagerHolder());
+            // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
+            // both empty if ML is disabled
+            return List.of(new JobManagerHolder(), new MachineLearningExtensionHolder());
         }
 
         machineLearningExtension.get().configure(environment.settings());
@@ -1111,7 +1149,8 @@ public class MachineLearning extends Plugin
             dataFrameAnalyticsAuditor,
             indexNameExpressionResolver,
             resultsPersisterService,
-            modelLoadingService
+            modelLoadingService,
+            machineLearningExtension.get().getAnalyticsDestIndexAllowedSettings()
         );
         this.dataFrameAnalyticsManager.set(dataFrameAnalyticsManager);
 
@@ -1177,7 +1216,8 @@ public class MachineLearning extends Plugin
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
                 systemAuditor,
-                nodeAvailabilityZoneMapper
+                nodeAvailabilityZoneMapper,
+                client
             )
         );
 
@@ -1226,7 +1266,8 @@ public class MachineLearning extends Plugin
             trainedModelAssignmentService,
             trainedModelAllocationClusterServiceSetOnce.get(),
             deploymentManager.get(),
-            nodeAvailabilityZoneMapper
+            nodeAvailabilityZoneMapper,
+            new MachineLearningExtensionHolder(machineLearningExtension.get())
         );
     }
 
@@ -1396,6 +1437,7 @@ public class MachineLearning extends Plugin
         actionHandlers.add(new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class));
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler<>(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
+        actionHandlers.add(new ActionHandler<>(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
         if (machineLearningExtension.get().isAnomalyDetectionEnabled()) {
             actionHandlers.add(new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class));
             actionHandlers.add(new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class));
@@ -1604,10 +1646,12 @@ public class MachineLearning extends Plugin
 
     @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
-        return MapBuilder.<String, AnalysisProvider<CharFilterFactory>>newMapBuilder()
-            .put(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new)
-            .put(FirstLineWithLettersCharFilter.NAME, FirstLineWithLettersCharFilterFactory::new)
-            .map();
+        return Map.of(
+            FirstNonBlankLineCharFilter.NAME,
+            FirstNonBlankLineCharFilterFactory::new,
+            FirstLineWithLettersCharFilter.NAME,
+            FirstLineWithLettersCharFilterFactory::new
+        );
     }
 
     @Override
@@ -1698,7 +1742,12 @@ public class MachineLearning extends Plugin
         // installs it if necessary
         List<String> templateNames = List.of(STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
-            allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
+            allPresent = allPresent
+                && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(
+                    templateName,
+                    clusterState,
+                    MlIndexTemplateRegistry.ML_INDEX_TEMPLATE_VERSION
+                );
         }
 
         return allPresent;
@@ -1735,6 +1784,10 @@ public class MachineLearning extends Plugin
             )
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
+        // LTR Combine with Inference named content provider when feature flag is removed
+        if (InferenceRescorerFeature.isEnabled()) {
+            namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
+        }
         return namedXContent;
     }
 
@@ -1819,7 +1872,10 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
-
+        // LTR Combine with Inference named content provider when feature flag is removed
+        if (InferenceRescorerFeature.isEnabled()) {
+            namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
+        }
         return namedWriteables;
     }
 

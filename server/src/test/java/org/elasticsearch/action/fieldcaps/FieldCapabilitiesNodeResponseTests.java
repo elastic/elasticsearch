@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -99,8 +100,8 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_8_2_0,
-            TransportVersion.CURRENT
+            TransportVersions.V_8_2_0,
+            TransportVersion.current()
         );
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));
@@ -129,8 +130,8 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
     }
 
     public void testSerializeNodeResponseBetweenOldNodes() throws IOException {
-        final TransportVersion minCompactVersion = TransportVersion.MINIMUM_COMPATIBLE;
-        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersion.V_8_2_0));
+        final TransportVersion minCompactVersion = TransportVersions.MINIMUM_COMPATIBLE;
+        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(TransportVersions.V_8_2_0));
         List<FieldCapabilitiesIndexResponse> indexResponses = CollectionUtils.concatLists(
             randomIndexResponsesWithMappingHash(randomMappingHashToIndices()),
             randomIndexResponsesWithoutMappingHash()
@@ -140,7 +141,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             minCompactVersion,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_2_0)
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_2_0)
         );
         final FieldCapabilitiesNodeResponse outResponse = copyInstance(inResponse, version);
         assertThat(outResponse.getFailures().keySet(), equalTo(inResponse.getFailures().keySet()));
@@ -154,14 +155,14 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             assertThat(outList.get(i).canMatch(), equalTo(inList.get(i).canMatch()));
             Map<String, IndexFieldCapabilities> outCap = outList.get(i).get();
             Map<String, IndexFieldCapabilities> inCap = inList.get(i).get();
-            if (version.onOrAfter(TransportVersion.V_8_0_0)) {
+            if (version.onOrAfter(TransportVersions.V_8_0_0)) {
                 assertThat(outCap, equalTo(inCap));
             } else {
                 // Exclude metric types which was introduced in 8.0
                 assertThat(outCap.keySet(), equalTo(inCap.keySet()));
                 for (String field : outCap.keySet()) {
-                    assertThat(outCap.get(field).getName(), equalTo(inCap.get(field).getName()));
-                    assertThat(outCap.get(field).getType(), equalTo(inCap.get(field).getType()));
+                    assertThat(outCap.get(field).name(), equalTo(inCap.get(field).name()));
+                    assertThat(outCap.get(field).type(), equalTo(inCap.get(field).type()));
                     assertThat(outCap.get(field).isSearchable(), equalTo(inCap.get(field).isSearchable()));
                     assertThat(outCap.get(field).isAggregatable(), equalTo(inCap.get(field).isAggregatable()));
                     assertThat(outCap.get(field).meta(), equalTo(inCap.get(field).meta()));
@@ -177,7 +178,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             + "RleF8wMgAACGluZGV4XzAzAgdfc2VxX25vB19zZXFfbm8EbG9uZwEBAQAAAAx5ZWxsb3dfZmllbGQMeWVsbG93X2ZpZWxkB2tleXdvcmQAAQEAAAABAAEI"
             + "aW5kZXhfMTAGdXVpZF9hAQ==";
         StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
-        in.setTransportVersion(TransportVersion.V_8_1_0);
+        in.setTransportVersion(TransportVersions.V_8_1_0);
         FieldCapabilitiesNodeResponse nodeResp = new FieldCapabilitiesNodeResponse(in);
         assertThat(nodeResp.getUnmatchedShardIds(), equalTo(Set.of(new ShardId("index_10", "uuid_a", 1))));
         assertThat(nodeResp.getFailures(), anEmptyMap());

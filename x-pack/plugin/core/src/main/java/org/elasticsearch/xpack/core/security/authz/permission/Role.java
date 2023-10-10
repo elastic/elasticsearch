@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowsRestriction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
@@ -46,6 +48,8 @@ public interface Role {
 
     Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY)).build();
 
+    Role EMPTY_RESTRICTED_BY_WORKFLOW = builder(new RestrictedIndices(Automatons.EMPTY)).workflows(Set.of()).build();
+
     String[] names();
 
     ClusterPermission cluster();
@@ -57,6 +61,19 @@ public interface Role {
     RunAsPermission runAs();
 
     RemoteIndicesPermission remoteIndices();
+
+    boolean hasWorkflowsRestriction();
+
+    /**
+     * This method returns an effective role for the given workflow if role has workflows restriction
+     * (i.e. {@link #hasWorkflowsRestriction} is true). Otherwise, this method returns an unchanged role.
+     *
+     * The returned effective role can be an {@link #EMPTY_RESTRICTED_BY_WORKFLOW} when the given workflow is
+     * not one of the workflows to which this role is restricted.
+     *
+     * The workflows to which a role can be restricted are static and defined in {@link WorkflowResolver}.
+     */
+    Role forWorkflow(@Nullable String workflow);
 
     /**
      * Whether the Role has any field or document level security enabled index privileges
@@ -176,7 +193,7 @@ public interface Role {
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.
      */
-    default LimitedRole limitedBy(Role role) {
+    default Role limitedBy(Role role) {
         return new LimitedRole(this, role);
     }
 
@@ -200,6 +217,7 @@ public interface Role {
         private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroups = new HashMap<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
+        private WorkflowsRestriction workflowsRestriction = WorkflowsRestriction.NONE;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
             this.restrictedIndices = restrictedIndices;
@@ -259,6 +277,15 @@ public interface Role {
             return this;
         }
 
+        public Builder workflows(Set<String> workflowNames) {
+            if (workflowNames == null) {
+                this.workflowsRestriction = WorkflowsRestriction.NONE;
+            } else {
+                this.workflowsRestriction = new WorkflowsRestriction(workflowNames);
+            }
+            return this;
+        }
+
         public SimpleRole build() {
             final IndicesPermission indices;
             if (groups.isEmpty()) {
@@ -301,7 +328,7 @@ public interface Role {
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices, workflowsRestriction);
         }
 
         private static class IndicesPermissionGroupDefinition {
@@ -390,6 +417,10 @@ public interface Role {
         final String[] rdRunAs = roleDescriptor.getRunAs();
         if (rdRunAs != null && rdRunAs.length > 0) {
             builder.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));
+        }
+
+        if (roleDescriptor.hasWorkflowsRestriction()) {
+            builder.workflows(Sets.newHashSet(roleDescriptor.getRestriction().getWorkflows()));
         }
 
         return builder.build();

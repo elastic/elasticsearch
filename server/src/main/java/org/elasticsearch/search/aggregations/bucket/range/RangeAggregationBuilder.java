@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -211,6 +212,6 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

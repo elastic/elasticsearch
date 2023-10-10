@@ -14,16 +14,15 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -83,7 +82,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             params.getThreadsPerAllocation(),
             params.getQueueCapacity(),
             params.getCacheSize().orElse(null),
-            params.getPriority()
+            params.getPriority(),
+            params.getPerDeploymentMemoryBytes(),
+            params.getPerAllocationMemoryBytes()
         );
     }
 
@@ -103,8 +104,13 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params;
     }
 
-    public void stop(String reason, ActionListener<AcknowledgedResponse> listener) {
-        trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
+    public void stop(String reason, boolean finishPendingWork, ActionListener<AcknowledgedResponse> listener) {
+
+        if (finishPendingWork) {
+            trainedModelAssignmentNodeService.gracefullyStopDeploymentAndNotify(this, reason, listener);
+        } else {
+            trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
+        }
     }
 
     public void markAsStopped(String reason) {
@@ -129,6 +135,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         logger.info("[{}] task cancelled due to reason [{}]", getDeploymentId(), reason);
         stop(
             reason,
+            true,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
                 e -> logger.error(() -> "[" + getDeploymentId() + "] error stopping the deployment after task cancellation", e)
@@ -141,7 +148,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         InferenceConfigUpdate update,
         boolean skipQueue,
         TimeValue timeout,
-        Task parentActionTask,
+        CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         if (inferenceConfigHolder.get() == null) {

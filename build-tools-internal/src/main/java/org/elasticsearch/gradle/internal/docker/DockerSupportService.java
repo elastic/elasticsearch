@@ -8,6 +8,7 @@
 package org.elasticsearch.gradle.internal.docker;
 
 import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.GradleException;
@@ -34,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
@@ -210,6 +212,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             return false;
         }
 
+        // Even if for some reason Docker exists on Windows agents, flag it as unsupported
+        if (OS.current() == OS.WINDOWS) {
+            return true;
+        }
+
         // Only some hosts in CI are configured with Docker. We attempt to work out the OS
         // and version, so that we know whether to expect to find Docker. We don't attempt
         // to probe for whether Docker is available, because that doesn't tell us whether
@@ -287,7 +294,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerPath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return Stream.of(DOCKER_BINARIES).filter(path -> new File(path).exists()).findFirst();
     }
 
     /**
@@ -298,7 +305,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerComposePath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return Stream.of(DOCKER_COMPOSE_BINARIES).filter(path -> new File(path).exists()).findFirst();
     }
 
     private void throwDockerRequiredException(final String message) {

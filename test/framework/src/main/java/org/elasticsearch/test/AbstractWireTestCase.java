@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -54,9 +55,19 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     public final void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copyInstance, this::mutateInstance);
+            T testInstance = createTestInstance();
+            try {
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(testInstance, this::copyInstance, this::mutateInstance, this::dispose);
+            } finally {
+                dispose(testInstance);
+            }
         }
     }
+
+    /**
+     * Dispose of the copy, usually {@link Releasable#close} or a noop.
+     */
+    protected void dispose(T t) {}
 
     /**
      * Calls {@link Object#equals} on equal objects on many threads and verifies
@@ -67,19 +78,27 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     public final void testConcurrentEquals() throws IOException, InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
-        T copy = copyInstance(testInstance);
+        try {
+            T copy = copyInstance(testInstance);
+            try {
 
-        /*
-         * 500 rounds seems to consistently reproduce the issue on Nik's
-         * laptop. Larger numbers are going to be slower but more likely
-         * to reproduce the issue.
-         */
-        int rounds = scaledRandomIntBetween(300, 5000);
-        concurrentTest(() -> {
-            for (int r = 0; r < rounds; r++) {
-                assertEquals(testInstance, copy);
+                /*
+                 * 500 rounds seems to consistently reproduce the issue on Nik's
+                 * laptop. Larger numbers are going to be slower but more likely
+                 * to reproduce the issue.
+                 */
+                int rounds = scaledRandomIntBetween(300, 5000);
+                concurrentTest(() -> {
+                    for (int r = 0; r < rounds; r++) {
+                        assertEquals(testInstance, copy);
+                    }
+                });
+            } finally {
+                dispose(copy);
             }
-        });
+        } finally {
+            dispose(testInstance);
+        }
     }
 
     /**
@@ -111,25 +130,34 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     public final void testConcurrentHashCode() throws InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
-        int firstHashCode = testInstance.hashCode();
+        try {
+            int firstHashCode = testInstance.hashCode();
 
-        /*
-         * 500 rounds seems to consistently reproduce the issue on Nik's
-         * laptop. Larger numbers are going to be slower but more likely
-         * to reproduce the issue.
-         */
-        int rounds = scaledRandomIntBetween(300, 5000);
-        concurrentTest(() -> {
-            for (int r = 0; r < rounds; r++) {
-                assertEquals(firstHashCode, testInstance.hashCode());
-            }
-        });
+            /*
+             * 500 rounds seems to consistently reproduce the issue on Nik's
+             * laptop. Larger numbers are going to be slower but more likely
+             * to reproduce the issue.
+             */
+            int rounds = scaledRandomIntBetween(300, 5000);
+            concurrentTest(() -> {
+                for (int r = 0; r < rounds; r++) {
+                    assertEquals(firstHashCode, testInstance.hashCode());
+                }
+            });
+        } finally {
+            dispose(testInstance);
+        }
     }
 
     public void testToString() throws Exception {
-        final String toString = createTestInstance().toString();
-        assertNotNull(toString);
-        assertThat(toString, not(emptyString()));
+        T testInstance = createTestInstance();
+        try {
+            final String toString = testInstance.toString();
+            assertNotNull(toString);
+            assertThat(toString, not(emptyString()));
+        } finally {
+            dispose(testInstance);
+        }
     }
 
     /**
@@ -138,7 +166,11 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     public final void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
-            assertSerialization(testInstance);
+            try {
+                assertSerialization(testInstance);
+            } finally {
+                dispose(testInstance);
+            }
         }
     }
 
@@ -155,29 +187,32 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     public final void testConcurrentSerialization() throws InterruptedException, ExecutionException {
         T testInstance = createTestInstance();
-
-        /*
-         * 500 rounds seems to consistently reproduce the issue on Nik's
-         * laptop. Larger numbers are going to be slower but more likely
-         * to reproduce the issue.
-         */
-        int rounds = scaledRandomIntBetween(300, 2000);
-        concurrentTest(() -> {
-            try {
-                for (int r = 0; r < rounds; r++) {
-                    assertSerialization(testInstance);
+        try {
+            /*
+             * 500 rounds seems to consistently reproduce the issue on Nik's
+             * laptop. Larger numbers are going to be slower but more likely
+             * to reproduce the issue.
+             */
+            int rounds = scaledRandomIntBetween(300, 2000);
+            concurrentTest(() -> {
+                try {
+                    for (int r = 0; r < rounds; r++) {
+                        assertSerialization(testInstance);
+                    }
+                } catch (IOException e) {
+                    throw new AssertionError("error serializing", e);
                 }
-            } catch (IOException e) {
-                throw new AssertionError("error serializing", e);
-            }
-        });
+            });
+        } finally {
+            dispose(testInstance);
+        }
     }
 
     /**
      * Serialize the given instance and asserts that both are equal.
      */
     protected final void assertSerialization(T testInstance) throws IOException {
-        assertSerialization(testInstance, TransportVersion.CURRENT);
+        assertSerialization(testInstance, TransportVersion.current());
     }
 
     /**
@@ -187,7 +222,11 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     protected final void assertSerialization(T testInstance, TransportVersion version) throws IOException {
         T deserializedInstance = copyInstance(testInstance, version);
-        assertEqualInstances(testInstance, deserializedInstance);
+        try {
+            assertEqualInstances(testInstance, deserializedInstance);
+        } finally {
+            dispose(deserializedInstance);
+        }
     }
 
     /**
@@ -201,7 +240,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     protected final T copyInstance(T instance) throws IOException {
-        return copyInstance(instance, TransportVersion.CURRENT);
+        return copyInstance(instance, TransportVersion.current());
     }
 
     /**

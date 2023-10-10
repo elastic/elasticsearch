@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -19,8 +18,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,9 +61,9 @@ import static org.mockito.Mockito.when;
 public class DataTiersUsageTransportActionTests extends ESTestCase {
 
     public void testCalculateMAD() {
-        assertThat(DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(new TDigestState(10)), equalTo(0L));
+        assertThat(DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(TDigestState.create(10)), equalTo(0L));
 
-        TDigestState sketch = new TDigestState(randomDoubleBetween(1, 1000, false));
+        TDigestState sketch = TDigestState.create(randomDoubleBetween(1, 1000, false));
         sketch.add(1);
         sketch.add(1);
         sketch.add(2);
@@ -701,11 +701,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, DiscoveryNodeRole... roles) {
-        return TestDiscoveryNode.create("node_" + nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(), Set.of(roles));
+        return DiscoveryNodeUtils.builder("node_" + nodeId).roles(Set.of(roles)).build();
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {
-        Settings.Builder settingsBuilder = indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
+        Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas).put(
             SETTING_CREATION_DATE,
             System.currentTimeMillis()
         );
@@ -774,7 +774,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         Path fakePath = PathUtils.get("test/dir/" + routing.shardId().getIndex().getUUID() + "/" + routing.shardId().id());
         ShardPath fakeShardPath = new ShardPath(false, fakePath, fakePath, routing.shardId());
 
-        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null);
+        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null, false, 0);
     }
 
     private static NodeStats mockNodeStats(DiscoveryNode node, NodeIndicesStats indexStats) {

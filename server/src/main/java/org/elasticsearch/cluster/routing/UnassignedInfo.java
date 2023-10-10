@@ -10,8 +10,10 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -33,10 +35,11 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
@@ -47,14 +50,17 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
      * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
      */
-    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersion.V_7_15_0;
-    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersion.V_8_7_0;
+    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersions.V_7_15_0;
+    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersions.V_8_7_0;
 
     public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
-    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.timeSetting(
         "index.unassigned.node_left.delayed_timeout",
-        TimeValue.timeValueMinutes(1),
+        settings -> EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless")
+            ? TimeValue.timeValueSeconds(10)
+            : TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMillis(0),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -301,7 +307,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        this.failedNodeIds = in.readCollectionAsImmutableSet(StreamInput::readString);
         if (in.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             this.lastAllocatedNodeId = in.readOptionalString();
         } else {
@@ -324,7 +330,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        out.writeCollection(failedNodeIds, StreamOutput::writeString);
+        out.writeStringCollection(failedNodeIds);
         if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
             out.writeOptionalString(lastAllocatedNodeId);
         }
@@ -430,22 +436,17 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      *
      * @return calculated delay in nanoseconds
      */
-    public long getRemainingDelay(
-        final long nanoTimeNow,
-        final Settings indexSettings,
-        final Map<String, SingleNodeShutdownMetadata> nodesShutdownMap
-    ) {
+    public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings, final NodesShutdownMetadata nodesShutdownMetadata) {
         final long indexLevelDelay = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos();
         long delayTimeoutNanos = Optional.ofNullable(lastAllocatedNodeId)
             // If the node wasn't restarting when this became unassigned, use default delay
             .filter(nodeId -> reason.equals(Reason.NODE_RESTARTING))
-            .map(nodesShutdownMap::get)
-            .filter(shutdownMetadata -> SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownMetadata.getType()))
+            .map(nodeId -> nodesShutdownMetadata.get(nodeId, SingleNodeShutdownMetadata.Type.RESTART))
             .map(SingleNodeShutdownMetadata::getAllocationDelay)
             .map(TimeValue::nanos)
             .map(knownRestartDelay -> Math.max(indexLevelDelay, knownRestartDelay))
             .orElse(indexLevelDelay);
-        assert nanoTimeNow >= unassignedTimeNanos;
+        assert nanoTimeNow - unassignedTimeNanos >= 0;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }
 

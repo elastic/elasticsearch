@@ -2,7 +2,7 @@
 [[delete-search-application]]
 === Delete Search Application
 
-preview::[]
+beta::[]
 
 ++++
 <titleabbrev>Delete Search Application</titleabbrev>
@@ -42,8 +42,31 @@ No Search Application matching `name` could be found.
 
 The following example deletes the Search Application named `my-app`:
 
+////
+[source,console]
+----
+PUT /index1
+
+PUT _application/search_application/my-app
+{
+  "indices": [ "index1" ],
+  "template": {
+    "script": {
+      "source": {
+        "query": {
+          "query_string": {
+            "query": "{{query_string}}"
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+////
+
 [source,console]
 ----
 DELETE _application/search_application/my-app/
 ----
-// TEST[skip:TBD]

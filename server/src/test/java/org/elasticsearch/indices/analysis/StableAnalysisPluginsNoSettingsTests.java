@@ -11,12 +11,13 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.indices.analysis.lucene.AppendTokenFilter;
@@ -35,7 +36,7 @@ import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -55,11 +56,11 @@ public class StableAnalysisPluginsNoSettingsTests extends ESTestCase {
         AnalysisRegistry registry = setupRegistry();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        return registry.build(idxSettings);
+        return registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
     }
 
     public void testStablePlugins() throws IOException {
-        Version version = VersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion(random());
         IndexAnalyzers analyzers = getIndexAnalyzers(
             Settings.builder()
                 .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")

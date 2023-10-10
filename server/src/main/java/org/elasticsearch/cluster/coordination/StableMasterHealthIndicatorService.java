@@ -23,7 +23,6 @@ import org.elasticsearch.health.node.HealthInfo;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * This indicator reports the health of master stability.
@@ -101,6 +100,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public boolean isPreflight() {
+        return true;
     }
 
     @Override
@@ -206,8 +210,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (node == null) {
             return null;
         } else {
-            String nodeName = node.getName();
-            return Objects.requireNonNullElse(nodeName, null);
+            return node.getName();
         }
     }
 
@@ -216,7 +219,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain If true, the returned list includes a UserAction to contact support, otherwise an empty list
      * @return a single UserAction instructing users to contact support.
      */
-    private List<Diagnosis> getContactSupportUserActions(boolean explain) {
+    private static List<Diagnosis> getContactSupportUserActions(boolean explain) {
         if (explain) {
             return List.of(CONTACT_SUPPORT);
         } else {

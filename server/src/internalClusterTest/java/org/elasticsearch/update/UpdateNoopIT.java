@@ -318,9 +318,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
     }
 
     private long totalNoopUpdates() {
-        return client().admin()
-            .indices()
-            .prepareStats("test")
+        return indicesAdmin().prepareStats("test")
             .setIndexing(true)
             .get()
             .getIndex("test")

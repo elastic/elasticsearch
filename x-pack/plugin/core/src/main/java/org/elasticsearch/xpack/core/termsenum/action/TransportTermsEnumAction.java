@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -78,6 +79,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -116,7 +118,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         Settings settings,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new);
+        super(TermsEnumAction.NAME, transportService, actionFilters, TermsEnumRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.clusterService = clusterService;
         this.searchService = searchService;
@@ -133,7 +135,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
         transportService.registerRequestHandler(
             transportShardAction,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             NodeTermsEnumRequest::new,
             new NodeTransportHandler()
         );
@@ -148,7 +150,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         new AsyncBroadcastAction(task, request, listener).start();
     }
 
-    protected NodeTermsEnumRequest newNodeRequest(
+    protected static NodeTermsEnumRequest newNodeRequest(
         final OriginalIndices originalIndices,
         final String nodeId,
         final Set<ShardId> shardIds,
@@ -163,7 +165,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return new NodeTermsEnumRequest(originalIndices, nodeId, shardIds, request, taskStartMillis);
     }
 
-    private NodeTermsEnumResponse readShardResponse(StreamInput in) throws IOException {
+    private static NodeTermsEnumResponse readShardResponse(StreamInput in) throws IOException {
         return new NodeTermsEnumResponse(in);
     }
 
@@ -205,7 +207,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return fastNodeBundles;
     }
 
-    private TermsEnumResponse mergeResponses(
+    private static TermsEnumResponse mergeResponses(
         TermsEnumRequest request,
         AtomicReferenceArray<?> atomicResponses,
         boolean complete,
@@ -272,7 +274,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return new TermsEnumResponse(ans, (failedShards + successfulShards), successfulShards, failedShards, shardFailures, complete);
     }
 
-    private List<String> mergeResponses(List<List<String>> termsList, int size) {
+    private static List<String> mergeResponses(List<List<String>> termsList, int size) {
         final PriorityQueue<TermIterator> pq = new PriorityQueue<>(termsList.size()) {
             @Override
             protected boolean lessThan(TermIterator a, TermIterator b) {
@@ -581,6 +583,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                                 }
 
                                 @Override
+                                public Executor executor(ThreadPool threadPool) {
+                                    return TransportResponseHandler.TRANSPORT_WORKER;
+                                }
+
+                                @Override
                                 public void handleResponse(NodeTermsEnumResponse response) {
                                     onNodeResponse(nodeId, opsIndex, response);
                                 }
@@ -602,7 +609,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             try {
                 TermsEnumRequest req = new TermsEnumRequest(request).indices(remoteIndices.indices());
 
-                Client remoteClient = remoteClusterService.getRemoteClusterClient(transportService.getThreadPool(), clusterAlias);
+                Client remoteClient = remoteClusterService.getRemoteClusterClient(
+                    transportService.getThreadPool(),
+                    clusterAlias,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
                 remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<>() {
                     @Override
                     public void onResponse(TermsEnumResponse termsEnumResponse) {

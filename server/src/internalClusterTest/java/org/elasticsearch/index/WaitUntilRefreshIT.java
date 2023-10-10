@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Requests;
@@ -57,7 +56,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
     }
 
     public void testIndex() {
-        IndexResponse index = client().prepareIndex("test")
+        DocWriteResponse index = client().prepareIndex("test")
             .setId("1")
             .setSource("foo", "bar")
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -144,13 +143,13 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
      */
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
         updateIndexSettings(Settings.builder().put("index.refresh_interval", -1), "test");
-        ActionFuture<IndexResponse> index = client().prepareIndex("test")
+        ActionFuture<DocWriteResponse> index = client().prepareIndex("test")
             .setId("1")
             .setSource("foo", "bar")
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
             .execute();
         while (false == index.isDone()) {
-            client().admin().indices().prepareRefresh("test").get();
+            indicesAdmin().prepareRefresh("test").get();
         }
         assertEquals(RestStatus.CREATED, index.get().status());
         assertFalse("request shouldn't have forced a refresh", index.get().forcedRefresh());

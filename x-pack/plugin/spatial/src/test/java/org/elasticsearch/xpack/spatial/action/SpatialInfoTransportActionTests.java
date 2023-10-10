@@ -14,11 +14,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -44,7 +46,7 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
     public void init() {
         clusterService = mock(ClusterService.class);
 
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("nodeId");
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("nodeId");
         when(clusterService.localNode()).thenReturn(discoveryNode);
         ClusterName clusterName = new ClusterName("cluster_name");
         when(clusterService.getClusterName()).thenReturn(clusterName);
@@ -55,13 +57,15 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
 
         var usageAction = new SpatialUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
             null,
             mockClient()
@@ -79,14 +83,16 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
     }
 
     public void testEnabled() throws Exception {
-        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
 
         SpatialUsageTransportAction usageAction = new SpatialUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
             null,
             mockClient()

@@ -51,6 +51,8 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       nonInputProperties.systemProperty('tests.rest.cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
       nonInputProperties.systemProperty('tests.rest.remote_cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
     }
+
+    onlyIf("FIPS mode disabled") { BuildParams.inFipsJvm == false }
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {

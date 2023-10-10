@@ -22,16 +22,14 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -53,10 +51,12 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
@@ -69,7 +69,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -77,6 +80,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
@@ -149,7 +153,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -313,13 +316,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(
         "max_snapshot_bytes_per_sec",
-        (settings) -> {
-            if (RecoverySettings.hasNodeBandwidthRecoverySettings(settings)) {
-                return "0";
-            } else {
-                return "40mb";
-            }
-        },
+        ByteSizeValue.ofMb(40), // default is overridden to 0 (unlimited) if node bandwidth recovery settings are set
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -394,11 +391,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ShardSnapshotTaskRunner shardSnapshotTaskRunner;
 
+    private final ThrottledTaskRunner staleBlobDeleteRunner;
+
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
      */
+    @SuppressWarnings("this-escape")
     protected BlobStoreRepository(
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
@@ -432,6 +432,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             threadPool.executor(ThreadPool.Names.SNAPSHOT),
             this::doSnapshotShard,
             this::snapshotFile
+        );
+        staleBlobDeleteRunner = new ThrottledTaskRunner(
+            "cleanupStaleBlobs",
+            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            threadPool.executor(ThreadPool.Names.SNAPSHOT)
         );
     }
 
@@ -516,7 +521,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final ShardGeneration existingShardGen;
             if (shardGeneration == null) {
                 Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
-                    shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet(),
+                    shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT, INDEX_FILE_PREFIX).keySet(),
                     shardContainer
                 );
                 existingShardGen = new ShardGeneration(tuple.v2());
@@ -630,20 +635,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         if (bestEffortConsistency) {
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.forRepo(this.metadata.name()));
+            long bestGenerationFromCS = bestGeneration(SnapshotsInProgress.get(state).forRepo(this.metadata.name()));
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
             // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
             // exist
             if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
-                bestGenerationFromCS = bestGeneration(
-                    state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()
-                );
+                bestGenerationFromCS = bestGeneration(SnapshotDeletionsInProgress.get(state).getEntries());
             }
             if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
-                bestGenerationFromCS = bestGeneration(
-                    state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).entries()
-                );
+                bestGenerationFromCS = bestGeneration(RepositoryCleanupInProgress.get(state).entries());
             }
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
             latestKnownRepoGen.accumulateAndGet(finalBestGen, Math::max);
@@ -786,7 +786,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
-        Version repositoryMetaVersion,
+        IndexVersion repositoryMetaVersion,
         SnapshotDeleteListener listener
     ) {
         if (isReadOnly()) {
@@ -795,11 +795,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
-                    final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
+                    final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
                     final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
                     // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                     // delete an index that was created by another master node after writing this index-N blob.
-                    final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
+                    final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath())
+                        .children(OperationPurpose.SNAPSHOT);
                     doDeleteShardSnapshots(
                         snapshotIds,
                         repositoryStateId,
@@ -885,12 +886,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobContainer> foundIndices,
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData repositoryData,
-        Version repoMetaVersion,
+        IndexVersion repoMetaVersion,
         SnapshotDeleteListener listener
     ) {
         if (SnapshotsService.useShardGenerations(repoMetaVersion)) {
             // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
-            final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep = new StepListener<>();
+            final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =
+                new ListenableFuture<>();
             writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, true, writeShardMetaDataAndComputeDeletesStep);
             // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
             // 1. Remove the snapshots from the list of existing snapshots
@@ -899,8 +901,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Note: If we fail updating any of the individual shard paths, none of them are changed since the newly created
             // index-${gen_uuid} will not be referenced by the existing RepositoryData and new RepositoryData is only
             // written if all shard paths have been successfully updated.
-            final StepListener<RepositoryData> writeUpdatedRepoDataStep = new StepListener<>();
-            writeShardMetaDataAndComputeDeletesStep.whenComplete(deleteResults -> {
+            final ListenableFuture<RepositoryData> writeUpdatedRepoDataStep = new ListenableFuture<>();
+            writeShardMetaDataAndComputeDeletesStep.addListener(ActionListener.wrap(deleteResults -> {
                 final ShardGenerations.Builder builder = ShardGenerations.builder();
                 for (ShardSnapshotMetaDeleteResult newGen : deleteResults) {
                     builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
@@ -913,9 +915,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     Function.identity(),
                     ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
                 );
-            }, listener::onFailure);
+            }, listener::onFailure));
             // Once we have updated the repository, run the clean-ups
-            writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
+            writeUpdatedRepoDataStep.addListener(ActionListener.wrap(updatedRepoData -> {
                 listener.onRepositoryDataWritten(updatedRepoData);
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                 try (var refs = new RefCountingRunnable(listener::onDone)) {
@@ -927,7 +929,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         refs.acquireListener()
                     );
                 }
-            }, listener::onFailure);
+            }, listener::onFailure));
         } else {
             // Write the new repository data first (with the removed snapshot), using no shard generations
             final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
@@ -938,15 +940,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 })) {
                     // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                     cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, refs.acquireListener());
-                    writeUpdatedShardMetaDataAndComputeDeletes(
-                        snapshotIds,
-                        repositoryData,
-                        false,
-                        refs.acquireListener()
-                            .delegateFailure(
-                                (l, deleteResults) -> asyncCleanupUnlinkedShardLevelBlobs(repositoryData, snapshotIds, deleteResults, l)
+
+                    // writeIndexGen finishes on master-service thread so must fork here.
+                    threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                        .execute(
+                            ActionRunnable.wrap(
+                                refs.acquireListener(),
+                                l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
+                                    snapshotIds,
+                                    repositoryData,
+                                    false,
+                                    l0.delegateFailure(
+                                        (l, deleteResults) -> asyncCleanupUnlinkedShardLevelBlobs(
+                                            repositoryData,
+                                            snapshotIds,
+                                            deleteResults,
+                                            l
+                                        )
+                                    )
+                                )
                             )
-                    );
+                        );
                 }
             }, listener::onFailure));
         }
@@ -1011,7 +1025,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Set<SnapshotId> survivingSnapshots = snapshotsWithIndex.stream()
                 .filter(id -> snapshotIds.contains(id) == false)
                 .collect(Collectors.toSet());
-            final StepListener<Collection<Integer>> shardCountListener = new StepListener<>();
+            final ListenableFuture<Collection<Integer>> shardCountListener = new ListenableFuture<>();
             final Collection<String> indexMetaGenerations = snapshotIds.stream()
                 .filter(snapshotsWithIndex::contains)
                 .map(id -> oldRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))
@@ -1039,24 +1053,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }));
             }
-            shardCountListener.whenComplete(counts -> {
+            shardCountListener.addListener(deleteIndexMetadataListener.delegateFailureAndWrap((delegate, counts) -> {
                 final int shardCount = counts.stream().mapToInt(i -> i).max().orElse(0);
                 if (shardCount == 0) {
-                    deleteIndexMetadataListener.onResponse(null);
+                    delegate.onResponse(null);
                     return;
                 }
                 // Listener for collecting the results of removing the snapshot from each shard's metadata in the current index
-                final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener = new GroupedActionListener<>(
-                    shardCount,
-                    deleteIndexMetadataListener
-                );
+                final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener = new GroupedActionListener<>(shardCount, delegate);
                 for (int shardId = 0; shardId < shardCount; shardId++) {
                     final int finalShardId = shardId;
                     executor.execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
                             final BlobContainer shardContainer = shardContainer(indexId, finalShardId);
-                            final Set<String> blobs = shardContainer.listBlobs().keySet();
+                            final Set<String> blobs = shardContainer.listBlobs(OperationPurpose.SNAPSHOT).keySet();
                             final BlobStoreIndexShardSnapshots blobStoreIndexShardSnapshots;
                             final long newGen;
                             if (useUUIDs) {
@@ -1102,7 +1113,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     });
                 }
-            }, deleteIndexMetadataListener::onFailure);
+            }));
         }
     }
 
@@ -1147,31 +1158,65 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData newRepoData,
         ActionListener<DeleteResult> listener
     ) {
-        final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(2, ActionListener.wrap(deleteResults -> {
-            DeleteResult deleteResult = DeleteResult.ZERO;
-            for (DeleteResult result : deleteResults) {
-                deleteResult = deleteResult.add(result);
+        final var blobsDeleted = new AtomicLong();
+        final var bytesDeleted = new AtomicLong();
+        try (var listeners = new RefCountingListener(listener.map(ignored -> DeleteResult.of(blobsDeleted.get(), bytesDeleted.get())))) {
+
+            final List<String> staleRootBlobs = staleRootBlobs(newRepoData, rootBlobs.keySet());
+            if (staleRootBlobs.isEmpty() == false) {
+                staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
+                    try (ref) {
+                        logStaleRootLevelBlobs(newRepoData.getGenId() - 1, deletedSnapshots, staleRootBlobs);
+                        deleteFromContainer(blobContainer(), staleRootBlobs.iterator());
+                        for (final var staleRootBlob : staleRootBlobs) {
+                            bytesDeleted.addAndGet(rootBlobs.get(staleRootBlob).length());
+                        }
+                        blobsDeleted.addAndGet(staleRootBlobs.size());
+                    } catch (Exception e) {
+                        logger.warn(
+                            () -> format(
+                                "[%s] The following blobs are no longer part of any snapshot [%s] but failed to remove them",
+                                metadata.name(),
+                                staleRootBlobs
+                            ),
+                            e
+                        );
+                    }
+                }));
             }
-            listener.onResponse(deleteResult);
-        }, listener::onFailure));
 
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        final List<String> staleRootBlobs = staleRootBlobs(newRepoData, rootBlobs.keySet());
-        if (staleRootBlobs.isEmpty()) {
-            groupedListener.onResponse(DeleteResult.ZERO);
-        } else {
-            executor.execute(ActionRunnable.supply(groupedListener, () -> {
-                List<String> deletedBlobs = cleanupStaleRootFiles(newRepoData.getGenId() - 1, deletedSnapshots, staleRootBlobs);
-                return new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum());
-            }));
+            final var survivingIndexIds = newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
+            for (final var indexEntry : foundIndices.entrySet()) {
+                final var indexSnId = indexEntry.getKey();
+                if (survivingIndexIds.contains(indexSnId)) {
+                    continue;
+                }
+                staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
+                    try (ref) {
+                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
+                        final var deleteResult = indexEntry.getValue().delete(OperationPurpose.SNAPSHOT);
+                        blobsDeleted.addAndGet(deleteResult.blobsDeleted());
+                        bytesDeleted.addAndGet(deleteResult.bytesDeleted());
+                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
+                    } catch (IOException e) {
+                        logger.warn(() -> format("""
+                            [%s] index %s is no longer part of any snapshot in the repository, \
+                            but failed to clean up its index folder""", metadata.name(), indexSnId), e);
+                    }
+                }));
+            }
         }
 
-        final Set<String> survivingIndexIds = newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
-        if (foundIndices.keySet().equals(survivingIndexIds)) {
-            groupedListener.onResponse(DeleteResult.ZERO);
-        } else {
-            executor.execute(ActionRunnable.supply(groupedListener, () -> cleanupStaleIndices(foundIndices, survivingIndexIds)));
-        }
+        // If we did the cleanup of stale indices purely using a throttled executor then there would be no backpressure to prevent us from
+        // falling arbitrarily far behind. But nor do we want to dedicate all the SNAPSHOT threads to stale index cleanups because that
+        // would slow down other snapshot operations in situations that do not need backpressure.
+        //
+        // The solution is to dedicate one SNAPSHOT thread to doing the cleanups eagerly, alongside the throttled executor which spreads
+        // the rest of the work across the other threads if they are free. If the eager cleanup loop doesn't finish before the next one
+        // starts then we dedicate another SNAPSHOT thread to the deletions, and so on, until eventually either we catch up or the SNAPSHOT
+        // pool is fully occupied with blob deletions, which pushes back on other snapshot operations.
+
+        staleBlobDeleteRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
     }
 
     /**
@@ -1180,21 +1225,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * TODO: Add shard level cleanups
      * TODO: Add unreferenced index metadata cleanup
      * <ul>
-     *     <li>Deleting stale indices {@link #cleanupStaleIndices}</li>
-     *     <li>Deleting unreferenced root level blobs {@link #cleanupStaleRootFiles}</li>
+     *     <li>Deleting stale indices</li>
+     *     <li>Deleting unreferenced root level blobs</li>
      * </ul>
      * @param repositoryStateId     Current repository state id
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param listener              Listener to complete when done
      */
-    public void cleanup(long repositoryStateId, Version repositoryMetaVersion, ActionListener<RepositoryCleanupResult> listener) {
+    public void cleanup(long repositoryStateId, IndexVersion repositoryMetaVersion, ActionListener<RepositoryCleanupResult> listener) {
         try {
             if (isReadOnly()) {
                 throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
             }
-            Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
+            Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
             final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
-            final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
+            final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children(OperationPurpose.SNAPSHOT);
             final Set<String> survivingIndexIds = repositoryData.getIndices()
                 .values()
                 .stream()
@@ -1211,15 +1256,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryStateId,
                     repositoryMetaVersion,
                     Function.identity(),
-                    ActionListener.wrap(
-                        v -> cleanupStaleBlobs(
+                    listener.delegateFailureAndWrap(
+                        (l, v) -> cleanupStaleBlobs(
                             Collections.emptyList(),
                             foundIndices,
                             rootBlobs,
                             repositoryData,
-                            listener.map(RepositoryCleanupResult::new)
-                        ),
-                        listener::onFailure
+                            l.map(RepositoryCleanupResult::new)
+                        )
                     )
                 );
             }
@@ -1260,70 +1304,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }).toList();
     }
 
-    private List<String> cleanupStaleRootFiles(
-        long previousGeneration,
-        Collection<SnapshotId> deletedSnapshots,
-        List<String> blobsToDelete
-    ) {
-        if (blobsToDelete.isEmpty()) {
-            return blobsToDelete;
-        }
-        try {
-            if (logger.isInfoEnabled()) {
-                // If we're running root level cleanup as part of a snapshot delete we should not log the snapshot- and global metadata
-                // blobs associated with the just deleted snapshots as they are expected to exist and not stale. Otherwise every snapshot
-                // delete would also log a confusing INFO message about "stale blobs".
-                final Set<String> blobNamesToIgnore = deletedSnapshots.stream()
-                    .flatMap(
-                        snapshotId -> Stream.of(
-                            GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
-                            SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
-                            INDEX_FILE_PREFIX + previousGeneration
-                        )
+    private void logStaleRootLevelBlobs(long previousGeneration, Collection<SnapshotId> deletedSnapshots, List<String> blobsToDelete) {
+        if (logger.isInfoEnabled()) {
+            // If we're running root level cleanup as part of a snapshot delete we should not log the snapshot- and global metadata
+            // blobs associated with the just deleted snapshots as they are expected to exist and not stale. Otherwise every snapshot
+            // delete would also log a confusing INFO message about "stale blobs".
+            final Set<String> blobNamesToIgnore = deletedSnapshots.stream()
+                .flatMap(
+                    snapshotId -> Stream.of(
+                        GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
+                        SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
+                        INDEX_FILE_PREFIX + previousGeneration
                     )
-                    .collect(Collectors.toSet());
-                final List<String> blobsToLog = blobsToDelete.stream().filter(b -> blobNamesToIgnore.contains(b) == false).toList();
-                if (blobsToLog.isEmpty() == false) {
-                    logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToLog);
-                }
-            }
-            deleteFromContainer(blobContainer(), blobsToDelete.iterator());
-            return blobsToDelete;
-        } catch (Exception e) {
-            logger.warn(
-                () -> format(
-                    "[%s] The following blobs are no longer part of any snapshot [%s] but failed to remove them",
-                    metadata.name(),
-                    blobsToDelete
-                ),
-                e
-            );
-        }
-        return Collections.emptyList();
-    }
-
-    private DeleteResult cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Set<String> survivingIndexIds) {
-        DeleteResult deleteResult = DeleteResult.ZERO;
-        for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
-            final String indexSnId = indexEntry.getKey();
-            try {
-                if (survivingIndexIds.contains(indexSnId) == false) {
-                    logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
-                    deleteResult = deleteResult.add(indexEntry.getValue().delete());
-                    logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
-                }
-            } catch (Exception e) {
-                logger.warn(
-                    () -> format(
-                        "[%s] index %s is no longer part of any snapshot in the repository, " + "but failed to clean up its index folder",
-                        metadata.name(),
-                        indexSnId
-                    ),
-                    e
-                );
+                )
+                .collect(Collectors.toSet());
+            final List<String> blobsToLog = blobsToDelete.stream().filter(b -> blobNamesToIgnore.contains(b) == false).toList();
+            if (blobsToLog.isEmpty() == false) {
+                logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToLog);
             }
         }
-        return deleteResult;
     }
 
     @Override
@@ -1339,151 +1338,201 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
         // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened
         // when writing the index-${N} to each shard directory.
-        final Version repositoryMetaVersion = finalizeSnapshotContext.repositoryMetaVersion();
+        final IndexVersion repositoryMetaVersion = finalizeSnapshotContext.repositoryMetaVersion();
         final boolean writeShardGens = SnapshotsService.useShardGenerations(repositoryMetaVersion);
-        final Consumer<Exception> onUpdateFailure = e -> finalizeSnapshotContext.onFailure(
-            new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e)
-        );
 
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         final boolean writeIndexGens = SnapshotsService.useIndexGenerations(repositoryMetaVersion);
 
-        final StepListener<RepositoryData> repoDataListener = new StepListener<>();
-        getRepositoryData(repoDataListener);
-        repoDataListener.whenComplete(existingRepositoryData -> {
-            final int existingSnapshotCount = existingRepositoryData.getSnapshotIds().size();
-            if (existingSnapshotCount >= maxSnapshotCount) {
-                finalizeSnapshotContext.onFailure(
-                    new RepositoryException(
+        record MetadataWriteResult(
+            RepositoryData existingRepositoryData,
+            Map<IndexId, String> indexMetas,
+            Map<String, String> indexMetaIdentifiers
+        ) {}
+
+        record RootBlobUpdateResult(RepositoryData oldRepositoryData, RepositoryData newRepositoryData) {}
+
+        SubscribableListener
+
+            // Get the current RepositoryData
+            .<RepositoryData>newForked(this::getRepositoryData)
+
+            // Identify and write the missing metadata
+            .<MetadataWriteResult>andThen((l, existingRepositoryData) -> {
+                final int existingSnapshotCount = existingRepositoryData.getSnapshotIds().size();
+                if (existingSnapshotCount >= maxSnapshotCount) {
+                    throw new RepositoryException(
                         metadata.name(),
-                        "Cannot add another snapshot to this repository as it "
-                            + "already contains ["
+                        "Cannot add another snapshot to this repository as it already contains ["
                             + existingSnapshotCount
                             + "] snapshots and is configured to hold up to ["
                             + maxSnapshotCount
                             + "] snapshots only."
-                    )
-                );
-                return;
-            }
+                    );
+                }
 
-            final Map<IndexId, String> indexMetas;
-            final Map<String, String> indexMetaIdentifiers;
-            if (writeIndexGens) {
-                indexMetaIdentifiers = ConcurrentCollections.newConcurrentMap();
-                indexMetas = ConcurrentCollections.newConcurrentMap();
-            } else {
-                indexMetas = null;
-                indexMetaIdentifiers = null;
-            }
+                final MetadataWriteResult metadataWriteResult;
+                if (writeIndexGens) {
+                    metadataWriteResult = new MetadataWriteResult(
+                        existingRepositoryData,
+                        ConcurrentCollections.newConcurrentMap(),
+                        ConcurrentCollections.newConcurrentMap()
+                    );
+                } else {
+                    metadataWriteResult = new MetadataWriteResult(existingRepositoryData, null, null);
+                }
 
-            try (var allMetaListeners = new RefCountingListener(ActionListener.wrap(v -> {
-                final String slmPolicy = slmPolicy(snapshotInfo);
-                final SnapshotDetails snapshotDetails = new SnapshotDetails(
-                    snapshotInfo.state(),
-                    Version.CURRENT,
-                    snapshotInfo.startTime(),
-                    snapshotInfo.endTime(),
-                    slmPolicy
-                );
+                try (var allMetaListeners = new RefCountingListener(l.map(ignored -> metadataWriteResult))) {
+                    // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method
+                    // will mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version
+                    // of the index or global metadata will be compatible with the segments written in this snapshot as well.
+                    // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a
+                    // way that decrements the generation it points at
+
+                    // Write global metadata
+                    final Metadata clusterMetadata = finalizeSnapshotContext.clusterMetadata();
+                    executor.execute(
+                        ActionRunnable.run(
+                            allMetaListeners.acquire(),
+                            () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress)
+                        )
+                    );
+
+                    // Write the index metadata for each index in the snapshot
+                    for (IndexId index : indices) {
+                        executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
+                            final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
+                            if (writeIndexGens) {
+                                final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                                String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
+                                if (metaUUID == null) {
+                                    // We don't yet have this version of the metadata so we write it
+                                    metaUUID = UUIDs.base64UUID();
+                                    INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
+                                    metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
+                                } // else this task was largely a no-op - TODO no need to fork in that case
+                                metadataWriteResult.indexMetas().put(index, identifiers);
+                            } else {
+                                INDEX_METADATA_FORMAT.write(
+                                    clusterMetadata.index(index.getName()),
+                                    indexContainer(index),
+                                    snapshotId.getUUID(),
+                                    compress
+                                );
+                            }
+                        }));
+                    }
+
+                    // Write the SnapshotInfo blob
+                    executor.execute(
+                        ActionRunnable.run(
+                            allMetaListeners.acquire(),
+                            () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress)
+                        )
+                    );
+
+                    // TODO fail fast if any metadata write fails
+                    // TODO clean up successful metadata writes on failure (needs care, we must not clobber another node concurrently
+                    // finalizing the same snapshot: we can only clean up after removing the failed snapshot from the cluster state)
+                }
+            })
+
+            // Update the root blob
+            .<RootBlobUpdateResult>andThen((l, metadataWriteResult) -> {
+                // unlikely, but in theory we could still be on the thread which called finalizeSnapshot - TODO must fork to SNAPSHOT here
+                final var snapshotDetails = SnapshotDetails.fromSnapshotInfo(snapshotInfo);
+                final var existingRepositoryData = metadataWriteResult.existingRepositoryData();
                 writeIndexGen(
-                    existingRepositoryData.addSnapshot(snapshotId, snapshotDetails, shardGenerations, indexMetas, indexMetaIdentifiers),
+                    existingRepositoryData.addSnapshot(
+                        snapshotId,
+                        snapshotDetails,
+                        shardGenerations,
+                        metadataWriteResult.indexMetas(),
+                        metadataWriteResult.indexMetaIdentifiers()
+                    ),
                     repositoryStateId,
                     repositoryMetaVersion,
                     finalizeSnapshotContext::updatedClusterState,
-                    ActionListener.wrap(newRepoData -> {
-                        finalizeSnapshotContext.onResponse(newRepoData);
-                        if (writeShardGens) {
-                            cleanupOldShardGens(existingRepositoryData, newRepoData, finalizeSnapshotContext, snapshotInfo);
-                        } else {
-                            finalizeSnapshotContext.onDone(snapshotInfo);
-                        }
-                    }, onUpdateFailure)
+                    l.map(newRepositoryData -> new RootBlobUpdateResult(existingRepositoryData, newRepositoryData))
                 );
-            }, onUpdateFailure))) {
+                // NB failure of writeIndexGen doesn't guarantee the update failed, so we cannot safely clean anything up on failure
+            })
 
-                // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method
-                // will mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of
-                // the index or global metadata will be compatible with the segments written in this snapshot as well.
-                // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
-                // that decrements the generation it points at
-                final Metadata clusterMetadata = finalizeSnapshotContext.clusterMetadata();
-                // Write Global MetaData
-                executor.execute(
-                    ActionRunnable.run(
-                        allMetaListeners.acquire(),
-                        () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress)
-                    )
+            // Report success, then clean up.
+            .<RepositoryData>andThen((l, rootBlobUpdateResult) -> {
+                l.onResponse(rootBlobUpdateResult.newRepositoryData());
+                cleanupOldMetadata(
+                    rootBlobUpdateResult.oldRepositoryData(),
+                    rootBlobUpdateResult.newRepositoryData(),
+                    finalizeSnapshotContext,
+                    snapshotInfo,
+                    writeShardGens
                 );
+            })
 
-                // write the index metadata for each index in the snapshot
-                for (IndexId index : indices) {
-                    executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
-                        final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
-                        if (writeIndexGens) {
-                            final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
-                            String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
-                            if (metaUUID == null) {
-                                // We don't yet have this version of the metadata so we write it
-                                metaUUID = UUIDs.base64UUID();
-                                INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
-                                indexMetaIdentifiers.put(identifiers, metaUUID);
-                            }
-                            indexMetas.put(index, identifiers);
-                        } else {
-                            INDEX_METADATA_FORMAT.write(
-                                clusterMetadata.index(index.getName()),
-                                indexContainer(index),
-                                snapshotId.getUUID(),
-                                compress
-                            );
-                        }
-                    }));
-                }
-                executor.execute(
-                    ActionRunnable.run(
-                        allMetaListeners.acquire(),
-                        () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress)
-                    )
-                );
-            }
-        }, onUpdateFailure);
+            // Finally subscribe the context as the listener, wrapping exceptions if needed
+            .addListener(
+                finalizeSnapshotContext.delegateResponse(
+                    (l, e) -> l.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e))
+                )
+            );
     }
 
-    // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data
-    private void cleanupOldShardGens(
+    // Delete all old shard gen and root level index blobs that aren't referenced any longer as a result from moving to updated
+    // repository data
+    private void cleanupOldMetadata(
         RepositoryData existingRepositoryData,
         RepositoryData updatedRepositoryData,
         FinalizeSnapshotContext finalizeSnapshotContext,
-        SnapshotInfo snapshotInfo
+        SnapshotInfo snapshotInfo,
+        boolean writeShardGenerations
     ) {
         final Set<String> toDelete = new HashSet<>();
-        final int prefixPathLen = basePath().buildAsString().length();
-        updatedRepositoryData.shardGenerations()
-            .obsoleteShardGenerations(existingRepositoryData.shardGenerations())
-            .forEach(
-                (indexId, gens) -> gens.forEach(
-                    (shardId, oldGen) -> toDelete.add(
-                        shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
+        // Delete all now outdated index files up to 1000 blobs back from the new generation.
+        // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
+        long newRepoGeneration = updatedRepositoryData.getGenId();
+        for (long gen = Math.max(
+            Math.max(existingRepositoryData.getGenId() - 1, 0),
+            newRepoGeneration - 1000
+        ); gen < newRepoGeneration; gen++) {
+            toDelete.add(INDEX_FILE_PREFIX + gen);
+        }
+        if (writeShardGenerations) {
+            final int prefixPathLen = basePath().buildAsString().length();
+            updatedRepositoryData.shardGenerations()
+                .obsoleteShardGenerations(existingRepositoryData.shardGenerations())
+                .forEach(
+                    (indexId, gens) -> gens.forEach(
+                        (shardId, oldGen) -> toDelete.add(
+                            shardPath(indexId, shardId).buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen
+                        )
                     )
-                )
-            );
-        for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
-            .entrySet()) {
-            final String containerPath = shardPath(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).buildAsString()
-                .substring(prefixPathLen) + INDEX_FILE_PREFIX;
-            for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
-                toDelete.add(containerPath + shardGeneration);
+                );
+            for (Map.Entry<RepositoryShardId, Set<ShardGeneration>> obsoleteEntry : finalizeSnapshotContext.obsoleteShardGenerations()
+                .entrySet()) {
+                final String containerPath = shardPath(obsoleteEntry.getKey().index(), obsoleteEntry.getKey().shardId()).buildAsString()
+                    .substring(prefixPathLen) + INDEX_FILE_PREFIX;
+                for (ShardGeneration shardGeneration : obsoleteEntry.getValue()) {
+                    toDelete.add(containerPath + shardGeneration);
+                }
             }
         }
+
         if (toDelete.isEmpty() == false) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                try {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
                     deleteFromContainer(blobContainer(), toDelete.iterator());
-                } catch (Exception e) {
-                    logger.warn("Failed to clean up old shard generation blobs", e);
-                } finally {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failed to clean up old metadata blobs", e);
+                }
+
+                @Override
+                public void onAfter() {
                     finalizeSnapshotContext.onDone(snapshotInfo);
                 }
             });
@@ -1590,7 +1639,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             wrappedIterator = blobs;
         }
-        container.deleteBlobsIgnoringIfNotExists(wrappedIterator);
+        container.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, wrappedIterator);
     }
 
     private BlobPath indicesPath() {
@@ -1620,19 +1669,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Configures RateLimiter based on repository and global settings
      *
-     * @param rateLimiter        the existing rate limiter to configure (or null if no throttling was previously needed)
-     * @param repositorySettings repository settings
-     * @param setting            setting to use to configure rate limiter
-     * @param warnIfOverRecovery log a warning if rate limit setting is over the effective recovery rate limit
+     * @param rateLimiter              the existing rate limiter to configure (or null if no throttling was previously needed)
+     * @param maxConfiguredBytesPerSec the configured max bytes per sec from the settings
+     * @param settingKey               setting used to configure the rate limiter
+     * @param warnIfOverRecovery       log a warning if rate limit setting is over the effective recovery rate limit
      * @return the newly configured rate limiter or null if no throttling is needed
      */
     private RateLimiter getRateLimiter(
         RateLimiter rateLimiter,
-        Settings repositorySettings,
-        Setting<ByteSizeValue> setting,
+        ByteSizeValue maxConfiguredBytesPerSec,
+        String settingKey,
         boolean warnIfOverRecovery
     ) {
-        ByteSizeValue maxConfiguredBytesPerSec = setting.get(repositorySettings);
         if (maxConfiguredBytesPerSec.getBytes() <= 0) {
             return null;
         } else {
@@ -1643,7 +1691,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         "repository [{}] has a rate limit [{}={}] per second which is above the effective recovery rate limit "
                             + "[{}={}] per second, thus the repository rate limit will be superseded by the recovery rate limit",
                         metadata.name(),
-                        setting.getKey(),
+                        settingKey,
                         maxConfiguredBytesPerSec,
                         INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
                         effectiveRecoverySpeed
@@ -1660,17 +1708,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private RateLimiter getSnapshotRateLimiter() {
+    // package private for testing
+    RateLimiter getSnapshotRateLimiter() {
+        Settings repositorySettings = metadata.settings();
+        ByteSizeValue maxConfiguredBytesPerSec = MAX_SNAPSHOT_BYTES_PER_SEC.get(repositorySettings);
+        if (MAX_SNAPSHOT_BYTES_PER_SEC.exists(repositorySettings) == false && recoverySettings.nodeBandwidthSettingsExist()) {
+            assert maxConfiguredBytesPerSec.getMb() == 40;
+            maxConfiguredBytesPerSec = ByteSizeValue.ZERO;
+        }
         return getRateLimiter(
             snapshotRateLimiter,
-            metadata.settings(),
-            MAX_SNAPSHOT_BYTES_PER_SEC,
+            maxConfiguredBytesPerSec,
+            MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
             recoverySettings.nodeBandwidthSettingsExist()
         );
     }
 
-    private RateLimiter getRestoreRateLimiter() {
-        return getRateLimiter(restoreRateLimiter, metadata.settings(), MAX_RESTORE_BYTES_PER_SEC, true);
+    // package private for testing
+    RateLimiter getRestoreRateLimiter() {
+        return getRateLimiter(
+            restoreRateLimiter,
+            MAX_RESTORE_BYTES_PER_SEC.get(metadata.settings()),
+            MAX_RESTORE_BYTES_PER_SEC.getKey(),
+            true
+        );
     }
 
     @Override
@@ -1698,7 +1759,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
-                testContainer.writeBlobAtomic("master.dat", new BytesArray(testBytes), true);
+                testContainer.writeBlobAtomic(OperationPurpose.SNAPSHOT, "master.dat", new BytesArray(testBytes), true);
                 return seed;
             }
         } catch (Exception exp) {
@@ -1711,7 +1772,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (isReadOnly() == false) {
             try {
                 final String testPrefix = testBlobPrefix(seed);
-                blobStore().blobContainer(basePath().add(testPrefix)).delete();
+                blobStore().blobContainer(basePath().add(testPrefix)).delete(OperationPurpose.SNAPSHOT);
             } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
@@ -1733,36 +1794,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // master-eligible or not.
         assert clusterService.localNode().isMasterNode() : "should only load repository data on master nodes";
 
-        if (lifecycle.started() == false) {
-            listener.onFailure(notStartedException());
-            return;
-        }
+        while (true) {
+            // retry loop, in case the state changes underneath us somehow
 
-        if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
-            listener.onFailure(corruptedStateException(null, null));
-            return;
-        }
-        final RepositoryData cached = latestKnownRepositoryData.get();
-        // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
-        // the latest known repository generation
-        if (bestEffortConsistency == false && cached.getGenId() == latestKnownRepoGen.get()) {
-            listener.onResponse(cached);
-            return;
-        }
-        if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {
-            logger.debug(
-                "[{}] loading repository metadata for the first time, trying to determine correct generation and to store "
-                    + "it in the cluster state",
-                metadata.name()
-            );
-            initializeRepoGenerationTracking(listener);
-        } else {
-            logger.trace(
-                "[{}] loading un-cached repository data with best known repository generation [{}]",
-                metadata.name(),
-                latestKnownRepoGen
-            );
-            repoDataLoadDeduplicator.execute(listener);
+            if (lifecycle.started() == false) {
+                listener.onFailure(notStartedException());
+                return;
+            }
+
+            if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
+                listener.onFailure(corruptedStateException(null, null));
+                return;
+            }
+            final RepositoryData cached = latestKnownRepositoryData.get();
+            // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
+            // the latest known repository generation
+            if (bestEffortConsistency == false && cached.getGenId() == latestKnownRepoGen.get()) {
+                listener.onResponse(cached);
+                return;
+            }
+            if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {
+                logger.debug("""
+                    [{}] loading repository metadata for the first time, trying to determine correct generation and to store it in the \
+                    cluster state""", metadata.name());
+                if (initializeRepoGenerationTracking(listener)) {
+                    return;
+                } // else there was a concurrent modification, retry from the start
+            } else {
+                logger.trace(
+                    "[{}] loading un-cached repository data with best known repository generation [{}]",
+                    metadata.name(),
+                    latestKnownRepoGen
+                );
+                repoDataLoadDeduplicator.execute(listener);
+                return;
+            }
         }
     }
 
@@ -1771,7 +1837,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Listener used to ensure that repository data is only initialized once in the cluster state by #initializeRepoGenerationTracking
-    private ListenableActionFuture<RepositoryData> repoDataInitialized;
+    @Nullable // unless we're in the process of initializing repo-generation tracking
+    private SubscribableListener<RepositoryData> repoDataInitialized;
 
     /**
      * Method used to set the current repository generation in the cluster state's {@link RepositoryMetadata} to the latest generation that
@@ -1780,104 +1847,120 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * have a consistent view of the {@link RepositoryData} before any data has been written to the repository.
      *
      * @param listener listener to resolve with new repository data
+     * @return {@code true} if this method at least started the initialization process successfully and will eventually complete the
+     * listener, {@code false} if there was some concurrent state change which prevents us from starting repo generation tracking (typically
+     * that some other node got there first) and the caller should check again and possibly retry or complete the listener in some other
+     * way.
      */
-    private void initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
+    private boolean initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
+        final SubscribableListener<RepositoryData> listenerToSubscribe;
+        final ActionListener<RepositoryData> listenerToComplete;
+
         synchronized (this) {
             if (repoDataInitialized == null) {
-                // double check the generation since we checked it outside the mutex in the caller and it could have changed by a
+                // double-check the generation since we checked it outside the mutex in the caller and it could have changed by a
                 // concurrent initialization of the repo metadata and just load repository normally in case we already finished the
                 // initialization
                 if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
-                    getRepositoryData(listener);
-                    return;
+                    return false; // retry
                 }
                 logger.trace("[{}] initializing repository generation in cluster state", metadata.name());
-                repoDataInitialized = new ListenableActionFuture<>();
-                repoDataInitialized.addListener(listener);
-                final Consumer<Exception> onFailure = e -> {
-                    logger.warn(
-                        () -> format("[%s] Exception when initializing repository generation in cluster state", metadata.name()),
-                        e
-                    );
-                    final ActionListener<RepositoryData> existingListener;
-                    synchronized (BlobStoreRepository.this) {
-                        existingListener = repoDataInitialized;
-                        repoDataInitialized = null;
+                repoDataInitialized = listenerToSubscribe = new SubscribableListener<>();
+                listenerToComplete = new ActionListener<>() {
+                    private ActionListener<RepositoryData> acquireAndClearRepoDataInitialized() {
+                        synchronized (BlobStoreRepository.this) {
+                            assert repoDataInitialized == listenerToSubscribe;
+                            repoDataInitialized = null;
+                            return listenerToSubscribe;
+                        }
                     }
-                    existingListener.onFailure(e);
+
+                    @Override
+                    public void onResponse(RepositoryData repositoryData) {
+                        acquireAndClearRepoDataInitialized().onResponse(repositoryData);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(
+                            () -> format("[%s] Exception when initializing repository generation in cluster state", metadata.name()),
+                            e
+                        );
+                        acquireAndClearRepoDataInitialized().onFailure(e);
+                    }
                 };
-                repoDataLoadDeduplicator.execute(
-                    ActionListener.wrap(
-                        repoData -> submitUnbatchedTask(
-                            "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
-                            new ClusterStateUpdateTask() {
-                                @Override
-                                public ClusterState execute(ClusterState currentState) {
-                                    RepositoryMetadata metadata = getRepoMetadata(currentState);
-                                    // No update to the repository generation should have occurred concurrently in general except
-                                    // for
-                                    // extreme corner cases like failing over to an older version master node and back to the
-                                    // current
-                                    // node concurrently
-                                    if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
-                                        throw new RepositoryException(
-                                            metadata.name(),
-                                            "Found unexpected initialized repo metadata [" + metadata + "]"
-                                        );
-                                    }
-                                    return ClusterState.builder(currentState)
-                                        .metadata(
-                                            Metadata.builder(currentState.getMetadata())
-                                                .putCustom(
-                                                    RepositoriesMetadata.TYPE,
-                                                    currentState.metadata()
-                                                        .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
-                                                        .withUpdatedGeneration(metadata.name(), repoData.getGenId(), repoData.getGenId())
-                                                )
-                                        )
-                                        .build();
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    onFailure.accept(e);
-                                }
-
-                                @Override
-                                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                                    logger.trace(
-                                        "[{}] initialized repository generation in cluster state to [{}]",
-                                        metadata.name(),
-                                        repoData.getGenId()
-                                    );
-                                    // Resolve listeners on generic pool since some callbacks for repository data do additional IO
-                                    threadPool.generic().execute(() -> {
-                                        final ActionListener<RepositoryData> existingListener;
-                                        synchronized (BlobStoreRepository.this) {
-                                            existingListener = repoDataInitialized;
-                                            repoDataInitialized = null;
-                                        }
-                                        existingListener.onResponse(repoData);
-                                        logger.trace(
-                                            "[{}] called listeners after initializing repository to generation [{}]",
-                                            metadata.name(),
-                                            repoData.getGenId()
-                                        );
-                                    });
-                                }
-                            }
-                        ),
-                        onFailure
-                    )
-                );
             } else {
                 logger.trace(
                     "[{}] waiting for existing initialization of repository metadata generation in cluster state",
                     metadata.name()
                 );
-                repoDataInitialized.addListener(listener);
+                listenerToComplete = null;
+                listenerToSubscribe = repoDataInitialized;
             }
         }
+
+        if (listenerToComplete != null) {
+            SubscribableListener
+                // load the current repository data
+                .newForked(repoDataLoadDeduplicator::execute)
+                // write its generation to the cluster state
+                .<RepositoryData>andThen(
+                    (l, repoData) -> submitUnbatchedTask(
+                        "set initial safe repository generation [" + metadata.name() + "][" + repoData.getGenId() + "]",
+                        new ClusterStateUpdateTask() {
+                            @Override
+                            public ClusterState execute(ClusterState currentState) {
+                                return getClusterStateWithUpdatedRepositoryGeneration(currentState, repoData);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                l.onFailure(e);
+                            }
+
+                            @Override
+                            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                                l.onResponse(repoData);
+                            }
+                        }
+                    )
+                )
+                // fork to generic pool since we're on the applier thread and some callbacks for repository data do additional IO
+                .<RepositoryData>andThen((l, repoData) -> {
+                    logger.trace("[{}] initialized repository generation in cluster state to [{}]", metadata.name(), repoData.getGenId());
+                    threadPool.generic().execute(ActionRunnable.supply(ActionListener.runAfter(l, () -> {
+                        logger.trace(
+                            "[{}] called listeners after initializing repository to generation [{}]",
+                            metadata.name(),
+                            repoData.getGenId()
+                        );
+                    }), () -> repoData));
+                })
+                // and finally complete the listener
+                .addListener(listenerToComplete);
+        }
+
+        listenerToSubscribe.addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext());
+        return true;
+    }
+
+    private ClusterState getClusterStateWithUpdatedRepositoryGeneration(ClusterState currentState, RepositoryData repoData) {
+        // In theory we might have failed over to a different master which initialized the repo and then failed back to this node, so we
+        // must check the repository generation in the cluster state is still unknown here.
+        final RepositoryMetadata repoMetadata = getRepoMetadata(currentState);
+        if (repoMetadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
+            throw new RepositoryException(repoMetadata.name(), "Found unexpected initialized repo metadata [" + repoMetadata + "]");
+        }
+        return ClusterState.builder(currentState)
+            .metadata(
+                Metadata.builder(currentState.getMetadata())
+                    .putCustom(
+                        RepositoriesMetadata.TYPE,
+                        RepositoriesMetadata.get(currentState)
+                            .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId())
+                    )
+            )
+            .build();
     }
 
     /**
@@ -1928,7 +2011,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // We can cache in the most recent version here without regard to the actual repository metadata version since
                         // we're only caching the information that we just wrote and thus won't accidentally cache any information that
                         // isn't safe
-                        cacheRepositoryData(loaded, Version.CURRENT);
+                        cacheRepositoryData(loaded, IndexVersion.current());
                     }
                     if (loaded.getUuid().equals(metadata.uuid())) {
                         listener.onResponse(loaded);
@@ -1970,7 +2053,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     markRepoCorrupted(
                         genToLoad,
                         e,
-                        ActionListener.wrap(v -> listener.onFailure(corruptedStateException(e, finalLastInfo)), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, v) -> l.onFailure(corruptedStateException(e, finalLastInfo)))
                     );
                 } else {
                     listener.onFailure(e);
@@ -1989,7 +2072,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param repositoryData repository data to cache
      * @param version        repository metadata version used when writing the data to the repository
      */
-    private void cacheRepositoryData(RepositoryData repositoryData, Version version) {
+    private void cacheRepositoryData(RepositoryData repositoryData, IndexVersion version) {
         if (cacheRepositoryData == false) {
             return;
         }
@@ -2053,7 +2136,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    final RepositoriesMetadata state = currentState.metadata().custom(RepositoriesMetadata.TYPE);
+                    final RepositoriesMetadata state = RepositoriesMetadata.get(currentState);
                     final RepositoryMetadata repoState = state.repository(metadata.name());
                     if (repoState.generation() != corruptedGeneration) {
                         throw new IllegalStateException(
@@ -2108,7 +2191,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
-                InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
+                InputStream blob = blobContainer().readBlob(OperationPurpose.SNAPSHOT, snapshotsIndexBlobName);
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
             ) {
@@ -2137,12 +2220,34 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Writing a new index generation is a three step process.
-     * First, the {@link RepositoryMetadata} entry for this repository is set into a pending state by incrementing its
-     * pending generation {@code P} while its safe generation {@code N} remains unchanged.
-     * Second, the updated {@link RepositoryData} is written to generation {@code P + 1}.
-     * Lastly, the {@link RepositoryMetadata} entry for this repository is updated to the new generation {@code P + 1} and thus
-     * pending and safe generation are set to the same value marking the end of the update of the repository data.
+     * Writing a new index generation (root) blob is a three-step process. Typically, it starts from a stable state where the pending
+     * generation {@link RepositoryMetadata#pendingGeneration()} is equal to the safe generation {@link RepositoryMetadata#generation()},
+     * but after a failure it may be that the pending generation starts out greater than the safe generation.
+     * <ol>
+     * <li>
+     * We reserve ourselves a new root blob generation {@code G}, greater than {@link RepositoryMetadata#pendingGeneration()}, via a
+     * cluster state update which edits the {@link RepositoryMetadata} entry for this repository, increasing its pending generation to
+     * {@code G} without changing its safe generation.
+     * <li>
+     * We write the updated {@link RepositoryData} to a new root blob with generation {@code G}.
+     * <li>
+     * We mark the successful end of the update of the repository data with a cluster state update which edits the
+     * {@link RepositoryMetadata} entry for this repository again, increasing its safe generation to equal to its pending generation
+     * {@code G}.
+     * </ol>
+     * We use this process to protect against problems such as a master failover part-way through. If a new master is elected while we're
+     * writing the root blob with generation {@code G} then we will fail to update the safe repository generation in the final step, and
+     * meanwhile the new master will choose a generation greater than {@code G} for all subsequent root blobs so there is no risk that we
+     * will clobber its writes. See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for more details.
+     * <p>
+     * Note that a failure here does not imply that the process was unsuccessful or the repository is unchanged. Once we have written the
+     * new root blob the repository is updated from the point of view of any other clusters reading from it, and if we performed a full
+     * cluster restart at that point then we would also pick up the new root blob. Writing the root blob may succeed without us receiving
+     * a successful response from the repository, leading us to report that the write operation failed. Updating the safe generation may
+     * likewise succeed on a majority of master-eligible nodes which does not include this one, again leading to an apparent failure.
+     * <p>
+     * We therefore cannot safely clean up apparently-dangling blobs after a failure here. Instead, we defer any cleanup until after the
+     * next successful root-blob write, which may happen on a different master node or possibly even in a different cluster.
      *
      * @param repositoryData RepositoryData to write
      * @param expectedGen    expected repository generation at the start of the operation
@@ -2153,7 +2258,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected void writeIndexGen(
         RepositoryData repositoryData,
         long expectedGen,
-        Version version,
+        IndexVersion version,
         Function<ClusterState, ClusterState> stateFilter,
         ActionListener<RepositoryData> listener
     ) {
@@ -2177,7 +2282,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         // Step 1: Set repository generation state to the next possible pending generation
-        final StepListener<Long> setPendingStep = new StepListener<>();
+        final ListenableFuture<Long> setPendingStep = new ListenableFuture<>();
         final String setPendingGenerationSource = "set pending repository generation [" + metadata.name() + "][" + expectedGen + "]";
         submitUnbatchedTask(setPendingGenerationSource, new ClusterStateUpdateTask() {
 
@@ -2222,9 +2327,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         Metadata.builder(currentState.getMetadata())
                             .putCustom(
                                 RepositoriesMetadata.TYPE,
-                                currentState.metadata()
-                                    .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
-                                    .withUpdatedGeneration(repoName, safeGeneration, newGen)
+                                RepositoriesMetadata.get(currentState).withUpdatedGeneration(repoName, safeGeneration, newGen)
                             )
                             .build()
                     )
@@ -2249,53 +2352,49 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         });
 
-        final StepListener<RepositoryData> filterRepositoryDataStep = new StepListener<>();
+        final ListenableFuture<RepositoryData> filterRepositoryDataStep = new ListenableFuture<>();
 
         // Step 2: Write new index-N blob to repository and update index.latest
-        setPendingStep.whenComplete(newGen -> threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-            // BwC logic: Load snapshot version information if any snapshot is missing details in RepositoryData so that the new
-            // RepositoryData contains full details for every snapshot
-            final List<SnapshotId> snapshotIdsWithMissingDetails = repositoryData.getSnapshotIds()
-                .stream()
-                .filter(repositoryData::hasMissingDetails)
-                .toList();
-            if (snapshotIdsWithMissingDetails.isEmpty() == false) {
-                final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
-                getSnapshotInfo(new GetSnapshotInfoContext(snapshotIdsWithMissingDetails, false, () -> false, (context, snapshotInfo) -> {
-                    final String slmPolicy = slmPolicy(snapshotInfo);
-                    extraDetailsMap.put(
-                        snapshotInfo.snapshotId(),
-                        new SnapshotDetails(
-                            snapshotInfo.state(),
-                            snapshotInfo.version(),
-                            snapshotInfo.startTime(),
-                            snapshotInfo.endTime(),
-                            slmPolicy
-                        )
-                    );
-                }, ActionListener.runAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void aVoid) {
-                        logger.info(
-                            "Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
-                            AllocationService.firstListElementsToCommaDelimitedString(
-                                snapshotIdsWithMissingDetails,
-                                SnapshotId::toString,
-                                logger.isDebugEnabled()
-                            )
-                        );
-                    }
+        setPendingStep.addListener(
+            listener.delegateFailureAndWrap(
+                (delegate, newGen) -> threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(delegate, l -> {
+                    // BwC logic: Load snapshot version information if any snapshot is missing details in RepositoryData so that the new
+                    // RepositoryData contains full details for every snapshot
+                    final List<SnapshotId> snapshotIdsWithMissingDetails = repositoryData.getSnapshotIds()
+                        .stream()
+                        .filter(repositoryData::hasMissingDetails)
+                        .toList();
+                    if (snapshotIdsWithMissingDetails.isEmpty() == false) {
+                        final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
+                        getSnapshotInfo(
+                            new GetSnapshotInfoContext(snapshotIdsWithMissingDetails, false, () -> false, (context, snapshotInfo) -> {
+                                extraDetailsMap.put(snapshotInfo.snapshotId(), SnapshotDetails.fromSnapshotInfo(snapshotInfo));
+                            }, ActionListener.runAfter(new ActionListener<>() {
+                                @Override
+                                public void onResponse(Void aVoid) {
+                                    logger.info(
+                                        "Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
+                                        AllocationService.firstListElementsToCommaDelimitedString(
+                                            snapshotIdsWithMissingDetails,
+                                            SnapshotId::toString,
+                                            logger.isDebugEnabled()
+                                        )
+                                    );
+                                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn("Failure when trying to load missing details from snapshot metadata", e);
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.warn("Failure when trying to load missing details from snapshot metadata", e);
+                                }
+                            }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap))))
+                        );
+                    } else {
+                        filterRepositoryDataStep.onResponse(repositoryData);
                     }
-                }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap)))));
-            } else {
-                filterRepositoryDataStep.onResponse(repositoryData);
-            }
-        })), listener::onFailure);
-        filterRepositoryDataStep.whenComplete(filteredRepositoryData -> {
+                }))
+            )
+        );
+        filterRepositoryDataStep.addListener(listener.delegateFailureAndWrap((delegate, filteredRepositoryData) -> {
             final long newGen = setPendingStep.result();
             final RepositoryData newRepositoryData = updateRepositoryData(filteredRepositoryData, version, newGen);
             if (latestKnownRepoGen.get() >= newGen) {
@@ -2308,7 +2407,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
             }
             // write the index file
-            if (ensureSafeGenerationExists(expectedGen, listener::onFailure) == false) {
+            if (ensureSafeGenerationExists(expectedGen, delegate::onFailure) == false) {
                 return;
             }
             final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
@@ -2340,8 +2439,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 + "]"
                         );
                     }
-                    final RepositoriesMetadata currentMetadata = currentState.metadata().custom(RepositoriesMetadata.TYPE);
-                    final RepositoriesMetadata withGenerations = currentMetadata.withUpdatedGeneration(metadata.name(), newGen, newGen);
+                    final RepositoriesMetadata withGenerations = RepositoriesMetadata.get(currentState)
+                        .withUpdatedGeneration(metadata.name(), newGen, newGen);
                     final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())
                         ? withGenerations
                         : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
@@ -2355,7 +2454,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(
+                    delegate.onFailure(
                         new RepositoryException(
                             metadata.name(),
                             "Failed to execute cluster state update [" + setSafeGenerationSource + "]",
@@ -2368,47 +2467,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
-                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
-                        // Delete all now outdated index files up to 1000 blobs back from the new generation.
-                        // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
-                        // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
-                        // two index-N blobs around.
-                        try {
-                            deleteFromContainer(
-                                blobContainer(),
-                                LongStream.range(Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
-                                    .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
-                                    .iterator()
-                            );
-                        } catch (IOException e) {
-                            logger.warn(() -> "Failed to clean up old index blobs from before [" + newGen + "]", e);
-                        }
-                        return newRepositoryData;
-                    }));
+                    delegate.onResponse(newRepositoryData);
                 }
             });
-        }, listener::onFailure);
+        }));
     }
 
-    /**
-     * Extract slm policy from snapshot info. If none can be found, empty string is returned.
-     */
-    private static String slmPolicy(SnapshotInfo snapshotInfo) {
-        final String slmPolicy;
-        if (snapshotInfo.userMetadata() == null) {
-            slmPolicy = "";
-        } else {
-            final Object policyFound = snapshotInfo.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-            if (policyFound instanceof String) {
-                slmPolicy = (String) policyFound;
-            } else {
-                slmPolicy = "";
-            }
-        }
-        return slmPolicy;
-    }
-
-    private RepositoryData updateRepositoryData(RepositoryData repositoryData, Version repositoryMetaversion, long newGen) {
+    private RepositoryData updateRepositoryData(RepositoryData repositoryData, IndexVersion repositoryMetaversion, long newGen) {
         if (SnapshotsService.includesUUIDs(repositoryMetaversion)) {
             final String clusterUUID = clusterService.state().metadata().clusterUUID();
             if (repositoryData.getClusterUUID().equals(clusterUUID) == false) {
@@ -2453,7 +2518,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private boolean ensureSafeGenerationExists(long safeGeneration, Consumer<Exception> onFailure) throws IOException {
         logger.debug("Ensure generation [{}] that is the basis for this write exists in [{}]", safeGeneration, metadata.name());
-        if (safeGeneration != RepositoryData.EMPTY_REPO_GEN && blobContainer().blobExists(INDEX_FILE_PREFIX + safeGeneration) == false) {
+        if (safeGeneration != RepositoryData.EMPTY_REPO_GEN
+            && blobContainer().blobExists(OperationPurpose.SNAPSHOT, INDEX_FILE_PREFIX + safeGeneration) == false) {
             Tuple<Long, String> previousWriterInfo = null;
             Exception readRepoDataEx = null;
             try {
@@ -2515,8 +2581,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final SnapshotsInProgress updatedSnapshotsInProgress;
         boolean changedSnapshots = false;
         final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-        for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repoName)) {
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
+        for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repoName)) {
             if (entry.repositoryStateId() == oldGen) {
                 snapshotEntries.add(entry.withRepoGen(newGen));
                 changedSnapshots = true;
@@ -2528,8 +2594,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final SnapshotDeletionsInProgress updatedDeletionsInProgress;
         boolean changedDeletions = false;
         final List<SnapshotDeletionsInProgress.Entry> deletionEntries = new ArrayList<>();
-        for (SnapshotDeletionsInProgress.Entry entry : state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
-            .getEntries()) {
+        for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(state).getEntries()) {
             if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
                 deletionEntries.add(entry.withRepoGen(newGen));
                 changedDeletions = true;
@@ -2542,9 +2607,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryMetadata getRepoMetadata(ClusterState state) {
-        final RepositoryMetadata repositoryMetadata = state.getMetadata()
-            .<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
-            .repository(metadata.name());
+        final RepositoryMetadata repositoryMetadata = RepositoriesMetadata.get(state).repository(metadata.name());
         assert repositoryMetadata != null || lifecycle.stoppedOrClosed()
             : "did not find metadata for repo [" + metadata.name() + "] in state [" + lifecycleState() + "]";
         return repositoryMetadata;
@@ -2585,7 +2648,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // package private for testing
     long readSnapshotIndexLatestBlob() throws IOException {
-        final BytesReference content = Streams.readFully(Streams.limitStream(blobContainer().readBlob(INDEX_LATEST_BLOB), Long.BYTES + 1));
+        final BytesReference content = Streams.readFully(
+            Streams.limitStream(blobContainer().readBlob(OperationPurpose.SNAPSHOT, INDEX_LATEST_BLOB), Long.BYTES + 1)
+        );
         if (content.length() != Long.BYTES) {
             throw new RepositoryException(
                 metadata.name(),
@@ -2599,7 +2664,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {
-        return latestGeneration(blobContainer().listBlobsByPrefix(INDEX_FILE_PREFIX).keySet());
+        return latestGeneration(blobContainer().listBlobsByPrefix(OperationPurpose.SNAPSHOT, INDEX_FILE_PREFIX).keySet());
     }
 
     private long latestGeneration(Collection<String> rootBlobs) {
@@ -2627,7 +2692,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         boolean failIfAlreadyExists
     ) throws IOException {
         logger.trace(() -> format("[%s] Writing [%s] to %s atomically", metadata.name(), blobName, container.path()));
-        container.writeMetadataBlob(blobName, failIfAlreadyExists, true, writer);
+        container.writeMetadataBlob(OperationPurpose.SNAPSHOT, blobName, failIfAlreadyExists, true, writer);
     }
 
     @Override
@@ -2641,7 +2706,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         final Store store = context.store();
-        final IndexCommit snapshotIndexCommit = context.indexCommit();
         final ShardId shardId = store.shardId();
         final SnapshotId snapshotId = context.snapshotId();
         final IndexShardSnapshotStatus snapshotStatus = context.status();
@@ -2654,7 +2718,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (generation == null) {
                 snapshotStatus.ensureNotAborted();
                 try {
-                    blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
+                    blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT, INDEX_FILE_PREFIX).keySet();
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
                 }
@@ -2706,9 +2770,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
+                try (Releasable ignored = context.withCommitRef()) {
                     // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                     try {
+                        final IndexCommit snapshotIndexCommit = context.indexCommit();
                         logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
                         metadataFromStore = store.getMetadata(snapshotIndexCommit);
                         fileNames = snapshotIndexCommit.getFileNames();
@@ -2858,21 +2923,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 };
             }
 
-            final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
-            allFilesUploadedListener.whenComplete(v -> {
-                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
+            // filesToSnapshot will be emptied while snapshotting the file. We make a copy here for cleanup purpose in case of failure.
+            final AtomicReference<List<FileInfo>> fileToCleanUp = new AtomicReference<>(List.copyOf(filesToSnapshot));
+            final ActionListener<Collection<Void>> allFilesUploadedListener = ActionListener.assertOnce(ActionListener.wrap(ignore -> {
+                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize();
 
                 // now create and write the commit point
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
                 final BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
-                    lastSnapshotStatus.getIndexVersion(),
                     indexCommitPointFiles,
                     lastSnapshotStatus.getStartTime(),
                     threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
                     lastSnapshotStatus.getIncrementalFileCount(),
                     lastSnapshotStatus.getIncrementalSize()
                 );
+                // Once we start writing the shard level snapshot file, no cleanup will be performed because it is possible that
+                // written files are referenced by another concurrent process.
+                fileToCleanUp.set(List.of());
                 try {
                     final String snapshotUUID = snapshotId.getUUID();
                     final Map<String, String> serializationParams = Collections.singletonMap(
@@ -2897,7 +2965,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
                 context.onResponse(shardSnapshotResult);
-            }, context::onFailure);
+            }, e -> {
+                try {
+                    shardContainer.deleteBlobsIgnoringIfNotExists(
+                        OperationPurpose.SNAPSHOT,
+                        Iterators.flatMap(fileToCleanUp.get().iterator(), f -> Iterators.forRange(0, f.numberOfParts(), f::partName))
+                    );
+                } catch (Exception innerException) {
+                    e.addSuppressed(innerException);
+                }
+                context.onFailure(e);
+            }));
+
             if (indexIncrementalFileCount == 0 || filesToSnapshot.isEmpty()) {
                 allFilesUploadedListener.onResponse(Collections.emptyList());
                 return;
@@ -2918,15 +2997,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         for (int i = 0; i < noOfFilesToSnapshot; i++) {
             shardSnapshotTaskRunner.enqueueFileSnapshot(context, filesToSnapshot::poll, filesListener);
         }
-    }
-
-    private static Releasable incrementStoreRef(Store store, IndexShardSnapshotStatus snapshotStatus, ShardId shardId) {
-        if (store.tryIncRef() == false) {
-            snapshotStatus.ensureNotAborted();
-            assert false : "Store should not be closed concurrently unless snapshot is aborted";
-            throw new IndexShardSnapshotFailedException(shardId, "Store got closed concurrently");
-        }
-        return store::decRef;
     }
 
     private static boolean assertFileContentsMatchHash(
@@ -3059,7 +3129,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 @Override
                                 protected InputStream openSlice(int slice) throws IOException {
                                     ensureNotClosing(store);
-                                    return container.readBlob(fileInfo.partName(slice));
+                                    return container.readBlob(OperationPurpose.SNAPSHOT, fileInfo.partName(slice));
                                 }
                             })) {
                                 final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
@@ -3198,7 +3268,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
             try {
-                testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", new BytesArray(seed), true);
+                testBlobContainer.writeBlob(OperationPurpose.SNAPSHOT, "data-" + localNode.getId() + ".dat", new BytesArray(seed), true);
             } catch (Exception exp) {
                 throw new RepositoryVerificationException(
                     metadata.name(),
@@ -3206,7 +3276,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     exp
                 );
             }
-            try (InputStream masterDat = testBlobContainer.readBlob("master.dat")) {
+            try (InputStream masterDat = testBlobContainer.readBlob(OperationPurpose.SNAPSHOT, "master.dat")) {
                 final String seedRead = Streams.readFully(masterDat).utf8ToString();
                 if (seedRead.equals(seed) == false) {
                     throw new RepositoryVerificationException(
@@ -3360,7 +3430,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         Set<String> blobs = Collections.emptySet();
         if (shardGen == null) {
-            blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
+            blobs = shardContainer.listBlobsByPrefix(OperationPurpose.SNAPSHOT, INDEX_FILE_PREFIX).keySet();
         }
 
         return buildBlobStoreIndexShardSnapshots(blobs, shardContainer, shardGen).v1();
@@ -3433,7 +3503,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
         try (
-            Releasable ignored = BlobStoreRepository.incrementStoreRef(store, snapshotStatus, store.shardId());
+            Releasable ignored = context.withCommitRef();
             IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())
         ) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
@@ -3465,7 +3535,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final String partName = fileInfo.partName(i);
                 logger.trace("[{}] Writing [{}] to [{}]", metadata.name(), partName, shardContainer.path());
                 final long startMS = threadPool.relativeTimeInMillis();
-                shardContainer.writeBlob(partName, inputStream, partBytes, false);
+                shardContainer.writeBlob(OperationPurpose.SNAPSHOT, partName, inputStream, partBytes, false);
                 logger.trace(
                     "[{}] Writing [{}] of size [{}b] to [{}] took [{}ms]",
                     metadata.name(),

@@ -8,13 +8,13 @@
 
 package org.elasticsearch.document;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,7 +33,7 @@ public class ShardInfoIT extends ESIntegTestCase {
 
     public void testIndexAndDelete() throws Exception {
         prepareIndex(1);
-        IndexResponse indexResponse = client().prepareIndex("idx").setSource("{}", XContentType.JSON).get();
+        DocWriteResponse indexResponse = client().prepareIndex("idx").setSource("{}", XContentType.JSON).get();
         assertShardInfo(indexResponse);
         DeleteResponse deleteResponse = client().prepareDelete("idx", indexResponse.getId()).get();
         assertShardInfo(deleteResponse);
@@ -122,7 +122,7 @@ public class ShardInfoIT extends ESIntegTestCase {
             ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth("idx").setWaitForNoRelocatingShards(true).get();
             assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("idx").setActiveOnly(true).get();
+            RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("idx").setActiveOnly(true).get();
             assertThat(recoveryResponse.shardRecoveryStates().get("idx").size(), equalTo(0));
         });
     }

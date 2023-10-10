@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -39,7 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.indices.SystemIndexManager.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
+import static org.elasticsearch.indices.SystemIndexMappingUpdateService.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
@@ -66,7 +67,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             actionFilters,
             UpdateSettingsRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
         this.systemIndices = systemIndices;

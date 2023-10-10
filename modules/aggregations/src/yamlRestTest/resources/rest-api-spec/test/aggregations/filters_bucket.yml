@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test_1
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 int_field:
@@ -475,8 +473,6 @@ nested:
       indices.create:
           index: test_nested
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 i:
@@ -525,7 +521,6 @@ nested:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 mentions:
@@ -550,6 +545,7 @@ nested:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         index: test
         body:
           aggs:
@@ -578,7 +574,7 @@ nested:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
@@ -589,6 +585,7 @@ nested:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         index: test
         body:
           aggs:
@@ -617,6 +614,6 @@ nested:
   # The second result with hit the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }

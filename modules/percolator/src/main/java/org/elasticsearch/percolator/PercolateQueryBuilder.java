@@ -34,8 +34,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -217,12 +217,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         super(in);
         field = in.readString();
         name = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String documentType = in.readOptionalString();
             assert documentType == null;
         }
         indexedDocumentIndex = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String indexedDocumentType = in.readOptionalString();
             assert indexedDocumentType == null;
         }
@@ -234,7 +234,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             indexedDocumentVersion = null;
         }
-        documents = in.readImmutableList(StreamInput::readBytesReference);
+        documents = in.readCollectionAsImmutableList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
             documentXContentType = in.readEnum(XContentType.class);
         } else {
@@ -259,12 +259,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         out.writeString(field);
         out.writeOptionalString(name);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null documentType values
             out.writeOptionalString(null);
         }
         out.writeOptionalString(indexedDocumentIndex);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null indexedDocumentType values
             out.writeOptionalString(null);
         }
@@ -445,7 +445,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         SetOnce<BytesReference> docSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            client.get(getRequest, ActionListener.wrap(getResponse -> {
+            client.get(getRequest, listener.delegateFailureAndWrap((l, getResponse) -> {
                 if (getResponse.isExists() == false) {
                     throw new ResourceNotFoundException(
                         "indexed document [{}/{}] couldn't be found",
@@ -459,8 +459,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     );
                 }
                 docSupplier.set(getResponse.getSourceAsBytesRef());
-                listener.onResponse(null);
-            }, listener::onFailure));
+                l.onResponse(null);
+            }));
         });
 
         PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, docSupplier::get);
@@ -531,7 +531,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
         String queryName = this.name != null ? this.name : pft.name();
         SearchExecutionContext percolateShardContext = wrap(context);
-        PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
+        percolateShardContext = PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
         return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
@@ -572,7 +572,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType, SearchExecutionContext context) {
-        Version indexVersion = context.indexVersionCreated();
+        IndexVersion indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
             LeafReader leafReader = ctx.reader();
@@ -597,8 +597,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         assert valueLength > 0;
 
                         TransportVersion transportVersion;
-                        if (indexVersion.before(Version.V_8_8_0)) {
-                            transportVersion = TransportVersion.fromId(indexVersion.id);
+                        if (indexVersion.before(IndexVersion.V_8_8_0)) {
+                            transportVersion = TransportVersion.fromId(indexVersion.id());
                         } else {
                             transportVersion = TransportVersion.readVersion(input);
                         }
@@ -668,6 +668,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

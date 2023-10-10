@@ -19,13 +19,11 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -163,7 +161,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
         if (false == objectMappers().isEmpty()) {
             return wrapInMockESDirectoryReader(reader);
         }
@@ -3103,11 +3101,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
                 indexWriter.addDocument(document);
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 try (
                     AggregationContext context = createAggregationContext(
-                        indexSearcher,
+                        indexReader,
                         new MatchAllDocsQuery(),
                         keywordField("term-field"),
                         longField("time")
@@ -3680,11 +3677,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 for (int i = 0; i < create.size(); i++) {
                     verify.get(i)
-                        .accept(searchAndReduce(indexSearcher, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
+                        .accept(searchAndReduce(indexReader, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
                 }
             }
         }

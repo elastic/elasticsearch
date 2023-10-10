@@ -9,12 +9,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
@@ -154,7 +154,7 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper.Builder newBuilder(Version indexVersionCreated) {
+    public RootObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), subobjects);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
@@ -321,7 +321,7 @@ public class RootObjectMapper extends ObjectMapper {
                     validate(
                         template,
                         dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false))
+                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false, false))
                     );
                 }
                 lastError = null; // ok, the template is valid for at least one type
@@ -334,7 +334,7 @@ public class RootObjectMapper extends ObjectMapper {
             String format = "dynamic template [%s] has invalid content [%s], "
                 + "attempted to validate it with the following match_mapping_type: %s";
             String message = String.format(Locale.ROOT, format, template.getName(), Strings.toString(template), Arrays.toString(types));
-            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0);
+            final boolean failInvalidDynamicTemplates = parserContext.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0);
             if (failInvalidDynamicTemplates) {
                 throw new IllegalArgumentException(message, lastError);
             } else {

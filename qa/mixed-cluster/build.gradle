@@ -27,6 +27,20 @@ restResources {
   }
 }
 
+def excludeList = []
+// Excluding these cache aggregation tests from mixed cluster qa,
+// because we can't hit the same node reliable. The qa cluster
+// consists of 4 nodes. Two nodes are on old version and the
+// other two nodes on the current version. The node selector skips
+// the nodes on current version. The rest client then round robins
+// between the two nodes on old version. In order to unmute this,
+// we need a different node selector, that always consistently
+// selects the same node.
+excludeList.add('aggregations/adjacency_matrix/Terms lookup')
+excludeList.add('aggregations/filter/Standard queries get cached')
+excludeList.add('aggregations/filter/Terms lookup gets cached')
+excludeList.add('aggregations/filters_bucket/cache hits')
+
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
@@ -55,6 +69,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         baseCluster.get().nextNodeToNextVersion()
         nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
         nonInputProperties.systemProperty('tests.clustername', baseName)
+        if (excludeList.isEmpty() == false) {
+          systemProperty 'tests.rest.blacklist', excludeList.join(',')
+        }
       }
       systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       onlyIf("BWC tests disabled") { project.bwc_tests_enabled }

@@ -63,21 +63,17 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             .setting("xpack.security.authc.anonymous.roles", "read_remote_shared_logs")
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
-            .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_metrics")
+            .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_metrics", false)
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
-                          "role": {
-                            "cluster": ["cross_cluster_search"],
-                            "index": [
+                            "search": [
                               {
                                 "names": ["shared-*", "apm-1", ".security*"],
-                                "privileges": ["read", "read_cross_cluster"],
                                 "allow_restricted_indices": true
                               }
                             ]
-                          }
                         }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
@@ -129,7 +125,8 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 { "index": { "_index": "apm-2" } }
                 { "name": "apm-2" }
                 { "index": { "_index": "logs-apm.1" } }
-                { "name": "logs-apm.1" }\n"""));
+                { "name": "logs-apm.1" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 

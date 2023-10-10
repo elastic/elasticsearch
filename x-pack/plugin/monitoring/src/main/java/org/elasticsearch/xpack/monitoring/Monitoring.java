@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
@@ -33,8 +34,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -129,11 +130,12 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
+        TelemetryProvider telemetryProvider,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
+        final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool);
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
         final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 

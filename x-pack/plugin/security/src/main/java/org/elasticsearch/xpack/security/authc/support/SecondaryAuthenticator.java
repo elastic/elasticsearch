@@ -88,20 +88,16 @@ public class SecondaryAuthenticator {
         // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
         // auth is provided, so in that case we do no want to set anything in the context
         authenticate(
-            authListener -> authenticationService.authenticate(
-                request.getHttpRequest(),
-                false,
-                authListener.delegateFailure((l, authentication) -> {
-                    auditTrailService.get().authenticationSuccess(request);
-                    l.onResponse(authentication);
-                })
-            ),
-            ActionListener.wrap(secondaryAuthentication -> {
+            authListener -> authenticationService.authenticate(request.getHttpRequest(), false, authListener.map(authentication -> {
+                auditTrailService.get().authenticationSuccess(request);
+                return authentication;
+            })),
+            listener.delegateFailureAndWrap((l, secondaryAuthentication) -> {
                 if (secondaryAuthentication != null) {
                     secondaryAuthentication.writeToContext(threadContext);
                 }
-                listener.onResponse(secondaryAuthentication);
-            }, listener::onFailure)
+                l.onResponse(secondaryAuthentication);
+            })
         );
     }
 

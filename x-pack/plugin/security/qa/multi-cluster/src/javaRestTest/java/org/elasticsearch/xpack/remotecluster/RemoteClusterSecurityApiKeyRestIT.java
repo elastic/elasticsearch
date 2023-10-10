@@ -59,15 +59,11 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
-                          "role": {
-                            "cluster": ["cross_cluster_search"],
-                            "index": [
+                            "search": [
                               {
-                                "names": ["index*", "not_found_index"],
-                                "privileges": ["read", "read_cross_cluster"]
+                                "names": ["index*", "not_found_index"]
                               }
                             ]
-                          }
                         }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
@@ -332,7 +328,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 () -> performRequestWithApiKey(new Request("GET", "/invalid_remote:index1/_search"), apiKeyEncoded)
             );
             assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(exception4.getMessage(), containsString("unable to authenticate user "));
+            assertThat(exception4.getMessage(), containsString("unable to find apikey"));
         }
     }
 

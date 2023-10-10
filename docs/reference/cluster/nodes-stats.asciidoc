@@ -84,6 +84,9 @@ using metrics.
       Process statistics, memory consumption, cpu usage, open
       file descriptors.
 
+  `repositories`::
+      Statistics about snapshot repositories.
+
   `thread_pool`::
       Statistics about each thread pool, including current size, queue and
       rejected tasks.
@@ -118,6 +121,7 @@ using metrics.
     * `store`
     * `translog`
     * `warmer`
+    * `dense_vector`
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
@@ -679,12 +683,11 @@ Number of query cache misses.
 
 `cache_size`::
 (integer)
-Size, in bytes, of the query cache.
+Current number of cached queries.
 
 `cache_count`::
 (integer)
-Count of queries
-in the query cache.
+Total number of all queries that have been cached.
 
 `evictions`::
 (integer)
@@ -1001,6 +1004,18 @@ Estimated heap overhead of mappings on this node, which allows for 1kiB of heap 
 Estimated heap overhead, in bytes, of mappings on this node, which allows for 1kiB of heap for every mapped field.
 =======
 
+`dense_vector`::
+(object)
+Contains statistics about dense_vector across all shards assigned to the node.
++
+.Properties of `dense_vector`
+[%collapsible%open]
+=======
+`value_count`::
+(integer)
+Total number of dense vector indexed across all shards assigned
+to the node.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]
@@ -1672,6 +1687,31 @@ Total number of classes unloaded since the JVM started.
 =======
 ======
 
+[[cluster-nodes-stats-api-response-body-repositories]]
+`repositories`::
+(object)
+Statistics about snapshot repositories.
++
+.Properties of `repositories`
+[%collapsible%open]
+======
+`<repository_name>`::
+(object)
+Contains repository throttling statistics for the node.
++
+.Properties of `<repository_name>`
+[%collapsible%open]
+=======
+`total_read_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during recovery.
+
+`total_write_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during snapshotting.
+=======
+======
+
 [[cluster-nodes-stats-api-response-body-threadpool]]
 `thread_pool`::
 (object)
@@ -2114,11 +2154,11 @@ included in the response.
 
 `local_address`::
 (string)
-Local address for the HTTP client.
+Local address for the HTTP connection.
 
 `remote_address`::
 (string)
-Remote address for the HTTP client.
+Remote address for the HTTP connection.
 
 `last_uri`::
 (string)

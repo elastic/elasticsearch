@@ -59,12 +59,12 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
-        return from(in.readList(stream -> stream.readNamedWriteable(InternalAggregation.class)));
+        return from(in.readCollectionAsList(stream -> stream.readNamedWriteable(InternalAggregation.class)));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(getInternalAggregations());
+        out.writeNamedWriteableCollection(getInternalAggregations());
     }
 
     /**

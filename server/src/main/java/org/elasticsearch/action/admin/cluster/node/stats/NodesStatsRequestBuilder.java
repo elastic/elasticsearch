@@ -153,6 +153,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
+    public NodesStatsRequestBuilder setRepositoryStats(boolean repositoryStats) {
+        addOrRemoveMetric(repositoryStats, NodesStatsRequest.Metric.REPOSITORIES);
+        return this;
+    }
+
     /**
      * Helper method for adding metrics to a request
      */

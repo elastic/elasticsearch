@@ -2,7 +2,7 @@
 === Google Cloud Storage repository
 
 You can use the https://cloud.google.com/storage/[Google Cloud Storage]
-service as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
+service as a repository for {ref}/snapshot-restore.html[Snapshot/Restore].
 
 [[repository-gcs-usage]]
 ==== Getting started

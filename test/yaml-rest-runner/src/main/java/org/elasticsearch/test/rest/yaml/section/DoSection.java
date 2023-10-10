@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -438,8 +437,7 @@ public class DoSection implements ExecutableSection {
             .collect(toCollection(LinkedHashSet::new));
         final Set<Pattern> expectedRegex = new LinkedHashSet<>(expectedWarningHeadersRegex);
         for (final String header : warningHeaders) {
-            final Matcher matcher = HeaderWarning.WARNING_HEADER_PATTERN.matcher(header);
-            final boolean matches = matcher.matches();
+            final boolean matches = HeaderWarning.warningHeaderPatternMatches(header);
             if (matches) {
                 final String message = HeaderWarning.extractWarningValueFromWarningHeader(header, true);
                 if (allowed.contains(message)) {
@@ -512,7 +510,7 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
+    private static void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
         if (headers.isEmpty() == false) {
             sb.append(message).append(" [\n");
             for (final String header : headers) {
@@ -556,6 +554,7 @@ public class DoSection implements ExecutableSection {
         Map.entry("missing", tuple("404", equalTo(404))),
         Map.entry("request_timeout", tuple("408", equalTo(408))),
         Map.entry("conflict", tuple("409", equalTo(409))),
+        Map.entry("gone", tuple("410", equalTo(410))),
         Map.entry("unavailable", tuple("503", equalTo(503))),
         Map.entry(
             "request",
@@ -568,7 +567,8 @@ public class DoSection implements ExecutableSection {
                     not(equalTo(403)),
                     not(equalTo(404)),
                     not(equalTo(408)),
-                    not(equalTo(409))
+                    not(equalTo(409)),
+                    not(equalTo(410))
                 )
             )
         )

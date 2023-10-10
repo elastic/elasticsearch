@@ -47,8 +47,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
             actionFilters,
             NodesHotThreadsRequest::new,
             NodeRequest::new,
-            ThreadPool.Names.GENERIC,
-            NodeHotThreads.class
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
     }
 

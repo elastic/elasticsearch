@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
@@ -37,11 +36,13 @@ import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialS
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -277,7 +278,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final Set<String> blackholedNodes = new HashSet<>();
         private final Set<Tuple<String, String>> blackholedConnections = new HashSet<>();
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
-        private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
         private final CountingPageCacheRecycler countingPageCacheRecycler;
         private final Recycler<BytesRef> recycler;
@@ -291,10 +291,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
+        @SuppressWarnings("this-escape")
         public Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
             this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info"));
         }
 
+        @SuppressWarnings("this-escape")
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
             this.nodeHealthService = nodeHealthService;
             this.countingPageCacheRecycler = new CountingPageCacheRecycler();
@@ -698,6 +700,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     }
                 }
 
+                assertTrue(
+                    nodeId + " is not scheduling elections",
+                    // In the stable state all election schedulers should be inactive, rather than retrying in vain and backing off.
+                    clusterNode.coordinator.electionSchedulerActive() == false
+                        || coordinatorStrategy.verifyElectionSchedulerState(clusterNode) == false
+                );
+
                 if (expectIdleJoinValidationService) {
                     // Tests run stabilise(long stabilisationDurationMillis) to assert timely recovery from a disruption. There's no need
                     // to wait for the JoinValidationService cache to be cleared in these cases, we have enough checks that this eventually
@@ -730,10 +739,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 lastAcceptedState.getLastCommittedConfiguration(),
                 equalTo(lastAcceptedState.getLastAcceptedConfiguration())
             );
-            assertThat(
-                "current configuration is already optimal",
-                leader.improveConfiguration(lastAcceptedState),
-                sameInstance(lastAcceptedState)
+            leader.onNode(
+                () -> assertThat(
+                    "current configuration is already optimal",
+                    leader.improveConfiguration(lastAcceptedState),
+                    sameInstance(lastAcceptedState)
+                )
             );
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
@@ -745,7 +756,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 if (history.size() > 300) {
                     scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
                 }
-                final boolean linearizable = linearizabilityChecker.isLinearizable(spec, history, i -> null, abort::get);
+                final boolean linearizable = LinearizabilityChecker.isLinearizable(spec, history, i -> null, abort::get);
                 if (abort.get() == false) {
                     assertTrue("history not linearizable: " + history, linearizable);
                 }
@@ -940,6 +951,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             );
         }
 
+        protected long transportDelayMillis(String actionName) {
+            return 0;
+        }
+
         public class ClusterNode {
             private final Logger logger = LogManager.getLogger(ClusterNode.class);
 
@@ -961,6 +976,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClearableRecycler clearableRecycler;
             private List<Runnable> blackholedRegisterOperations = new ArrayList<>();
 
+            @SuppressWarnings("this-escape")
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
                     nodeIndex,
@@ -1047,7 +1063,32 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             default -> assertThat(action, chanType, equalTo(TransportRequestOptions.Type.REG));
                         }
 
-                        super.onSendRequest(requestId, action, request, options, destinationTransport);
+                        final long transportDelayMillis = transportDelayMillis(action);
+                        final Runnable delivery = () -> super.onSendRequest(requestId, action, request, options, destinationTransport);
+                        if (transportDelayMillis > 0) {
+                            deterministicTaskQueue.scheduleAt(
+                                deterministicTaskQueue.getCurrentTimeMillis() + transportDelayMillis,
+                                onNode(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        delivery.run();
+                                    }
+
+                                    @Override
+                                    public String toString() {
+                                        return Strings.format(
+                                            "delayed onSendRequest for [%d][%s] from [%s] to [%s]",
+                                            requestId,
+                                            action,
+                                            localNode,
+                                            destinationTransport.getLocalNode()
+                                        );
+                                    }
+                                })
+                            );
+                        } else {
+                            delivery.run();
+                        }
                     }
 
                     @Override
@@ -1074,7 +1115,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 masterService = new AckedFakeThreadPoolMasterService(
                     localNode.getId(),
-                    "test",
                     threadPool,
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable))
                 );
@@ -1085,6 +1125,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     settings,
                     clusterSettings,
                     deterministicTaskQueue,
+                    this::onNode,
                     threadPool
                 );
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
@@ -1124,7 +1165,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     new NoneCircuitBreakerService(),
                     coordinationServices.getReconfigurator(),
                     coordinationServices.getLeaderHeartbeatService(),
-                    coordinationServices.getPreVoteCollectorFactory()
+                    coordinationServices.getPreVoteCollectorFactory(),
+                    CompatibilityVersionsUtils.staticCurrent()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1195,18 +1237,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 Function<Long, Long> adaptCurrentTerm,
                 Settings settings
             ) {
-                final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
-                final DiscoveryNode newLocalNode = new DiscoveryNode(
-                    localNode.getName(),
-                    localNode.getId(),
-                    UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-                    address.address().getHostString(),
-                    address.getAddress(),
-                    address,
-                    Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
-                    Version.CURRENT
-                );
+                final DiscoveryNode newLocalNode = DiscoveryNodeUtils.builder(localNode.getId())
+                    .name(localNode.getName())
+                    .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
+                    .address(randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress())
+                    .roles(localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
+                    .build();
                 try {
                     return new ClusterNode(
                         nodeIndex,
@@ -1494,9 +1530,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private class NodeDisruptibleRegisterConnection implements DisruptibleRegisterConnection {
                 @Override
                 public <R> void runDisrupted(ActionListener<R> listener, Consumer<ActionListener<R>> consumer) {
-                    if (isDisconnected()) {
+                    if (isRegisterDisconnected()) {
                         listener.onFailure(new IOException("simulated disrupted connection to register"));
-                    } else if (isBlackholed()) {
+                    } else if (isRegisterBlackholed()) {
                         final var exception = new IOException("simulated eventual failure to blackholed register");
                         logger.trace(() -> Strings.format("delaying failure of register request for [%s]", listener), exception);
                         blackholedRegisterOperations.add(onNode(new DisruptableMockTransport.RebootSensitiveRunnable() {
@@ -1522,24 +1558,27 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                 @Override
                 public <R> void runDisruptedOrDrop(ActionListener<R> listener, Consumer<ActionListener<R>> consumer) {
-                    if (isDisconnected()) {
+                    if (isRegisterDisconnected()) {
                         listener.onFailure(new IOException("simulated disrupted connection to register"));
-                    } else if (isBlackholed()) {
+                    } else if (isRegisterBlackholed()) {
                         logger.trace(() -> Strings.format("dropping register request for [%s]", listener));
                     } else {
                         consumer.accept(listener);
                     }
                 }
 
-                private boolean isDisconnected() {
-                    return disconnectedNodes.contains(localNode.getId())
-                        || nodeHealthService.getHealth().getStatus() != HEALTHY
-                        || (disruptStorage && rarely());
-                }
+            }
 
-                private boolean isBlackholed() {
-                    return blackholedNodes.contains(localNode.getId());
-                }
+            public boolean isRegisterDisconnected() {
+                return disconnectedNodes.contains(localNode.getId()) || getHealthStatus() != HEALTHY || (disruptStorage && rarely());
+            }
+
+            public boolean isRegisterBlackholed() {
+                return blackholedNodes.contains(localNode.getId());
+            }
+
+            public StatusInfo.Status getHealthStatus() {
+                return nodeHealthService.getHealth().getStatus();
             }
         }
 
@@ -1594,7 +1633,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool
         );
 
-        default void close() {};
+        default void close() {}
+
+        default boolean verifyElectionSchedulerState(ClusterNode clusterNode) {
+            // Today we do the health service checks within the election, so we keep the election scheduler going if the node health
+            // state is UNHEALTHY too. See https://github.com/elastic/elasticsearch/issues/98419.
+            return clusterNode.getHealthStatus() == HEALTHY;
+        }
     }
 
     protected interface CoordinationServices {
@@ -1728,12 +1773,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         AckCollector nextAckCollector = new AckCollector();
         boolean publicationMayFail = false;
 
-        AckedFakeThreadPoolMasterService(
-            String nodeName,
-            String serviceName,
-            ThreadPool threadPool,
-            Consumer<Runnable> onTaskAvailableToRun
-        ) {
+        AckedFakeThreadPoolMasterService(String nodeName, ThreadPool threadPool, Consumer<Runnable> onTaskAvailableToRun) {
             super(nodeName, threadPool, onTaskAvailableToRun);
         }
 
@@ -1770,7 +1810,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final String nodeName;
         private final String nodeId;
         private final DeterministicTaskQueue deterministicTaskQueue;
-        private final ThreadPool threadPool;
+        private final UnaryOperator<Runnable> taskWrapper;
         ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
         private boolean applicationMayFail;
 
@@ -1780,13 +1820,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             Settings settings,
             ClusterSettings clusterSettings,
             DeterministicTaskQueue deterministicTaskQueue,
+            UnaryOperator<Runnable> taskWrapper,
             ThreadPool threadPool
         ) {
             super(nodeName, settings, clusterSettings, threadPool);
             this.nodeName = nodeName;
             this.nodeId = nodeId;
             this.deterministicTaskQueue = deterministicTaskQueue;
-            this.threadPool = threadPool;
+            this.taskWrapper = taskWrapper;
             addStateApplier(event -> {
                 switch (clusterStateApplyResponse) {
                     case SUCCEED, HANG -> {
@@ -1802,7 +1843,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
         @Override
         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-            return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> new Runnable() {
+            return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor(command -> taskWrapper.apply(new Runnable() {
                 @Override
                 public void run() {
                     try (var ignored = DeterministicTaskQueue.getLogContext('{' + nodeName + "}{" + nodeId + '}')) {
@@ -1814,7 +1855,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 public String toString() {
                     return "DisruptableClusterApplierService[" + command + "]";
                 }
-            });
+            }));
         }
 
         @Override
@@ -1853,18 +1894,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         .collect(Collectors.toUnmodifiableSet());
 
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
-        final TransportAddress address = buildNewFakeTransportAddress();
-        return new DiscoveryNode(
-            "",
-            "node" + nodeIndex,
-            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-            address.address().getHostString(),
-            address.getAddress(),
-            address,
-            Collections.emptyMap(),
-            masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder("node" + nodeIndex)
+            .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
+            .roles(masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
+            .build();
     }
 
     /**
@@ -2029,11 +2062,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     class MockPersistedState implements CoordinationState.PersistedState {
+        private final DiscoveryNode localNode;
         private final CoordinationState.PersistedState delegate;
         private final NodeEnvironment nodeEnvironment;
         private final BooleanSupplier disruptStorage;
 
         MockPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+            this.localNode = localNode;
             this.disruptStorage = disruptStorage;
             try {
                 if (rarely()) {
@@ -2065,6 +2100,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             NamedWriteableRegistry namedWriteableRegistry,
             BooleanSupplier disruptStorage
         ) {
+            this.localNode = newLocalNode;
             this.disruptStorage = disruptStorage;
             try {
                 if (oldState.nodeEnvironment != null) {
@@ -2101,7 +2137,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 } else {
                     nodeEnvironment = null;
                     BytesStreamOutput outStream = new BytesStreamOutput();
-                    outStream.setTransportVersion(TransportVersion.CURRENT);
+                    outStream.setTransportVersion(TransportVersion.current());
 
                     final long persistedCurrentTerm;
 
@@ -2221,6 +2257,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             } catch (IOException e) {
                 throw new AssertionError("unexpected", e);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "MockPersistedState[" + localNode.descriptionWithoutAttributes() + "]";
         }
     }
 }

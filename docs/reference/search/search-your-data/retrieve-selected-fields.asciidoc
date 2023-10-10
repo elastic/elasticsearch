@@ -1,5 +1,5 @@
 [[search-fields]]
-== Retrieve selected fields from a search
+=== Retrieve selected fields from a search
 ++++
 <titleabbrev>Retrieve selected fields</titleabbrev>
 ++++
@@ -20,7 +20,7 @@ retrieving data.
 
 [discrete]
 [[search-fields-param]]
-=== The `fields` option
+==== The `fields` option
 To retrieve specific fields in the search response, use the `fields` parameter.
 // tag::fields-param-desc[]
 Because it consults the index mappings, the `fields` parameter provides several
@@ -46,7 +46,7 @@ Selected fields that can't be found in `_source` are skipped.
 
 [discrete]
 [[search-fields-request]]
-==== Retrieve specific fields
+===== Retrieve specific fields
 The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the
 `@timestamp` field.
@@ -89,7 +89,7 @@ However, when explicitly requested using the field name, the `_id`, `_routing`,
 
 [discrete]
 [[search-fields-response]]
-==== Response always returns an array
+===== Response always returns an array
 
 The `fields` response always returns an array of values for each field,
 even when there is a single value in the `_source`. This is because {es} has
@@ -140,7 +140,7 @@ fields are returned.
 
 [discrete]
 [[search-fields-nested]]
-==== Retrieve nested fields
+===== Retrieve nested fields
 
 [%collapsible]
 ====
@@ -300,7 +300,7 @@ values will be returned because the pattern doesn't match any leaf fields.
 
 [discrete]
 [[retrieve-unmapped-fields]]
-==== Retrieve unmapped fields
+===== Retrieve unmapped fields
 
 [%collapsible]
 ====
@@ -392,7 +392,7 @@ won't be included in the response because `include_unmapped` isn't set to
 
 [discrete]
 [[ignored-field-values]]
-==== Ignored field values
+===== Ignored field values
 
 [%collapsible]
 ====
@@ -570,7 +570,7 @@ GET /_search
 
 [discrete]
 [[field-retrieval-methods]]
-=== Other methods of retrieving data
+==== Other methods of retrieving data
 
 .Using `fields` is typically better
 ****
@@ -588,7 +588,7 @@ for loading fields:
 parameter to get values for selected fields. This can be a good
 choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.
-* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
+* Use the <<stored-fields, `stored_fields`>> parameter to
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
 
@@ -598,7 +598,7 @@ implications of source filtering where {es} needs to load and parse the entire
 
 [discrete]
 [[docvalue-fields]]
-==== Doc value fields
+===== Doc value fields
 
 You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
 <<doc-values,doc values>> for one or more fields in the search response.
@@ -652,7 +652,7 @@ property.
 
 [discrete]
 [[stored-fields]]
-==== Stored fields
+===== Stored fields
 
 It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
@@ -706,7 +706,7 @@ must be used within an <<inner-hits, `inner_hits`>> block.
 
 [discrete]
 [[disable-stored-fields]]
-===== Disable stored fields
+====== Disable stored fields
 
 To disable the stored fields (and metadata fields) entirely use: `_none_`:
 
@@ -725,7 +725,7 @@ NOTE: <<source-filtering,`_source`>> and <<request-body-search-version, `version
 
 [discrete]
 [[script-fields]]
-==== Script fields
+===== Script fields
 
 You can use the `script_fields` parameter to retrieve a <<modules-scripting,script
 evaluation>> (based on different fields) for each hit. For example:

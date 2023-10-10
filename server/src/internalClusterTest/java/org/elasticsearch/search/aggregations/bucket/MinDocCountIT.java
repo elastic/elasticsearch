@@ -92,7 +92,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").setMapping("s", "type=keyword").get());
+        assertAcked(indicesAdmin().prepareCreate("idx").setMapping("s", "type=keyword").get());
 
         cardinality = randomIntBetween(8, 30);
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();

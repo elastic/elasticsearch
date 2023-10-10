@@ -29,14 +29,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -55,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -94,8 +96,9 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
+        TelemetryProvider telemetryProvider,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();
@@ -220,8 +223,8 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
                         }
 
                         @Override
-                        public String executor() {
-                            return handler.executor();
+                        public Executor executor(ThreadPool threadPool) {
+                            return handler.executor(threadPool);
                         }
 
                         @Override

@@ -73,6 +73,13 @@ public class TextEmbeddingResults extends NlpInferenceResults {
     }
 
     @Override
+    public Map<String, Object> asMap(String outputField) {
+        var map = super.asMap(outputField);
+        map.put(outputField, inference);
+        return map;
+    }
+
+    @Override
     public Object predictedValue() {
         throw new UnsupportedOperationException("[" + NAME + "] does not support a single predicted value");
     }

@@ -9,7 +9,9 @@ esplugin {
   hasNativeController false
   requiresKeystore true
 }
-archivesBaseName = 'x-pack-autoscaling'
+base {
+  archivesName = 'x-pack-autoscaling'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

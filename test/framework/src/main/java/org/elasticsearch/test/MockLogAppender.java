@@ -33,8 +33,6 @@ import static org.hamcrest.Matchers.is;
  */
 public class MockLogAppender extends AbstractAppender {
 
-    private static final String COMMON_PREFIX = System.getProperty("es.logger.prefix", "org.elasticsearch.");
-
     private final List<WrappedLoggingExpectation> expectations;
 
     public MockLogAppender() {
@@ -79,7 +77,7 @@ public class MockLogAppender extends AbstractAppender {
 
         public AbstractEventExpectation(String name, String logger, Level level, String message) {
             this.name = name;
-            this.logger = getLoggerName(logger);
+            this.logger = logger;
             this.level = level;
             this.message = message;
             this.saw = false;
@@ -210,13 +208,6 @@ public class MockLogAppender extends AbstractAppender {
 
     }
 
-    private static String getLoggerName(String name) {
-        if (name.startsWith("org.elasticsearch.")) {
-            name = name.substring("org.elasticsearch.".length());
-        }
-        return COMMON_PREFIX + name;
-    }
-
     /**
      * A wrapper around {@link LoggingExpectation} to detect if the assertMatched method has been called
      */
@@ -269,5 +260,17 @@ public class MockLogAppender extends AbstractAppender {
                 );
             }
         };
+    }
+
+    /**
+     * Executes an action and verifies expectations against the provided logger
+     */
+    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation expectation) {
+        MockLogAppender mockAppender = new MockLogAppender();
+        try (var ignored = mockAppender.capturing(loggerOwner)) {
+            mockAppender.addExpectation(expectation);
+            action.run();
+            mockAppender.assertAllExpectationsMatched();
+        }
     }
 }

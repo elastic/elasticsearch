@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -21,11 +22,10 @@ import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collections;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,7 +62,6 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
     }
 
     public void testLicenseMetadataParsingDoesNotSwallowOtherMetadata() throws Exception {
-        new Licensing(Settings.EMPTY); // makes sure LicensePlugin is registered in Custom Metadata
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
         LicensesMetadata licensesMetadata = new LicensesMetadata(license, Version.CURRENT);
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
@@ -146,8 +145,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(
-            Stream.concat(new Licensing(Settings.EMPTY).getNamedXContent().stream(), ClusterModule.getNamedXWriteables().stream())
-                .collect(Collectors.toList())
+            CollectionUtils.concatLists(new XPackPlugin(Settings.EMPTY).getNamedXContent(), ClusterModule.getNamedXWriteables())
         );
     }
 }

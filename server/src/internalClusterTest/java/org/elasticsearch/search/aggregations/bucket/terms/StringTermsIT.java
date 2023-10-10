@@ -115,22 +115,12 @@ public class StringTermsIT extends AbstractTermsTestCase {
             return scripts;
         }
 
-        @Override
-        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
-            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-
-            scripts.put("Math.random()", vars -> StringTermsIT.randomDouble());
-
-            return scripts;
-        }
     }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("idx")
+            indicesAdmin().prepareCreate("idx")
                 .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
                 .get()
         );
@@ -156,9 +146,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         getMultiSortDocs(builders);
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("high_card_idx")
+            indicesAdmin().prepareCreate("high_card_idx")
                 .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
                 .get()
         );
@@ -236,9 +224,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
 
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("sort_idx")
+            indicesAdmin().prepareCreate("sort_idx")
                 .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
                 .get()
         );
@@ -1239,25 +1225,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         // Make sure we are starting with a clear cache
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
@@ -1272,25 +1244,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
@@ -1305,25 +1263,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(1L)
         );
 
@@ -1332,25 +1276,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(2L)
         );
     }

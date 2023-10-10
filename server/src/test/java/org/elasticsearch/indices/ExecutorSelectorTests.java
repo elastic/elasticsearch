@@ -28,7 +28,7 @@ public class ExecutorSelectorTests extends ESTestCase {
                     new SystemIndices.Feature(
                         "normal",
                         "normal system index",
-                        Collections.singletonList(new SystemIndexDescriptor(".non-critical-system-index*", "test index"))
+                        Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(".non-critical-system-index*", "test index"))
                     )
                 )
             )

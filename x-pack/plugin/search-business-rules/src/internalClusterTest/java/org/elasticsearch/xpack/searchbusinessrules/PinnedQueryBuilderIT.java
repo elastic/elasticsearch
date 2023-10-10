@@ -395,4 +395,67 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         assertSecondHit(searchResponse, both(hasIndex("test")).and(hasId("a")));
         assertThirdHit(searchResponse, both(hasIndex("test")).and(hasId("c")));
     }
+
+    public void testMultiIndexWithAliasesAndDuplicateIds() throws Exception {
+        Alias alias = new Alias("test-alias");
+
+        assertAcked(
+            prepareCreate("test1").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))).addAlias(alias)
+        );
+
+        assertAcked(
+            prepareCreate("test2").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))).addAlias(alias)
+        );
+
+        client().prepareIndex("test1").setId("a").setSource("field1", "document a").get();
+        client().prepareIndex("test1").setId("b").setSource("field1", "document b").get();
+        client().prepareIndex("test1").setId("c").setSource("field1", "document c").get();
+
+        client().prepareIndex("test2").setId("a").setSource("field1", "document a").get();
+
+        refresh();
+
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(
+            QueryBuilders.queryStringQuery("document"),
+            new Item("test1", "b"),
+            new Item(null, "a"),
+            new Item("test1", "c"),
+            new Item("test1", "a"),
+            new Item("test-alias", "a")
+        );
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(pqb)
+            .setTrackTotalHits(true)
+            .setSearchType(DFS_QUERY_THEN_FETCH)
+            .get();
+
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));
+        assertSecondHit(searchResponse, hasId("a"));
+        assertThirdHit(searchResponse, hasId("a"));
+        assertFourthHit(searchResponse, both(hasIndex("test1")).and(hasId("c")));
+    }
 }

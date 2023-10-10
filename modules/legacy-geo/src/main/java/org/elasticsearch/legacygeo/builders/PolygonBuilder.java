@@ -93,7 +93,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     public void writeTo(StreamOutput out) throws IOException {
         shell.writeTo(out);
         orientation.writeTo(out);
-        out.writeList(holes);
+        out.writeCollection(holes);
     }
 
     public Orientation orientation() {
@@ -166,7 +166,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     /**
      * Validates only 1 vertex is tangential (shared) between the interior and exterior of a polygon
      */
-    protected void validateHole(LineStringBuilder shell, LineStringBuilder hole) {
+    protected static void validateHole(LineStringBuilder shell, LineStringBuilder hole) {
         HashSet<Coordinate> exterior = Sets.newHashSet(shell.coordinates);
         HashSet<Coordinate> interior = Sets.newHashSet(hole.coordinates);
         exterior.retainAll(interior);
@@ -721,7 +721,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
 
         // if the polygon is tiny, the computed area can result in zero. In that case
         // we assume orientation is correct
-        boolean orientation = signedArea == 0 ? handedness != false : signedArea < 0;
+        boolean orientation = signedArea == 0 ? handedness : signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards

@@ -11,11 +11,12 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -124,7 +125,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         indexRequest.id("1");
         indexRequest.source("field", "value");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
-        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         TaskId parentTaskId = new TaskId("node", randomNonNegativeLong());
 
@@ -173,7 +174,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             indexRequest.id("1");
             indexRequest.source("date", "1970-01-01");
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
-            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         {
@@ -181,7 +182,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             indexRequest.id("1");
             indexRequest.source("date", "1982-01-01");
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
-            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         {
@@ -249,17 +250,17 @@ public class TransportSearchIT extends ESIntegTestCase {
             IndexRequest indexRequest = new IndexRequest("test");
             indexRequest.id("1");
             indexRequest.source("price", 10);
-            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         {
             IndexRequest indexRequest = new IndexRequest("test");
             indexRequest.id("2");
             indexRequest.source("price", 100);
-            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         SearchRequest originalRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -302,8 +303,8 @@ public class TransportSearchIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
         assertAcked(prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
         assertAcked(prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)));
-        client().admin().indices().prepareAliases().addAlias("test1", "testAlias").get();
-        client().admin().indices().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias").get();
+        indicesAdmin().prepareAliases().addAlias("test1", "testAlias").get();
+        indicesAdmin().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias").get();
 
         long[] validCheckpoints = new long[numberOfShards];
         Arrays.fill(validCheckpoints, SequenceNumbers.UNASSIGNED_SEQ_NO);
@@ -551,10 +552,10 @@ public class TransportSearchIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", numberOfShards).build());
 
         for (int i = 0; i < numberOfDocs; i++) {
-            IndexResponse indexResponse = client().prepareIndex(indexName).setSource("number", randomInt()).get();
+            DocWriteResponse indexResponse = client().prepareIndex(indexName).setSource("number", randomInt()).get();
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
-        client().admin().indices().prepareRefresh(indexName).get();
+        indicesAdmin().prepareRefresh(indexName).get();
     }
 
     private long requestBreakerUsed() {
@@ -634,7 +635,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
     }
 
@@ -670,6 +671,9 @@ public class TransportSearchIT extends ESIntegTestCase {
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             return new InternalAggregation[] { buildEmptyAggregation() };
         }
+
+        @Override
+        public void releaseAggregations() {}
 
         @Override
         public InternalAggregation buildEmptyAggregation() {

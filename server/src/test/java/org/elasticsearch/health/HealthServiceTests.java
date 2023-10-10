@@ -21,7 +21,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +61,6 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
-            Collections.emptyList(),
             List.of(
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
@@ -119,7 +117,6 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
-            Collections.emptyList(),
             List.of(
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
@@ -142,7 +139,7 @@ public class HealthServiceTests extends ESTestCase {
     public void testValidateSize() {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
-        var service = new HealthService(Collections.emptyList(), List.of(createMockHealthIndicatorService(shardsAvailable)), threadPool);
+        var service = new HealthService(List.of(createMockHealthIndicatorService(shardsAvailable)), threadPool);
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
@@ -219,8 +216,8 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
-            List.of(createMockHealthIndicatorService(hasMaster)),
             List.of(
+                createMockHealthIndicatorService(true, hasMaster, null),
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
@@ -259,8 +256,8 @@ public class HealthServiceTests extends ESTestCase {
 
         var service = new HealthService(
             // The preflight indicator does not get data because the data is not fetched until after the preflight check
-            List.of(createMockHealthIndicatorService(hasMaster, HealthInfo.EMPTY_HEALTH_INFO)),
             List.of(
+                createMockHealthIndicatorService(true, hasMaster, HealthInfo.EMPTY_HEALTH_INFO),
                 createMockHealthIndicatorService(networkLatency, healthInfo),
                 createMockHealthIndicatorService(slowTasks, healthInfo),
                 createMockHealthIndicatorService(shardsAvailable, healthInfo)
@@ -288,8 +285,9 @@ public class HealthServiceTests extends ESTestCase {
         var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
 
         var service = new HealthService(
-            List.of(createMockHealthIndicatorService(hasMaster), createMockHealthIndicatorService(hasStorage)),
             List.of(
+                createMockHealthIndicatorService(true, hasMaster, null),
+                createMockHealthIndicatorService(true, hasStorage, null),
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
@@ -360,18 +358,27 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {
-        return createMockHealthIndicatorService(result, null);
+        return createMockHealthIndicatorService(false, result, null);
+    }
+
+    private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result, HealthInfo expectedHealthInfo) {
+        return createMockHealthIndicatorService(false, result, expectedHealthInfo);
     }
 
     /**
      * This returns a test HealthIndicatorService
+     * @param isPreflight true if it's a preflight indicator
      * @param result The HealthIndicatorResult that will be returned by the calculate method when the HealthIndicatorService returned by
      *               this method is called
      * @param expectedHealthInfo If this HealthInfo is not null then the returned HealthIndicatorService's calculate method will assert
      *                           that the HealthInfo it is passed is equal to this when it is called
      * @return A test HealthIndicatorService
      */
-    private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result, HealthInfo expectedHealthInfo) {
+    private static HealthIndicatorService createMockHealthIndicatorService(
+        boolean isPreflight,
+        HealthIndicatorResult result,
+        HealthInfo expectedHealthInfo
+    ) {
         return new HealthIndicatorService() {
             @Override
             public String name() {
@@ -384,6 +391,11 @@ public class HealthServiceTests extends ESTestCase {
                     assertThat(healthInfo, equalTo(expectedHealthInfo));
                 }
                 return result;
+            }
+
+            @Override
+            public boolean isPreflight() {
+                return isPreflight;
             }
         };
     }

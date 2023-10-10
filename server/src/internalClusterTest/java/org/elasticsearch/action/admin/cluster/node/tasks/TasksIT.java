@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
@@ -25,7 +26,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -43,7 +43,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -132,20 +131,24 @@ public class TasksIT extends ESIntegTestCase {
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(cluster().numDataNodes()));
     }
 
-    public void testMasterNodeOperationTasks() {
+    public void testMasterNodeOperationTasks() throws Exception {
         registerTaskManagerListeners(ClusterHealthAction.NAME);
 
         // First run the health on the master node - should produce only one task on the master node
         internalCluster().masterClient().admin().cluster().prepareHealth().get();
         assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
-        assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
+        // counting only unregistration events
+        // When checking unregistration events there might be some delay since receiving the response from the cluster doesn't
+        // guarantee that the task has been unregistered.
+        assertBusy(() -> assertEquals(1, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)));
 
         resetTaskManagerListeners(ClusterHealthAction.NAME);
 
         // Now run the health on a non-master node - should produce one task on master and one task on another node
         internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
         assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
-        assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)); // counting only unregistration events
+        // counting only unregistration events
+        assertBusy(() -> assertEquals(2, numberOfEvents(ClusterHealthAction.NAME, event -> event.v1() == false)));
         List<TaskInfo> tasks = findEvents(ClusterHealthAction.NAME, Tuple::v1);
 
         // Verify that one of these tasks is a parent of another task
@@ -163,7 +166,7 @@ public class TasksIT extends ESIntegTestCase {
         // tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareValidateQuery("test").setAllShards(true).get();
+        indicesAdmin().prepareValidateQuery("test").setAllShards(true).get();
 
         // the field stats operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
@@ -180,7 +183,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(ForceMergeAction.NAME + "[n]"); // node level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareForceMerge("test").get();
+        indicesAdmin().prepareForceMerge("test").get();
 
         // the percolate operation should produce one main task
         assertEquals(1, numberOfEvents(ForceMergeAction.NAME, Tuple::v1));
@@ -196,7 +199,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(ValidateQueryAction.NAME + "[s]"); // shard level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareValidateQuery("test").get();
+        indicesAdmin().prepareValidateQuery("test").get();
 
         // the validate operation should produce one main task
         assertEquals(1, numberOfEvents(ValidateQueryAction.NAME, Tuple::v1));
@@ -212,7 +215,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(RefreshAction.NAME + "[s][*]"); // primary and replica shard tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         // the refresh operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
@@ -296,7 +299,7 @@ public class TasksIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
-        client().admin().indices().preparePutMapping("test").setSource("foo", "type=keyword").get();
+        indicesAdmin().preparePutMapping("test").setSource("foo", "type=keyword").get();
         client().prepareBulk().add(client().prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
@@ -451,7 +454,7 @@ public class TasksIT extends ESIntegTestCase {
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
-                IndexResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
+                DocWriteResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
                 assertArrayEquals(ReplicationResponse.NO_FAILURES, indexResponse.getShardInfo().getFailures());
             });
             index.start();
@@ -532,7 +535,12 @@ public class TasksIT extends ESIntegTestCase {
         new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
 
         future.get();
-        assertEquals(0, clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size());
+        assertBusy(
+            () -> assertEquals(
+                0,
+                clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+            )
+        );
     }
 
     public void testListTasksWaitForCompletion() throws Exception {
@@ -597,18 +605,13 @@ public class TasksIT extends ESIntegTestCase {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                 ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                     @Override
-                    public void waitForTaskCompletion(Task task) {
-                        waitForWaitingToStart.countDown();
-                    }
+                    public void waitForTaskCompletion(Task task) {}
 
                     @Override
                     public void onTaskRegistered(Task task) {}
 
                     @Override
-                    public void onTaskUnregistered(Task task) {}
-
-                    @Override
-                    public void subscribeForRemovedTasks(RemovedTaskListener removedTaskListener) {
+                    public void onTaskUnregistered(Task task) {
                         waitForWaitingToStart.countDown();
                     }
                 });
@@ -780,7 +783,7 @@ public class TasksIT extends ESIntegTestCase {
         Map<?, ?> result = taskResult.getResponseAsMap();
         assertEquals("0", result.get("failure_count").toString());
 
-        assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
+        assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.action())))
@@ -858,6 +861,7 @@ public class TasksIT extends ESIntegTestCase {
                 new TaskInfo(
                     new TaskId("fake", 1),
                     "test",
+                    "fake",
                     "test",
                     "",
                     null,

@@ -402,7 +402,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
-            boolean isNew = isUnassignedDueToNewInitialization(routing);
+            boolean isNew = isUnassignedDueToNewInitialization(routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
             if ((routing.active() || isRestarting || isNew) == false) {
@@ -445,17 +445,23 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         if (info == null || info.getReason() != UnassignedInfo.Reason.NODE_RESTARTING) {
             return false;
         }
-        var shutdown = shutdowns.getAllNodeMetadataMap().get(info.getLastAllocatedNodeId());
-        if (shutdown == null || shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+        var shutdown = shutdowns.get(info.getLastAllocatedNodeId(), SingleNodeShutdownMetadata.Type.RESTART);
+        if (shutdown == null) {
             return false;
         }
         var now = System.nanoTime();
         var restartingAllocationDelayExpiration = info.getUnassignedTimeInNanos() + shutdown.getAllocationDelay().nanos();
-        return now <= restartingAllocationDelayExpiration;
+        return now - restartingAllocationDelayExpiration <= 0;
     }
 
-    private static boolean isUnassignedDueToNewInitialization(ShardRouting routing) {
-        return routing.primary() && routing.active() == false && getInactivePrimaryHealth(routing) == ClusterHealthStatus.YELLOW;
+    private static boolean isUnassignedDueToNewInitialization(ShardRouting routing, ClusterState state) {
+        if (routing.active()) {
+            return false;
+        }
+        // If the primary is inactive for unexceptional events in the cluster lifecycle, both the primary and the
+        // replica are considered new initializations.
+        ShardRouting primary = routing.primary() ? routing : state.routingTable().shardRoutingTable(routing.shardId()).primaryShard();
+        return primary.active() == false && getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
     }
 
     /**
@@ -719,7 +725,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    private List<Diagnosis.Definition> checkDataTierShouldMigrate(
+    private static List<Diagnosis.Definition> checkDataTierShouldMigrate(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> dataTierAllocationResults,
         @Nullable String preferredTier,
@@ -764,7 +770,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    private Optional<Diagnosis.Definition> checkNotEnoughNodesInDataTier(
+    private static Optional<Diagnosis.Definition> checkNotEnoughNodesInDataTier(
         List<NodeAllocationResult> dataTierAllocationResults,
         @Nullable String preferredTier
     ) {
@@ -815,6 +821,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 || primaries.unassigned_new > 0
                 || primaries.unassigned_restarting > 0
                 || replicas.unassigned > 0
+                || replicas.unassigned_new > 0
                 || replicas.unassigned_restarting > 0
                 || primaries.initializing > 0
                 || replicas.initializing > 0) {
@@ -822,6 +829,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     Stream.of(
                         createMessage(primaries.unassigned, "unavailable primary shard", "unavailable primary shards"),
                         createMessage(primaries.unassigned_new, "creating primary shard", "creating primary shards"),
+                        createMessage(replicas.unassigned_new, "creating replica shard", "creating replica shards"),
                         createMessage(primaries.unassigned_restarting, "restarting primary shard", "restarting primary shards"),
                         createMessage(replicas.unassigned, "unavailable replica shard", "unavailable replica shards"),
                         createMessage(primaries.initializing, "initializing primary shard", "initializing primary shards"),
@@ -861,6 +869,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         replicas.unassigned,
                         "initializing_replicas",
                         replicas.initializing,
+                        "creating_replicas",
+                        replicas.unassigned_new,
                         "restarting_replicas",
                         replicas.unassigned_restarting,
                         "started_replicas",

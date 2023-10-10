@@ -8,7 +8,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -32,9 +32,11 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -61,8 +63,8 @@ import java.util.UUID;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
@@ -113,8 +115,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
         Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.roles());
-        DiscoveryNode node1 = new DiscoveryNode("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("_node1").name("_name1").roles(roles).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("_node2").name("_name2").roles(roles).build();
         state.nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()));
 
         shardId = new ShardId("index", UUID.randomUUID().toString(), 0);
@@ -126,7 +128,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
 
-        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).put(SETTING_INDEX_UUID, shardId.getIndex().getUUID())
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).put(SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             .build();
 
@@ -176,6 +178,11 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         private TransportResponseHandler<TransportReplicationAction.ReplicaResponse> getResponseHandler() {
                             return (TransportResponseHandler<TransportReplicationAction.ReplicaResponse>) getResponseHandlers()
                                 .onResponseReceived(requestId, TransportMessageListener.NOOP_LISTENER);
+                        }
+
+                        @Override
+                        public Executor executor(ThreadPool threadPool) {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 
                         @Override
@@ -453,7 +460,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 new ActionFilters(new HashSet<>()),
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             this.shardId = Objects.requireNonNull(shardId);
             this.primary = Objects.requireNonNull(primary);

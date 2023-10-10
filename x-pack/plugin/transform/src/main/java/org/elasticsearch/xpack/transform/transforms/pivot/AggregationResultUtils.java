@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt;
@@ -130,19 +129,19 @@ public final class AggregationResultUtils {
                 );
             });
 
-            List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());
-            aggNames.addAll(pipelineAggs.stream().map(PipelineAggregationBuilder::getName).collect(Collectors.toList()));
-
-            for (String aggName : aggNames) {
+            // This indicates not that the value contained in the `aggResult` is null, but that the `aggResult` is not
+            // present at all in the `bucket.getAggregations`. This could occur in the case of a `bucket_selector` agg, which
+            // does not calculate a value, but instead manipulates other results.
+            Stream.concat(
+                aggregationBuilders.stream().map(AggregationBuilder::getName),
+                pipelineAggs.stream().map(PipelineAggregationBuilder::getName)
+            ).forEach(aggName -> {
                 Aggregation aggResult = bucket.getAggregations().get(aggName);
-                // This indicates not that the value contained in the `aggResult` is null, but that the `aggResult` is not
-                // present at all in the `bucket.getAggregations`. This could occur in the case of a `bucket_selector` agg, which
-                // does not calculate a value, but instead manipulates other results.
                 if (aggResult != null) {
                     AggValueExtractor extractor = getExtractor(aggResult);
                     updateDocument(document, aggName, extractor.value(aggResult, fieldTypeMap, ""));
                 }
-            }
+            });
 
             document.put(TransformField.DOCUMENT_ID_FIELD, idGen.getID());
 
@@ -331,10 +330,10 @@ public final class AggregationResultUtils {
             for (Percentile p : aggregation) {
                 // in case of sparse data percentiles might not have data, in this case it returns NaN,
                 // we need to guard the output and set null in this case
-                if (Numbers.isValidDouble(p.getValue()) == false) {
-                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), null);
+                if (Numbers.isValidDouble(p.value()) == false) {
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.percent()), null);
                 } else {
-                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.percent()), p.value());
                 }
             }
 

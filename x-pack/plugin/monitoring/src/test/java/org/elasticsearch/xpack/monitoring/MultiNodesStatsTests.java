@@ -41,6 +41,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         wipeMonitoringIndices();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96374")
     public void testMultipleNodes() throws Exception {
         int nodes = 0;
 
@@ -67,7 +68,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         final int nbNodes = nodes;
         assertBusy(() -> {
             assertThat(cluster().size(), equalTo(nbNodes));
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
+            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
         });
 
         enableMonitoringCollection();

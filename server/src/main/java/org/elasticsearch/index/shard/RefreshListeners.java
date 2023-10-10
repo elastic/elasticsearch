@@ -168,31 +168,34 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
     /**
      * Add a listener for refreshes, calling it immediately if the location is already visible. If this runs out of listener slots then it
-     * fails the listener immediately. The checkpoint cannot be greater than the processed local checkpoint. This method does not respect
-     * the forceRefreshes state. It will NEVER force a refresh on the calling thread. Instead, it will simply add listeners or rejected
-     * them if too many listeners are already waiting.
+     * fails the listener immediately. The checkpoint cannot be greater than the processed local checkpoint if
+     * {@code allowUnIssuedSequenceNumber} is {@code false}. This method does not respect the forceRefreshes state. It will NEVER force a
+     * refresh on the calling thread. Instead, it will simply add listeners or rejected them if too many listeners are already waiting.
      *
      * @param checkpoint the seqNo checkpoint to listen for
+     * @param allowUnIssuedSequenceNumber if true allow listening for checkpoint newer than the processed local checkpoint
      * @param listener for the refresh.
      * @return did we call the listener (true) or register the listener to call later (false)?
      */
-    public boolean addOrNotify(long checkpoint, ActionListener<Void> listener) {
+    public boolean addOrNotify(long checkpoint, boolean allowUnIssuedSequenceNumber, ActionListener<Void> listener) {
         assert checkpoint >= SequenceNumbers.NO_OPS_PERFORMED;
         if (checkpoint <= lastRefreshedCheckpoint) {
             listener.onResponse(null);
             return true;
         }
-        long maxIssuedSequenceNumber = maxIssuedSeqNoSupplier.getAsLong();
-        if (checkpoint > maxIssuedSequenceNumber) {
-            IllegalArgumentException e = new IllegalArgumentException(
-                "Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
-                    + checkpoint
-                    + ", max_issued_seqNo="
-                    + maxIssuedSequenceNumber
-                    + "]"
-            );
-            listener.onFailure(e);
-            return true;
+        if (allowUnIssuedSequenceNumber == false) {
+            long maxIssuedSequenceNumber = maxIssuedSeqNoSupplier.getAsLong();
+            if (checkpoint > maxIssuedSequenceNumber) {
+                IllegalArgumentException e = new IllegalArgumentException(
+                    "Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
+                        + checkpoint
+                        + ", max_issued_seqNo="
+                        + maxIssuedSequenceNumber
+                        + "]"
+                );
+                listener.onFailure(e);
+                return true;
+            }
         }
 
         synchronized (this) {

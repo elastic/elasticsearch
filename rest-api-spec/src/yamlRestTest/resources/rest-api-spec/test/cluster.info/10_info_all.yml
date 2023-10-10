@@ -1,0 +1,40 @@
+---
+setup:
+  - skip:
+      version: " - 8.8.99"
+      reason: "/_info/_all only available from v8.9"
+
+---
+"Cluster Info _all":
+  - do:
+      cluster.info:
+        target: [ _all ]
+
+  # this tests only checks that the target exists, to check the structure of them, we have specific tests
+  - is_true: cluster_name
+  - is_true: http
+  - is_true: ingest
+  - is_true: thread_pool
+  - is_true: script
+
+---
+"Cluster Info fails when mixing _all with other targets":
+  - do:
+      catch: bad_request
+      cluster.info:
+        target: [ _all, ingest ]
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "request [/_info/_all,ingest] contains _all and individual target [_all,ingest]" }
+
+---
+"Cluster Info fails with an invalid target":
+  - do:
+      catch: bad_request
+      cluster.info:
+        target: [ ingest, invalid_target ]
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "request [/_info/ingest,invalid_target] contains unrecognized target: [invalid_target]" }

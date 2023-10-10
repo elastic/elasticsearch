@@ -19,7 +19,7 @@ import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1072,7 +1072,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected.addSuppressed(suppressed);
             }
             case 6 -> { // SearchPhaseExecutionException with cause and multiple failures
-                DiscoveryNode node = TestDiscoveryNode.create("node_g");
+                DiscoveryNode node = DiscoveryNodeUtils.create("node_g");
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[] {

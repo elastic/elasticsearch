@@ -179,7 +179,7 @@ public class KeyStoreWrapper implements SecureSettings {
         formatVersion = input.readInt();
         hasPassword = input.readBoolean();
         dataBytes = input.readOptionalByteArray();
-        entries.set(input.readMap(StreamInput::readString, Entry::new));
+        entries.set(input.readMap(Entry::new));
         closed = input.readBoolean();
     }
 
@@ -637,7 +637,7 @@ public class KeyStoreWrapper implements SecureSettings {
         out.writeBoolean(hasPassword);
         out.writeOptionalByteArray(dataBytes);
         var entriesMap = entries.get();
-        out.writeMap((entriesMap == null) ? Map.of() : entriesMap, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap((entriesMap == null) ? Map.of() : entriesMap, StreamOutput::writeWriteable);
         out.writeBoolean(closed);
     }
 }

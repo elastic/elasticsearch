@@ -37,10 +37,11 @@ public class Murmur3FieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "murmur3";
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
     }
 
@@ -68,7 +69,7 @@ public class Murmur3FieldMapper extends FieldMapper {
                 name,
                 new Murmur3FieldType(context.buildFullName(name), stored.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build()
+                copyTo
             );
         }
     }
@@ -122,7 +123,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final String value = context.parser().textOrNull();
         if (value != null) {
-            final BytesRef bytes = new BytesRef(value.toString());
+            final BytesRef bytes = new BytesRef(value);
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
             if (fieldType().isStored()) {

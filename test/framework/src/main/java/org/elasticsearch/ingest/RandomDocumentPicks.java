@@ -68,6 +68,10 @@ public final class RandomDocumentPicks {
         while (randomEntry.getValue() instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) randomEntry.getValue();
+            // we have reached an empty map hence the max depth we can reach
+            if (map.isEmpty()) {
+                break;
+            }
             Map<String, Object> treeMap = new TreeMap<>(map);
             randomEntry = RandomPicks.randomFrom(random, treeMap.entrySet());
             key += "." + randomEntry.getKey();

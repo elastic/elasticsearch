@@ -270,6 +270,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public ClusterSettings getClusterSettings() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
             throw new UnsupportedOperationException();
         }
@@ -292,6 +297,11 @@ public class AggConstructionContentionBenchmark {
         @Override
         public void addReleasable(Aggregator aggregator) {
             releaseMe.add(aggregator);
+        }
+
+        @Override
+        public void removeReleasable(Aggregator aggregator) {
+            releaseMe.remove(aggregator);
         }
 
         @Override

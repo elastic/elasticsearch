@@ -63,7 +63,7 @@ public final class AnalyzerRules {
             return filter;
         }
 
-        private Expression replaceRawBoolFieldWithEquals(Expression e) {
+        private static Expression replaceRawBoolFieldWithEquals(Expression e) {
             if (e instanceof FieldAttribute && e.dataType() == BOOLEAN) {
                 e = new Equals(e.source(), e, Literal.of(e, Boolean.TRUE));
             }
@@ -145,7 +145,8 @@ public final class AnalyzerRules {
         UnresolvedAttribute u,
         Collection<Attribute> attrList,
         boolean allowCompound,
-        boolean acceptPattern
+        boolean acceptPattern,
+        BiFunction<UnresolvedAttribute, Attribute, Attribute> specialFieldHandler
     ) {
         List<Attribute> matches = new ArrayList<>();
 
@@ -177,7 +178,7 @@ public final class AnalyzerRules {
         // found exact match or multiple if pattern
         if (matches.size() == 1 || isPattern) {
             // only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            matches.replaceAll(e -> handleSpecialFields(u, e.withLocation(u.source()), allowCompound));
+            matches.replaceAll(e -> specialFieldHandler.apply(u, e.withLocation(u.source())));
             return matches;
         }
 
@@ -203,7 +204,7 @@ public final class AnalyzerRules {
         );
     }
 
-    private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
+    public static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
         // if it's a object/compound type, keep it unresolved with a nice error message
         if (named instanceof FieldAttribute fa) {
 

@@ -44,8 +44,7 @@ public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequ
             actionFilters,
             SeekStatsRequest::new,
             SeekStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            NodeSeekStats.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.seekStatsService = seekStatsService;
     }

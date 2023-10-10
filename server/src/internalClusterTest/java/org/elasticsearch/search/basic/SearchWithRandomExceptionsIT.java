@@ -15,7 +15,6 @@ import org.apache.lucene.tests.util.English;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
@@ -100,7 +99,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             try {
-                IndexResponse indexResponse = client().prepareIndex("test")
+                DocWriteResponse indexResponse = client().prepareIndex("test")
                     .setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))
@@ -113,7 +112,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         }
         logger.info("Start Refresh");
         // don't assert on failures here
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get();
+        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info(
             "Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",

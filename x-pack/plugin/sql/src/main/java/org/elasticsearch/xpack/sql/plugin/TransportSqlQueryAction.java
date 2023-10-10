@@ -18,6 +18,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -73,6 +74,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final TransportService transportService;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
 
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportSqlQueryAction(
         Settings settings,
@@ -84,7 +86,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays
     ) {
-        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -173,7 +175,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                     node,
                     SqlQueryAction.NAME,
                     request,
-                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)
+                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                 ),
                 log
             );
@@ -182,7 +184,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             planExecutor.nextPage(
                 cfg,
                 decoded.v1(),
-                wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)), listener::onFailure)
+                listener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
             );
         }
     }

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -27,7 +27,7 @@ public class TransformTests extends AbstractSerializingTransformTestCase<Transfo
     protected TransformTaskParams createTestInstance() {
         return new TransformTaskParams(
             randomAlphaOfLength(10),
-            randomBoolean() ? null : Version.CURRENT,
+            randomBoolean() ? null : TransformConfigVersion.CURRENT,
             randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L)) : null,
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean()

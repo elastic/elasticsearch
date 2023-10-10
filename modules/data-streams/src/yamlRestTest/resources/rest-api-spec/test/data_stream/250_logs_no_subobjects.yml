@@ -1,0 +1,218 @@
+---
+Test flattened document with subobjects-false:
+# NOTE: this doesn't work. In order to run this test set "subobjects: false" through logs-mappings.json
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: logs-test-subobjects-mappings
+        body:
+          template:
+            settings:
+              mapping:
+                ignore_malformed: true
+            mappings:
+              subobjects: false
+              date_detection: false
+              properties:
+                data_stream.type:
+                  type: constant_keyword
+                  value: logs
+                data_stream.dataset:
+                  type: constant_keyword
+                data_stream.namespace:
+                  type: constant_keyword
+
+  - do:
+      allowed_warnings:
+          - "index template [logs-ecs-test-template] has index patterns [logs-*-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-ecs-test-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-ecs-test-template
+        body:
+          priority: 200
+          data_stream: {}
+          index_patterns:
+            - logs-*-*
+          composed_of:
+            - logs-test-subobjects-mappings
+            - ecs@dynamic_templates
+
+  - do:
+      indices.create_data_stream:
+        name: logs-ecs-test-subobjects
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-ecs-test-subobjects
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      index:
+        index: logs-ecs-test-subobjects
+        refresh: true
+        body: >
+          {
+            "@timestamp": "2023-06-12",
+            "start_timestamp": "2023-06-08",
+            "location" : "POINT (-71.34 41.12)",
+            "test": "flattened",
+            "test.start_timestamp": "not a date",
+            "test.start-timestamp": "not a date",
+            "registry.data.strings": ["C:\\rta\\red_ttp\\bin\\myapp.exe"],
+            "process.title": "ssh",
+            "process.executable": "/usr/bin/ssh",
+            "process.name": "ssh",
+            "process.command_line": "/usr/bin/ssh -l user 10.0.0.16",
+            "process.working_directory": "/home/ekoren",
+            "process.io.text": "test",
+            "url.path": "/page",
+            "url.full": "https://mydomain.com/app/page",
+            "url.original": "https://mydomain.com/app/original",
+            "email.message_id": "81ce15$8r2j59@mail01.example.com",
+            "parent.url.path": "/page",
+            "parent.url.full": "https://mydomain.com/app/page",
+            "parent.url.original": "https://mydomain.com/app/original",
+            "parent.body.content": "Some content",
+            "parent.file.path": "/path/to/my/file",
+            "parent.file.target_path": "/path/to/my/file",
+            "parent.registry.data.strings": ["C:\\rta\\red_ttp\\bin\\myapp.exe"],
+            "error.stack_trace": "co.elastic.test.TestClass error:\n at co.elastic.test.BaseTestClass",
+            "error.message": "Error occurred",
+            "file.path": "/path/to/my/file",
+            "file.target_path": "/path/to/my/file",
+            "os.full": "Mac OS Mojave",
+            "user_agent.original": "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) AppleWebKit/605.1.15",
+            "user.full_name": "John Doe",
+            "vulnerability.score.base": 5.5,
+            "vulnerability.score.temporal": 5.5,
+            "vulnerability.score.version": "2.0",
+            "vulnerability.textual_score": "bad",
+            "host.cpu.usage": 0.68,
+            "geo.location": [-73.614830, 45.505918],
+            "data_stream.dataset": "nginx.access",
+            "data_stream.namespace": "production",
+            "data_stream.custom": "whatever",
+            "structured_data": {"key1": "value1", "key2": ["value2", "value3"]},
+            "exports": {"key": "value"},
+            "top_level_imports": {"key": "value"},
+            "nested.imports": {"key": "value"},
+            "numeric_as_string": "42",
+            "socket.ip": "127.0.0.1",
+            "socket.remote_ip": "187.8.8.8"
+          }
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-ecs-test-subobjects
+        body:
+          query:
+            term:
+              test:
+                value: 'flattened'
+          fields:
+            - field: 'data_stream.type'
+            - field: 'location'
+            - field: 'geo.location'
+            - field: 'test.start-timestamp'
+            - field: 'test.start_timestamp'
+            - field: 'vulnerability.textual_score'
+  - length: { hits.hits: 1 }
+  # verify that data_stream.type has the correct constant_keyword value
+  - match: { hits.hits.0.fields.data_stream\.type.0: 'logs' }
+  # verify geo_point subfields evaluation
+  - match: { hits.hits.0.fields.location.0.type: 'Point' }
+  - length: { hits.hits.0.fields.location.0.coordinates: 2 }
+  - match: { hits.hits.0.fields.location.0.coordinates.0: -71.34 }
+  - match: { hits.hits.0.fields.location.0.coordinates.1: 41.12 }
+  - match: { hits.hits.0.fields.geo\.location.0.type: 'Point' }
+  - length: { hits.hits.0.fields.geo\.location.0.coordinates: 2 }
+  - match: { hits.hits.0.fields.geo\.location.0.coordinates.0: -73.614830 }
+  - match: { hits.hits.0.fields.geo\.location.0.coordinates.1: 45.505918 }
+  # "start-timestamp" doesn't match the ECS dynamic mapping pattern "*_timestamp"
+  # TODO: uncomment once https://github.com/elastic/elasticsearch/issues/96700 gets resolved
+  #  - match: { hits.hits.0.fields.test\.start-timestamp.0: 'not a date' }
+  - length: { hits.hits.0._ignored: 2 }
+  - match: { hits.hits.0._ignored.0: 'vulnerability.textual_score' }
+  # the ECS date dynamic template enforces mapping of "*_timestamp" fields to a date type
+  - match: { hits.hits.0._ignored.1: 'test.start_timestamp' }
+  - length: { hits.hits.0.ignored_field_values.test\.start_timestamp: 1 }
+  # TODO: uncomment once https://github.com/elastic/elasticsearch/issues/96700 gets resolved
+  #  - match: { hits.hits.0.ignored_field_values.test\.start_timestamp.0: 'not a date' }
+  - length: { hits.hits.0.ignored_field_values.vulnerability\.textual_score: 1 }
+  - match: { hits.hits.0.ignored_field_values.vulnerability\.textual_score.0: 'bad' }
+
+  - do:
+      indices.get_mapping:
+        index: logs-ecs-test-subobjects
+  - match: { .$idx0name.mappings.properties.error\.message.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.registry\.data\.strings.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent\.registry\.data\.strings.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.process\.io\.text.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.email\.message_id.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url\.path.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent\.url\.path.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url\.full.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url\.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent\.url\.full.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent\.url\.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.url\.original.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.url\.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent\.url\.original.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent\.url\.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent\.body\.content.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.parent\.body\.content.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process\.command_line.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.process\.command_line.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.error\.stack_trace.type: "wildcard" }
+  - match: { .$idx0name.mappings.properties.error\.stack_trace.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.file\.path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.file\.path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent\.file\.path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.parent\.file\.path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.file\.target_path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.file\.target_path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.parent\.file\.target_path.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.parent\.file\.target_path.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.os\.full.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.os\.full.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.user_agent\.original.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.user_agent\.original.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process\.title.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process\.title.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process\.executable.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process\.executable.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process\.name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process\.name.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.process\.working_directory.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.process\.working_directory.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.user\.full_name.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.user\.full_name.fields.text.type: "match_only_text" }
+  - match: { .$idx0name.mappings.properties.start_timestamp.type: "date" }
+  - match: { .$idx0name.mappings.properties.test\.start_timestamp.type: "date" }
+  # testing the default mapping of string input fields to keyword if not matching any pattern
+  - match: { .$idx0name.mappings.properties.test\.start-timestamp.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.vulnerability\.score\.base.type: "float" }
+  - match: { .$idx0name.mappings.properties.vulnerability\.score\.temporal.type: "float" }
+  - match: { .$idx0name.mappings.properties.vulnerability\.score\.version.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.vulnerability\.textual_score.type: "float" }
+  - match: { .$idx0name.mappings.properties.host\.cpu\.usage.type: "scaled_float" }
+  - match: { .$idx0name.mappings.properties.host\.cpu\.usage.scaling_factor: 1000 }
+  - match: { .$idx0name.mappings.properties.location.type: "geo_point" }
+  - match: { .$idx0name.mappings.properties.geo\.location.type: "geo_point" }
+  - match: { .$idx0name.mappings.properties.data_stream\.dataset.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream\.namespace.type: "constant_keyword" }
+  - match: { .$idx0name.mappings.properties.data_stream\.type.type: "constant_keyword" }
+  # not one of the three data_stream fields that are explicitly mapped to constant_keyword
+  - match: { .$idx0name.mappings.properties.data_stream\.custom.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.structured_data.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.exports.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.top_level_imports.type: "flattened" }
+  - match: { .$idx0name.mappings.properties.nested\.imports.type: "flattened" }
+  # verifying the default mapping for strings into keyword, overriding the automatic numeric string detection
+  - match: { .$idx0name.mappings.properties.numeric_as_string.type: "keyword" }
+  - match: { .$idx0name.mappings.properties.socket\.ip.type: "ip" }
+  - match: { .$idx0name.mappings.properties.socket\.remote_ip.type: "ip" }
+

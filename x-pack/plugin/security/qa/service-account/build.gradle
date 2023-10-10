@@ -6,8 +6,5 @@ dependencies {
   javaRestTestImplementation project(':client:rest-high-level')
   javaRestTestImplementation project(':x-pack:plugin:security')
   clusterModules(project(":modules:analysis-common"))
-}
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
+  clusterModules(project(":modules:rest-root"))
 }

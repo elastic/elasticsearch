@@ -120,16 +120,14 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         createIndex(indexName, indexSettings(6, 0).put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms").build());
         var smallestShard = createReasonableSizedShards(indexName);
 
-        final CreateSnapshotResponse createSnapshotResponse = client().admin()
-            .cluster()
-            .prepareCreateSnapshot("repo", "snap")
+        final CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot("repo", "snap")
             .setWaitForCompletion(true)
             .get();
         final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
 
-        assertAcked(client().admin().indices().prepareDelete(indexName).get());
+        assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
         // reduce disk size of node 0 so that no shards fit below the low watermark, forcing shards to be assigned to the other data node
         getTestFileStore(dataNodeName).setTotalSpace(smallestShard.size + WATERMARK_BYTES - 1L);
@@ -190,9 +188,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
             forceMerge();
             refresh();
 
-            final ShardStats[] shardStates = client().admin()
-                .indices()
-                .prepareStats(indexName)
+            final ShardStats[] shardStates = indicesAdmin().prepareStats(indexName)
                 .clear()
                 .setStore(true)
                 .setTranslog(true)

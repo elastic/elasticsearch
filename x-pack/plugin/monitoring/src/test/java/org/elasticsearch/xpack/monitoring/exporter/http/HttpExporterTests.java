@@ -11,6 +11,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -606,10 +607,10 @@ public class HttpExporterTests extends ESTestCase {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
-            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> bulkListener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertNull("should have been invoked with null value to denote migration in progress", bulk);
                 awaitResponseAndClose.countDown();
-            }, e -> fail("[onResponse] should have been invoked with null value to denote migration in progress"));
+            });
 
             exporter.openBulk(bulkListener);
 
@@ -680,11 +681,10 @@ public class HttpExporterTests extends ESTestCase {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
-            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> bulkListener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertThat(bulk, nullValue());
-
                 awaitResponseAndClose.countDown();
-            }, e -> fail(e.getMessage()));
+            });
 
             exporter.openBulk(bulkListener);
 
@@ -718,11 +718,10 @@ public class HttpExporterTests extends ESTestCase {
             verify(listener).setResource(resource);
 
             final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
-            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(bulk -> {
+            final ActionListener<ExportBulk> bulkListener = ActionTestUtils.assertNoFailureListener(bulk -> {
                 assertThat(bulk.getName(), equalTo(exporterName()));
-
                 awaitResponseAndClose.countDown();
-            }, e -> fail(e.getMessage()));
+            });
 
             exporter.openBulk(bulkListener);
 

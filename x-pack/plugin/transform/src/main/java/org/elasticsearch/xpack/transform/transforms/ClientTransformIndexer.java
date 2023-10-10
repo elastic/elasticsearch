@@ -146,7 +146,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
         injectPointInTimeIfNeeded(
             buildSearchRequest(),
-            ActionListener.wrap(pitSearchRequest -> doSearch(pitSearchRequest, nextPhase), nextPhase::onFailure)
+            ActionListener.wrap(searchRequest -> doSearch(searchRequest, nextPhase), nextPhase::onFailure)
         );
     }
 
@@ -435,7 +435,8 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
-        if (disablePit || searchRequest.indices().length == 0) {
+        // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
+        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
             listener.onResponse(namedSearchRequest);
             return;
         }

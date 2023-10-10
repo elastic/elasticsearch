@@ -21,12 +21,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
@@ -65,7 +66,6 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -74,6 +74,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -116,7 +117,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             StartTrainedModelDeploymentAction.Request::new,
             indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
@@ -138,12 +139,12 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Cannot start a new model deployment as not all nodes are on version {}. All nodes must be the same version",
+                    "Cannot start model deployment [{}] while cluster upgrade is in progress.",
                     RestStatus.FORBIDDEN,
-                    state.getNodes().getMaxNodeVersion()
+                    request.getDeploymentId()
                 )
             );
             return;
@@ -171,6 +172,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             );
             return;
         }
+
+        AtomicLong perDeploymentMemoryBytes = new AtomicLong();
+        AtomicLong perAllocationMemoryBytes = new AtomicLong();
 
         ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
             modelAssignment -> waitForDeploymentState(request.getDeploymentId(), request.getTimeout(), request.getWaitForState(), listener),
@@ -200,7 +204,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 request.getThreadsPerAllocation(),
                 request.getQueueCapacity(),
                 Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),
-                request.getPriority()
+                request.getPriority(),
+                perDeploymentMemoryBytes.get(),
+                perAllocationMemoryBytes.get()
             );
             PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             memoryTracker.refresh(
@@ -235,6 +241,9 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 );
                 return;
             }
+
+            perDeploymentMemoryBytes.set(trainedModelConfig.getPerDeploymentMemoryBytes());
+            perAllocationMemoryBytes.set(trainedModelConfig.getPerAllocationMemoryBytes());
 
             if (trainedModelConfig.getLocation() == null) {
                 listener.onFailure(ExceptionsHelper.serverError("model [{}] does not have location", trainedModelConfig.getModelId()));
@@ -587,10 +596,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     }
 
     static Set<String> nodesShuttingDown(final ClusterState state) {
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(Map::keySet)
-            .orElse(Collections.emptySet());
+        return state.metadata().nodeShutdowns().getAllNodeIds();
     }
-
 }

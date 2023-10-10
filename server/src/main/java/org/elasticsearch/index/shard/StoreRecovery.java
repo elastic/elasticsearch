@@ -19,10 +19,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -33,8 +30,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -214,7 +213,7 @@ public final class StoreRecovery {
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
                 liveCommitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
-                liveCommitData.put(Engine.ES_VERSION, Version.CURRENT.toString());
+                liveCommitData.put(Engine.ES_VERSION, IndexVersion.current().toString());
                 return liveCommitData.entrySet().iterator();
             });
             writer.commit();
@@ -408,13 +407,14 @@ public final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard, ActionListener<Void> outerListener) {
-        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> ActionRunnable.run(listener, () -> {
+        indexShard.preRecovery(outerListener.delegateFailureAndWrap((listener, ignored) -> {
             final RecoveryState recoveryState = indexShard.recoveryState();
             final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
             indexShard.prepareForIndexRecovery();
             SegmentInfos si = null;
             final Store store = indexShard.store();
             store.incRef();
+            boolean triggeredPostRecovery = false;
             try {
                 try {
                     store.failIfCorrupted();
@@ -479,13 +479,16 @@ public final class StoreRecovery {
                 indexShard.openEngineAndRecoverFromTranslog();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
-                indexShard.postRecovery("post recovery from shard_store");
+                indexShard.postRecovery("post recovery from shard_store", ActionListener.runBefore(listener, store::decRef));
+                triggeredPostRecovery = true;
             } catch (EngineException | IOException e) {
-                throw new IndexShardRecoveryException(shardId, "failed to recover from gateway", e);
+                listener.onFailure(new IndexShardRecoveryException(shardId, "failed to recover from gateway", e));
             } finally {
-                store.decRef();
+                if (triggeredPostRecovery == false) {
+                    store.decRef();
+                }
             }
-        }).run()));
+        }));
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {
@@ -531,8 +534,7 @@ public final class StoreRecovery {
                 indexShard.openEngineAndRecoverFromTranslog();
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
-                indexShard.postRecovery("restore done");
-                listener.onResponse(true);
+                indexShard.postRecovery("restore done", listener.map(voidValue -> true));
             }, e -> listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e)));
             try {
                 translogState.totalOperations(0);
@@ -545,7 +547,7 @@ public final class StoreRecovery {
                 } else {
                     snapshotShardId = new ShardId(indexId.getName(), IndexMetadata.INDEX_UUID_NA_VALUE, shardId.id());
                 }
-                final StepListener<IndexId> indexIdListener = new StepListener<>();
+                final ListenableFuture<IndexId> indexIdListener = new ListenableFuture<>();
                 // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
                 if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                     // BwC path, running against an old version master that did not add the IndexId to the recovery source
@@ -559,7 +561,7 @@ public final class StoreRecovery {
                     indexIdListener.onResponse(indexId);
                 }
                 assert indexShard.getEngineOrNull() == null;
-                indexIdListener.whenComplete(idx -> {
+                indexIdListener.addListener(restoreListener.delegateFailureAndWrap((l, idx) -> {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
                     repository.restoreShard(
                         indexShard.store(),
@@ -567,9 +569,9 @@ public final class StoreRecovery {
                         idx,
                         snapshotShardId,
                         indexShard.recoveryState(),
-                        restoreListener
+                        l
                     );
-                }, restoreListener::onFailure);
+                }));
             } catch (Exception e) {
                 restoreListener.onFailure(e);
             }

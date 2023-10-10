@@ -12,7 +12,6 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -20,7 +19,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -370,17 +368,17 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 try (
                     AggregationContext context = createAggregationContext(
-                        indexSearcher,
+                        indexReader,
                         createIndexSettings(),
                         new MatchAllDocsQuery(),
                         breaker,
                         builder.bytesToPreallocate(),
                         MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                        true,
                         false,
                         doubleFields()
                     )
@@ -575,10 +573,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
                 buildIndex.accept(indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 InternalAggregation agg = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(builder, fields).withShouldBeCached(shouldBeCached).withQuery(query)
                 );
                 verifyOutputFieldNames(builder, agg);

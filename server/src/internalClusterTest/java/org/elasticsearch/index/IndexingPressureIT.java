@@ -8,13 +8,13 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
@@ -103,7 +103,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         final Releasable replicaRelease = blockReplicas(replicaThreadPool);
 
         final BulkRequest bulkRequest = new BulkRequest();
-        int totalRequestSize = 0;
+        long totalRequestSize = 0;
         for (int i = 0; i < 80; ++i) {
             IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
                 .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
@@ -235,7 +235,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
     public void testWriteCanBeRejectedAtCoordinatingLevel() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
-        int totalRequestSize = 0;
+        long totalRequestSize = 0;
         for (int i = 0; i < 80; ++i) {
             IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
                 .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
@@ -300,7 +300,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
     public void testWriteCanBeRejectedAtPrimaryLevel() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
-        int totalRequestSize = 0;
+        long totalRequestSize = 0;
         for (int i = 0; i < 80; ++i) {
             IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
                 .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
@@ -369,8 +369,8 @@ public class IndexingPressureIT extends ESIntegTestCase {
             // The write limits is set to 1MB. We will send up to 800KB to stay below that threshold.
             int thresholdToStopSending = 800 * 1024;
 
-            ArrayList<ActionFuture<IndexResponse>> responses = new ArrayList<>();
-            int totalRequestSize = 0;
+            ArrayList<ActionFuture<DocWriteResponse>> responses = new ArrayList<>();
+            long totalRequestSize = 0;
             while (totalRequestSize < thresholdToStopSending) {
                 IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
                     .source(Collections.singletonMap("key", randomAlphaOfLength(500)));
@@ -399,7 +399,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     private Tuple<String, String> getPrimaryReplicaNodeNames() {
-        IndicesStatsResponse response = client().admin().indices().prepareStats(INDEX_NAME).get();
+        IndicesStatsResponse response = indicesAdmin().prepareStats(INDEX_NAME).get();
         String primaryId = Stream.of(response.getShards())
             .map(ShardStats::getShardRouting)
             .filter(ShardRouting::primary)

@@ -84,7 +84,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
         appender.addExpectation(writeExpectation);
         appender.addExpectation(flushExpectation);
         appender.addExpectation(readExpectation);
-        client().admin().cluster().prepareNodesHotThreads().get();
+        clusterAdmin().prepareNodesHotThreads().get();
         appender.assertAllExpectationsMatched();
     }
 

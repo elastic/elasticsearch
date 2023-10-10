@@ -52,7 +52,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
         final var snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final var restoredIndexName = "restored-" + indexName;
         mountSnapshot(

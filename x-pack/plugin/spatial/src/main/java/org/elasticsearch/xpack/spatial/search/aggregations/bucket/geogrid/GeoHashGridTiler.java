@@ -43,7 +43,6 @@ public abstract class GeoHashGridTiler extends GeoGridTiler {
 
     @Override
     public int setValues(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
-
         if (precision == 0) {
             return 1;
         }
@@ -52,60 +51,65 @@ public abstract class GeoHashGridTiler extends GeoGridTiler {
 
         // When the shape represents a point, we compute the hash directly as we do it for GeoPoint
         if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
-            return setValue(values, geoValue, bounds);
+            return setValue(values, geoValue, Geohash.stringEncode(bounds.minX(), bounds.minY(), precision), 0);
         }
-        // TODO: optimize for when a shape fits in a single tile an
-        // for when brute-force is expected to be faster than rasterization, which
-        // is when the number of tiles expected is less than the precision
-        return setValuesByRasterization("", values, 0, geoValue);
+        final long dX = (long) Math.ceil((bounds.maxX() - bounds.minX()) / Geohash.lonWidthInDegrees(precision));
+        final long dY = (long) Math.ceil((bounds.maxY() - bounds.minY()) / Geohash.latHeightInDegrees(precision));
+        if (dX * dY <= 32L * precision) {
+            return setValuesByBruteForceScan(values, geoValue, bounds);
+        } else {
+            return setValuesByRasterization("", values, 0, geoValue);
+        }
     }
 
+    /**
+     * Checks all hashes between minX/maxX and minY/maxY
+     */
+    // pkg protected for testing
     int setValuesByBruteForceScan(GeoShapeCellValues values, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
         throws IOException {
-        // TODO: This way to discover cells inside of a bounding box seems not to work as expected. I can
-        // see that eventually we will be visiting twice the same cell which should not happen.
+        final String stop = Geohash.stringEncode(bounds.maxX(), bounds.maxY(), precision);
+        String firstInRow = null;
+        String lastInRow = null;
         int idx = 0;
-        String min = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
-        String max = Geohash.stringEncode(bounds.maxX(), bounds.maxY(), precision);
-        String minNeighborBelow = Geohash.getNeighbor(min, precision, 0, -1);
-        double minY = Geohash.decodeLatitude((minNeighborBelow == null) ? min : minNeighborBelow);
-        double minX = Geohash.decodeLongitude(min);
-        double maxY = Geohash.decodeLatitude(max);
-        double maxX = Geohash.decodeLongitude(max);
-        for (double i = minX; i <= maxX; i += Geohash.lonWidthInDegrees(precision)) {
-            for (double j = minY; j <= maxY; j += Geohash.latHeightInDegrees(precision)) {
-                String hash = Geohash.stringEncode(i, j, precision);
-                GeoRelation relation = relateTile(geoValue, hash);
-                if (relation != GeoRelation.QUERY_DISJOINT) {
-                    values.resizeCell(idx + 1);
-                    values.add(idx++, encode(i, j));
+        do {
+            lastInRow = moveDown(lastInRow, precision, bounds.maxX(), bounds.minY());
+            String current = null;
+            do {
+                if (current == null) {
+                    firstInRow = moveDown(firstInRow, precision, bounds.minX(), bounds.minY());
+                    current = firstInRow;
+                } else {
+                    current = Geohash.getNeighbor(current, precision, 1, 0);
                 }
-            }
-        }
+                idx = setValue(values, geoValue, current, idx);
+            } while (current.equals(lastInRow) == false);
+        } while (lastInRow.equals(stop) == false);
         return idx;
+    }
+
+    private static String moveDown(String hash, int precision, double x, double y) {
+        return hash == null ? Geohash.stringEncode(x, y, precision) : Geohash.getNeighbor(hash, precision, 0, 1);
     }
 
     /**
      * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}.
      */
-    private int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, GeoShapeValues.BoundingBox bounds)
-        throws IOException {
-        String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
+    private int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, String hash, int idx) throws IOException {
         if (relateTile(geoValue, hash) != GeoRelation.QUERY_DISJOINT) {
-            docValues.resizeCell(1);
-            docValues.add(0, Geohash.longEncode(hash));
-            return 1;
+            docValues.resizeCell(idx + 1);
+            docValues.add(idx++, Geohash.longEncode(hash));
         }
-        return 0;
+        return idx;
     }
 
     private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) throws IOException {
         if (validHash(hash)) {
             final Rectangle rectangle = Geohash.toBoundingBox(hash);
-            int minX = GeoEncodingUtils.encodeLongitude(rectangle.getMinLon());
-            int minY = GeoEncodingUtils.encodeLatitude(rectangle.getMinLat());
-            int maxX = GeoEncodingUtils.encodeLongitude(rectangle.getMaxLon());
-            int maxY = GeoEncodingUtils.encodeLatitude(rectangle.getMaxLat());
+            final int minX = GeoEncodingUtils.encodeLongitude(rectangle.getMinLon());
+            final int minY = GeoEncodingUtils.encodeLatitude(rectangle.getMinLat());
+            final int maxX = GeoEncodingUtils.encodeLongitude(rectangle.getMaxLon());
+            final int maxY = GeoEncodingUtils.encodeLatitude(rectangle.getMaxLat());
             return geoValue.relate(minX, maxX == Integer.MAX_VALUE ? maxX : maxX - 1, minY, maxY == Integer.MAX_VALUE ? maxY : maxY - 1);
         }
         return GeoRelation.QUERY_DISJOINT;

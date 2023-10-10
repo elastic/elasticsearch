@@ -1,6 +1,0 @@
-pr: 93524
-summary: Reduce the likelihood of writing small segments due to an oversize translog
-area: Engine
-type: enhancement
-issues:
- - 75611

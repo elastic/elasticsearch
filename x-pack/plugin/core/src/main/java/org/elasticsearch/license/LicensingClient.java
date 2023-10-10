@@ -6,12 +6,7 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 public class LicensingClient {
 
@@ -25,24 +20,12 @@ public class LicensingClient {
         return new PutLicenseRequestBuilder(client).setLicense(license);
     }
 
-    public void putLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener) {
-        client.execute(PutLicenseAction.INSTANCE, request, listener);
-    }
-
     public GetLicenseRequestBuilder prepareGetLicense() {
         return new GetLicenseRequestBuilder(client);
     }
 
-    public void getLicense(GetLicenseRequest request, ActionListener<GetLicenseResponse> listener) {
-        client.execute(GetLicenseAction.INSTANCE, request, listener);
-    }
-
     public DeleteLicenseRequestBuilder prepareDeleteLicense() {
         return new DeleteLicenseRequestBuilder(client);
-    }
-
-    public void deleteLicense(DeleteLicenseRequest request, ActionListener<AcknowledgedResponse> listener) {
-        client.execute(DeleteLicenseAction.INSTANCE, request, listener);
     }
 
     public PostStartTrialRequestBuilder preparePostStartTrial() {
@@ -51,14 +34,6 @@ public class LicensingClient {
 
     public GetTrialStatusRequestBuilder prepareGetStartTrial() {
         return new GetTrialStatusRequestBuilder(client);
-    }
-
-    public void postStartTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
-        client.execute(PostStartTrialAction.INSTANCE, request, listener);
-    }
-
-    public void postStartBasic(PostStartBasicRequest request, ActionListener<PostStartBasicResponse> listener) {
-        client.execute(PostStartBasicAction.INSTANCE, request, listener);
     }
 
     public PostStartBasicRequestBuilder preparePostStartBasic() {

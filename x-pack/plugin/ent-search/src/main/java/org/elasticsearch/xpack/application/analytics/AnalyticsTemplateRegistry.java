@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -18,13 +20,13 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
+import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PATTERN;
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
@@ -34,19 +36,24 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
+    // This registry requires all nodes to be at least 8.8.0
+    static final Version MIN_NODE_VERSION = Version.V_8_8_0;
+
     // This number must be incremented when we make changes to built-in templates.
-    static final int REGISTRY_VERSION = 1;
+    static final int REGISTRY_VERSION = 2;
 
     // ILM Policies configuration
     static final String EVENT_DATA_STREAM_ILM_POLICY_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default_policy";
 
-    static final List<LifecyclePolicy> LIFECYCLE_POLICIES = Stream.of(
+    static final List<LifecyclePolicyConfig> LIFECYCLE_POLICIES_CONFIG = List.of(
         new LifecyclePolicyConfig(EVENT_DATA_STREAM_ILM_POLICY_NAME, ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_ILM_POLICY_NAME + ".json")
-    ).map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).toList();
+    );
 
     // Index template components configuration
     static final String EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "settings";
     static final String EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "mappings";
+
+    static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
 
     static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
 
@@ -78,6 +85,18 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
         COMPONENT_TEMPLATES = Map.copyOf(componentTemplates);
     }
 
+    @Override
+    protected List<IngestPipelineConfig> getIngestPipelines() {
+        return List.of(
+            new IngestPipelineConfig(
+                EVENT_DATA_STREAM_INGEST_PIPELINE_NAME,
+                ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_INGEST_PIPELINE_NAME + ".json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            )
+        );
+    }
+
     // Composable index templates configuration.
     static final String EVENT_DATA_STREAM_TEMPLATE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default";
     static final String EVENT_DATA_STREAM_TEMPLATE_FILENAME = EVENT_DATA_STREAM_INDEX_PREFIX + "template";
@@ -107,8 +126,8 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return LIFECYCLE_POLICIES;
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICIES_CONFIG;
     }
 
     @Override
@@ -121,6 +140,12 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
         return COMPOSABLE_INDEX_TEMPLATES;
     }
 
+    // overriden to be visible in tests
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        return super.getLifecyclePolicies();
+    }
+
     @Override
     protected boolean requiresMasterNode() {
         // We are using the composable index template and component APIs,
@@ -130,5 +155,12 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
         // are only installed via elected master node then the APIs are always
         // there and the ActionNotFoundTransportException errors are then prevented.
         return true;
+    }
+
+    @Override
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        // Ensure templates are installed only once all nodes are updated to 8.8.0.
+        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
+        return minNodeVersion.onOrAfter(MIN_NODE_VERSION);
     }
 }

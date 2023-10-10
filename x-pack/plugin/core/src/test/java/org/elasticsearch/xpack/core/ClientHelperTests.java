@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -64,11 +64,11 @@ public class ClientHelperTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final String origin = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<ClusterHealthResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<ClusterHealthResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertEquals(headerValue, threadContext.getHeader(headerName));
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         final ClusterHealthRequest request = new ClusterHealthRequest();
         threadContext.putHeader(headerName, headerValue);
@@ -95,11 +95,11 @@ public class ClientHelperTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final String origin = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<ClusterHealthResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<ClusterHealthResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertEquals(headerValue, threadContext.getHeader(headerName));
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
@@ -127,11 +127,11 @@ public class ClientHelperTests extends ESTestCase {
         final String headerValue = randomAlphaOfLengthBetween(4, 16);
         final String origin = randomAlphaOfLengthBetween(4, 16);
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<ClusterHealthResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<ClusterHealthResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
             assertEquals(headerValue, threadContext.getHeader(headerName));
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
@@ -155,10 +155,10 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
@@ -183,10 +183,10 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
@@ -214,10 +214,10 @@ public class ClientHelperTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         final CountDownLatch latch = new CountDownLatch(2);
-        final ActionListener<SearchResponse> listener = ActionListener.wrap(v -> {
+        final ActionListener<SearchResponse> listener = ActionTestUtils.assertNoFailureListener(v -> {
             assertTrue(threadContext.getHeaders().isEmpty());
             latch.countDown();
-        }, e -> fail(e.getMessage()));
+        });
 
         doAnswer(invocationOnMock -> {
             assertThat(threadContext.getHeaders().size(), equalTo(2));
@@ -390,7 +390,7 @@ public class ClientHelperTests extends ESTestCase {
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersions.MINIMUM_COMPATIBLE);
         // No security header
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String nonSecurityHeaderKey = "not-a-security-header";
@@ -420,7 +420,7 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // No rewriting for current version
-        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.CURRENT);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
         final Map<String, String> headers1;
         if (randomBoolean()) {
             headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
@@ -446,7 +446,7 @@ public class ClientHelperTests extends ESTestCase {
         // Rewritten for older version
         final TransportVersion previousVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion()
         );
         when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);

@@ -17,7 +17,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -195,17 +194,18 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetWithAliasPointingToMultipleIndices() {
-        client().admin().indices().prepareCreate("index1").addAlias(new Alias("alias1").indexRouting("0")).get();
+        indicesAdmin().prepareCreate("index1").addAlias(new Alias("alias1").indexRouting("0")).get();
         if (randomBoolean()) {
-            client().admin()
-                .indices()
-                .prepareCreate("index2")
+            indicesAdmin().prepareCreate("index2")
                 .addAlias(new Alias("alias1").indexRouting("0").writeIndex(randomFrom(false, null)))
                 .get();
         } else {
-            client().admin().indices().prepareCreate("index3").addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).get();
+            indicesAdmin().prepareCreate("index3").addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).get();
         }
-        IndexResponse indexResponse = client().prepareIndex("index1").setId("id").setSource(Collections.singletonMap("foo", "bar")).get();
+        DocWriteResponse indexResponse = client().prepareIndex("index1")
+            .setId("id")
+            .setSource(Collections.singletonMap("foo", "bar"))
+            .get();
         assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
 
         IllegalArgumentException exception = expectThrows(
@@ -648,7 +648,7 @@ public class GetActionIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("flushing");
-        FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
+        FlushResponse flushResponse = indicesAdmin().prepareFlush("my-index").setForce(true).get();
         if (flushResponse.getSuccessfulShards() == 0) {
             StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [").append(
                 flushResponse.getTotalShards()

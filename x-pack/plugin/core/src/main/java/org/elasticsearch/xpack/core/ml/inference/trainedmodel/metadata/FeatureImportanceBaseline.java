@@ -61,7 +61,7 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
 
     public FeatureImportanceBaseline(StreamInput in) throws IOException {
         this.baseline = in.readOptionalDouble();
-        this.classBaselines = in.readList(ClassBaseline::new);
+        this.classBaselines = in.readCollectionAsList(ClassBaseline::new);
     }
 
     public FeatureImportanceBaseline(Double baseline, List<ClassBaseline> classBaselines) {
@@ -72,7 +72,7 @@ public class FeatureImportanceBaseline implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalDouble(baseline);
-        out.writeList(classBaselines);
+        out.writeCollection(classBaselines);
     }
 
     @Override

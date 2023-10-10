@@ -19,7 +19,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -273,14 +272,14 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final ThreadPool threadPool = taskQueue.getThreadPool();
         final long delayMillis = randomLongBetween(1, 100);
 
-        threadPool.schedule(() -> strings.add("deferred"), TimeValue.timeValueMillis(delayMillis), GENERIC);
+        threadPool.schedule(() -> strings.add("deferred"), TimeValue.timeValueMillis(delayMillis), threadPool.generic());
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
-        threadPool.schedule(() -> strings.add("runnable"), TimeValue.ZERO, GENERIC);
+        threadPool.schedule(() -> strings.add("runnable"), TimeValue.ZERO, threadPool.generic());
         assertTrue(taskQueue.hasRunnableTasks());
 
-        threadPool.schedule(() -> strings.add("also runnable"), TimeValue.MINUS_ONE, GENERIC);
+        threadPool.schedule(() -> strings.add("also runnable"), TimeValue.MINUS_ONE, threadPool.generic());
 
         taskQueue.runAllTasks();
 
@@ -290,8 +289,8 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final long delayMillis1 = randomLongBetween(2, 100);
         final long delayMillis2 = randomLongBetween(1, delayMillis1 - 1);
 
-        threadPool.schedule(() -> strings.add("further deferred"), TimeValue.timeValueMillis(delayMillis1), GENERIC);
-        threadPool.schedule(() -> strings.add("not quite so deferred"), TimeValue.timeValueMillis(delayMillis2), GENERIC);
+        threadPool.schedule(() -> strings.add("further deferred"), TimeValue.timeValueMillis(delayMillis1), threadPool.generic());
+        threadPool.schedule(() -> strings.add("not quite so deferred"), TimeValue.timeValueMillis(delayMillis2), threadPool.generic());
 
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
@@ -303,7 +302,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final Scheduler.Cancellable cancelledBeforeExecution = threadPool.schedule(
             () -> strings.add("cancelled before execution"),
             cancelledDelay,
-            ""
+            threadPool.generic()
         );
 
         cancelledBeforeExecution.cancel();
@@ -372,7 +371,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(
             () -> strings.add("periodic-" + counter.getAndIncrement()),
             TimeValue.timeValueMillis(intervalMillis),
-            GENERIC
+            threadPool.generic()
         );
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
@@ -399,9 +398,11 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final AtomicBoolean executedNested = new AtomicBoolean(false);
         threadPool.generic().execute(() -> {
-            threadPool.executor(ThreadPool.Names.SAME).execute(() -> executedNested.set(true));
+            final var executor = threadPool.executor(ThreadPool.Names.SAME);
+            assertSame(EsExecutors.DIRECT_EXECUTOR_SERVICE, executor);
+            executor.execute(() -> assertTrue(executedNested.compareAndSet(false, true)));
             assertThat(executedNested.get(), is(true));
-            executed.set(true);
+            assertTrue(executed.compareAndSet(false, true));
         });
         taskQueue.runAllRunnableTasks();
         assertThat(executed.get(), is(true));

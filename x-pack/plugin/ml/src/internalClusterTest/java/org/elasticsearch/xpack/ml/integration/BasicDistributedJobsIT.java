@@ -225,7 +225,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
             PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
@@ -362,9 +362,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         // Create the indices (using installed templates) and set the routing to specific nodes
         // State and results go on the state-and-results node, config goes on the config node
-        client().admin()
-            .indices()
-            .prepareCreate(".ml-anomalies-shared")
+        indicesAdmin().prepareCreate(".ml-anomalies-shared")
             .setSettings(
                 Settings.builder()
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
@@ -372,9 +370,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                     .build()
             )
             .get();
-        client().admin()
-            .indices()
-            .prepareCreate(".ml-state")
+        indicesAdmin().prepareCreate(".ml-state")
             .setSettings(
                 Settings.builder()
                     .put("index.routing.allocation.include.ml-indices", "state-and-results")
@@ -382,9 +378,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                     .build()
             )
             .get();
-        client().admin()
-            .indices()
-            .prepareCreate(".ml-config")
+        indicesAdmin().prepareCreate(".ml-config")
             .setSettings(
                 Settings.builder()
                     .put("index.routing.allocation.exclude.ml-indices", "state-and-results")
@@ -411,7 +405,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
         client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertBusy(() -> {
-            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
             List<PersistentTask<?>> tasks = findTasks(clusterState, MlTasks.JOB_TASK_NAME);
             assertEquals(0, tasks.size());
         });
@@ -502,7 +496,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     }
 
     private void assertJobTask(String jobId, JobState expectedState, boolean hasExecutorNode) {
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         List<PersistentTask<?>> tasks = findTasks(clusterState, MlTasks.JOB_TASK_NAME);
         assertEquals(1, tasks.size());
         PersistentTask<?> task = tasks.get(0);
@@ -524,7 +518,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     private CheckedRunnable<Exception> checkAllJobsAreAssignedAndOpened(int numJobs) {
         return () -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState().get().getState();
             List<PersistentTask<?>> tasks = findTasks(state, MlTasks.JOB_TASK_NAME);
             assertEquals(numJobs, tasks.size());
             for (PersistentTask<?> task : tasks) {

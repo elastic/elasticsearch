@@ -61,7 +61,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
     }
 
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
-        for (NodeStats node : client().admin().cluster().prepareNodesStats().clear().setBreaker(true).execute().actionGet().getNodes()) {
+        for (NodeStats node : clusterAdmin().prepareNodesStats().clear().setBreaker(true).execute().actionGet().getNodes()) {
             assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
@@ -108,13 +108,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
             .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build());
-        CreateIndexResponse response = client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(settings)
-            .setMapping(mapping)
-            .execute()
-            .actionGet();
+        CreateIndexResponse response = indicesAdmin().prepareCreate("test").setSettings(settings).setMapping(mapping).execute().actionGet();
         final int numDocs;
         if (response.isShardsAcknowledged() == false) {
             /* some seeds just won't let you create the index at all and we enter a ping-pong mode
@@ -141,7 +135,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         }
         logger.info("Start Refresh");
         // don't assert on failures here
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get();
+        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info(
             "Refresh failed: [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
@@ -152,7 +146,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             refreshResponse.getTotalShards()
         );
         final int numSearches = scaledRandomIntBetween(50, 150);
-        NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).execute().actionGet();
+        NodesStatsResponse resp = clusterAdmin().prepareNodesStats().clear().setBreaker(true).execute().actionGet();
         for (NodeStats stats : resp.getNodes()) {
             assertThat("Breaker is set to 0", stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
@@ -178,7 +172,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 // breaker adjustment code, it should show up here by the breaker
                 // estimate being either positive or negative.
                 ensureGreen("test");  // make sure all shards are there - there could be shards that are still starting up.
-                assertAllSuccessful(client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet());
+                assertAllSuccessful(indicesAdmin().prepareClearCache("test").setFieldDataCache(true).execute().actionGet());
 
                 // Since .cleanUp() is no longer called on cache clear, we need to call it on each node manually
                 for (String node : internalCluster().getNodeNames()) {
@@ -187,13 +181,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                     // Clean up the cache, ensuring that entries' listeners have been called
                     fdCache.getCache().refresh();
                 }
-                NodesStatsResponse nodeStats = client().admin()
-                    .cluster()
-                    .prepareNodesStats()
-                    .clear()
-                    .setBreaker(true)
-                    .execute()
-                    .actionGet();
+                NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().clear().setBreaker(true).execute().actionGet();
                 for (NodeStats stats : nodeStats.getNodes()) {
                     assertThat(
                         "Breaker reset to 0 last search success: " + success + " mapping: " + mapping,

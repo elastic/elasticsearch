@@ -45,7 +45,10 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     private double currentStartValue = -1;
     private int currentTsid = -1;
 
+    private final Rounding.DateTimeUnit rateUnit;
+
     // Unused parameters are so that the constructor implements `RateAggregatorSupplier`
+    @SuppressWarnings("this-escape")
     protected TimeSeriesRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
@@ -62,11 +65,12 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
         this.startTimes = bigArrays().newLongArray(1, true);
         this.endTimes = bigArrays().newLongArray(1, true);
         this.resetCompensations = bigArrays().newDoubleArray(1, true);
+        this.rateUnit = rateUnit;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalResetTrackingRate(name, DocValueFormat.RAW, metadata(), 0, 0, 0, 0, 0);
+        return new InternalResetTrackingRate(name, DocValueFormat.RAW, metadata(), 0, 0, 0, 0, 0, Rounding.DateTimeUnit.SECOND_OF_MINUTE);
     }
 
     private void calculateLastBucket() {
@@ -138,7 +142,8 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
             endValues.get(owningBucketOrd),
             startTimes.get(owningBucketOrd),
             endTimes.get(owningBucketOrd),
-            resetCompensations.get(owningBucketOrd)
+            resetCompensations.get(owningBucketOrd),
+            rateUnit == null ? Rounding.DateTimeUnit.SECOND_OF_MINUTE : rateUnit
         );
     }
 

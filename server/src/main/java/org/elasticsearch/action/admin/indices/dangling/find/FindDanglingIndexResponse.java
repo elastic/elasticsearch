@@ -37,11 +37,11 @@ public class FindDanglingIndexResponse extends BaseNodesResponse<NodeFindDanglin
 
     @Override
     protected List<NodeFindDanglingIndexResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeFindDanglingIndexResponse::new);
+        return in.readCollectionAsList(NodeFindDanglingIndexResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeFindDanglingIndexResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -75,7 +76,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -122,7 +123,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             GetTaskAction.NAME,
             nodeRequest,
             TransportRequestOptions.timeout(request.getTimeout()),
-            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME)
+            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -150,14 +151,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     future.onResponse(null);
                 }
                 final ActionListener<Void> waitedForCompletionListener = ActionListener.runBefore(
-                    ActionListener.wrap(
-                        v -> waitedForCompletion(
-                            thisTask,
-                            request,
-                            runningTask.taskInfo(clusterService.localNode().getId(), true),
-                            listener
-                        ),
-                        listener::onFailure
+                    listener.delegateFailureAndWrap(
+                        (l, v) -> waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), l)
                     ),
                     () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
                 );
@@ -171,7 +166,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 future.addTimeout(
                     requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
                     threadPool,
-                    ThreadPool.Names.SAME
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
                 );
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);

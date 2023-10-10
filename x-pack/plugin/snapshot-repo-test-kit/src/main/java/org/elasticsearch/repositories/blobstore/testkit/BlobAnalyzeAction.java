@@ -9,14 +9,13 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -24,6 +23,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -43,6 +44,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -166,7 +168,13 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.SNAPSHOT);
+            super(
+                NAME,
+                transportService,
+                actionFilters,
+                Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
+            );
             this.repositoriesService = repositoriesService;
             this.transportService = transportService;
         }
@@ -214,8 +222,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         private final List<DiscoveryNode> earlyReadNodes;
         private final List<DiscoveryNode> readNodes;
         private final GroupedActionListener<NodeResponse> readNodesListener;
-        private final StepListener<WriteDetails> write1Step = new StepListener<>();
-        private final StepListener<WriteDetails> write2Step = new StepListener<>();
+        private final ListenableFuture<WriteDetails> write1Step = new ListenableFuture<>();
+        private final ListenableFuture<WriteDetails> write2Step = new ListenableFuture<>();
         private final CancellableThreads cancellableThreads = new CancellableThreads();
 
         BlobAnalysis(
@@ -253,7 +261,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             Collections.shuffle(nodes, random);
             readNodes = nodes.stream().limit(request.readNodeCount).collect(Collectors.toList());
 
-            final StepListener<Collection<NodeResponse>> readsCompleteStep = new StepListener<>();
+            final ListenableFuture<Collection<NodeResponse>> readsCompleteStep = new ListenableFuture<>();
             readNodesListener = new GroupedActionListener<>(
                 earlyReadNodes.size() + readNodes.size(),
                 new ThreadedActionListener<>(transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT), readsCompleteStep)
@@ -262,18 +270,24 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             // The order is important in this chain: if writing fails then we may never even start all the reads, and we want to cancel
             // any read tasks that were started, but the reads step only fails after all the reads have completed so there's no need to
             // cancel anything.
-            write1Step.whenComplete(
-                write1Details -> write2Step.whenComplete(
-                    write2Details -> readsCompleteStep.whenComplete(
-                        responses -> onReadsComplete(responses, write1Details, write2Details),
-                        this::cleanUpAndReturnFailure
+            write1Step.addListener(
+                ActionListener.wrap(
+                    write1Details -> write2Step.addListener(
+                        ActionListener.wrap(
+                            write2Details -> readsCompleteStep.addListener(
+                                ActionListener.wrap(
+                                    responses -> onReadsComplete(responses, write1Details, write2Details),
+                                    this::cleanUpAndReturnFailure
+                                )
+                            ),
+                            this::cancelReadsCleanUpAndReturnFailure
+                        )
                     ),
                     this::cancelReadsCleanUpAndReturnFailure
-                ),
-                this::cancelReadsCleanUpAndReturnFailure
+                )
             );
 
-            task.addListener(() -> { cancellableThreads.cancel(task.getReasonCancelled()); });
+            task.addListener(() -> cancellableThreads.cancel(task.getReasonCancelled()));
         }
 
         void run() {
@@ -286,14 +300,21 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
             if (request.writeAndOverwrite) {
                 assert request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
-                write1Step.whenComplete(ignored -> writeRandomBlob(true, false, this::doReadAfterWrite, write2Step), ignored -> {});
+                write1Step.addListener(
+                    ActionListener.wrap(ignored -> writeRandomBlob(true, false, this::doReadAfterWrite, write2Step), ignored -> {})
+                );
             } else {
                 write2Step.onResponse(null);
                 doReadAfterWrite();
             }
         }
 
-        private void writeRandomBlob(boolean atomic, boolean failIfExists, Runnable onLastRead, StepListener<WriteDetails> stepListener) {
+        private void writeRandomBlob(
+            boolean atomic,
+            boolean failIfExists,
+            Runnable onLastRead,
+            ListenableFuture<WriteDetails> stepListener
+        ) {
             assert atomic == false || request.targetLength <= MAX_ATOMIC_WRITE_SIZE : "oversized atomic write";
             final RandomBlobContent content = new RandomBlobContent(
                 request.getRepositoryName(),
@@ -327,17 +348,18 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                     };
                     if (atomic) {
                         try {
-                            blobContainer.writeBlobAtomic(request.blobName, bytesReference, failIfExists);
+                            blobContainer.writeBlobAtomic(OperationPurpose.SNAPSHOT, request.blobName, bytesReference, failIfExists);
                         } catch (BlobWriteAbortedException e) {
                             assert request.getAbortWrite() : "write unexpectedly aborted";
                         }
                     } else {
-                        blobContainer.writeBlob(request.blobName, bytesReference, failIfExists);
+                        blobContainer.writeBlob(OperationPurpose.SNAPSHOT, request.blobName, bytesReference, failIfExists);
                     }
                 } else {
                     cancellableThreads.execute(() -> {
                         try {
                             blobContainer.writeBlob(
+                                OperationPurpose.SNAPSHOT,
                                 request.blobName,
                                 repository.maybeRateLimitSnapshots(
                                     new RandomBlobContentStream(content, request.getTargetLength()),
@@ -419,7 +441,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                                 );
 
                             }
-                        }, GetBlobChecksumAction.Response::new)
+                        }, GetBlobChecksumAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                     );
                 }
             }
@@ -456,7 +478,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 logger.trace(() -> "analysis failed [" + request.getDescription() + "] cleaning up", exception);
             }
             try {
-                blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(request.blobName));
+                blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, Iterators.single(request.blobName));
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(
@@ -680,12 +702,12 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             blobName = in.readString();
             targetLength = in.readVLong();
             seed = in.readLong();
-            nodes = in.readList(DiscoveryNode::new);
+            nodes = in.readCollectionAsList(DiscoveryNode::new);
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 abortWrite = in.readBoolean();
             } else {
                 abortWrite = false;
@@ -700,12 +722,12 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeString(blobName);
             out.writeVLong(targetLength);
             out.writeLong(seed);
-            out.writeList(nodes);
+            out.writeCollection(nodes);
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWrite);
             } else if (abortWrite) {
                 throw new IllegalStateException("cannot send abortWrite request on transport version [" + out.getTransportVersion() + "]");
@@ -745,12 +767,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return true;
-                }
-            };
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
 
         public String getRepositoryName() {
@@ -832,7 +849,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             writeElapsedNanos = in.readVLong();
             overwriteElapsedNanos = in.readVLong();
             writeThrottledNanos = in.readVLong();
-            readDetails = in.readList(ReadDetail::new);
+            readDetails = in.readCollectionAsList(ReadDetail::new);
         }
 
         @Override
@@ -848,7 +865,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeVLong(writeElapsedNanos);
             out.writeVLong(overwriteElapsedNanos);
             out.writeVLong(writeThrottledNanos);
-            out.writeList(readDetails);
+            out.writeCollection(readDetails);
         }
 
         @Override

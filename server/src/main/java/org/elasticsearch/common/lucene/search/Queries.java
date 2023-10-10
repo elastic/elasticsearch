@@ -19,8 +19,8 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
@@ -53,13 +53,13 @@ public class Queries {
         return Queries.newMatchNoDocsQuery("failed [" + field + "] query, caused by " + message);
     }
 
-    private static final Version NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION = Version.fromString("6.1.0");
+    private static final IndexVersion NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION = IndexVersion.fromId(6010099);
 
     /**
      * Creates a new nested docs query
      * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
-    public static Query newNestedFilter(Version indexVersionCreated) {
+    public static Query newNestedFilter(IndexVersion indexVersionCreated) {
         if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
             return not(newNonNestedFilter(indexVersionCreated));
         } else {
@@ -71,7 +71,7 @@ public class Queries {
      * Creates a new non-nested docs query
      * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
-    public static Query newNonNestedFilter(Version indexVersionCreated) {
+    public static Query newNonNestedFilter(IndexVersion indexVersionCreated) {
         if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
             return new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
         } else {

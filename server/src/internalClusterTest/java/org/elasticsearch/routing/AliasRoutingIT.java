@@ -35,7 +35,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
     public void testAliasCrudRouting() throws Exception {
         createIndex("test");
         ensureGreen();
-        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("test").alias("alias0").routing("0")));
+        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("test").alias("alias0").routing("0")));
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
         client().prepareIndex("alias0").setId("1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
@@ -100,8 +100,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
         assertAcked(
-            admin().indices()
-                .prepareAliases()
+            indicesAdmin().prepareAliases()
                 .addAliasAction(AliasActions.add().index("test").alias("alias"))
                 .addAliasAction(AliasActions.add().index("test").alias("alias0").routing("0"))
                 .addAliasAction(AliasActions.add().index("test").alias("alias1").routing("1"))
@@ -455,8 +454,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
         createIndex("test-b");
         ensureGreen();
         assertAcked(
-            admin().indices()
-                .prepareAliases()
+            indicesAdmin().prepareAliases()
                 .addAliasAction(AliasActions.add().index("test-a").alias("alias-a0").routing("0"))
                 .addAliasAction(AliasActions.add().index("test-a").alias("alias-a1").routing("1"))
                 .addAliasAction(AliasActions.add().index("test-b").alias("alias-b0").routing("0"))
@@ -566,7 +564,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue2682() throws Exception {
         createIndex("index", "index_2");
         ensureGreen();
-        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("index").alias("index_1").routing("1")));
+        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("index").alias("index_1").routing("1")));
 
         logger.info("--> indexing on index_1 which is an alias for index with routing [1]");
         client().prepareIndex("index_1").setId("1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
@@ -597,7 +595,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices_issue3268() throws Exception {
         createIndex("index", "index_2");
         ensureGreen();
-        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("index").alias("index_1").routing("1")));
+        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("index").alias("index_1").routing("1")));
 
         logger.info("--> indexing on index_1 which is an alias for index with routing [1]");
         client().prepareIndex("index_1").setId("1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
@@ -622,7 +620,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
         logger.info("--> creating alias with routing [3]");
-        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("test").alias("alias").routing("3")));
+        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("test").alias("alias").routing("3")));
 
         logger.info("--> indexing with id [0], and routing [3]");
         client().prepareIndex("alias").setId("0").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
@@ -653,7 +651,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> creating alias with routing [4]");
-        assertAcked(admin().indices().prepareAliases().addAliasAction(AliasActions.add().index("test").alias("alias").routing("4")));
+        assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.add().index("test").alias("alias").routing("4")));
 
         logger.info("--> verifying search with wrong routing should not find");
         for (int i = 0; i < 5; i++) {
@@ -680,9 +678,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
 
         logger.info("--> creating alias with search routing [3,4] and index routing 4");
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareAliases()
+            indicesAdmin().prepareAliases()
                 .addAliasAction(AliasActions.add().index("test").alias("alias").searchRouting("3,4").indexRouting("4"))
         );
 

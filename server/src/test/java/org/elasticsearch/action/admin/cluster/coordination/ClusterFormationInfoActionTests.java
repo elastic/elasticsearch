@@ -14,12 +14,14 @@ import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -30,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -125,7 +128,7 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
         int numberOfMasterEligibleNodes = randomIntBetween(1, 7);
         for (int i = 0; i < numberOfMasterEligibleNodes; i++) {
             String id = "_id" + i;
-            DiscoveryNode masterNode = TestDiscoveryNode.create(id);
+            DiscoveryNode masterNode = DiscoveryNodeUtils.create(id);
             masterEligibleNodes.put(id, masterNode);
         }
         return masterEligibleNodes;
@@ -153,15 +156,17 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
     }
 
     public void testTransportDoExecute() {
-        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         ActionFilters actionFilters = mock(ActionFilters.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         Coordinator coordinator = mock(Coordinator.class);
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = getClusterFormationState();
         when(coordinator.getClusterFormationState()).thenReturn(clusterFormationState);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         ClusterFormationInfoAction.TransportAction action = new ClusterFormationInfoAction.TransportAction(
             transportService,
             actionFilters,

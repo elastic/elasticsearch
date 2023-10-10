@@ -16,7 +16,7 @@ buildScan {
   String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
 
   // Automatically publish scans from Elasticsearch CI
-  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
+  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev') || System.getenv('BUILDKITE') == 'true') {
     publishAlways()
     buildScan.server = 'https://gradle-enterprise.elastic.co'
   }
@@ -106,7 +106,7 @@ buildScan {
       // Add SCM information
       def prId = System.getenv('BUILDKITE_PULL_REQUEST')
       if (prId != 'false') {
-        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
+        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git").replaceFirst("git://", "https://")
         value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
         tag "pr/${prId}"
         tag 'pull-request'
@@ -121,12 +121,16 @@ buildScan {
       buildScanPublished { scan ->
         // Attach build scan link as build metadata
         // See: https://buildkite.com/docs/pipelines/build-meta-data
-        ['buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"].execute()
+        new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}")
+          .start()
+          .waitFor()
 
         // Add a build annotation
         // See: https://buildkite.com/docs/agent/v3/cli-annotate
         def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
-        ['buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body].execute()
+        new ProcessBuilder('buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body)
+          .start()
+          .waitFor()
       }
     } else {
       tag 'LOCAL'

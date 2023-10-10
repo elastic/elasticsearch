@@ -12,69 +12,46 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.internal.BuildExtension;
+import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
+import java.util.ServiceLoader;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
  * Information about a build of Elasticsearch.
  */
-public record Build(Type type, String hash, String date, boolean isSnapshot, String version) {
+public record Build(
+    String flavor,
+    Type type,
+    String hash,
+    String date,
+    boolean isSnapshot,
+    String version,
+    String minWireCompatVersion,
+    String minIndexCompatVersion,
+    String displayString
+) {
 
-    /**
-     * The current build of Elasticsearch. Filled with information scanned at
-     * startup from the jar.
-     */
-    public static final Build CURRENT;
+    private static class CurrentHolder {
+        private static final Build CURRENT = findCurrent();
 
-    public enum Type {
-
-        DEB("deb"),
-        DOCKER("docker"),
-        RPM("rpm"),
-        TAR("tar"),
-        ZIP("zip"),
-        UNKNOWN("unknown");
-
-        final String displayName;
-
-        public String displayName() {
-            return displayName;
+        // finds the pluggable current build, or uses the local build as a fallback
+        private static Build findCurrent() {
+            var buildExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class), () -> Build::findLocalBuild);
+            return buildExtension.getCurrentBuild();
         }
-
-        Type(final String displayName) {
-            this.displayName = displayName;
-        }
-
-        public static Type fromDisplayName(final String displayName, final boolean strict) {
-            switch (displayName) {
-                case "deb":
-                    return Type.DEB;
-                case "docker":
-                    return Type.DOCKER;
-                case "rpm":
-                    return Type.RPM;
-                case "tar":
-                    return Type.TAR;
-                case "zip":
-                    return Type.ZIP;
-                case "unknown":
-                    return Type.UNKNOWN;
-                default:
-                    if (strict) {
-                        throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
-                    } else {
-                        return Type.UNKNOWN;
-                    }
-            }
-        }
-
     }
 
-    static {
+    /**
+     * Finds build info scanned from the server jar.
+     */
+    private static Build findLocalBuild() {
         final Type type;
         final String hash;
         final String date;
@@ -135,7 +112,69 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
             );
         }
 
-        CURRENT = new Build(type, hash, date, isSnapshot, version);
+        final String flavor = "default";
+        String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
+        String minIndexCompat = minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE);
+        String displayString = defaultDisplayString(type, hash, date, version);
+
+        return new Build(flavor, type, hash, date, isSnapshot, version, minWireCompat, minIndexCompat, displayString);
+    }
+
+    public static String minimumCompatString(IndexVersion minimumCompatible) {
+        if (minimumCompatible.before(IndexVersion.V_8_500_000)) {
+            // use Version for compatibility
+            return Version.fromId(minimumCompatible.id()).toString();
+        } else {
+            // use the IndexVersion string
+            return minimumCompatible.toString();
+        }
+    }
+
+    public static Build current() {
+        return CurrentHolder.CURRENT;
+    }
+
+    public enum Type {
+
+        DEB("deb"),
+        DOCKER("docker"),
+        RPM("rpm"),
+        TAR("tar"),
+        ZIP("zip"),
+        UNKNOWN("unknown");
+
+        final String displayName;
+
+        public String displayName() {
+            return displayName;
+        }
+
+        Type(final String displayName) {
+            this.displayName = displayName;
+        }
+
+        public static Type fromDisplayName(final String displayName, final boolean strict) {
+            switch (displayName) {
+                case "deb":
+                    return Type.DEB;
+                case "docker":
+                    return Type.DOCKER;
+                case "rpm":
+                    return Type.RPM;
+                case "tar":
+                    return Type.TAR;
+                case "zip":
+                    return Type.ZIP;
+                case "unknown":
+                    return Type.UNKNOWN;
+                default:
+                    if (strict) {
+                        throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
+                    } else {
+                        return Type.UNKNOWN;
+                    }
+            }
+        }
     }
 
     /**
@@ -149,33 +188,52 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
-        final Type type;
-        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        if (in.getTransportVersion().before(TransportVersion.V_8_3_0)) {
-            // this was the flavor, which is always the default distribution now
-            in.readString();
+        final String flavor;
+        if (in.getTransportVersion().before(TransportVersions.V_8_3_0)
+            || in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+            flavor = in.readString();
+        } else {
+            flavor = "default";
         }
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        type = Type.fromDisplayName(in.readString(), false);
+        final Type type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
-
-        final String version;
-        version = in.readString();
-        return new Build(type, hash, date, snapshot, version);
+        final String version = in.readString();
+        final String minWireVersion;
+        final String minIndexVersion;
+        final String displayString;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_041)) {
+            minWireVersion = in.readString();
+            minIndexVersion = in.readString();
+            displayString = in.readString();
+        } else {
+            // the version is qualified, so we may need to strip off -SNAPSHOT or -alpha, etc. Here we simply find the first dash
+            int dashNdx = version.indexOf('-');
+            var versionConstant = Version.fromString(dashNdx == -1 ? version : version.substring(0, dashNdx));
+            minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
+            minIndexVersion = minimumCompatString(IndexVersion.getMinimumCompatibleIndexVersion(versionConstant.id()));
+            displayString = defaultDisplayString(type, hash, date, version);
+        }
+        return new Build(flavor, type, hash, date, snapshot, version, minWireVersion, minIndexVersion, displayString);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersion.V_8_3_0)) {
-            // this was the flavor, which is always the default distribution now
-            out.writeString("default");
+        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)
+            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+            out.writeString(build.flavor());
         }
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
         out.writeString(build.qualifiedVersion());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_041)) {
+            out.writeString(build.minWireCompatVersion());
+            out.writeString(build.minIndexCompatVersion());
+            out.writeString(build.displayString());
+        }
     }
 
     /**
@@ -191,17 +249,16 @@ public record Build(Type type, String hash, String date, boolean isSnapshot, Str
         return version;
     }
 
-    /**
-     * Provides information about the intent of the build
-     *
-     * @return true if the build is intended for production use
-     */
     public boolean isProductionRelease() {
-        return version.matches("[0-9]+\\.[0-9]+\\.[0-9]+");
+        return isSnapshot() == false && version.matches(".*(-alpha\\d+)|(-beta\\d+)|(-rc\\d+)") == false;
+    }
+
+    public static String defaultDisplayString(Type type, String hash, String date, String version) {
+        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
     @Override
     public String toString() {
-        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
+        return displayString();
     }
 }

@@ -7,8 +7,9 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -77,7 +77,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                     Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false))
                 ).setTrainedModel(buildClassification(true))
             )
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setCreateTime(Instant.now())
             .setEstimatedOperations(0)
@@ -91,7 +91,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                     Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false))
                 ).setTrainedModel(buildRegression())
             )
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setEstimatedOperations(0)
             .setModelSize(0)
             .setCreateTime(Instant.now())
@@ -256,7 +256,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                     Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false))
                 ).setTrainedModel(buildMultiClassClassification())
             )
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setCreateTime(Instant.now())
             .setEstimatedOperations(0)
@@ -404,7 +404,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                     Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding, false))
                 ).setTrainedModel(buildRegression())
             )
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setEstimatedOperations(0)
             .setModelSize(0)
             .setCreateTime(Instant.now())

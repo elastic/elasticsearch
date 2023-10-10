@@ -19,6 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -186,7 +188,9 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             ReindexPlugin.class,
             CommonAnalysisPlugin.class,
             InternalSettingsPlugin.class,
-            MapperExtrasPlugin.class
+            MapperExtrasPlugin.class,
+            MainRestPlugin.class,
+            Wildcard.class
         );
     }
 

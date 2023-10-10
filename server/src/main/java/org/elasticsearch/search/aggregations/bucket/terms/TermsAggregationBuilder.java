@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -131,6 +132,11 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     @Override
     public boolean supportsSampling() {
         return true;
+    }
+
+    @Override
+    public boolean supportsParallelCollection() {
+        return false;
     }
 
     @Override
@@ -437,6 +443,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

@@ -10,7 +10,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -29,14 +29,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -44,7 +47,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -52,7 +54,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -64,7 +68,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
@@ -108,7 +111,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             ClusterService clusterService,
             RepositoriesService repositoriesService
         ) {
-            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, ThreadPool.Names.SAME);
+            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
             this.clusterService = clusterService;
             this.repositoriesService = repositoriesService;
@@ -173,7 +176,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     request,
                     task,
                     TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, Response::new)
+                    new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
         }
@@ -554,7 +557,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             logger.debug(() -> "failed [" + request + "] on [" + node + "]", exp);
                             fail(exp);
                         }
-                    }, ref), BlobAnalyzeAction.Response::new)
+                    }, ref), BlobAnalyzeAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             } else {
                 ref.close();
@@ -584,7 +587,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             logger.debug(() -> "failed [" + request + "] on [" + node + "]", exp);
                             fail(exp);
                         }
-                    }, ref), in -> ActionResponse.Empty.INSTANCE)
+                    }, ref), in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             } else {
                 ref.close();
@@ -597,11 +600,13 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     final var expectedFinalRegisterValue = expectedRegisterValue.get();
                     transportService.getThreadPool()
                         .executor(ThreadPool.Names.SNAPSHOT)
-                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalLong>() {
+                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalBytesReference>() {
                             @Override
-                            public void onResponse(OptionalLong actualFinalRegisterValue) {
-                                if (actualFinalRegisterValue.isEmpty()
-                                    || actualFinalRegisterValue.getAsLong() != expectedFinalRegisterValue) {
+                            public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
+                                if (actualFinalRegisterValue.isPresent() == false
+                                    || RegisterAnalyzeAction.longFromBytes(
+                                        actualFinalRegisterValue.bytesReference()
+                                    ) != expectedFinalRegisterValue) {
                                     fail(
                                         new RepositoryVerificationException(
                                             request.getRepositoryName(),
@@ -625,18 +630,24 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             }
                         }, ref), listener -> {
                             switch (random.nextInt(3)) {
-                                case 0 -> getBlobContainer().getRegister(registerName, listener);
+                                case 0 -> getBlobContainer().getRegister(OperationPurpose.SNAPSHOT, registerName, listener);
                                 case 1 -> getBlobContainer().compareAndExchangeRegister(
+                                    OperationPurpose.SNAPSHOT,
                                     registerName,
-                                    expectedFinalRegisterValue,
-                                    -1,
+                                    RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    new BytesArray(new byte[] { (byte) 0xff }),
                                     listener
                                 );
                                 case 2 -> getBlobContainer().compareAndSetRegister(
+                                    OperationPurpose.SNAPSHOT,
                                     registerName,
-                                    expectedFinalRegisterValue,
-                                    -1,
-                                    listener.map(b -> b ? OptionalLong.of(expectedFinalRegisterValue) : OptionalLong.empty())
+                                    RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    new BytesArray(new byte[] { (byte) 0xff }),
+                                    listener.map(
+                                        b -> b
+                                            ? OptionalBytesReference.of(RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue))
+                                            : OptionalBytesReference.MISSING
+                                    )
                                 );
                                 default -> {
                                     assert false;
@@ -678,7 +689,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                 try {
                     final BlobContainer blobContainer = getBlobContainer();
                     final Set<String> missingBlobs = new HashSet<>(expectedBlobs);
-                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs();
+                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
                     missingBlobs.removeAll(blobsMap.keySet());
 
                     if (missingBlobs.isEmpty()) {
@@ -701,11 +712,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private void deleteContainer() {
             try {
                 final BlobContainer blobContainer = getBlobContainer();
-                blobContainer.delete();
+                blobContainer.delete(OperationPurpose.SNAPSHOT);
                 if (failure.get() != null) {
                     return;
                 }
-                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs();
+                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
                 if (blobsMap.isEmpty() == false) {
                     final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                         request.repositoryName,
@@ -794,7 +805,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize = ByteSizeValue.readFrom(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 abortWritePermitted = in.readBoolean();
             } else {
                 abortWritePermitted = false;
@@ -821,7 +832,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize.writeTo(out);
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
                 throw new IllegalStateException(
@@ -1004,7 +1015,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private final String coordinatingNodeId;
         private final String coordinatingNodeName;
@@ -1074,7 +1085,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             rareActionProbability = in.readDouble();
             blobPath = in.readString();
             summary = new RepositoryPerformanceSummary(in);
-            blobResponses = in.readList(BlobAnalyzeAction.Response::new);
+            blobResponses = in.readCollectionAsList(BlobAnalyzeAction.Response::new);
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
         }
@@ -1094,14 +1105,9 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             out.writeDouble(rareActionProbability);
             out.writeString(blobPath);
             summary.writeTo(out);
-            out.writeList(blobResponses);
+            out.writeCollection(blobResponses);
             out.writeVLong(listingTimeNanos);
             out.writeVLong(deleteTimeNanos);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

@@ -352,3 +352,42 @@ teardown:
   - match: { acknowledged:   true }
 
 
+---
+"Search against remote data streams":
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        index: '*:simple-data-stream*'
+        ccs_minimize_roundtrips: true
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2023-01-01"
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 3 }
+  - match: { _shards.skipped: 0 } # can_match is disabled with 3 shards
+  - match: { hits.total.value: 2}
+  - match: { hits.hits.0._index: "/my_remote_cluster:\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { hits.hits.1._index: "/my_remote_cluster:\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        index: '*:simple-data-stream*'
+        ccs_minimize_roundtrips: false
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2023-01-01"
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 3 }
+  - match: { _shards.skipped: 2 } # can_match is always enabled with search_shards
+  - match: { hits.total.value: 2}
+  - match: { hits.hits.0._index: "/my_remote_cluster:\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { hits.hits.1._index: "/my_remote_cluster:\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }

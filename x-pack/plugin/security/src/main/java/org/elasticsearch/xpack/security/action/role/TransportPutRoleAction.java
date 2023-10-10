@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -33,7 +34,7 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
         TransportService transportService,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new);
+        super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.rolesStore = rolesStore;
         this.xContentRegistry = xContentRegistry;
     }
@@ -44,13 +45,13 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
         if (validationException != null) {
             listener.onFailure(validationException);
         } else {
-            rolesStore.putRole(request, request.roleDescriptor(), listener.delegateFailure((l, created) -> {
+            rolesStore.putRole(request, request.roleDescriptor(), listener.safeMap(created -> {
                 if (created) {
                     logger.info("added role [{}]", request.name());
                 } else {
                     logger.info("updated role [{}]", request.name());
                 }
-                l.onResponse(new PutRoleResponse(created));
+                return new PutRoleResponse(created);
             }));
         }
     }

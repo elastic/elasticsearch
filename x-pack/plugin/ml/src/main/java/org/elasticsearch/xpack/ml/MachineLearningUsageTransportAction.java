@@ -73,6 +73,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     private final Client client;
     private final XPackLicenseState licenseState;
     private final JobManagerHolder jobManagerHolder;
+    private final MachineLearningExtension machineLearningExtension;
     private final boolean enabled;
 
     @Inject
@@ -85,7 +86,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         Environment environment,
         Client client,
         XPackLicenseState licenseState,
-        JobManagerHolder jobManagerHolder
+        JobManagerHolder jobManagerHolder,
+        MachineLearningExtensionHolder machineLearningExtensionHolder
     ) {
         super(
             XPackUsageFeatureAction.MACHINE_LEARNING.name(),
@@ -98,6 +100,11 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.licenseState = licenseState;
         this.jobManagerHolder = jobManagerHolder;
+        if (machineLearningExtensionHolder.isEmpty()) {
+            this.machineLearningExtension = new DefaultMachineLearningExtension();
+        } else {
+            this.machineLearningExtension = machineLearningExtensionHolder.getMachineLearningExtension();
+        }
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(environment.settings());
     }
 
@@ -187,10 +194,18 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         dataframeAnalyticsStatsRequest.setPageParams(new PageParams(0, 10_000));
         ActionListener<GetDatafeedsStatsAction.Response> datafeedStatsListener = ActionListener.wrap(response -> {
             addDatafeedsUsage(response, datafeedsUsage);
-            client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
+            if (machineLearningExtension.isDataFrameAnalyticsEnabled()) {
+                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
+            } else {
+                addInferenceUsage(inferenceUsageListener);
+            }
         }, e -> {
             logger.warn("Failed to get datafeed stats to include in ML usage", e);
-            client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
+            if (machineLearningExtension.isDataFrameAnalyticsEnabled()) {
+                client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
+            } else {
+                addInferenceUsage(inferenceUsageListener);
+            }
         });
 
         // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
@@ -210,8 +225,14 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         );
 
         // Step 0. Kick off the chain of callbacks by requesting jobs stats
-        GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
-        client.execute(GetJobsStatsAction.INSTANCE, jobStatsRequest, jobStatsListener);
+        if (machineLearningExtension.isAnomalyDetectionEnabled()) {
+            GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
+            client.execute(GetJobsStatsAction.INSTANCE, jobStatsRequest, jobStatsListener);
+        } else if (machineLearningExtension.isDataFrameAnalyticsEnabled()) {
+            client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, dataframeAnalyticsStatsRequest, dataframeAnalyticsStatsListener);
+        } else {
+            addInferenceUsage(inferenceUsageListener);
+        }
     }
 
     private void addJobsUsage(GetJobsStatsAction.Response response, List<Job> jobs, Map<String, Object> jobsUsage) {
@@ -228,7 +249,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         List<GetJobsStatsAction.Response.JobStats> jobsStats = response.getResponse().results();
         Map<String, Job> jobMap = jobs.stream().collect(Collectors.toMap(Job::getId, item -> item));
         Map<String, Long> allJobsCreatedBy = jobs.stream()
-            .map(this::jobCreatedBy)
+            .map(MachineLearningUsageTransportAction::jobCreatedBy)
             .collect(Collectors.groupingBy(item -> item, Collectors.counting()));
         ;
         for (GetJobsStatsAction.Response.JobStats jobStats : jobsStats) {
@@ -273,7 +294,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private String jobCreatedBy(Job job) {
+    private static String jobCreatedBy(Job job) {
         Map<String, Object> customSettings = job.getCustomSettings();
         if (customSettings == null || customSettings.containsKey(MachineLearningFeatureSetUsage.CREATED_BY) == false) {
             return "unknown";
@@ -283,7 +304,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         return customSettings.get(MachineLearningFeatureSetUsage.CREATED_BY).toString().replaceAll("\\W", "_");
     }
 
-    private Map<String, Object> createJobUsageEntry(
+    private static Map<String, Object> createJobUsageEntry(
         long count,
         StatsAccumulator detectorStats,
         StatsAccumulator modelSizeStats,
@@ -299,7 +320,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         return usage;
     }
 
-    private void addDatafeedsUsage(GetDatafeedsStatsAction.Response response, Map<String, Object> datafeedsUsage) {
+    private static void addDatafeedsUsage(GetDatafeedsStatsAction.Response response, Map<String, Object> datafeedsUsage) {
         Map<DatafeedState, Counter> datafeedCountByState = new HashMap<>();
 
         List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedsStats = response.getResponse().results();
@@ -316,13 +337,13 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private Map<String, Object> createCountUsageEntry(long count) {
+    private static Map<String, Object> createCountUsageEntry(long count) {
         Map<String, Object> usage = new HashMap<>();
         usage.put(MachineLearningFeatureSetUsage.COUNT, count);
         return usage;
     }
 
-    private void addDataFrameAnalyticsStatsUsage(
+    private static void addDataFrameAnalyticsStatsUsage(
         GetDataFrameAnalyticsStatsAction.Response response,
         Map<String, Object> dataframeAnalyticsUsage
     ) {
@@ -350,7 +371,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private void addDataFrameAnalyticsUsage(GetDataFrameAnalyticsAction.Response response, Map<String, Object> dataframeAnalyticsUsage) {
+    private static void addDataFrameAnalyticsUsage(
+        GetDataFrameAnalyticsAction.Response response,
+        Map<String, Object> dataframeAnalyticsUsage
+    ) {
         Map<String, Integer> perAnalysisTypeCounterMap = new HashMap<>();
 
         for (DataFrameAnalyticsConfig config : response.getResources().results()) {
@@ -361,26 +385,30 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private void addInferenceUsage(ActionListener<Map<String, Object>> listener) {
-        GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request(
-            "*",
-            Collections.emptyList(),
-            Collections.emptySet()
-        );
-        getModelsRequest.setPageParams(new PageParams(0, 10_000));
-        client.execute(GetTrainedModelsAction.INSTANCE, getModelsRequest, ActionListener.wrap(getModelsResponse -> {
-            GetTrainedModelsStatsAction.Request getStatsRequest = new GetTrainedModelsStatsAction.Request("*");
-            getStatsRequest.setPageParams(new PageParams(0, 10_000));
-            client.execute(GetTrainedModelsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(getStatsResponse -> {
-                Map<String, Object> inferenceUsage = new LinkedHashMap<>();
-                addInferenceIngestUsage(getStatsResponse, inferenceUsage);
-                addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
-                addDeploymentStats(getStatsResponse, inferenceUsage);
-                listener.onResponse(inferenceUsage);
+        if (machineLearningExtension.isDataFrameAnalyticsEnabled() || machineLearningExtension.isNlpEnabled()) {
+            GetTrainedModelsAction.Request getModelsRequest = new GetTrainedModelsAction.Request(
+                "*",
+                Collections.emptyList(),
+                Collections.emptySet()
+            );
+            getModelsRequest.setPageParams(new PageParams(0, 10_000));
+            client.execute(GetTrainedModelsAction.INSTANCE, getModelsRequest, ActionListener.wrap(getModelsResponse -> {
+                GetTrainedModelsStatsAction.Request getStatsRequest = new GetTrainedModelsStatsAction.Request("*");
+                getStatsRequest.setPageParams(new PageParams(0, 10_000));
+                client.execute(GetTrainedModelsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(getStatsResponse -> {
+                    Map<String, Object> inferenceUsage = new LinkedHashMap<>();
+                    addInferenceIngestUsage(getStatsResponse, inferenceUsage);
+                    addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
+                    addDeploymentStats(getStatsResponse, inferenceUsage);
+                    listener.onResponse(inferenceUsage);
+                }, listener::onFailure));
             }, listener::onFailure));
-        }, listener::onFailure));
+        } else {
+            listener.onResponse(Map.of());
+        }
     }
 
-    private void addDeploymentStats(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
+    private static void addDeploymentStats(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
         StatsAccumulator modelSizes = new StatsAccumulator();
         int deploymentsCount = 0;
         double avgTimeSum = 0.0;
@@ -417,7 +445,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         );
     }
 
-    private void addTrainedModelStats(
+    private static void addTrainedModelStats(
         GetTrainedModelsAction.Response modelsResponse,
         GetTrainedModelsStatsAction.Response statsResponse,
         Map<String, Object> inferenceUsage
@@ -467,7 +495,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     // TODO separate out ours and users models possibly regression vs classification
-    private void addInferenceIngestUsage(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
+    private static void addInferenceIngestUsage(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
         int pipelineCount = 0;
         StatsAccumulator docCountStats = new StatsAccumulator();
         StatsAccumulator timeStats = new StatsAccumulator();
@@ -475,11 +503,11 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
         for (GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats : statsResponse.getResources().results()) {
             pipelineCount += modelStats.getPipelineCount();
-            modelStats.getIngestStats().getProcessorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
-                if (processorStat.getName().equals(InferenceProcessor.TYPE)) {
-                    docCountStats.add(processorStat.getStats().getIngestCount());
-                    timeStats.add(processorStat.getStats().getIngestTimeInMillis());
-                    failureStats.add(processorStat.getStats().getIngestFailedCount());
+            modelStats.getIngestStats().processorStats().values().stream().flatMap(List::stream).forEach(processorStat -> {
+                if (processorStat.name().equals(InferenceProcessor.TYPE)) {
+                    docCountStats.add(processorStat.stats().ingestCount());
+                    timeStats.add(processorStat.stats().ingestTimeInMillis());
+                    failureStats.add(processorStat.stats().ingestFailedCount());
                 }
             });
         }
@@ -492,7 +520,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         inferenceUsage.put("ingest_processors", Collections.singletonMap(MachineLearningFeatureSetUsage.ALL, ingestUsage));
     }
 
-    private Map<String, Object> getMinMaxSumAsLongsFromStats(StatsAccumulator stats) {
+    private static Map<String, Object> getMinMaxSumAsLongsFromStats(StatsAccumulator stats) {
         Map<String, Object> asMap = Maps.newMapWithExpectedSize(3);
         asMap.put("sum", Double.valueOf(stats.getTotal()).longValue());
         asMap.put("min", Double.valueOf(stats.getMin()).longValue());

@@ -10,10 +10,10 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -60,7 +60,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         bulkBuilder.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         bulkBuilder.get();
         assertBusy(() -> {
-            GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
+            GetMappingsResponse mappingsResponse = indicesAdmin().prepareGetMappings().get();
             assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
         });
     }
@@ -71,21 +71,12 @@ public class BulkIntegrationIT extends ESIntegTestCase {
      */
     public void testBulkWithWriteIndexAndRouting() {
         Map<String, Integer> twoShardsSettings = Collections.singletonMap(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2);
-        client().admin()
-            .indices()
-            .prepareCreate("index1")
-            .addAlias(new Alias("alias1").indexRouting("0"))
-            .setSettings(twoShardsSettings)
-            .get();
-        client().admin()
-            .indices()
-            .prepareCreate("index2")
+        indicesAdmin().prepareCreate("index1").addAlias(new Alias("alias1").indexRouting("0")).setSettings(twoShardsSettings).get();
+        indicesAdmin().prepareCreate("index2")
             .addAlias(new Alias("alias1").indexRouting("0").writeIndex(randomFrom(false, null)))
             .setSettings(twoShardsSettings)
             .get();
-        client().admin()
-            .indices()
-            .prepareCreate("index3")
+        indicesAdmin().prepareCreate("index3")
             .addAlias(new Alias("alias1").indexRouting("1").writeIndex(true))
             .setSettings(twoShardsSettings)
             .get();
@@ -173,7 +164,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        IndexResponse response = client().prepareIndex(index)
+                        DocWriteResponse response = client().prepareIndex(index)
                             .setId(id)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
@@ -188,7 +179,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         }
         ensureGreen(index);
         assertBusy(() -> assertThat(docID.get(), greaterThanOrEqualTo(1)));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         stopped.set(true);
         for (Thread thread : threads) {
             thread.join(ReplicationRequest.DEFAULT_TIMEOUT.millis() / 2);

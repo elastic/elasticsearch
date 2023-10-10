@@ -11,8 +11,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -104,7 +104,7 @@ public class XPackPluginTests extends ESTestCase {
                 attributes = Collections.emptyMap();
             }
 
-            discoveryNodes.add(TestDiscoveryNode.create("node_" + i, buildNewFakeTransportAddress(), attributes, Collections.emptySet()));
+            discoveryNodes.add(DiscoveryNodeUtils.create("node_" + i, buildNewFakeTransportAddress(), attributes, Collections.emptySet()));
         }
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT);
 
@@ -160,6 +160,7 @@ public class XPackPluginTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         assertEquals(license, XPackPlugin.getSharedLicenseService().getLicense());
@@ -208,6 +209,7 @@ public class XPackPluginTests extends ESTestCase {
             null,
             null,
             mockEnvironment,
+            null,
             null,
             null,
             null,

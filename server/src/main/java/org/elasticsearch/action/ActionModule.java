@@ -116,7 +116,9 @@ import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesActio
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.TransportGetAliasesAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -229,8 +231,6 @@ import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -247,10 +247,27 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.action.support.MappedActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.synonyms.DeleteSynonymRuleAction;
+import org.elasticsearch.action.synonyms.DeleteSynonymsAction;
+import org.elasticsearch.action.synonyms.GetSynonymRuleAction;
+import org.elasticsearch.action.synonyms.GetSynonymsAction;
+import org.elasticsearch.action.synonyms.GetSynonymsSetsAction;
+import org.elasticsearch.action.synonyms.PutSynonymRuleAction;
+import org.elasticsearch.action.synonyms.PutSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportDeleteSynonymRuleAction;
+import org.elasticsearch.action.synonyms.TransportDeleteSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportGetSynonymRuleAction;
+import org.elasticsearch.action.synonyms.TransportGetSynonymsAction;
+import org.elasticsearch.action.synonyms.TransportGetSynonymsSetsAction;
+import org.elasticsearch.action.synonyms.TransportPutSynonymRuleAction;
+import org.elasticsearch.action.synonyms.TransportPutSynonymsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportMultiTermVectorsAction;
@@ -260,7 +277,6 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -291,7 +307,8 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
@@ -299,7 +316,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
-import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
@@ -383,6 +399,7 @@ import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
+import org.elasticsearch.rest.action.admin.indices.RestReloadAnalyzersAction;
 import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
@@ -423,6 +440,7 @@ import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
+import org.elasticsearch.rest.action.info.RestClusterInfoAction;
 import org.elasticsearch.rest.action.ingest.RestDeletePipelineAction;
 import org.elasticsearch.rest.action.ingest.RestGetPipelineAction;
 import org.elasticsearch.rest.action.ingest.RestPutPipelineAction;
@@ -434,18 +452,27 @@ import org.elasticsearch.rest.action.search.RestKnnSearchAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
+import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymRuleAction;
+import org.elasticsearch.rest.action.synonyms.RestDeleteSynonymsAction;
+import org.elasticsearch.rest.action.synonyms.RestGetSynonymRuleAction;
+import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
+import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
+import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
+import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -483,7 +510,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
-    private final boolean serverlessEnabled;
+    private final RestExtension restExtension;
 
     public ActionModule(
         Settings settings,
@@ -499,7 +526,8 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
+        RestExtension restExtension
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -508,7 +536,6 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.serverlessEnabled = DiscoveryNode.isServerless();
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -522,28 +549,11 @@ public class ActionModule extends AbstractModule {
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
         ).collect(Collectors.toSet());
-        UnaryOperator<RestHandler> restInterceptor = null;
-        for (ActionPlugin plugin : actionPlugins) {
-            if (plugin instanceof RestInterceptorActionPlugin riplugin) {
-                UnaryOperator<RestHandler> newRestInterceptor = riplugin.getRestHandlerInterceptor(threadPool.getThreadContext());
-                if (newRestInterceptor != null) {
-                    logger.debug("Using REST interceptor from plugin " + plugin.getClass().getName());
-                    if (plugin.getClass().getCanonicalName() == null
-                        || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
-                        throw new IllegalArgumentException(
-                            "The "
-                                + plugin.getClass().getName()
-                                + " plugin tried to install a custom REST "
-                                + "interceptor. This functionality is not available anymore."
-                        );
-                    }
-                    if (restInterceptor != null) {
-                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST interceptor");
-                    }
-                    restInterceptor = newRestInterceptor;
-                }
-            }
-        }
+        UnaryOperator<RestHandler> restInterceptor = getRestServerComponent(
+            "REST interceptor",
+            actionPlugins,
+            restPlugin -> restPlugin.getRestHandlerInterceptor(threadPool.getThreadContext())
+        );
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).toList()
         );
@@ -551,8 +561,57 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
         headersToCopy = headers;
-        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer, serverlessEnabled);
+
+        var customController = getRestServerComponent(
+            "REST controller",
+            actionPlugins,
+            restPlugin -> restPlugin.getRestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer)
+        );
+        if (customController != null) {
+            restController = customController;
+        } else {
+            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+        this.restExtension = restExtension;
+    }
+
+    private static <T> T getRestServerComponent(
+        String type,
+        List<ActionPlugin> actionPlugins,
+        Function<RestServerActionPlugin, T> function
+    ) {
+        T result = null;
+        for (ActionPlugin plugin : actionPlugins) {
+            if (plugin instanceof RestServerActionPlugin restPlugin) {
+                var newInstance = function.apply(restPlugin);
+                if (newInstance != null) {
+                    logger.debug("Using custom {} from plugin {}", type, plugin.getClass().getName());
+                    if (isInternalPlugin(plugin) == false) {
+                        throw new IllegalArgumentException(
+                            "The "
+                                + plugin.getClass().getName()
+                                + " plugin tried to install a custom "
+                                + type
+                                + ". This functionality is not available to external plugins."
+                        );
+                    }
+                    if (result != null) {
+                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a " + type);
+                    }
+                    result = newInstance;
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean isInternalPlugin(ActionPlugin plugin) {
+        final String canonicalName = plugin.getClass().getCanonicalName();
+        if (canonicalName == null) {
+            return false;
+        }
+        return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
     }
 
     /**
@@ -561,6 +620,9 @@ public class ActionModule extends AbstractModule {
      * finishes and returns.
      */
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
+        // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
+        // we use this opportunity to first record the request processing start time
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(System.currentTimeMillis()));
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);
@@ -608,7 +670,6 @@ public class ActionModule extends AbstractModule {
         }
         ActionRegistry actions = new ActionRegistry();
 
-        actions.register(MainAction.INSTANCE, TransportMainAction.class);
         actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
         actions.register(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.TransportAction.class);
@@ -618,7 +679,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
-        actions.register(GetHealthAction.INSTANCE, GetHealthAction.TransportAction.class);
+        actions.register(GetHealthAction.INSTANCE, GetHealthAction.LocalAction.class);
         actions.register(PrevalidateNodeRemovalAction.INSTANCE, TransportPrevalidateNodeRemovalAction.class);
         actions.register(HealthApiStatsAction.INSTANCE, HealthApiStatsTransportAction.class);
 
@@ -672,6 +733,7 @@ public class ActionModule extends AbstractModule {
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
+        actions.register(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class);
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
         actions.register(GetIndexTemplatesAction.INSTANCE, TransportGetIndexTemplatesAction.class);
         actions.register(DeleteIndexTemplateAction.INSTANCE, TransportDeleteIndexTemplateAction.class);
@@ -771,21 +833,44 @@ public class ActionModule extends AbstractModule {
         actions.register(UpdateHealthInfoCacheAction.INSTANCE, UpdateHealthInfoCacheAction.TransportAction.class);
         actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
 
+        // Synonyms
+        actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
+        actions.register(GetSynonymsAction.INSTANCE, TransportGetSynonymsAction.class);
+        actions.register(DeleteSynonymsAction.INSTANCE, TransportDeleteSynonymsAction.class);
+        actions.register(GetSynonymsSetsAction.INSTANCE, TransportGetSynonymsSetsAction.class);
+        actions.register(PutSynonymRuleAction.INSTANCE, TransportPutSynonymRuleAction.class);
+        actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
+        actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
     private static ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
-        return new ActionFilters(
-            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
-        );
+        List<ActionFilter> finalFilters = new ArrayList<>();
+        List<MappedActionFilter> mappedFilters = new ArrayList<>();
+        for (var plugin : actionPlugins) {
+            for (var filter : plugin.getActionFilters()) {
+                if (filter instanceof MappedActionFilter mappedFilter) {
+                    mappedFilters.add(mappedFilter);
+                } else {
+                    finalFilters.add(filter);
+                }
+            }
+        }
+        if (mappedFilters.isEmpty() == false) {
+            finalFilters.add(new MappedActionFilters(mappedFilters));
+        }
+        return new ActionFilters(Set.copyOf(finalFilters));
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
+        Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
+        Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (shouldKeepRestHandler(handler)) {
-                if (handler instanceof AbstractCatAction) {
-                    catActions.add((AbstractCatAction) handler);
+            if (restFilter.test(handler)) {
+                if (handler instanceof AbstractCatAction catAction && catActionsFilter.test(catAction)) {
+                    catActions.add(catAction);
                 }
                 restController.registerHandler(handler);
             } else {
@@ -798,7 +883,6 @@ public class ActionModule extends AbstractModule {
         };
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
-        registerHandler.accept(new RestMainAction());
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesStatsAction());
@@ -854,6 +938,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetSettingsAction());
 
         registerHandler.accept(new RestAnalyzeAction());
+        registerHandler.accept(new RestReloadAnalyzersAction());
         registerHandler.accept(new RestGetIndexTemplateAction());
         registerHandler.accept(new RestPutIndexTemplateAction());
         registerHandler.accept(new RestDeleteIndexTemplateAction());
@@ -936,6 +1021,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestShardsAction());
         registerHandler.accept(new RestMasterAction());
         registerHandler.accept(new RestNodesAction());
+        registerHandler.accept(new RestClusterInfoAction());
         registerHandler.accept(new RestTasksAction(nodesInCluster));
         registerHandler.accept(new RestIndicesAction());
         registerHandler.accept(new RestSegmentsAction());
@@ -978,16 +1064,15 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
-    }
 
-    /**
-     * This method is used to determine whether a RestHandler ought to be kept in memory or not. Returns true if serverless mode is
-     * disabled, or if there is any ServlerlessScope annotation on the RestHandler.
-     * @param handler
-     * @return
-     */
-    private boolean shouldKeepRestHandler(final RestHandler handler) {
-        return serverlessEnabled == false || handler.getServerlessScope() != null;
+        // Synonyms
+        registerHandler.accept(new RestPutSynonymsAction());
+        registerHandler.accept(new RestGetSynonymsAction());
+        registerHandler.accept(new RestDeleteSynonymsAction());
+        registerHandler.accept(new RestGetSynonymsSetsAction());
+        registerHandler.accept(new RestPutSynonymRuleAction());
+        registerHandler.accept(new RestGetSynonymRuleAction());
+        registerHandler.accept(new RestDeleteSynonymRuleAction());
     }
 
     @Override

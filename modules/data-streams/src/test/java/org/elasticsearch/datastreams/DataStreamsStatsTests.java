@@ -127,14 +127,12 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     public void testStatsClosedBackingIndexDataStream() throws Exception {
         String dataStreamName = createDataStream();
         createDocument(dataStreamName);
-        assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
-        assertTrue(
-            client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-*-000001")).actionGet().isAcknowledged()
-        );
+        assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
+        assertTrue(indicesAdmin().close(new CloseIndexRequest(".ds-" + dataStreamName + "-*-000001")).actionGet().isAcknowledged());
 
-        assertBusy(() -> {
-            assertNotEquals(ClusterHealthStatus.RED, client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus());
-        });
+        assertBusy(
+            () -> assertNotEquals(ClusterHealthStatus.RED, clusterAdmin().health(new ClusterHealthRequest()).actionGet().getStatus())
+        );
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(2, stats.getSuccessfulShards());
@@ -169,7 +167,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     public void testStatsRolledDataStream() throws Exception {
         String dataStreamName = createDataStream();
         long timestamp = createDocument(dataStreamName);
-        assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
+        assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
         timestamp = max(timestamp, createDocument(dataStreamName));
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
@@ -264,9 +262,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
                         .endObject()
                 )
         ).get();
-        client().admin()
-            .indices()
-            .refresh(new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
+        indicesAdmin().refresh(new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
             .get();
         return timestamp;
     }

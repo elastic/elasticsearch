@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 /** Base class for testing geo field mappers */
 public abstract class GeoFieldMapperTests extends MapperTestCase {
@@ -38,6 +39,11 @@ public abstract class GeoFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleValueForDocument() {
         return "POINT (14.0 15.0)";
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        return Map.of("x", 14.0, "y", 15.0);
     }
 
     protected abstract String getFieldName();

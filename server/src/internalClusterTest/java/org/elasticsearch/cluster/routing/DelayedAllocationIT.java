@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 
@@ -89,10 +88,6 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * allocation to a very small value, it kicks the allocation of the unassigned shard
      * even though the node it was hosted on will not come back.
      */
-    @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator:TRACE",
-        reason = "https://github.com/elastic/elasticsearch/issues/93470"
-    )
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(

@@ -20,7 +20,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,7 +40,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -290,7 +289,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         }
 
         // Before we call the delete-expired-data action we need to make sure the unused state docs were indexed
-        assertThat(indexUnusedStateDocsResponse.get().status(), equalTo(RestStatus.OK));
+        assertFalse(indexUnusedStateDocsResponse.get().hasFailures());
 
         // Now call the action under test
         assertThat(deleteExpiredData(customThrottle).isDeleted(), is(true));
@@ -404,10 +403,14 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThatNumberOfAnnotationsIsEqualTo(1);
 
         // The following 4 annotations are created by the system and the 2 oldest ones *will* be deleted
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(1)), XPackUser.NAME)).actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(2)), XPackUser.NAME)).actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(3)), XPackUser.NAME)).actionGet();
-        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(4)), XPackUser.NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(1)), InternalUsers.XPACK_USER.principal()))
+            .actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(2)), InternalUsers.XPACK_USER.principal()))
+            .actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(3)), InternalUsers.XPACK_USER.principal()))
+            .actionGet();
+        client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(4)), InternalUsers.XPACK_USER.principal()))
+            .actionGet();
         // The following 4 annotations are created by the user and *will not* be deleted
         client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(1)), USER_NAME)).actionGet();
         client().index(randomAnnotationIndexRequest(jobId, now.minus(Duration.ofDays(2)), USER_NAME)).actionGet();

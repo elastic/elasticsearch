@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -179,7 +178,9 @@ public class AllocationReducerTests extends ESTestCase {
                 randomIntBetween(1, 16),
                 1024,
                 null,
-                Priority.NORMAL
+                Priority.NORMAL,
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
             )
         );
         allocationsByNode.entrySet()
@@ -194,6 +195,6 @@ public class AllocationReducerTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String nodeId) {
-        return new DiscoveryNode(nodeId, nodeId, buildNewFakeTransportAddress(), Map.of(), DiscoveryNodeRole.roles(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(nodeId, nodeId);
     }
 }

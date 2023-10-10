@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -56,7 +56,7 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         builder.seed(42);
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
         IndexSettings settings = new IndexSettings(
-            IndexMetadata.builder("index").settings(indexSettings(Version.CURRENT, 1, 1)).build(),
+            IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 1)).build(),
             Settings.EMPTY
         );
         Mockito.when(context.index()).thenReturn(settings.getIndex());
@@ -74,7 +74,7 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         builder.seed(42);
         SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
         IndexSettings settings = new IndexSettings(
-            IndexMetadata.builder("index").settings(indexSettings(Version.CURRENT, 1, 1)).build(),
+            IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 1)).build(),
             Settings.EMPTY
         );
         Mockito.when(context.index()).thenReturn(settings.getIndex());

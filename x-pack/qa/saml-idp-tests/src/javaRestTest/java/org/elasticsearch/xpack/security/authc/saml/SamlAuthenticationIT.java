@@ -32,7 +32,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -67,6 +66,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,12 +140,12 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setupNativeUser() throws IOException {
-        final Map<String, Object> body = MapBuilder.<String, Object>newMapBuilder()
-            .put("roles", Collections.singletonList("kibana_admin"))
-            .put("full_name", "Thor Son of Odin")
-            .put("password", randomAlphaOfLengthBetween(inFipsJvm() ? 14 : 8, 16))
-            .put("metadata", Collections.singletonMap("is_native", true))
-            .map();
+        final Map<String, Object> body = Map.ofEntries(
+            entry("roles", Collections.singletonList("kibana_admin")),
+            entry("full_name", "Thor Son of Odin"),
+            entry("password", randomAlphaOfLengthBetween(inFipsJvm() ? 14 : 8, 16)),
+            entry("metadata", Collections.singletonMap("is_native", true))
+        );
         final Response response = adminClient().performRequest(buildRequest("PUT", "/_security/user/thor", body));
         assertOK(response);
     }
@@ -264,10 +264,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private String verifyElasticsearchRefreshToken(String refreshToken) throws IOException {
-        final Map<String, ?> body = MapBuilder.<String, Object>newMapBuilder()
-            .put("grant_type", "refresh_token")
-            .put("refresh_token", refreshToken)
-            .map();
+        final Map<String, ?> body = Map.of("grant_type", "refresh_token", "refresh_token", refreshToken);
         final Response response = client().performRequest(buildRequest("POST", "/_security/oauth2/token", body, kibanaAuth()));
         assertOK(response);
 
@@ -363,12 +360,10 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     private Map<String, Object> submitSamlResponse(String saml, String id, String realmName, boolean shouldSucceed) throws IOException {
         // By POSTing to the ES API directly, we miss the check that the IDP would post this to the ACS that we would expect them to, but
         // we implicitly check this while checking the `Destination` element of the SAML response in the SAML realm.
-        final MapBuilder<String, Object> bodyBuilder = new MapBuilder<String, Object>().put("content", saml)
-            .put("realm", realmName)
-            .put("ids", Collections.singletonList(id));
+        final Map<String, Object> bodyBuilder = Map.of("content", saml, "realm", realmName, "ids", Collections.singletonList(id));
         try {
             final Response response = client().performRequest(
-                buildRequest("POST", "/_security/saml/authenticate", bodyBuilder.map(), kibanaAuth())
+                buildRequest("POST", "/_security/saml/authenticate", bodyBuilder, kibanaAuth())
             );
             if (shouldSucceed) {
                 assertHttpOk(response.getStatusLine());

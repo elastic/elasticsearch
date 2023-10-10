@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -37,9 +38,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -68,7 +69,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
     @After
     public void cleanUpPipelines() {
-        client().admin().indices().prepareDelete("*").get();
+        indicesAdmin().prepareDelete("*").get();
 
         final GetPipelineResponse response = clusterAdmin().prepareGetPipeline("default_pipeline", "final_pipeline", "request_pipeline")
             .get();
@@ -132,7 +133,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {"exists":"no_such_field"}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index")
+        DocWriteResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -158,7 +159,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index")
+        DocWriteResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -184,7 +185,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index")
+        DocWriteResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -210,7 +211,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             {"processors": [{"final": {}}]}""");
         clusterAdmin().putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON)).actionGet();
 
-        IndexResponse indexResponse = client().prepareIndex("index")
+        DocWriteResponse indexResponse = client().prepareIndex("index")
             .setId("1")
             .setSource(Map.of("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -275,7 +276,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         index.setSource(Map.of("field", "value"));
         index.setPipeline("request_pipeline");
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        final IndexResponse response = index.get();
+        final DocWriteResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
         final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
@@ -302,7 +303,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
         index.setSource(Map.of("field", "value"));
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        final IndexResponse response = index.get();
+        final DocWriteResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
         final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
@@ -335,15 +336,13 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings defaultPipelineSettings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("default")
+        indicesAdmin().preparePutTemplate("default")
             .setPatterns(List.of("index*"))
             .setOrder(defaultPipelineOrder)
             .setSettings(defaultPipelineSettings)
             .get();
         final Settings finalPipelineSettings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
-        admin().indices()
-            .preparePutTemplate("final")
+        indicesAdmin().preparePutTemplate("final")
             .setPatterns(List.of("index*"))
             .setOrder(finalPipelineOrder)
             .setSettings(finalPipelineSettings)
@@ -351,7 +350,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final IndexRequestBuilder index = client().prepareIndex("index").setId("1");
         index.setSource(Map.of("field", "value"));
         index.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        final IndexResponse response = index.get();
+        final DocWriteResponse response = index.get();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
         final GetRequestBuilder get = client().prepareGet("index", "1");
         final GetResponse getResponse = get.get();
@@ -369,8 +368,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings lowOrderFinalPipelineSettings = Settings.builder()
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "low_order_final_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("low_order")
+        indicesAdmin().preparePutTemplate("low_order")
             .setPatterns(List.of("index*"))
             .setOrder(lowOrder)
             .setSettings(lowOrderFinalPipelineSettings)
@@ -378,8 +376,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings highOrderFinalPipelineSettings = Settings.builder()
             .put(IndexSettings.FINAL_PIPELINE.getKey(), "high_order_final_pipeline")
             .build();
-        admin().indices()
-            .preparePutTemplate("high_order")
+        indicesAdmin().preparePutTemplate("high_order")
             .setPatterns(List.of("index*"))
             .setOrder(highOrder)
             .setSettings(highOrderFinalPipelineSettings)
@@ -408,8 +405,9 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationService allocationService
+            TelemetryProvider telemetryProvider,
+            AllocationService allocationService,
+            IndicesService indicesService
         ) {
             return List.of();
         }

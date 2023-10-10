@@ -574,7 +574,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 client,
                 clusterState,
                 masterNodeTimeout,
-                resultsMappingUpdateHandler
+                resultsMappingUpdateHandler,
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
             ),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
@@ -586,7 +587,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     client,
                     clusterState,
                     masterNodeTimeout,
-                    resultsMappingUpdateHandler
+                    resultsMappingUpdateHandler,
+                    AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
                 );
             }
         );
@@ -1008,7 +1010,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         );
     }
 
-    private void logSetJobStateFailure(JobState state, String jobId, Exception e) {
+    private static void logSetJobStateFailure(JobState state, String jobId, Exception e) {
         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             logger.debug("Could not set job state to [{}] for job [{}] as it has been closed", state, jobId);
         } else {

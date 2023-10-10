@@ -147,19 +147,9 @@ public class User implements ToXContentObject {
         builder.field(Fields.ENABLED.getPreferredName(), enabled());
     }
 
-    public static boolean isInternal(User user) {
-        // TODO : Drop this method and rely entirely on the InternalUsers class
-        return SystemUser.is(user)
-            || XPackUser.is(user)
-            || XPackSecurityUser.is(user)
-            || SecurityProfileUser.is(user)
-            || AsyncSearchUser.is(user)
-            || CrossClusterAccessUser.is(user)
-            || StorageInternalUser.is(user);
-    }
-
     /** Write the given {@link User} */
     public static void writeUser(User user, StreamOutput output) throws IOException {
+        // TODO : reject `InternalUser`
         output.writeBoolean(false); // not a system user
         output.writeString(user.username);
         output.writeStringArray(user.roles);

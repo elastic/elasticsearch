@@ -9,8 +9,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
@@ -45,9 +45,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchContextIdForNode(null, "node3", new ShardSearchContextId(UUIDs.randomBase64UUID(), 0))
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("node1"))
-            .add(TestDiscoveryNode.create("node2"))
-            .add(TestDiscoveryNode.create("node3"))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
@@ -119,9 +119,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchContextIdForNode(null, "node3", new ShardSearchContextId("d", 0))
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("node1"))
-            .add(TestDiscoveryNode.create("node2"))
-            .add(TestDiscoveryNode.create("node3"))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
@@ -216,8 +216,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         );
         // node2 is not available
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("node1"))
-            .add(TestDiscoveryNode.create("node3"))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
@@ -300,9 +300,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 0))
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("node1"))
-            .add(TestDiscoveryNode.create("node2"))
-            .add(TestDiscoveryNode.create("node3"))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);
@@ -381,9 +381,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             new SearchContextIdForNode(null, "node3", new ShardSearchContextId("", 0))
         );
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(TestDiscoveryNode.create("node1"))
-            .add(TestDiscoveryNode.create("node2"))
-            .add(TestDiscoveryNode.create("node3"))
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .add(DiscoveryNodeUtils.create("node3"))
             .build();
 
         AtomicArray<SearchAsyncActionTests.TestSearchPhaseResult> results = new AtomicArray<>(scrollId.getContext().length);

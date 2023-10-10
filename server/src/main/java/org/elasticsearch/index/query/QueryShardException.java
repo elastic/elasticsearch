@@ -20,11 +20,11 @@ import java.io.IOException;
  */
 public class QueryShardException extends ElasticsearchException {
 
-    public QueryShardException(SearchExecutionContext context, String msg, Object... args) {
+    public QueryShardException(QueryRewriteContext context, String msg, Object... args) {
         this(context, msg, null, args);
     }
 
-    public QueryShardException(SearchExecutionContext context, String msg, Throwable cause, Object... args) {
+    public QueryShardException(QueryRewriteContext context, String msg, Throwable cause, Object... args) {
         this(context.getFullyQualifiedIndex(), msg, cause, args);
     }
 
@@ -32,6 +32,7 @@ public class QueryShardException extends ElasticsearchException {
      * This constructor is provided for use in unit tests where a
      * {@link SearchExecutionContext} may not be available
      */
+    @SuppressWarnings("this-escape")
     public QueryShardException(Index index, String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
         setIndex(index);

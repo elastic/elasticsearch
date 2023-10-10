@@ -2,7 +2,6 @@ teardown:
   - do:
       search_application.delete_behavioral_analytics:
         name: test-analytics-collection
-        ignore: 404
 
 ---
 "Create Analytics Collection":

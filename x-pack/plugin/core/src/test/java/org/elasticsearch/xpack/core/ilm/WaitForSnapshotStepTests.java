@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -52,7 +52,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
     public void testNoSlmPolicies() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(randomLong())))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -81,7 +81,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(randomLong())))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -132,7 +132,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(phaseTime)))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -166,7 +166,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
 
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("phase_time", Long.toString(phaseTime)))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();

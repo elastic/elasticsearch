@@ -418,7 +418,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public BytesReference get() {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("id", Integer.toString(id))), 1);
                 assertEquals(1, topDocs.totalHits.value);
                 Document document = reader.document(topDocs.scoreDocs[0].doc);

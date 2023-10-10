@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -44,7 +45,13 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         NodeClient client,
         UsageService usageService
     ) {
-        super(MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
+        super(
+            MultiSearchTemplateAction.NAME,
+            transportService,
+            actionFilters,
+            MultiSearchTemplateRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
@@ -78,7 +85,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             }
         }
 
-        client.multiSearch(multiSearchRequest, ActionListener.wrap(r -> {
+        client.multiSearch(multiSearchRequest, listener.delegateFailureAndWrap((l, r) -> {
             for (int i = 0; i < r.getResponses().length; i++) {
                 MultiSearchResponse.Item item = r.getResponses()[i];
                 int originalSlot = originalSlots.get(i);
@@ -88,7 +95,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                     items[originalSlot].getResponse().setResponse(item.getResponse());
                 }
             }
-            listener.onResponse(new MultiSearchTemplateResponse(items, r.getTook().millis()));
-        }, listener::onFailure));
+            l.onResponse(new MultiSearchTemplateResponse(items, r.getTook().millis()));
+        }));
     }
 }

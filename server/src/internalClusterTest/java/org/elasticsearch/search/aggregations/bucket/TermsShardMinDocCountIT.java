@@ -35,6 +35,11 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
+    @Override
+    protected boolean enableConcurrentSearch() {
+        return false;
+    }
+
     // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountSignificantTermsTest() throws Exception {
         String textMappings;

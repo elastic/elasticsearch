@@ -66,6 +66,16 @@ public class RestResponseTests extends ESTestCase {
         assertThat(response.getHeaders().get("n2"), contains("v21", "v22"));
     }
 
+    public void testEmptyChunkedBody() {
+        RestResponse response = RestResponse.chunked(
+            RestStatus.OK,
+            ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator(), null)
+        );
+        assertFalse(response.isChunked());
+        assertNotNull(response.content());
+        assertEquals(0, response.content().length());
+    }
+
     public void testSimpleExceptionMessage() throws Exception {
         RestRequest request = new FakeRestRequest();
         RestChannel channel = new SimpleExceptionRestChannel(request);

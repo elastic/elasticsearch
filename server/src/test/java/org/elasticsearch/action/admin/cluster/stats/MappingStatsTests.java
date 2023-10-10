@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -32,7 +32,7 @@ import java.util.List;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
-    private static final Settings SINGLE_SHARD_NO_REPLICAS = indexSettings(Version.CURRENT, 1, 0).build();
+    private static final Settings SINGLE_SHARD_NO_REPLICAS = indexSettings(IndexVersion.current(), 1, 0).build();
 
     public static final String MAPPING_TEMPLATE = """
         {
@@ -465,7 +465,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testAccountsRegularIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"long"}}}""";
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(indexSettings(Version.CURRENT, 4, 1))
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(indexSettings(IndexVersion.current(), 4, 1))
             .putMapping(mapping);
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
@@ -478,7 +478,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testIgnoreSystemIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"long"}}}""";
-        Settings settings = indexSettings(Version.CURRENT, 4, 1).build();
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping).system(true);
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
@@ -486,7 +486,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     public void testChecksForCancellation() {
-        Settings settings = indexSettings(Version.CURRENT, 4, 1).build();
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping("{}");
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         expectThrows(

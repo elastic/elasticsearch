@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -91,7 +90,6 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
     public static ServiceAccountToken fromBearerString(SecureString bearerString) throws IOException {
         final byte[] bytes = CharArrays.toUtf8Bytes(bearerString.getChars());
-        logger.trace("parsing token bytes {}", MessageDigests.toHexString(bytes));
         try (InputStream in = Base64.getDecoder().wrap(new ByteArrayInputStream(bytes))) {
             final byte[] prefixBytes = in.readNBytes(4);
             if (prefixBytes.length != 4 || false == Arrays.equals(prefixBytes, PREFIX)) {

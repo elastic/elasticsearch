@@ -163,8 +163,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureGreen();
         // double flush to create safe commit in case of async durability
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -235,7 +235,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             eventListener.setNewDelegate(listener);
         }
         try {
-            client().admin().indices().prepareDelete("test").get();
+            indicesAdmin().prepareDelete("test").get();
             latch.await();
             assertThat(exception, empty());
         } finally {
@@ -274,8 +274,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureGreen();
         // double flush to create safe commit in case of async durability
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -409,7 +409,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -548,7 +548,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -615,7 +615,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        assertAllSuccessful(indicesAdmin().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
         assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
@@ -631,7 +631,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         final Index index = resolveIndex("test");
 
-        final IndicesShardStoresResponse stores = client().admin().indices().prepareShardStores(index.getName()).get();
+        final IndicesShardStoresResponse stores = indicesAdmin().prepareShardStores(index.getName()).get();
 
         for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shards : stores.getStoreStatuses()
             .get(index.getName())

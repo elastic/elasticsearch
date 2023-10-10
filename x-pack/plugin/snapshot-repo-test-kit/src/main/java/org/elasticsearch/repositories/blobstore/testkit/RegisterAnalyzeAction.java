@@ -9,7 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -21,9 +21,14 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -33,9 +38,9 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -61,7 +66,13 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.SNAPSHOT);
+            super(
+                NAME,
+                transportService,
+                actionFilters,
+                Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
+            );
             this.repositoriesService = repositoriesService;
             this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT);
         }
@@ -85,21 +96,20 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             assert task instanceof CancellableTask;
 
             final String registerName = request.getRegisterName();
-            final ActionListener<OptionalLong> initialValueListener = new ActionListener<>() {
+            final ActionListener<OptionalBytesReference> initialValueListener = new ActionListener<>() {
                 @Override
-                public void onResponse(OptionalLong initialValueOrNull) {
-                    final long initialValue = initialValueOrNull.orElse(0L);
+                public void onResponse(OptionalBytesReference maybeInitialBytes) {
+                    final long initialValue = maybeInitialBytes.isPresent() ? longFromBytes(maybeInitialBytes.bytesReference()) : 0L;
 
                     ActionListener.run(outerListener.<Void>map(ignored -> ActionResponse.Empty.INSTANCE), l -> {
                         if (initialValue < 0 || initialValue >= request.getRequestCount()) {
                             throw new IllegalStateException("register holds unexpected value [" + initialValue + "]");
                         }
 
-                        // noinspection OptionalUsedAsFieldOrParameterType
                         class Execution extends ActionRunnable<Void> {
                             private long currentValue;
 
-                            private final ActionListener<OptionalLong> witnessListener;
+                            private final ActionListener<OptionalBytesReference> witnessListener;
 
                             Execution(long currentValue) {
                                 super(l);
@@ -110,19 +120,25 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                             @Override
                             protected void doRun() {
                                 if (((CancellableTask) task).notifyIfCancelled(listener) == false) {
-                                    blobContainer.compareAndExchangeRegister(registerName, currentValue, currentValue + 1, witnessListener);
+                                    blobContainer.compareAndExchangeRegister(
+                                        OperationPurpose.SNAPSHOT,
+                                        registerName,
+                                        bytesFromLong(currentValue),
+                                        bytesFromLong(currentValue + 1L),
+                                        witnessListener
+                                    );
                                 }
                             }
 
-                            private void handleWitness(ActionListener<Void> delegate, OptionalLong witnessOrEmpty) {
-                                if (witnessOrEmpty.isEmpty()) {
+                            private void handleWitness(ActionListener<Void> delegate, OptionalBytesReference witnessOrEmpty) {
+                                if (witnessOrEmpty.isPresent() == false) {
                                     // Concurrent activity prevented us from updating the value, or even reading the concurrently-updated
                                     // result, so we must just try again.
                                     executor.execute(Execution.this);
                                     return;
                                 }
 
-                                final long witness = witnessOrEmpty.getAsLong();
+                                final long witness = longFromBytes(witnessOrEmpty.bytesReference());
                                 if (witness == currentValue) {
                                     delegate.onResponse(null);
                                 } else if (witness < currentValue || witness >= request.getRequestCount()) {
@@ -153,12 +169,15 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             };
 
             if (request.getInitialRead() > request.getRequestCount()) {
-                blobContainer.getRegister(registerName, initialValueListener);
+                blobContainer.getRegister(OperationPurpose.SNAPSHOT, registerName, initialValueListener);
             } else {
                 blobContainer.compareAndExchangeRegister(
+                    OperationPurpose.SNAPSHOT,
                     registerName,
-                    request.getInitialRead(),
-                    request.getInitialRead() == request.getRequestCount() ? request.getRequestCount() + 1 : request.getInitialRead(),
+                    bytesFromLong(request.getInitialRead()),
+                    bytesFromLong(
+                        request.getInitialRead() == request.getRequestCount() ? request.getRequestCount() + 1 : request.getInitialRead()
+                    ),
                     initialValueListener
                 );
             }
@@ -182,7 +201,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0);
+            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             repositoryName = in.readString();
             containerPath = in.readString();
             registerName = in.readString();
@@ -192,7 +211,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0);
+            assert out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             super.writeTo(out);
             out.writeString(repositoryName);
             out.writeString(containerPath);
@@ -248,6 +267,34 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                 requestCount,
                 initialRead
             );
+        }
+    }
+
+    static long longFromBytes(BytesReference bytesReference) {
+        if (bytesReference.length() == 0) {
+            return 0L;
+        } else if (bytesReference.length() == Long.BYTES) {
+            try (var baos = new ByteArrayOutputStream(Long.BYTES)) {
+                bytesReference.writeTo(baos);
+                final var bytes = baos.toByteArray();
+                assert bytes.length == Long.BYTES;
+                return ByteUtils.readLongBE(bytes, 0);
+            } catch (IOException e) {
+                assert false : "no IO takes place";
+                throw new IllegalStateException("unexpected conversion error", e);
+            }
+        } else {
+            throw new IllegalArgumentException("cannot read long from BytesReference of length " + bytesReference.length());
+        }
+    }
+
+    static BytesReference bytesFromLong(long value) {
+        if (value == 0L) {
+            return BytesArray.EMPTY;
+        } else {
+            final var bytes = new byte[Long.BYTES];
+            ByteUtils.writeLongBE(value, bytes, 0);
+            return new BytesArray(bytes);
         }
     }
 }

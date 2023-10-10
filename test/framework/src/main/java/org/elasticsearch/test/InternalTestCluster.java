@@ -180,13 +180,12 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.node.settings()
     );
 
-    private static final Predicate<NodeAndClient> NO_DATA_NO_MASTER_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
-        nodeAndClient.node.settings()
-    ) == false && DiscoveryNode.canContainData(nodeAndClient.node.settings()) == false;
-
     private static final Predicate<NodeAndClient> MASTER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isMasterNode(
         nodeAndClient.node.settings()
     );
+
+    private static final Predicate<NodeAndClient> NO_DATA_NO_MASTER_PREDICATE = DATA_NODE_PREDICATE.negate()
+        .and(MASTER_NODE_PREDICATE.negate());
 
     public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
@@ -245,6 +244,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private ServiceDisruptionScheme activeDisruptionScheme;
     private final Function<Client, Client> clientWrapper;
+    private final boolean autoManageVotingExclusions;
 
     /**
      * Default value of bootstrapMasterNodeIndex, indicating that bootstrapping should happen automatically.
@@ -287,7 +287,8 @@ public final class InternalTestCluster extends TestCluster {
             mockPlugins,
             clientWrapper,
             true,
-            false
+            false,
+            true
         );
     }
 
@@ -305,7 +306,8 @@ public final class InternalTestCluster extends TestCluster {
         final Collection<Class<? extends Plugin>> mockPlugins,
         final Function<Client, Client> clientWrapper,
         final boolean forbidPrivateIndexSettings,
-        final boolean forceSingleDataPath
+        final boolean forceSingleDataPath,
+        final boolean autoManageVotingExclusions
     ) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
@@ -313,6 +315,7 @@ public final class InternalTestCluster extends TestCluster {
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.baseDir = baseDir;
         this.clusterName = clusterName;
+        this.autoManageVotingExclusions = autoManageVotingExclusions;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
@@ -385,9 +388,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("http.port", ESTestCase.getPortRange());
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
             builder.put("logger.level", System.getProperty("tests.es.logger.level"));
-        }
-        if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
-            builder.put("logger.prefix", System.getProperty("es.logger.prefix"));
         }
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space
@@ -1224,7 +1224,7 @@ public final class InternalTestCluster extends TestCluster {
                 .prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes(Integer.toString(expectedNodes.size()))
-                .get()
+                .get(TimeValue.timeValueSeconds(40))
                 .isTimedOut()
         );
         try {
@@ -1588,10 +1588,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a reference to the given nodes instances of the given class &gt;T&lt;
+     * @return the instance of the given class from the node with provided {@code nodeName}
      */
-    public <T> T getInstance(Class<T> clazz, final String node) {
-        return getInstance(clazz, nc -> node == null || node.equals(nc.name));
+    public <T> T getInstance(Class<T> clazz, final String nodeName) {
+        return getInstance(clazz, nc -> nodeName == null || nodeName.equals(nc.name));
+    }
+
+    /**
+     * @return the instance of the given class from a random node with provided {@code role}
+     */
+    public <T> T getInstance(Class<T> clazz, DiscoveryNodeRole role) {
+        return getInstance(clazz, nc -> DiscoveryNode.getRolesFromSettings(nc.node.settings()).contains(role));
     }
 
     public <T> T getDataNodeInstance(Class<T> clazz) {
@@ -1884,7 +1891,7 @@ public final class InternalTestCluster extends TestCluster {
     private Set<String> excludeMasters(Collection<NodeAndClient> nodeAndClients) {
         assert Thread.holdsLock(this);
         final Set<String> excludedNodeNames = new HashSet<>();
-        if (autoManageMasterNodes && nodeAndClients.size() > 0) {
+        if (autoManageVotingExclusions && autoManageMasterNodes && nodeAndClients.size() > 0) {
 
             final long currentMasters = nodes.values().stream().filter(NodeAndClient::isMasterEligible).count();
             final long stoppingMasters = nodeAndClients.stream().filter(NodeAndClient::isMasterEligible).count();
@@ -1914,7 +1921,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private void removeExclusions(Set<String> excludedNodeIds) {
         assert Thread.holdsLock(this);
-        if (excludedNodeIds.isEmpty() == false) {
+        if (autoManageVotingExclusions && excludedNodeIds.isEmpty() == false) {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
                 Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
@@ -2439,6 +2446,7 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
                     false,
                     false,
                     false,

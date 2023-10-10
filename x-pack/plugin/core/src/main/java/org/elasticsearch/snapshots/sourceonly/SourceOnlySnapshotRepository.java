@@ -39,6 +39,7 @@ import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
@@ -194,8 +195,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
-            toClose.add(store::decRef);
+            try (var ignored = context.withCommitRef()) {
+                // obtain commit ref first, ensuring the store is still open here, or else reporting aborted snapshots properly
+                store.incRef();
+                toClose.add(store::decRef);
+            }
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
@@ -205,7 +209,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     mapperService,
                     context.snapshotId(),
                     context.indexId(),
-                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose))),
                     context.stateIdentifier(),
                     context.status(),
                     context.getRepositoryMetaVersion(),
@@ -213,7 +217,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     context
                 )
             );
-        } catch (IOException e) {
+        } catch (Exception e) {
             try {
                 IOUtils.close(toClose);
             } catch (IOException ex) {

@@ -55,13 +55,13 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
             createIndex("test");
         }
         client().prepareIndex("test").setId(id).setSource("field", "test").get();
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").get();
+        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
         // at least one shard should be successful when refreshing
         assertThat(refreshResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
 
         logger.info("using preference {}", preference);
         // we want to make sure that while recovery happens, and a replica gets recovered, its properly refreshed
-        ClusterHealthStatus status = client().admin().cluster().prepareHealth("test").get().getStatus();
+        ClusterHealthStatus status = clusterAdmin().prepareHealth("test").get().getStatus();
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).get();
@@ -93,7 +93,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
                 assertHitCount(searchResponse, 1);
             }
             assertHitCount(searchResponse, 1);
-            status = client().admin().cluster().prepareHealth("test").get().getStatus();
+            status = clusterAdmin().prepareHealth("test").get().getStatus();
             internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         }
         cluster().wipeIndices("test");

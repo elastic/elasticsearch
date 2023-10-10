@@ -113,6 +113,27 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         deleteTransform(transformId);
     }
 
+    public void testCreateAndDeleteTransformInALoop() throws IOException {
+        createReviewsIndex();
+
+        String transformId = "test_create_and_delete_in_a_loop";
+        String destIndex = transformId + "-dest";
+        for (int i = 0; i < 100; ++i) {
+            try {
+                // Create the batch transform
+                createPivotReviewsTransform(transformId, destIndex, null);
+                // Wait until the transform finishes
+                startAndWaitForTransform(transformId, destIndex);
+                // After the transform finishes, there should be no transform task left
+                assertEquals(0, getNumberOfTransformTasks());
+                // Delete the transform
+                deleteTransform(transformId);
+            } catch (AssertionError | Exception e) {
+                fail("Failure at iteration " + i + ": " + e.getMessage());
+            }
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private int getNumberOfTransformTasks() throws IOException {
         final Request tasksRequest = new Request("GET", "/_tasks");

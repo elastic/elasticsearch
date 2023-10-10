@@ -11,8 +11,6 @@ package org.elasticsearch.aggregations.pipeline;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -666,9 +664,8 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 indexWriter.commit();
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                searchAndReduce(indexSearcher, new AggTestConfig(aggBuilder).withQuery(query));
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                searchAndReduce(indexReader, new AggTestConfig(aggBuilder).withQuery(query));
             }
         }
     }
@@ -717,14 +714,12 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 setup.accept(indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(SINGLE_VALUED_FIELD_NAME);
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggBuilder, fieldType, valueFieldType).withQuery(query)
                 );
                 verify.accept(histogram);

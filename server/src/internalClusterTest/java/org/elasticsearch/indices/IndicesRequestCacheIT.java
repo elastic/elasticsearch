@@ -45,9 +45,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testCacheAggs() throws Exception {
         Client client = client();
         assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate("index")
+            indicesAdmin().prepareCreate("index")
                 .setMapping("f", "type=date")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()
@@ -73,7 +71,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
 
         // The cached is actually used
         assertThat(
-            client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(),
+            indicesAdmin().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(),
             greaterThan(0L)
         );
 
@@ -106,9 +104,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testQueryRewrite() throws Exception {
         Client client = client();
         assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate("index")
+            indicesAdmin().prepareCreate("index")
                 .setMapping("s", "type=date")
                 .setSettings(
                     indexSettings(5, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
@@ -132,7 +128,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
@@ -174,9 +170,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testQueryRewriteMissingValues() throws Exception {
         Client client = client();
         assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate("index")
+            indicesAdmin().prepareCreate("index")
                 .setMapping("s", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()
@@ -197,7 +191,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
@@ -235,9 +229,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testQueryRewriteDates() throws Exception {
         Client client = client();
         assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate("index")
+            indicesAdmin().prepareCreate("index")
                 .setMapping("d", "type=date")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()
@@ -258,7 +250,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
@@ -300,9 +292,9 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testQueryRewriteDatesWithNow() throws Exception {
         Client client = client();
         Settings settings = indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build();
-        assertAcked(client.admin().indices().prepareCreate("index-1").setMapping("d", "type=date").setSettings(settings).get());
-        assertAcked(client.admin().indices().prepareCreate("index-2").setMapping("d", "type=date").setSettings(settings).get());
-        assertAcked(client.admin().indices().prepareCreate("index-3").setMapping("d", "type=date").setSettings(settings).get());
+        assertAcked(indicesAdmin().prepareCreate("index-1").setMapping("d", "type=date").setSettings(settings).get());
+        assertAcked(indicesAdmin().prepareCreate("index-2").setMapping("d", "type=date").setSettings(settings).get());
+        assertAcked(indicesAdmin().prepareCreate("index-3").setMapping("d", "type=date").setSettings(settings).get());
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");
         indexRandom(
@@ -378,7 +370,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         Settings settings = indexSettings(2, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
             .put("index.number_of_routing_shards", 2)
             .build();
-        assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date").setSettings(settings).get());
+        assertAcked(indicesAdmin().prepareCreate("index").setMapping("s", "type=date").setSettings(settings).get());
         indexRandom(
             true,
             client.prepareIndex("index").setId("1").setRouting("1").setSource("s", "2016-03-19"),
@@ -395,7 +387,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertCacheState(client, "index", 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
         ensureSearchable("index");
@@ -474,9 +466,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         Client client = client();
         Settings settings = indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true).build();
         assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate("index")
+            indicesAdmin().prepareCreate("index")
                 .setMapping("created_at", "type=date")
                 .setSettings(settings)
                 .addAlias(new Alias("last_week").filter(QueryBuilders.rangeQuery("created_at").gte("now-7d/d")))
@@ -485,7 +475,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         client.prepareIndex("index").setId("1").setRouting("1").setSource("created_at", DateTimeFormatter.ISO_LOCAL_DATE.format(now)).get();
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        ForceMergeResponse forceMergeResponse = client.admin().indices().prepareForceMerge("index").setFlush(true).get();
+        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
         refresh();
 
@@ -523,9 +513,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
     public void testProfileDisableCache() throws Exception {
         Client client = client();
         assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate("index")
+            indicesAdmin().prepareCreate("index")
                 .setMapping("k", "type=keyword")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()

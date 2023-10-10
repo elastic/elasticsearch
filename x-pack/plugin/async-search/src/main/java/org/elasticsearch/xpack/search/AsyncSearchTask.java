@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.search.CCSSingleCoordinatorSearchProgressListener;
 import org.elasticsearch.action.search.SearchProgressActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -20,11 +21,13 @@ import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
@@ -58,6 +61,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
     private final Map<String, String> originHeaders;
 
+    private boolean ccsMinimizeRoundtrips;
     private boolean hasInitialized;
     private boolean hasCompleted;
     private long completionId;
@@ -225,7 +229,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             if (hasCompleted || waitForCompletion.getMillis() == 0) {
                 executeImmediately = true;
             } else {
-                // ensure that we consumes the listener only once
+                // ensure that we consume the listener only once
                 AtomicBoolean hasRun = new AtomicBoolean(false);
                 long id = completionId++;
                 final Cancellable cancellable;
@@ -236,7 +240,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                             removeCompletionListener(id);
                             listener.onResponse(getResponseWithHeaders());
                         }
-                    }, waitForCompletion, "generic");
+                    }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
                     listener.onFailure(exc);
                     return;
@@ -365,20 +369,33 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     }
 
     class Listener extends SearchProgressActionListener {
+
+        // needed when there's a single coordinator for all CCS search phases (minimize_roundtrips=false)
+        private CCSSingleCoordinatorSearchProgressListener delegate;
+
         @Override
-        protected void onQueryResult(int shardIndex) {
+        protected void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
             checkCancellation();
+            if (delegate != null) {
+                delegate.onQueryResult(shardIndex, queryResult);
+            }
         }
 
         @Override
         protected void onFetchResult(int shardIndex) {
             checkCancellation();
+            if (delegate != null) {
+                delegate.onFetchResult(shardIndex);
+            }
         }
 
         @Override
         protected void onQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
             // best effort to cancel expired tasks
             checkCancellation();
+            if (delegate != null) {
+                delegate.onQueryFailure(shardIndex, shardTarget, exc);
+            }
             searchResponse.get()
                 .addQueryFailure(
                     shardIndex,
@@ -399,10 +416,27 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             // in which case the final response already includes results as well as shard fetch failures)
         }
 
+        /**
+         * onListShards is guaranteed to be the first SearchProgressListener method called and
+         * the search will not progress until this returns, so this is a safe place to initialize state
+         * that is needed for handling subsequent callbacks.
+         */
         @Override
-        protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
+        protected void onListShards(
+            List<SearchShard> shards,
+            List<SearchShard> skipped,
+            Clusters clusters,
+            boolean fetchPhase,
+            TransportSearchAction.SearchTimeProvider timeProvider
+        ) {
             // best effort to cancel expired tasks
             checkCancellation();
+            assert clusters.isCcsMinimizeRoundtrips() != null : "CCS minimize_roundtrips value must be set in this context";
+            ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
+            if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
+                delegate = new CCSSingleCoordinatorSearchProgressListener();
+                delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
+            }
             searchResponse.compareAndSet(
                 null,
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
@@ -414,6 +448,9 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
+            if (delegate != null) {
+                delegate.onPartialReduce(shards, totalHits, aggregations, reducePhase);
+            }
             // The way that the MutableSearchResponse will build the aggs.
             Supplier<InternalAggregations> reducedAggs;
             if (aggregations == null) {
@@ -433,16 +470,23 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }
 
+        /**
+         * Called when the final reduce of <b>local</b> shards is done.
+         * During a CCS search, there may still be shard searches in progress on remote clusters when this is called.
+         */
         @Override
         public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
             // best effort to cancel expired tasks
             checkCancellation();
+            if (delegate != null) {
+                delegate.onFinalReduce(shards, totalHits, aggregations, reducePhase);
+            }
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
         }
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response);
+            searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
             executeCompletionListeners();
         }
 

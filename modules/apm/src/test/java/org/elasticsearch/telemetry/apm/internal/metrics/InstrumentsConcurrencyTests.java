@@ -88,6 +88,7 @@ public class InstrumentsConcurrencyTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100587")
     public void testLockingWhenRegistering() throws Exception {
         Instruments instruments = new Instruments(lockingMeter);
 

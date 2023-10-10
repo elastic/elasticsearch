@@ -22,8 +22,10 @@ import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleGaugeObserver;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
+import org.elasticsearch.telemetry.metric.LongAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongGaugeObserver;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
@@ -31,6 +33,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING;
@@ -109,7 +112,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
 
     @Override
     public DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit, DoubleSupplier observed) {
-        return null;
+        return instruments.registerDoubleGaugeObserver(name, description, unit, observed);
     }
 
     @Override
@@ -120,7 +123,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
         DoubleSupplier observed,
         Map<String, Object> attributes
     ) {
-        return null;
+        return instruments.registerDoubleGaugeObserver(name, description, unit, observed, attributes);
     }
 
     @Override
@@ -130,12 +133,12 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
         String unit,
         Supplier<DoubleAttributes> observed
     ) {
-        return null;
+        return instruments.registerDoubleGaugeObserver(name, description, unit, observed);
     }
 
     @Override
     public DoubleGaugeObserver getDoubleGaugeObserver(String name) {
-        return null;
+        return instruments.getDoubleGaugeObserver(name);
     }
 
     @Override
@@ -179,28 +182,28 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
-    public Object registerLongGaugeObserver(String name, String description, String unit, DoubleSupplier observed) {
-        return null;
+    public LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit, LongSupplier observed) {
+        return instruments.registerLongGaugeObserver(name, description, unit, observed);
     }
 
     @Override
-    public Object registerLongGaugeObserver(
+    public LongGaugeObserver registerLongGaugeObserver(
         String name,
         String description,
         String unit,
-        DoubleSupplier observed,
+        LongSupplier observed,
         Map<String, Object> attributes
     ) {
-        return null;
+        return instruments.registerLongGaugeObserver(name, description, unit, observed, attributes);
     }
 
     @Override
-    public Object registerLongGaugeObserver(String name, String description, String unit, Supplier<DoubleAttributes> observed) {
-        return null;
+    public LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit, Supplier<LongAttributes> observed) {
+        return instruments.registerLongGaugeObserver(name, description, unit, observed);
     }
 
     @Override
-    public Object getLongGaugeObserver(String name) {
+    public LongGaugeObserver getLongGaugeObserver(String name) {
         return null;
     }
 

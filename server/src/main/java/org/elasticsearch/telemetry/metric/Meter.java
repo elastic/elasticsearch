@@ -10,6 +10,7 @@ package org.elasticsearch.telemetry.metric;
 
 import java.util.Map;
 import java.util.function.DoubleSupplier;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -144,13 +145,19 @@ public interface Meter {
      */
     LongGauge getLongGauge(String name);
 
-    Object registerLongGaugeObserver(String name, String description, String unit, DoubleSupplier observed);
+    LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit, LongSupplier observed);
 
-    Object registerLongGaugeObserver(String name, String description, String unit, DoubleSupplier observed, Map<String, Object> attributes);
+    LongGaugeObserver registerLongGaugeObserver(
+        String name,
+        String description,
+        String unit,
+        LongSupplier observed,
+        Map<String, Object> attributes
+    );
 
-    Object registerLongGaugeObserver(String name, String description, String unit, Supplier<DoubleAttributes> observed);
+    LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit, Supplier<LongAttributes> observed);
 
-    Object getLongGaugeObserver(String name);
+    LongGaugeObserver getLongGaugeObserver(String name);
 
     /**
      * Register a {@link LongHistogram}.  The returned object may be reused.
@@ -273,29 +280,33 @@ public interface Meter {
         }
 
         @Override
-        public Object registerLongGaugeObserver(String name, String description, String unit, DoubleSupplier observed) {
+        public LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit, LongSupplier observed) {
             return null;
         }
 
         @Override
-        public Object registerLongGaugeObserver(
+        public LongGaugeObserver registerLongGaugeObserver(
             String name,
             String description,
             String unit,
-            DoubleSupplier observed,
+            LongSupplier observed,
             Map<String, Object> attributes
         ) {
             return null;
         }
 
         @Override
-        public Object registerLongGaugeObserver(String name, String description, String unit, Supplier<DoubleAttributes> observed) {
-
+        public LongGaugeObserver registerLongGaugeObserver(
+            String name,
+            String description,
+            String unit,
+            Supplier<LongAttributes> observed
+        ) {
             return null;
         }
 
         @Override
-        public Object getLongGaugeObserver(String name) {
+        public LongGaugeObserver getLongGaugeObserver(String name) {
             return null;
         }
 

@@ -1922,6 +1922,97 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(agg.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * Project[[c1{r}#2, c2{r}#4, cs{r}#6, cm{r}#8, cexp{r}#10]]
+     * \_Eval[[c1{r}#2 AS c2, c1{r}#2 AS cs, c1{r}#2 AS cm, c1{r}#2 AS cexp]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
+     *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    public void testEliminateDuplicateAggsCountAll() {
+        var plan = plan("""
+              from test
+            | stats c1 = count(1), c2 = count(2), cs = count(*), cm = count(), cexp = count("123")
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c1", "c2", "cs", "cm", "cexp"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.names(fields), contains("c2", "cs", "cm", "cexp"));
+        for (Alias field : fields) {
+            assertThat(Expressions.name(field.child()), is("c1"));
+        }
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("c1"));
+        aggFieldName(aggs.get(0), Count.class, "*");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Project[[c1{r}#7, cx{r}#10, cs{r}#12, cy{r}#15]]
+     * \_Eval[[c1{r}#7 AS cx, c1{r}#7 AS cs, c1{r}#7 AS cy]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
+     *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testEliminateDuplicateAggsWithAliasedFields() {
+        var plan = plan("""
+              from test
+            | eval x = 1
+            | eval y = x
+            | stats c1 = count(1), cx = count(x), cs = count(*), cy = count(y)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c1", "cx", "cs", "cy"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.names(fields), contains("cx", "cs", "cy"));
+        for (Alias field : fields) {
+            assertThat(Expressions.name(field.child()), is("c1"));
+        }
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("c1"));
+        aggFieldName(aggs.get(0), Count.class, "*");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Project[[min{r}#3, max{r}#6, min2{r}#9, max2{r}#12, gender{f}#16]]
+     * \_Eval[[min{r}#3 AS min2, max{r}#6 AS max2]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[gender{f}#16],[MIN(salary{f}#19) AS min, MAX(salary{f}#19) AS max, gender{f}#16]]
+     *       \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     */
+    public void testEliminateDuplicateAggsMixed() {
+        var plan = plan("""
+              from test
+            | stats min = min(salary), max = max(salary), min2 = min(salary), max2 = max(salary) by gender
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("min", "max", "min2", "max2", "gender"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.names(fields), contains("min2", "max2"));
+        assertThat(Expressions.name(fields.get(0).child()), is("min"));
+        assertThat(Expressions.name(fields.get(1).child()), is("max"));
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("min", "max", "gender"));
+        aggFieldName(aggs.get(0), Min.class, "salary");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
     private <T> T aliased(Expression exp, Class<T> clazz) {
         var alias = as(exp, Alias.class);
         return as(alias.child(), clazz);
@@ -1931,7 +2022,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(exp, Alias.class);
         var af = as(alias.child(), aggType);
         var field = af.field();
-        assertThat(Expressions.name(field), is(fieldName));
+        var name = field.foldable() ? BytesRefs.toString(field.fold()) : Expressions.name(field);
+        assertThat(name, is(fieldName));
     }
 
     private LogicalPlan optimizedPlan(String query) {

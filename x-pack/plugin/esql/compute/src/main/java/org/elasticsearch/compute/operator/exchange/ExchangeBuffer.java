@@ -9,10 +9,12 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
 import java.util.Queue;
+import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -44,6 +46,11 @@ final class ExchangeBuffer {
         if (noMoreInputs) {
             page.releaseBlocks();
         } else {
+            try {
+                Thread.sleep(Randomness.get().nextInt(100));
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
             queue.add(page);
             if (queueSize.incrementAndGet() == 1) {
                 notifyNotEmpty();

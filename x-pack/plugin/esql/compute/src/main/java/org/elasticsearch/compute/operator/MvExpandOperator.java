@@ -56,6 +56,9 @@ public class MvExpandOperator implements Operator {
     private boolean prevCompleted = false;
     private boolean finished = false;
 
+    private Block expandingBlock;
+    private Block expandedBlock;
+
     private int nextPositionToProcess = 0;
     private int nextMvToProcess = 0;
     private int nextItemOnExpanded = 0;
@@ -63,7 +66,8 @@ public class MvExpandOperator implements Operator {
     /**
      * Count of pages that have been processed by this operator.
      */
-    private int pagesProcessed;
+    private int pagesIn;
+    private int pagesOut;
 
     public MvExpandOperator(int channel, int pageSize) {
         this.channel = channel;
@@ -76,19 +80,11 @@ public class MvExpandOperator implements Operator {
         if (prev == null) {
             return null;
         }
-        if (prev.getPositionCount() == 0) {
-            Page result = prev;
-            prev = null;
-            pagesProcessed++;
-            return result;
-        }
-
-        Block expandingBlock = prev.getBlock(channel);
-        if (expandingBlock.mayHaveMultivaluedFields() == false) {
+        pagesOut++;
+        if (prev.getPositionCount() == 0 || expandingBlock.mayHaveMultivaluedFields() == false) {
             noops++;
             Page result = prev;
             prev = null;
-            pagesProcessed++;
             return result;
         }
 
@@ -96,7 +92,6 @@ public class MvExpandOperator implements Operator {
             return process();
         } finally {
             if (prevCompleted && prev != null) {
-                pagesProcessed++;
                 prev.releaseBlocks();
                 prev = null;
             }
@@ -104,8 +99,6 @@ public class MvExpandOperator implements Operator {
     }
 
     protected Page process() {
-        Block expandingBlock = prev.getBlock(channel);
-        Block expandedBlock = expandingBlock.expand();
         if (expandedBlock == expandingBlock) {
             noops++;
             prevCompleted = true;
@@ -117,7 +110,7 @@ public class MvExpandOperator implements Operator {
             return new Page(expandedBlock);
         }
 
-        int[] duplicateFilter = nextDuplicateExpandingFilter(expandingBlock, pageSize);
+        int[] duplicateFilter = nextDuplicateExpandingFilter();
 
         Block[] result = new Block[prev.getBlockCount()];
         int[] expandedMask = new int[duplicateFilter.length];
@@ -134,18 +127,19 @@ public class MvExpandOperator implements Operator {
         return new Page(result);
     }
 
-    private int[] nextDuplicateExpandingFilter(Block expandingBlock, int size) {
-        int[] duplicateFilter = new int[size];
+    private int[] nextDuplicateExpandingFilter() {
+        int[] duplicateFilter = new int[Math.min(pageSize, expandedBlock.getPositionCount() - nextPositionToProcess)];
         int n = 0;
-        while (nextPositionToProcess < expandingBlock.getPositionCount()) {
+        while (true) {
             int count = expandingBlock.getValueCount(nextPositionToProcess);
             int positions = count == 0 ? 1 : count;
-            int toAdd = Math.min(size - n, positions - nextMvToProcess);
+            int toAdd = Math.min(pageSize - n, positions - nextMvToProcess);
             Arrays.fill(duplicateFilter, n, n + toAdd, nextPositionToProcess);
             n += toAdd;
 
-            if (n == size) {
+            if (n == pageSize) {
                 if (nextMvToProcess + toAdd == positions) {
+                    // finished expanding this position, let's move on to next position (that will be expanded with next call)
                     nextMvToProcess = 0;
                     nextPositionToProcess++;
                     if (nextPositionToProcess == expandingBlock.getPositionCount()) {
@@ -153,6 +147,8 @@ public class MvExpandOperator implements Operator {
                         prevCompleted = true;
                     }
                 } else {
+                    // there are still items to expand in current position, but the duplicate filter is full, so we'll deal with them at
+                    // next call
                     nextMvToProcess = nextMvToProcess + toAdd;
                 }
                 return duplicateFilter;
@@ -160,14 +156,13 @@ public class MvExpandOperator implements Operator {
 
             nextMvToProcess = 0;
             nextPositionToProcess++;
+            if (nextPositionToProcess == expandingBlock.getPositionCount()) {
+                nextPositionToProcess = 0;
+                nextMvToProcess = 0;
+                prevCompleted = true;
+                return n < pageSize ? Arrays.copyOfRange(duplicateFilter, 0, n) : duplicateFilter;
+            }
         }
-
-        if (nextPositionToProcess == expandingBlock.getPositionCount()) {
-            nextPositionToProcess = 0;
-            nextMvToProcess = 0;
-            prevCompleted = true;
-        }
-        return n < size ? Arrays.copyOfRange(duplicateFilter, 0, n) : duplicateFilter;
     }
 
     @Override
@@ -179,6 +174,9 @@ public class MvExpandOperator implements Operator {
     public final void addInput(Page page) {
         assert prev == null : "has pending input page";
         prev = page;
+        this.expandingBlock = prev.getBlock(channel);
+        this.expandedBlock = expandingBlock.expand();
+        pagesIn++;
         prevCompleted = false;
     }
 
@@ -194,7 +192,7 @@ public class MvExpandOperator implements Operator {
 
     @Override
     public final Status status() {
-        return new Status(pagesProcessed, noops);
+        return new Status(pagesIn, pagesOut, noops);
     }
 
     @Override
@@ -211,7 +209,9 @@ public class MvExpandOperator implements Operator {
 
     public static final class Status implements Operator.Status {
 
-        private final int pagesProcessed;
+        private final int pagesIn;
+        private final int pagesOut;
+        private final int noops;
 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
@@ -219,28 +219,30 @@ public class MvExpandOperator implements Operator {
             Status::new
         );
 
-        private final int noops;
-
-        Status(int pagesProcessed, int noops) {
-            this.pagesProcessed = pagesProcessed;
+        Status(int pagesIn, int pagesOut, int noops) {
+            this.pagesIn = pagesIn;
+            this.pagesOut = pagesOut;
             this.noops = noops;
         }
 
         Status(StreamInput in) throws IOException {
-            pagesProcessed = in.readVInt();
+            pagesIn = in.readVInt();
+            pagesOut = in.readVInt();
             noops = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(pagesProcessed);
+            out.writeVInt(pagesIn);
+            out.writeVInt(pagesOut);
             out.writeVInt(noops);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("pages_processed", pagesProcessed);
+            builder.field("pages_in", pagesIn);
+            builder.field("pages_out", pagesOut);
             builder.field("noops", noops);
             return builder.endObject();
         }
@@ -263,16 +265,20 @@ public class MvExpandOperator implements Operator {
                 return false;
             }
             Status status = (Status) o;
-            return noops == status.noops && pagesProcessed == status.pagesProcessed;
+            return noops == status.noops && pagesIn == status.pagesIn && pagesOut == status.pagesOut;
         }
 
-        public int pagesProcessed() {
-            return pagesProcessed;
+        public int pagesIn() {
+            return pagesIn;
+        }
+
+        public int pagesOut() {
+            return pagesOut;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(noops, pagesProcessed);
+            return Objects.hash(noops, pagesIn, pagesOut);
         }
 
         @Override

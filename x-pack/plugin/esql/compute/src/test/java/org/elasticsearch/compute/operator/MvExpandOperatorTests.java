@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.compute.data.BasicBlockTests.randomBlock;
 import static org.elasticsearch.compute.data.BasicBlockTests.valuesAtPositions;
+import static org.elasticsearch.compute.data.BlockTestUtils.deepCopyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -216,23 +217,44 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
-        assertThat(status.pagesProcessed(), equalTo(1));
+        assertThat(status.pagesIn(), equalTo(1));
+        assertThat(status.pagesOut(), equalTo(1));
         assertThat(status.noops(), equalTo(1));
     }
 
     public void testExpandStatus() {
-        MvExpandOperator op = new MvExpandOperator(0, randomIntBetween(1, 1000));
+        MvExpandOperator op = new MvExpandOperator(0, randomIntBetween(1, 1));
         var builder = IntBlock.newBlockBuilder(2).beginPositionEntry().appendInt(1).appendInt(2).endPositionEntry();
         List<Page> result = drive(op, List.of(new Page(builder.build())).iterator(), driverContext());
         assertThat(result, hasSize(1));
         assertThat(valuesAtPositions(result.get(0).getBlock(0), 0, 2), equalTo(List.of(List.of(1), List.of(2))));
         MvExpandOperator.Status status = op.status();
-        assertThat(status.pagesProcessed(), equalTo(1));
+        assertThat(status.pagesIn(), equalTo(1));
+        assertThat(status.pagesOut(), equalTo(1));
         assertThat(status.noops(), equalTo(0));
     }
 
-    @Override
-    protected boolean canLeak() {
-        return false;
+    public void testExpandWithBytesRefs() {
+        DriverContext context = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(new AbstractBlockSourceOperator(context.blockFactory(), 8 * 1024) {
+            private int idx;
+
+            @Override
+            protected int remaining() {
+                return 10000 - idx;
+            }
+
+            @Override
+            protected Page createPage(int positionOffset, int length) {
+                idx += length;
+                return new Page(
+                    randomBlock(context.blockFactory(), ElementType.BYTES_REF, length, true, 1, 10, 0, 0).block(),
+                    randomBlock(context.blockFactory(), ElementType.INT, length, false, 1, 10, 0, 0).block()
+                );
+            }
+        });
+        List<Page> origInput = deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> results = drive(new MvExpandOperator(0, randomIntBetween(1, 1000)), input.iterator(), context);
+        assertSimpleOutput(origInput, results);
     }
 }

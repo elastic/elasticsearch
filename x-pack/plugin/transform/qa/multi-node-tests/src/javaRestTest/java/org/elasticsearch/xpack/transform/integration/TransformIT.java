@@ -507,7 +507,25 @@ public class TransformIT extends TransformRestTestCase {
 
         String transformId = "transform-continuous-crud";
         String destIndex = transformId + "-dest";
-        TransformConfig config = createTransformConfigForForceStopTest(transformId, sourceIndex, destIndex);
+        TransformConfig config;
+        {
+            Map<String, SingleGroupSource> groups = Map.of(
+                "by-day",
+                createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null),
+                "by-user",
+                new TermsGroupSource("user_id", null, false),
+                "by-business",
+                new TermsGroupSource("business_id", null, false)
+            );
+
+            AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+                .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+                .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+            config = createTransformConfigBuilder(transformId, destIndex, QueryConfig.matchAll(), sourceIndex).setPivotConfig(
+                createPivotConfig(groups, aggs)
+            ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
+        }
 
         for (int i = 0; i < 10; ++i) {
             try {
@@ -537,25 +555,6 @@ public class TransformIT extends TransformRestTestCase {
                 fail("Failure at iteration " + i + ": " + e.getMessage());
             }
         }
-    }
-
-    private TransformConfig createTransformConfigForForceStopTest(String transformId, String sourceIndex, String destIndex)
-        throws Exception {
-        Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
-        groups.put("by-user", new TermsGroupSource("user_id", null, false));
-        groups.put("by-business", new TermsGroupSource("business_id", null, false));
-
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
-            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
-            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
-
-        return createTransformConfigBuilder(transformId, destIndex, QueryConfig.matchAll(), sourceIndex).setPivotConfig(
-            createPivotConfig(groups, aggs)
-        )
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).build())
-            .build();
     }
 
     @SuppressWarnings("unchecked")

@@ -168,8 +168,6 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     protected void handleBulkResponse(BulkResponse bulkResponse, ActionListener<BulkResponse> nextPhase) throws InterruptedException {
-        Thread.sleep(360_000);
-
         if (bulkResponse.hasFailures() == false) {
             // We don't know the of failures that have occurred (searching, processing, indexing, etc.),
             // but if we search, process and bulk index then we have
@@ -528,6 +526,8 @@ class ClientTransformIndexer extends TransformIndexer {
                     namedPits.put(name, new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE));
                     logger.trace("point in time handle has changed; request [{}]", name);
                 }
+
+                Thread.sleep(360_000);
 
                 listener.onResponse(response);
             }, e -> {

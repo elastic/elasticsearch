@@ -267,9 +267,20 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         );
         Metadata.Builder builder = Metadata.builder(clusterState.metadata());
         DataStream dataStream = builder.dataStream(dataStreamName);
-        builder.put(new DataStream(dataStreamName, dataStream.getIndices(), dataStream.getGeneration() + 1, dataStream.getMetadata(),
-            dataStream.isHidden(), dataStream.isReplicated(), dataStream.isSystem(), dataStream.isAllowCustomRouting(),
-            dataStream.getIndexMode(), DataStreamLifecycle.newBuilder().dataRetention(0L).build()));
+        builder.put(
+            new DataStream(
+                dataStreamName,
+                dataStream.getIndices(),
+                dataStream.getGeneration() + 1,
+                dataStream.getMetadata(),
+                dataStream.isHidden(),
+                dataStream.isReplicated(),
+                dataStream.isSystem(),
+                dataStream.isAllowCustomRouting(),
+                dataStream.getIndexMode(),
+                DataStreamLifecycle.newBuilder().dataRetention(0L).build()
+            )
+        );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
 
         dataStreamLifecycleService.run(clusterState);

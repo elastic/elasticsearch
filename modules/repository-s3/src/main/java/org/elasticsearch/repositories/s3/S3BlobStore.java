@@ -38,14 +38,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -78,15 +81,10 @@ class S3BlobStore implements BlobStore {
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
     private final Meter meter;
+    private final LongCounter requestCounter;
+    private final LongGauge requestGauge;
 
-    private final Stats stats = new Stats();
-
-    final RequestMetricCollector getMetricCollector;
-    final RequestMetricCollector listMetricCollector;
-    final RequestMetricCollector putMetricCollector;
-    final RequestMetricCollector multiPartUploadMetricCollector;
-    final RequestMetricCollector deleteMetricCollector;
-    final RequestMetricCollector abortPartUploadMetricCollector;
+    private final StatsCollectors statsCollectors = new StatsCollectors();
 
     S3BlobStore(
         S3Service service,
@@ -111,76 +109,12 @@ class S3BlobStore implements BlobStore {
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meter = meter;
+        this.requestCounter = this.meter.getLongCounter(repositoryMetadata.type() + "_request_counter");
+        this.requestGauge = this.meter.getLongGauge(repositoryMetadata.type() + "_request_gauge");
+    }
 
-        final LongCounter requestCounter = this.meter.getLongCounter(repositoryMetadata.type() + "_request_counter");
-        final LongGauge requestGauge = this.meter.getLongGauge(repositoryMetadata.type() + "_request_gauge");
-
-        this.getMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("GET");
-                final long requestCount = getRequestCount(request);
-                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "GetObject");
-                requestCounter.incrementBy(requestCount, attributes);
-                requestGauge.record(requestCount, attributes);
-                stats.getCount.addAndGet(requestCount);
-            }
-        };
-        this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("GET");
-                final long requestCount = getRequestCount(request);
-                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "ListObjects");
-                requestCounter.incrementBy(requestCount, attributes);
-                requestGauge.record(requestCount, attributes);
-                stats.listCount.addAndGet(requestCount);
-            }
-        };
-        this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("PUT");
-                final long requestCount = getRequestCount(request);
-                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "PutObject");
-                requestCounter.incrementBy(requestCount, attributes);
-                requestGauge.record(requestCount, attributes);
-                stats.putCount.addAndGet(requestCount);
-            }
-        };
-        this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
-                final long requestCount = getRequestCount(request);
-                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "PutMultipartObject");
-                requestCounter.incrementBy(requestCount, attributes);
-                requestGauge.record(requestCount, attributes);
-                stats.postCount.addAndGet(requestCount);
-            }
-        };
-        this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("POST");
-                final long requestCount = getRequestCount(request);
-                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "DeleteObjects");
-                requestCounter.incrementBy(requestCount, attributes);
-                requestGauge.record(requestCount, attributes);
-                stats.deleteCount.addAndGet(requestCount);
-            }
-        };
-        this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
-            @Override
-            public void collectMetrics(Request<?> request) {
-                assert request.getHttpMethod().name().equals("DELETE");
-                final long requestCount = getRequestCount(request);
-                final Map<String, Object> attributes = Map.of("repo", repositoryMetadata.name(), "operation", "AbortMultipartObject");
-                requestCounter.incrementBy(requestCount, attributes);
-                requestGauge.record(requestCount, attributes);
-                stats.abortCount.addAndGet(requestCount);
-            }
-        };
+    RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
+        return statsCollectors.getMetricCollector(operation, purpose);
     }
 
     public Executor getSnapshotExecutor() {
@@ -193,19 +127,51 @@ class S3BlobStore implements BlobStore {
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
     // issue
-    private abstract static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+    private class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+
+        private final LongAdder counter = new LongAdder();
+        private final Operation operation;
+        private final Map<String, Object> attributes;
+
+        private IgnoreNoResponseMetricsCollector(Operation operation) {
+            this.operation = operation;
+            this.attributes = Map.of("repo", repositoryMetadata.name(), "operation", operation.getKey());
+        }
 
         @Override
         public final void collectMetrics(Request<?> request, Response<?> response) {
             if (response != null) {
-                collectMetrics(request);
+                assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
+                final long requestCount = getRequestCount(request);
+                requestCounter.incrementBy(requestCount, attributes);
+                requestGauge.record(requestCount, attributes);
+                counter.add(requestCount);
             }
         }
 
-        protected abstract void collectMetrics(Request<?> request);
+        private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
+            switch (operation) {
+                case GET_OBJECT, LIST_OBJECTS -> {
+                    return request.getHttpMethod().name().equals("GET");
+                }
+                case PUT_OBJECT -> {
+                    return request.getHttpMethod().name().equals("PUT");
+                }
+                case PUT_MULTIPART_OBJECT -> {
+                    return request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
+                }
+                case DELETE_OBJECTS -> {
+                    return request.getHttpMethod().name().equals("POST");
+                }
+                case ABORT_MULTIPART_OBJECT -> {
+                    return request.getHttpMethod().name().equals("DELETE");
+                }
+                default -> throw new AssertionError("unknown operation [" + operation + "]");
+            }
+        }
     }
 
-    private long getRequestCount(Request<?> request) {
+    private static long getRequestCount(Request<?> request) {
         Number requestCount = request.getAWSRequestMetrics().getTimingInfo().getCounter(AWSRequestMetrics.Field.RequestCount.name());
         if (requestCount == null) {
             logger.warn("Expected request count to be tracked for request [{}] but found not count.", request);
@@ -307,7 +273,7 @@ class S3BlobStore implements BlobStore {
     private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {
         return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
             .withQuiet(true)
-            .withRequestMetricCollector(blobStore.deleteMetricCollector);
+            .withRequestMetricCollector(blobStore.getMetricCollector(Operation.DELETE_OBJECTS, purpose));
     }
 
     @Override
@@ -317,7 +283,12 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        return stats.toMap();
+        return statsCollectors.statsMap();
+    }
+
+    // Package private for testing
+    StatsCollectors getStatsCollectors() {
+        return statsCollectors;
     }
 
     public CannedAccessControlList getCannedACL() {
@@ -366,29 +337,42 @@ class S3BlobStore implements BlobStore {
         return threadPool;
     }
 
-    static class Stats {
+    enum Operation {
+        GET_OBJECT("GetObject"),
+        LIST_OBJECTS("ListObjects"),
+        PUT_OBJECT("PutObject"),
+        PUT_MULTIPART_OBJECT("PutMultipartObject"),
+        DELETE_OBJECTS("DeleteObjects"),
+        ABORT_MULTIPART_OBJECT("AbortMultipartObject");
 
-        final AtomicLong listCount = new AtomicLong();
+        private final String key;
 
-        final AtomicLong getCount = new AtomicLong();
+        String getKey() {
+            return key;
+        }
 
-        final AtomicLong putCount = new AtomicLong();
+        Operation(String key) {
+            this.key = key;
+        }
+    }
 
-        final AtomicLong postCount = new AtomicLong();
+    record StatsKey(Operation operation, OperationPurpose purpose) {}
 
-        final AtomicLong deleteCount = new AtomicLong();
+    class StatsCollectors {
+        final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
 
-        final AtomicLong abortCount = new AtomicLong();
+        RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
+            return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation()));
+        }
 
-        Map<String, Long> toMap() {
-            final Map<String, Long> results = new HashMap<>();
-            results.put("GetObject", getCount.get());
-            results.put("ListObjects", listCount.get());
-            results.put("PutObject", putCount.get());
-            results.put("PutMultipartObject", postCount.get());
-            results.put("DeleteObjects", deleteCount.get());
-            results.put("AbortMultipartObject", abortCount.get());
-            return results;
+        Map<String, Long> statsMap() {
+            final Map<String, Long> m = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, e -> 0L));
+            collectors.forEach((sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c) + v.counter.sum()));
+            return Map.copyOf(m);
+        }
+
+        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {
+            return new IgnoreNoResponseMetricsCollector(operation);
         }
     }
 }

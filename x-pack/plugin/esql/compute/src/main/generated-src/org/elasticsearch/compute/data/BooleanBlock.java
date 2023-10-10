@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -185,7 +186,7 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         return blockFactory.newConstantBooleanBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {
+    sealed interface Builder extends Block.Builder, BlockLoader.BooleanBuilder permits BooleanBlockBuilder {
 
         /**
          * Appends a boolean to the current entry.

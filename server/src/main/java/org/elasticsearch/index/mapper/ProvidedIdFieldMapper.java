@@ -43,7 +43,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 /**
  * A mapper for the {@code _id} field that reads the from the
@@ -115,6 +117,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 return Uid.encodeId(idObject.toString());
             }).toArray(BytesRef[]::new);
             return new TermInSetQuery(name(), bytesRefs);
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            return BlockDocValuesReader.id();
         }
 
         @Override

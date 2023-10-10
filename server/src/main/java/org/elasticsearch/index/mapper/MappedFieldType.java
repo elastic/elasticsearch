@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -628,5 +629,16 @@ public abstract class MappedFieldType {
                 + typeName()
                 + "]."
         );
+    }
+
+    /**
+     * Returns a loader for ESQL or {@code null} if the field doesn't support
+     * ESQL.
+     */
+    public BlockLoader blockLoader(
+        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return null;
     }
 }

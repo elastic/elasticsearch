@@ -39,6 +39,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -64,6 +66,8 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.apache.lucene.search.FuzzyQuery.defaultRewriteMethod;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
@@ -288,6 +292,15 @@ public class VersionStringFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Illegal value type: " + value.getClass() + ", value: " + value);
             }
             return encodeVersion(valueAsString).bytesRef;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            failIfNoDocValues();
+            return BlockDocValuesReader.bytesRefsFromOrds(name());
         }
 
         @Override

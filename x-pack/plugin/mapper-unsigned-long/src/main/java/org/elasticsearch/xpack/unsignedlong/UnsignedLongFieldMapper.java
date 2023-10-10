@@ -24,6 +24,9 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -311,6 +314,28 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             }
             return query;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+                return null;
+            }
+            if (hasDocValues()) {
+                return BlockDocValuesReader.longs(name());
+            }
+            return BlockSourceReader.longs(new SourceValueFetcher(sourcePathsLookup.apply(name()), nullValueFormatted) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return nullValueFormatted;
+                    }
+                    return parseUnsignedLong(value);
+                }
+            });
         }
 
         @Override

@@ -81,6 +81,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -933,6 +935,33 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public boolean isAggregatable() {
             return fielddata;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            if (isSyntheticSource) {
+                if (isStored()) {
+                    return BlockDocValuesReader.bytesRefsFromStored(name());
+                }
+                if (syntheticSourceDelegate != null) {
+                    return syntheticSourceDelegate.blockLoader(loadFieldData, sourcePathsLookup);
+                }
+                /*
+                 * We *shouldn't fall to this exception. The mapping should be
+                 * rejected because we've enabled synthetic source but not configured
+                 * the index properly. But we give it a nice message anyway just in
+                 * case.
+                 */
+                throw new IllegalArgumentException(
+                    "fetching values from a text field ["
+                        + name()
+                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                );
+            }
+            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(sourcePathsLookup.apply(name())));
         }
 
         @Override

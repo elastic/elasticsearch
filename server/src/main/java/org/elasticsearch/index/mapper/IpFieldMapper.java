@@ -51,7 +51,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 
@@ -403,6 +405,17 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             return builder.apply(lower, upper);
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            if (hasDocValues()) {
+                return BlockDocValuesReader.bytesRefsFromOrds(name());
+            }
+            return null;
         }
 
         @Override

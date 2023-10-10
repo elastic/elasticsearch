@@ -28,6 +28,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
@@ -85,6 +87,14 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 return Uid.encodeId(idObject.toString());
             }).toArray(BytesRef[]::new);
             return new TermInSetQuery(name(), bytesRefs);
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            return BlockDocValuesReader.id();
         }
 
         @Override

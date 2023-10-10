@@ -59,6 +59,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -85,6 +87,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -848,6 +851,17 @@ public class WildcardFieldMapper extends FieldMapper {
                 bq.add(termQuery(value, context), Occur.SHOULD);
             }
             return new ConstantScoreQuery(bq.build());
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            if (hasDocValues()) {
+                return BlockDocValuesReader.bytesRefsFromFieldData(loadFieldData.apply(this));
+            }
+            return null;
         }
 
         @Override

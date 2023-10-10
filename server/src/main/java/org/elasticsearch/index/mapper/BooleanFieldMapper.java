@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A field mapper for boolean fields.
@@ -253,6 +254,17 @@ public class BooleanFieldMapper extends FieldMapper {
                 case "T" -> true;
                 default -> throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
             };
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            if (hasDocValues()) {
+                return BlockDocValuesReader.booleans(name());
+            }
+            return BlockSourceReader.booleans(sourceValueFetcher(sourcePathsLookup.apply(name())));
         }
 
         @Override

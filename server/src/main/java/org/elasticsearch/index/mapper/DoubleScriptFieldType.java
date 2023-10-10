@@ -14,6 +14,8 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -103,6 +105,14 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             return DocValueFormat.RAW;
         }
         return new DocValueFormat.Decimal(format);
+    }
+
+    @Override
+    public BlockLoader blockLoader(
+        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return BlockDocValuesReader.doublesFromFieldData((IndexNumericFieldData) loadFieldData.apply(this));
     }
 
     @Override

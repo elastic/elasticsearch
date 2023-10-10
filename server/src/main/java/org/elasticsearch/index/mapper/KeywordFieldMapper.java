@@ -73,6 +73,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -576,6 +577,27 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         NamedAnalyzer normalizer() {
             return normalizer;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            if (hasDocValues()) {
+                return BlockDocValuesReader.bytesRefsFromOrds(name());
+            }
+            if (isSyntheticSource) {
+                if (false == isStored()) {
+                    throw new IllegalStateException(
+                        "keyword field ["
+                            + name()
+                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
+                    );
+                }
+                return BlockDocValuesReader.bytesRefsFromStored(name());
+            }
+            return BlockSourceReader.bytesRefs(sourceValueFetcher(sourcePathsLookup.apply(name())));
         }
 
         @Override

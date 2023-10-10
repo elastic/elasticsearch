@@ -29,7 +29,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -53,6 +56,8 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -131,6 +136,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            // TODO load a constant - we shouldn't need BlockDocValuesReader at all
+            return BlockDocValuesReader.bytesRefsFromFieldData(loadFieldData.apply(this));
         }
 
         @Override

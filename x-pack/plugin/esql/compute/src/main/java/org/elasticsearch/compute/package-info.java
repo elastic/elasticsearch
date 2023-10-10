@@ -23,7 +23,7 @@
  * Their classes are generally thread-safe due to concurrent access.
  * Exchanges can be remote as well as local (only local implemented so far).
  * They allow multi-plexing via an exchange, broadcasting one
- * sink to multiple sources (e.g. partitioning the incoming data to multiple targets based on the value of a given field), or connecting
+ * sink to multiple factories (e.g. partitioning the incoming data to multiple targets based on the value of a given field), or connecting
  * multiple sinks to a single source (merging subcomputations). Even if no multiplexing is happening, exchanges allow pipeline processing
  * (i.e. you can have two pipelines of operators that are connected via an exchange, allowing two drivers to work in parallel on each side
  * of the exchange, even on the same node). Each driver does not require a new thread, however, so you could still schedule the two drivers

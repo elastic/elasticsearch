@@ -14,6 +14,7 @@ $endif$
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -222,7 +223,7 @@ $endif$
         return blockFactory.newConstant$Type$BlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {
+    sealed interface Builder extends Block.Builder, BlockLoader.$Type$Builder permits $Type$BlockBuilder {
 
         /**
          * Appends a $type$ to the current entry.

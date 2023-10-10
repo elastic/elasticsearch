@@ -39,8 +39,12 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFiel
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -65,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
@@ -316,6 +321,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             throws IOException {
             final Query query = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
             return toQuery(query, queryShardContext);
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            if (textFieldType.isSyntheticSource()) {
+                return BlockDocValuesReader.bytesRefsFromStored(storedFieldNameForSyntheticSource());
+            }
+            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(sourcePathsLookup.apply(name())));
         }
 
         @Override

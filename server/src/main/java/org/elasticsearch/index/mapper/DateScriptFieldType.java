@@ -19,6 +19,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -177,6 +179,14 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             timeZone = ZoneOffset.UTC;
         }
         return new DocValueFormat.DateTime(dateTimeFormatter, timeZone, Resolution.MILLISECONDS);
+    }
+
+    @Override
+    public BlockLoader blockLoader(
+        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return BlockDocValuesReader.longsFromFieldData((IndexNumericFieldData) loadFieldData.apply(this));
     }
 
     @Override

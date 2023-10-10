@@ -108,7 +108,7 @@ load everything:
   - do:
       esql.query:
         body:
-          query: 'from test'
+          query: 'from test [metadata _id]'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}

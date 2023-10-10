@@ -17,6 +17,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -108,6 +109,14 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         // keywords are internally stored as utf8 bytes
         BytesRef binaryValue = (BytesRef) value;
         return binaryValue.utf8ToString();
+    }
+
+    @Override
+    public BlockLoader blockLoader(
+        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return BlockDocValuesReader.bytesRefsFromFieldData(loadFieldData.apply(this));
     }
 
     @Override

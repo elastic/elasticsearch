@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -186,7 +187,7 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         return blockFactory.newConstantLongBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits LongBlockBuilder {
+    sealed interface Builder extends Block.Builder, BlockLoader.LongBuilder permits LongBlockBuilder {
 
         /**
          * Appends a long to the current entry.

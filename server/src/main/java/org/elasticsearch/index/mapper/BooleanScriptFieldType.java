@@ -17,6 +17,8 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -30,6 +32,7 @@ import org.elasticsearch.search.runtime.BooleanScriptFieldTermQuery;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
@@ -108,6 +111,14 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         checkNoFormat(format);
         checkNoTimeZone(timeZone);
         return DocValueFormat.BOOLEAN;
+    }
+
+    @Override
+    public BlockLoader blockLoader(
+        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return BlockDocValuesReader.booleanFromFieldData((IndexNumericFieldData) loadFieldData.apply(this));
     }
 
     @Override

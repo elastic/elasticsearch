@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -186,7 +187,7 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         return blockFactory.newConstantDoubleBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits DoubleBlockBuilder {
+    sealed interface Builder extends Block.Builder, BlockLoader.DoubleBuilder permits DoubleBlockBuilder {
 
         /**
          * Appends a double to the current entry.

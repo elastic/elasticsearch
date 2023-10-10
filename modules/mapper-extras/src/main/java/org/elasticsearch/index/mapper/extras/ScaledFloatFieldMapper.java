@@ -30,8 +30,12 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -63,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
@@ -301,6 +306,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 hi = Math.round(Math.floor(dValue));
             }
             return NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context, isIndexed());
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+            Function<String, Set<String>> sourcePathsLookup
+        ) {
+            if (hasDocValues()) {
+                double scalingFactorInverse = 1d / scalingFactor;
+                return BlockDocValuesReader.doubles(name(), l -> l * scalingFactorInverse);
+            }
+            return BlockSourceReader.doubles(sourceValueFetcher(sourcePathsLookup.apply(name())));
         }
 
         @Override

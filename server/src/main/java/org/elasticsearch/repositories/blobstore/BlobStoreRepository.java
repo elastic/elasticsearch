@@ -833,7 +833,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryMetaVersion,
+        IndexVersion repositoryFormatIndexVersion,
         SnapshotDeleteListener listener
     ) {
         if (isReadOnly()) {
@@ -854,7 +854,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         foundIndices,
                         rootBlobs,
                         repositoryData,
-                        repositoryMetaVersion,
+                        repositoryFormatIndexVersion,
                         listener
                     );
                 }

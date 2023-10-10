@@ -81,7 +81,7 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryMetaVersion,
+        IndexVersion repositoryFormatIndexVersion,
         SnapshotDeleteListener listener
     ) {
         listener.onFailure(createCreationException());

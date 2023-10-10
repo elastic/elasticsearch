@@ -318,11 +318,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryMetaVersion,
+        IndexVersion repositoryFormatIndexVersion,
         SnapshotDeleteListener listener
     ) {
         final SnapshotDeleteListener wrappedListener;
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion)) {
+        if (SnapshotsService.useShardGenerations(repositoryFormatIndexVersion)) {
             wrappedListener = listener;
         } else {
             wrappedListener = new SnapshotDeleteListener() {
@@ -354,7 +354,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                 }
             };
         }
-        super.deleteSnapshots(snapshotIds, repositoryDataGeneration, repositoryMetaVersion, wrappedListener);
+        super.deleteSnapshots(snapshotIds, repositoryDataGeneration, repositoryFormatIndexVersion, wrappedListener);
     }
 
     /**

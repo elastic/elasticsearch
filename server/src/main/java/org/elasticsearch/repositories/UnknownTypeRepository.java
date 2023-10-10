@@ -79,7 +79,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryMetaVersion,
+        IndexVersion repositoryFormatIndexVersion,
         SnapshotDeleteListener listener
     ) {
         listener.onFailure(createUnknownTypeException());

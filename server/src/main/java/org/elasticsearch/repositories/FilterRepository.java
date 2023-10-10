@@ -74,10 +74,10 @@ public class FilterRepository implements Repository {
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryMetaVersion,
+        IndexVersion repositoryFormatIndexVersion,
         SnapshotDeleteListener listener
     ) {
-        in.deleteSnapshots(snapshotIds, repositoryDataGeneration, repositoryMetaVersion, listener);
+        in.deleteSnapshots(snapshotIds, repositoryDataGeneration, repositoryFormatIndexVersion, listener);
     }
 
     @Override

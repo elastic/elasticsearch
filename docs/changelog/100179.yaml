@@ -1,6 +1,0 @@
-pr: 100179
-summary: ILM introduce the `check-ts-end-time-passed` step
-area: ILM+SLM
-type: bug
-issues:
- - 99696

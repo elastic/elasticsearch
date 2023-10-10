@@ -133,9 +133,9 @@ class S3BlobStore implements BlobStore {
         private final Operation operation;
         private final Map<String, Object> attributes;
 
-        private IgnoreNoResponseMetricsCollector(Operation operation) {
+        private IgnoreNoResponseMetricsCollector(Operation operation, OperationPurpose purpose) {
             this.operation = operation;
-            this.attributes = Map.of("repo", repositoryMetadata.name(), "operation", operation.getKey());
+            this.attributes = Map.of("repo", repositoryMetadata.name(), "operation", operation.getKey(), "purpose", purpose.getKey());
         }
 
         @Override
@@ -362,7 +362,7 @@ class S3BlobStore implements BlobStore {
         final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
 
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-            return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation()));
+            return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
         }
 
         Map<String, Long> statsMap() {
@@ -371,8 +371,8 @@ class S3BlobStore implements BlobStore {
             return Map.copyOf(m);
         }
 
-        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {
-            return new IgnoreNoResponseMetricsCollector(operation);
+        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
+            return new IgnoreNoResponseMetricsCollector(operation, purpose);
         }
     }
 }

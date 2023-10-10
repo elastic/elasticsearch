@@ -29,11 +29,13 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
@@ -65,6 +67,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -83,6 +86,7 @@ import java.util.stream.Collectors;
  * - {@link #getPersistedLocalCheckpoint()}
  */
 public class SearchEngine extends Engine {
+    private static final long SEARCH_IDLE_TIME = TimeUnit.SECONDS.toMillis(30L);
 
     private final Map<Long, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
     private final LinkedBlockingQueue<StatelessCompoundCommit> commitNotifications = new LinkedBlockingQueue<>();
@@ -208,10 +212,14 @@ public class SearchEngine extends Engine {
         }
     }
 
+    private volatile long lastSearcherAcquiredTime;
+
     private void processCommitNotifications() {
-        engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
+        var refreshExecutor = engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH);
+        refreshExecutor.execute(new AbstractRunnable() {
 
             int batchSize = 0;
+            boolean success = false;
 
             @Override
             protected void doRun() throws Exception {
@@ -239,9 +247,28 @@ public class SearchEngine extends Engine {
 
                 store.incRef();
                 try {
-                    updateInternalState(latestCommit, current);
+                    logger.trace("updating directory with commit {}", latestCommit);
+                    if (directory.updateCommit(latestCommit)) {
+                        // if this index has been recently searched, and this commit hasn't been superseded, then
+                        // prefetch the new commit files
+                        if (engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime < SEARCH_IDLE_TIME) {
+                            directory.downloadCommit(
+                                latestCommit,
+                                new ThreadedActionListener<>(
+                                    refreshExecutor,
+                                    ActionListener.running(() -> updateInternalState(latestCommit, current))
+                                )
+                            );
+                        } else {
+                            updateInternalState(latestCommit, current);
+                        }
+                    }
+                    success = true;
                 } finally {
-                    store.decRef();
+                    // store is released by #updateInternalState unless there was an exception
+                    if (success == false) {
+                        store.decRef();
+                    }
                 }
             }
 
@@ -254,6 +281,12 @@ public class SearchEngine extends Engine {
 
             @Override
             public void onAfter() {
+                if (success == false) {
+                    doAfter();
+                }
+            }
+
+            private void doAfter() {
                 var remaining = pendingCommitNotifications.addAndGet(-batchSize);
                 assert remaining >= 0 : remaining;
                 if (remaining > 0) {
@@ -287,10 +320,17 @@ public class SearchEngine extends Engine {
                 return latestCommit;
             }
 
-            private void updateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) throws IOException {
-                logger.trace("updating directory with commit {}", latestCommit);
-                directory.updateCommit(latestCommit);
+            private void updateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) {
+                try {
+                    doUpdateInternalState(latestCommit, current);
+                } catch (Exception e) {
+                    onFailure(e);
+                } finally {
+                    Releasables.close(store::decRef, this::doAfter);
+                }
+            }
 
+            private void doUpdateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) throws IOException {
                 final SegmentInfos next = Lucene.readSegmentInfos(directory);
                 setSequenceNumbers(next);
 
@@ -454,6 +494,12 @@ public class SearchEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
+    }
+
+    @Override
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        lastSearcherAcquiredTime = engineConfig.getThreadPool().relativeTimeInMillis();
+        return super.acquireSearcherSupplier(wrapper, scope);
     }
 
     @Override

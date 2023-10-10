@@ -38,7 +38,6 @@ tasks.named("javaRestTest").configure {
   nonInputProperties.systemProperty 'test.krb5.conf', "${krb5Conf}"
   nonInputProperties.systemProperty 'test.krb5.keytab', "${krb5Keytab}"
   systemProperty 'test.userpwd.password', "dino_but_longer_than_14_chars"
-  systemProperty 'tests.security.manager', 'true'
   jvmArgs([
     "-Djava.security.krb5.conf=${krb5Conf}",
     "-Dsun.security.krb5.debug=true"

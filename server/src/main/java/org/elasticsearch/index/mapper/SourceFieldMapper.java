@@ -101,10 +101,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 (previous, current, conflicts) -> (previous.value() == current.value()) || (previous.value() && current.value() == false)
             );
 
-        /*
-         * The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic
-         * source mode.
-         */
         private final Parameter<Mode> mode;
         private final Parameter<List<String>> includes = Parameter.stringArrayParam(
             "includes",
@@ -125,6 +121,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             this.mode = new Parameter<>(
                 "mode",
                 true,
+                // The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic source mode.
                 () -> getIndexMode() == IndexMode.TIME_SERIES && indexVersion.between(IndexVersion.V_8_7_0, IndexVersion.V_8_10_0)
                     ? Mode.SYNTHETIC
                     : null,

@@ -32,7 +32,7 @@ public class LongGaugeAdapterTests extends ESTestCase {
     LongGaugeBuilder longGaugeBuilder = Mockito.mock(LongGaugeBuilder.class);
 
     @Before
-    public void init(){
+    public void init() {
         when(longGaugeBuilder.setDescription(Mockito.anyString())).thenReturn(longGaugeBuilder);
         when(longGaugeBuilder.setUnit(Mockito.anyString())).thenReturn(longGaugeBuilder);
 
@@ -42,15 +42,21 @@ public class LongGaugeAdapterTests extends ESTestCase {
         when(testMeter.gaugeBuilder(anyString())).thenReturn(mockDoubleGaugeBuilder);
     }
 
+
+    //testing that a value reported is then used in a callback
     public void testLongGaugeRecord() {
         LongGaugeAdapter longGaugeAdapter = new LongGaugeAdapter(testMeter, "name", "desc", "unit");
 
+        //recording a value
         longGaugeAdapter.record(1L, Map.of("k", 1L));
 
+        //upon metric export, the consumer will be called
         ArgumentCaptor<Consumer<ObservableLongMeasurement>> captor = ArgumentCaptor.forClass(Consumer.class);
         verify(longGaugeBuilder).buildWithCallback(captor.capture());
 
+
         Consumer<ObservableLongMeasurement> value = captor.getValue();
+        //making sure that a consumer will fetch the value passed down upon recording of a value
         TestLongMeasurement testLongMeasurement = new TestLongMeasurement();
         value.accept(testLongMeasurement);
 

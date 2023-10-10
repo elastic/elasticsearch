@@ -54,14 +54,16 @@ public final class ValueSources {
             // Create a separate SearchExecutionContext for each ValuesReader, as it seems that
             // the synthetic source doesn't work properly with inter-segment or intra-segment parallelism.
             ShardSearchRequest shardRequest = searchContext.request();
-            SearchExecutionContext ctx = searchContext.readerContext().indexService().newSearchExecutionContext(
-                shardRequest.shardId().id(),
-                shardRequest.shardRequestIndex(),
-                searchContext.searcher(),
-                shardRequest::nowInMillis,
-                shardRequest.getClusterAlias(),
-                shardRequest.getRuntimeMappings()
-            );
+            SearchExecutionContext ctx = searchContext.readerContext()
+                .indexService()
+                .newSearchExecutionContext(
+                    shardRequest.shardId().id(),
+                    shardRequest.shardRequestIndex(),
+                    searchContext.searcher(),
+                    shardRequest::nowInMillis,
+                    shardRequest.getClusterAlias(),
+                    shardRequest.getRuntimeMappings()
+                );
             var fieldType = ctx.getFieldType(fieldName);
             if (fieldType == null) {
                 sources.add(new ValueSourceInfo(new NullValueSourceType(), new NullValueSource(), elementType, ctx.getIndexReader()));

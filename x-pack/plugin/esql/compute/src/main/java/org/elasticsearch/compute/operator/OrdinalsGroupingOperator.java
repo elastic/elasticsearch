@@ -62,7 +62,15 @@ public class OrdinalsGroupingOperator implements Operator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new OrdinalsGroupingOperator(sources.get(), docChannel, groupingField, aggregators, maxPageSize, bigArrays, driverContext);
+            return new OrdinalsGroupingOperator(
+                sources.get(),
+                docChannel,
+                groupingField,
+                aggregators,
+                maxPageSize,
+                bigArrays,
+                driverContext
+            );
         }
 
         @Override

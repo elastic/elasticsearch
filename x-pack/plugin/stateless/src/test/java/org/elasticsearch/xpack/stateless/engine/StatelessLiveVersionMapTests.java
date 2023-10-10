@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.maybePutIndex;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.newDeleteVersionValue;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.newIndexVersionValue;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.newLiveVersionMap;
@@ -188,6 +190,31 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         // New flush, and it gets to the search shards...
         archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testUnsafeMapIsRecordedInArchiveUntilUnpromotablesAreRefreshed() throws IOException {
+        AtomicLong generation = new AtomicLong(); // current segment generation is 0
+        var archive = new StatelessLiveVersionMapArchive(generation::get);
+        var map = newLiveVersionMap(archive);
+        assertFalse(isUnsafe(map));
+        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        assertTrue(isUnsafe(map));
+        // A refresh moves the unsafe map from current to old and then to archive.
+        // Do at least one refresh
+        var localRefreshes = randomIntBetween(1, 5);
+        for (int i = 0; i < localRefreshes; i++) {
+            // Flushes don't change anything as long as they haven't reached the search shards
+            if (randomBoolean()) {
+                // flush
+                generation.incrementAndGet();
+            }
+            refresh(map);
+        }
+        // We should still remember that the archive received an unsafe map
+        assertTrue(isUnsafe(map));
+        // New flush, and it gets to the search shards...
+        archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
+        assertFalse(isUnsafe(map));
     }
 
     private void refresh(LiveVersionMap map) throws IOException {

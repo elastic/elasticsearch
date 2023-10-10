@@ -1202,28 +1202,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             .toList();
     }
 
-    private Iterator<String> resolveFilesToDelete(
-        RepositoryData oldRepositoryData,
-        Collection<SnapshotId> snapshotIds,
-        Collection<ShardSnapshotMetaDeleteResult> deleteResults
-    ) {
-        final String basePath = basePath().buildAsString();
-        final int basePathLen = basePath.length();
-        final Map<IndexId, Collection<String>> indexMetaGenerations = oldRepositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(
-            snapshotIds
-        );
-        return Stream.concat(deleteResults.stream().flatMap(shardResult -> {
-            final String shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
-            return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
-        }), indexMetaGenerations.entrySet().stream().flatMap(entry -> {
-            final String indexContainerPath = indexPath(entry.getKey()).buildAsString();
-            return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
-        })).map(absolutePath -> {
-            assert absolutePath.startsWith(basePath);
-            return absolutePath.substring(basePathLen);
-        }).iterator();
-    }
-
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Cleaning up dangling blobs
 
@@ -1261,6 +1239,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw e;
             }
         }));
+    }
+
+    private Iterator<String> resolveFilesToDelete(
+        RepositoryData oldRepositoryData,
+        Collection<SnapshotId> snapshotIds,
+        Collection<ShardSnapshotMetaDeleteResult> deleteResults
+    ) {
+        final String basePath = basePath().buildAsString();
+        final int basePathLen = basePath.length();
+        final Map<IndexId, Collection<String>> indexMetaGenerations = oldRepositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(
+            snapshotIds
+        );
+        return Stream.concat(deleteResults.stream().flatMap(shardResult -> {
+            final String shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
+            return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
+        }), indexMetaGenerations.entrySet().stream().flatMap(entry -> {
+            final String indexContainerPath = indexPath(entry.getKey()).buildAsString();
+            return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
+        })).map(absolutePath -> {
+            assert absolutePath.startsWith(basePath);
+            return absolutePath.substring(basePathLen);
+        }).iterator();
     }
 
     /**

@@ -1930,6 +1930,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
      *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsCountAll() {
         var plan = plan("""
               from test
@@ -1960,6 +1961,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
      *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsWithAliasedFields() {
         var plan = plan("""
               from test
@@ -2011,6 +2013,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(aggs), contains("min", "max", "gender"));
         aggFieldName(aggs.get(0), Min.class, "salary");
         var source = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * EsqlProject[[a{r}#5, c{r}#8]]
+     * \_Eval[[null[INTEGER] AS x]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
+    public void testEliminateDuplicateAggWithNull() {
+        var plan = plan("""
+              from test
+            | eval x = null + 1
+            | stats a = avg(x), c = count(x)
+            """);
+        fail("Awaits fix");
     }
 
     private <T> T aliased(Expression exp, Class<T> clazz) {

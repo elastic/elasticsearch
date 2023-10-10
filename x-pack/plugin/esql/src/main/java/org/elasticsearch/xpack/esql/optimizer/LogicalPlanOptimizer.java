@@ -96,9 +96,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
             new ReplaceAliasingEvalWithProject(),
-            new NormalizeAggregate(),
+            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
             new ReplaceDuplicateAggWithEval()
-            // new ReplaceTextFieldAttributesWithTheKeywordSubfield()
         );
 
         var operators = new Batch<>(
@@ -948,6 +947,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
      * 1. replaces reference to field attributes with their source
      * 2. in case of Count, aligns the various forms (Count(1), Count(0), Count(), Count(*)) to Count(*)
      */
+    // TODO waiting on https://github.com/elastic/elasticsearch/issues/100634
     static class NormalizeAggregate extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override

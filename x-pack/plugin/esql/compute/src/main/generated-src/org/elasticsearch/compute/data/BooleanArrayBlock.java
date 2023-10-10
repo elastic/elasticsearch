@@ -51,7 +51,26 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
 
     @Override
     public BooleanBlock filter(int... positions) {
-        return new FilterBooleanBlock(this, positions);
+        try (var builder = blockFactory.newBooleanBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendBoolean(getBoolean(getFirstValueIndex(pos)));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendBoolean(getBoolean(first + c));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override

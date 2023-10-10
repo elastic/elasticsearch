@@ -44,7 +44,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
 
     @Override
     public IntBlock filter(int... positions) {
-        return new FilterIntVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override

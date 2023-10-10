@@ -281,7 +281,7 @@ public interface Meter {
 
         @Override
         public LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit, LongSupplier observed) {
-            return null;
+            return LongGaugeObserver.NOOP;
         }
 
         @Override
@@ -292,7 +292,7 @@ public interface Meter {
             LongSupplier observed,
             Map<String, Object> attributes
         ) {
-            return null;
+            return LongGaugeObserver.NOOP;
         }
 
         @Override
@@ -302,12 +302,12 @@ public interface Meter {
             String unit,
             Supplier<LongAttributes> observed
         ) {
-            return null;
+            return LongGaugeObserver.NOOP;
         }
 
         @Override
         public LongGaugeObserver getLongGaugeObserver(String name) {
-            return null;
+            return LongGaugeObserver.NOOP;
         }
 
         @Override

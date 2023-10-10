@@ -52,6 +52,7 @@ public class DoubleGaugeObserverAdapter extends AbstractInstrument<io.openteleme
         }
         Attributes at = OtelHelper.fromMap(attributes);
         setCallback = b -> b.buildWithCallback(cb -> cb.record(observe.getAsDouble(), at));
+        setProvider(meter);
     }
 
     public DoubleGaugeObserverAdapter(Meter meter, String name, String description, String unit, Supplier<DoubleAttributes> observe) {
@@ -78,6 +79,9 @@ public class DoubleGaugeObserverAdapter extends AbstractInstrument<io.openteleme
 
     @Override
     ObservableDoubleGauge buildInstrument(Meter meter) {
+        if (closedLock == null) {
+            return null;
+        }
         try (ReleasableLock lock = closedLock.acquire()) {
             if (closed) {
                 return null;

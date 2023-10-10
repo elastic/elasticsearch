@@ -58,6 +58,7 @@ public class LongGaugeObserverAdapter extends AbstractInstrument<ObservableLongG
             LOGGER.warn("STU, callback in [" + name + "] long w/ attributes");
             cb.record(observe.getAsLong(), at);
         });
+        setProvider(meter);
     }
 
     public LongGaugeObserverAdapter(Meter meter, String name, String description, String unit, Supplier<LongAttributes> observe) {
@@ -87,6 +88,9 @@ public class LongGaugeObserverAdapter extends AbstractInstrument<ObservableLongG
 
     @Override
     ObservableLongGauge buildInstrument(Meter meter) {
+        if (closedLock == null) {
+            return null;
+        }
         try (ReleasableLock lock = closedLock.acquire()) {
             if (closed) {
                 return null;

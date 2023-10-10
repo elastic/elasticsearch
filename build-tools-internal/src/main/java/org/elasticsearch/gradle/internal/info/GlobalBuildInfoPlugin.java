@@ -149,12 +149,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private Provider<MetadataBasedToolChainMatcher> resolveToolchainSpecFromEnv() {
-        return providers.environmentVariable("JAVA_TOOLCHAIN_HOME").map(toolChainEnvVariable -> {
+        return providers.environmentVariable("TOOLCHAIN_JAVA_HOME").map(toolChainEnvVariable -> {
             File toolChainDir = new File(toolChainEnvVariable);
             JvmInstallationMetadata metadata = metadataDetector.getMetadata(getJavaInstallation(toolChainDir));
             if (metadata.isValidInstallation() == false) {
                 throw new GradleException(
-                    "Configured JAVA_TOOLCHAIN_HOME " + toolChainEnvVariable + " does not point to a valid jdk installation."
+                    "Configured TOOLCHAIN_JAVA_HOME " + toolChainEnvVariable + " does not point to a valid jdk installation."
                 );
             }
             return new MetadataBasedToolChainMatcher(metadata);
@@ -205,9 +205,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             LOGGER.quiet("  JDK Version           : " + gradleJvmImplementationVersion + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
         }
-        String javaToolchainHome = System.getenv("JAVA_TOOLCHAIN_HOME");
+        String javaToolchainHome = System.getenv("TOOLCHAIN_JAVA_HOME");
         if (javaToolchainHome != null) {
-            LOGGER.quiet("  JAVA_TOOLCHAIN_HOME   : " + javaToolchainHome);
+            LOGGER.quiet("  TOOLCHAIN_JAVA_HOME   : " + javaToolchainHome);
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
         LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());

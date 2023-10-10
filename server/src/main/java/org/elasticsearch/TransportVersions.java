@@ -136,7 +136,8 @@ public class TransportVersions {
     public static final TransportVersion ML_PACKAGE_LOADER_PLATFORM_ADDED = def(8_512_00_0);
     public static final TransportVersion PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME = def(8_513_00_0);
     public static final TransportVersion UNIVERSAL_PROFILING_LICENSE_ADDED = def(8_514_00_0);
-    public static final TransportVersion DISCOVERY_NODE_FEATURES_ADDED = def(8_515_00_0);
+    public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED = def(8_515_00_0);
+    public static final TransportVersion DISCOVERY_NODE_FEATURES_ADDED = def(8_516_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

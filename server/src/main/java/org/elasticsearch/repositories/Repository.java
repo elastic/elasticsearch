@@ -137,10 +137,10 @@ public interface Repository extends LifecycleComponent {
     /**
      * Deletes snapshots
      *
-     * @param snapshotIds           snapshot ids
+     * @param snapshotIds                  snapshot ids to delete
      * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
      * @param repositoryFormatIndexVersion the version of repository format to use, indicating the layout of blobs (for bwc)
-     * @param listener              completion listener
+     * @param listener                     completion listener, see {@link SnapshotDeleteListener}.
      */
     void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,

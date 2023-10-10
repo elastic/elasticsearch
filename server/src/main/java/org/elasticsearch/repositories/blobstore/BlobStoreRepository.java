@@ -976,16 +976,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // The overall flow of execution
 
         private void runDelete(SnapshotDeleteListener listener) {
-            if (SnapshotsService.useShardGenerations(repositoryFormatIndexVersion)) {
+            if (useShardGenerations) {
                 // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
                 final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =
                     new ListenableFuture<>();
-                writeUpdatedShardMetaDataAndComputeDeletes(
-                    snapshotIds,
-                    originalRepositoryData,
-                    true,
-                    writeShardMetaDataAndComputeDeletesStep
-                );
+                writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, originalRepositoryData, writeShardMetaDataAndComputeDeletesStep);
                 // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
                 // 1. Remove the snapshots from the list of existing snapshots
                 // 2. Update the index shard generations of all updated shard folders
@@ -1057,7 +1052,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
                                             snapshotIds,
                                             originalRepositoryData,
-                                            false,
                                             l0.delegateFailure(
                                                 (l, deleteResults) -> cleanupUnlinkedShardLevelBlobs(
                                                     originalRepositoryData,
@@ -1082,7 +1076,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private void writeUpdatedShardMetaDataAndComputeDeletes(
             Collection<SnapshotId> snapshotIds,
             RepositoryData originalRepositoryData,
-            boolean useShardGenerations,
             ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
         ) {
 

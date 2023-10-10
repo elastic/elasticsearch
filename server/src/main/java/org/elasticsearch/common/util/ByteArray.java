@@ -47,6 +47,11 @@ public interface ByteArray extends BigArray, Writeable {
     void set(long index, byte[] buf, int offset, int len);
 
     /**
+     * Bulk set from stream input.
+     */
+    void set(long index, StreamInput input, int len) throws IOException;
+
+    /**
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
     void fill(long fromIndex, long toIndex, byte value);

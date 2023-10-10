@@ -70,6 +70,11 @@ public class ReleasableByteArray implements ByteArray {
     }
 
     @Override
+    public void set(long index, StreamInput input, int len) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void fill(long fromIndex, long toIndex, byte value) {
         throw new UnsupportedOperationException();
     }

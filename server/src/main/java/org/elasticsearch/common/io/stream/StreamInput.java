@@ -23,6 +23,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
@@ -161,9 +163,9 @@ public abstract class StreamInput extends InputStream {
         if (length == 0) {
             return BytesArray.EMPTY;
         }
-        byte[] bytes = new byte[length];
-        readBytes(bytes, 0, length);
-        return new BytesArray(bytes, 0, length);
+        final ByteArray byteArray = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length);
+        byteArray.set(0, this, length);
+        return BytesReference.fromByteArray(byteArray, length);
     }
 
     public BytesRef readBytesRef() throws IOException {

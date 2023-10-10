@@ -484,8 +484,7 @@ public class GatewayServiceTests extends ESTestCase {
 
     private MasterServiceTaskQueue<SetClusterStateTask> createSetClusterStateTaskQueue(ClusterService clusterService) {
         return clusterService.createTaskQueue("set-cluster-state", Priority.NORMAL, batchExecutionContext -> {
-            final ClusterState initialState = batchExecutionContext.initialState();
-            ClusterState targetState = initialState;
+            ClusterState targetState = batchExecutionContext.initialState();
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 targetState = taskContext.getTask().clusterState();
                 taskContext.success(() -> {});

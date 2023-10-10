@@ -191,10 +191,10 @@ public class GatewayServiceTests extends ESTestCase {
         taskQueue.submitTask(randomAlphaOfLength(5), new SetDataNodeCountTask(newDataNodeCount), null);
         deterministicTaskQueue.runAllTasksInTimeOrder();
 
-        assertThat(rerouteCount.get(), equalTo(0));
         assertClusterStateBlocks(false);
-        assertThat(clusterService.state().nodes().getDataNodes().size(), equalTo(newDataNodeCount));
+        assertThat(rerouteCount.get(), equalTo(0));
         assertThat(gatewayService.currentPendingStateRecovery, nullValue());
+        assertThat(clusterService.state().nodes().getDataNodes().size(), equalTo(newDataNodeCount));
     }
 
     public void testImmediateRecovery() {

@@ -80,17 +80,17 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertEquals(pcts.length, percentileList.size());
         for (int i = 0; i < pcts.length; ++i) {
             final Percentile percentile = percentileList.get(i);
-            assertThat(percentile.getValue(), equalTo(pcts[i]));
-            assertThat(percentile.getPercent(), greaterThanOrEqualTo(0.0));
-            assertThat(percentile.getPercent(), lessThanOrEqualTo(100.0));
+            assertThat(percentile.value(), equalTo(pcts[i]));
+            assertThat(percentile.percent(), greaterThanOrEqualTo(0.0));
+            assertThat(percentile.percent(), lessThanOrEqualTo(100.0));
 
-            if (percentile.getPercent() == 0) {
-                assertThat(percentile.getValue(), lessThanOrEqualTo((double) minValue));
+            if (percentile.percent() == 0) {
+                assertThat(percentile.value(), lessThanOrEqualTo((double) minValue));
             }
         }
 
         for (int i = 1; i < percentileList.size(); ++i) {
-            assertThat(percentileList.get(i).getValue(), greaterThanOrEqualTo(percentileList.get(i - 1).getValue()));
+            assertThat(percentileList.get(i).value(), greaterThanOrEqualTo(percentileList.get(i - 1).value()));
         }
     }
 

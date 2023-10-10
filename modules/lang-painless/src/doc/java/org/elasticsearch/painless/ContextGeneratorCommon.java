@@ -210,7 +210,7 @@ public class ContextGeneratorCommon {
             }
         }
 
-        private <T> Set<T> getCommon(List<PainlessContextInfo> painlessContexts, Function<PainlessContextInfo, List<T>> getter) {
+        private static <T> Set<T> getCommon(List<PainlessContextInfo> painlessContexts, Function<PainlessContextInfo, List<T>> getter) {
             Map<T, Integer> infoCounts = new HashMap<>();
             for (PainlessContextInfo contextInfo : painlessContexts) {
                 for (T info : getter.apply(contextInfo)) {

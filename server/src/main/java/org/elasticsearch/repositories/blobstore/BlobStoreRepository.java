@@ -1008,13 +1008,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     listener.onRepositoryDataWritten(newRepositoryData);
                     // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                     try (var refs = new RefCountingRunnable(listener::onDone)) {
-                        cleanupUnlinkedRootAndIndicesBlobs(
-                            snapshotIds,
-                            originalIndexContainers,
-                            originalRootBlobs,
-                            newRepositoryData,
-                            refs.acquireListener()
-                        );
+                        cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener());
                         cleanupUnlinkedShardLevelBlobs(
                             originalRepositoryData,
                             snapshotIds,
@@ -1036,13 +1030,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             listener.onDone();
                         })) {
                             // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                            cleanupUnlinkedRootAndIndicesBlobs(
-                                snapshotIds,
-                                originalIndexContainers,
-                                originalRootBlobs,
-                                newRepositoryData,
-                                refs.acquireListener()
-                            );
+                            cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener());
 
                             // writeIndexGen finishes on master-service thread so must fork here.
                             threadPool.executor(ThreadPool.Names.SNAPSHOT)
@@ -1280,13 +1268,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * Delete any dangling blobs in the repository root (i.e. {@link RepositoryData}, {@link SnapshotInfo} and {@link Metadata} blobs)
          * as well as any containers for indices that are now completely unreferenced.
          */
-        private void cleanupUnlinkedRootAndIndicesBlobs(
-            Collection<SnapshotId> snapshotIds,
-            Map<String, BlobContainer> originalIndexContainers,
-            Map<String, BlobMetadata> originalRootBlobs,
-            RepositoryData newRepositoryData,
-            ActionListener<Void> listener
-        ) {
+        private void cleanupUnlinkedRootAndIndicesBlobs(RepositoryData newRepositoryData, ActionListener<Void> listener) {
             cleanupStaleBlobs(snapshotIds, originalIndexContainers, originalRootBlobs, newRepositoryData, listener.map(ignored -> null));
         }
 

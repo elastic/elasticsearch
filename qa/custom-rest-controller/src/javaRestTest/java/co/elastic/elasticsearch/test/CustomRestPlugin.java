@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
@@ -62,7 +63,7 @@ public class CustomRestPlugin extends Plugin implements RestServerActionPlugin {
             UsageService usageService,
             Tracer tracer
         ) {
-            super(handlerWrapper, client, circuitBreakerService, usageService, tracer);
+            super(handlerWrapper, client, circuitBreakerService, usageService, tracer, Meter.NOOP);
         }
 
         @Override

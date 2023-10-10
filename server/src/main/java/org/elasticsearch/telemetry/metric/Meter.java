@@ -8,6 +8,10 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import java.util.Map;
+import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
+
 /**
  * Container for metering instruments.  Meters with the same name and type (DoubleCounter, etc) can
  * only be registered once.
@@ -61,6 +65,20 @@ public interface Meter {
      * @return the registered meter.
      */
     DoubleGauge getDoubleGauge(String name);
+
+    DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit, DoubleSupplier observed);
+
+    DoubleGaugeObserver registerDoubleGaugeObserver(
+        String name,
+        String description,
+        String unit,
+        DoubleSupplier observed,
+        Map<String, Object> attributes
+    );
+
+    DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit, Supplier<DoubleAttributes> observed);
+
+    DoubleGaugeObserver getDoubleGaugeObserver(String name);
 
     /**
      * Register a {@link DoubleHistogram}.  The returned object may be reused.
@@ -126,6 +144,14 @@ public interface Meter {
      */
     LongGauge getLongGauge(String name);
 
+    Object registerLongGaugeObserver(String name, String description, String unit, DoubleSupplier observed);
+
+    Object registerLongGaugeObserver(String name, String description, String unit, DoubleSupplier observed, Map<String, Object> attributes);
+
+    Object registerLongGaugeObserver(String name, String description, String unit, Supplier<DoubleAttributes> observed);
+
+    Object getLongGaugeObserver(String name);
+
     /**
      * Register a {@link LongHistogram}.  The returned object may be reused.
      * @param name name of the histogram
@@ -176,6 +202,37 @@ public interface Meter {
         }
 
         @Override
+        public DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit, DoubleSupplier observed) {
+            return DoubleGaugeObserver.NOOP;
+        }
+
+        @Override
+        public DoubleGaugeObserver registerDoubleGaugeObserver(
+            String name,
+            String description,
+            String unit,
+            DoubleSupplier observed,
+            Map<String, Object> attributes
+        ) {
+            return DoubleGaugeObserver.NOOP;
+        }
+
+        @Override
+        public DoubleGaugeObserver registerDoubleGaugeObserver(
+            String name,
+            String description,
+            String unit,
+            Supplier<DoubleAttributes> observed
+        ) {
+            return DoubleGaugeObserver.NOOP;
+        }
+
+        @Override
+        public DoubleGaugeObserver getDoubleGaugeObserver(String name) {
+            return DoubleGaugeObserver.NOOP;
+        }
+
+        @Override
         public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
             return DoubleHistogram.NOOP;
         }
@@ -213,6 +270,33 @@ public interface Meter {
         @Override
         public LongGauge getLongGauge(String name) {
             return LongGauge.NOOP;
+        }
+
+        @Override
+        public Object registerLongGaugeObserver(String name, String description, String unit, DoubleSupplier observed) {
+            return null;
+        }
+
+        @Override
+        public Object registerLongGaugeObserver(
+            String name,
+            String description,
+            String unit,
+            DoubleSupplier observed,
+            Map<String, Object> attributes
+        ) {
+            return null;
+        }
+
+        @Override
+        public Object registerLongGaugeObserver(String name, String description, String unit, Supplier<DoubleAttributes> observed) {
+
+            return null;
+        }
+
+        @Override
+        public Object getLongGaugeObserver(String name) {
+            return null;
         }
 
         @Override

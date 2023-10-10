@@ -30,6 +30,8 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -94,6 +96,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final UsageService usageService;
     private final Tracer tracer;
+    private final LongGauge gauge;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
 
@@ -102,10 +105,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        Tracer tracer,
+        Meter meter
     ) {
         this.usageService = usageService;
         this.tracer = tracer;
+        this.gauge = meter.registerLongGauge("content.gauge", "last content length", "count");
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -524,6 +529,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();
+            gauge.record(uri.length(), Map.of("method", requestMethod.toString(), "author", "stu"));
             // Loop through all possible handlers, attempting to dispatch the request
             Iterator<MethodHandlers> allHandlers = getAllHandlers(request.params(), rawPath);
             while (allHandlers.hasNext()) {

@@ -216,6 +216,7 @@ import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -447,7 +448,7 @@ public class Node implements Closeable {
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toList();
 
-            final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder<?>[0]));
+            final ThreadPool threadPool = new ThreadPool(settings, Meter.NOOP, executorBuilders.toArray(new ExecutorBuilder<?>[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
@@ -828,7 +829,8 @@ public class Node implements Closeable {
                 tracer,
                 clusterService,
                 reservedStateHandlers,
-                pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
+                pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
+                telemetryProvider.getMeter()
             );
             modules.add(actionModule);
 

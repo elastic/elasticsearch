@@ -16,8 +16,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
+import org.elasticsearch.telemetry.metric.DoubleAttributes;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleGaugeObserver;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -27,6 +29,8 @@ import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Map;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING;
@@ -104,6 +108,37 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     @Override
+    public DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit, DoubleSupplier observed) {
+        return null;
+    }
+
+    @Override
+    public DoubleGaugeObserver registerDoubleGaugeObserver(
+        String name,
+        String description,
+        String unit,
+        DoubleSupplier observed,
+        Map<String, Object> attributes
+    ) {
+        return null;
+    }
+
+    @Override
+    public DoubleGaugeObserver registerDoubleGaugeObserver(
+        String name,
+        String description,
+        String unit,
+        Supplier<DoubleAttributes> observed
+    ) {
+        return null;
+    }
+
+    @Override
+    public DoubleGaugeObserver getDoubleGaugeObserver(String name) {
+        return null;
+    }
+
+    @Override
     public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
         return instruments.registerDoubleHistogram(name, description, unit);
     }
@@ -141,6 +176,32 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     @Override
     public LongGauge getLongGauge(String name) {
         return instruments.getLongGauge(name);
+    }
+
+    @Override
+    public Object registerLongGaugeObserver(String name, String description, String unit, DoubleSupplier observed) {
+        return null;
+    }
+
+    @Override
+    public Object registerLongGaugeObserver(
+        String name,
+        String description,
+        String unit,
+        DoubleSupplier observed,
+        Map<String, Object> attributes
+    ) {
+        return null;
+    }
+
+    @Override
+    public Object registerLongGaugeObserver(String name, String description, String unit, Supplier<DoubleAttributes> observed) {
+        return null;
+    }
+
+    @Override
+    public Object getLongGaugeObserver(String name) {
+        return null;
     }
 
     @Override

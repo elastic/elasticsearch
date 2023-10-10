@@ -28,6 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -179,7 +180,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     );
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
+    public ThreadPool(final Settings settings, Meter meter, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
@@ -304,6 +305,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         executors.put(Names.SAME, new ExecutorHolder(EsExecutors.DIRECT_EXECUTOR_SERVICE, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = Map.copyOf(executors);
+        this.executors.forEach((k, v) -> setupMetrics(meter, k, v));
 
         final List<Info> infos = executors.values()
             .stream()
@@ -319,6 +321,61 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis()
         );
         this.cachedTimeThread.start();
+    }
+
+    private static void setupMetrics(Meter meter, String name, ExecutorHolder holder) {
+        // TODO(stu): do we want to save the gauge refs to close them?
+        logger.warn("STU, trying to add metric for [" + name + "]");
+        Map<String, Object> at = Map.of("author", "stu");
+        if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
+            logger.warn("STU, adding metric for [" + name + "]");
+            String prefix = "threadpool." + name + ".";
+            meter.registerLongGaugeObserver(
+                prefix + "threads",
+                "number of threads for " + name,
+                "count",
+                threadPoolExecutor::getPoolSize,
+                at
+            );
+            meter.registerLongGaugeObserver(
+                prefix + "queue",
+                "number queue size for " + name,
+                "count",
+                () -> threadPoolExecutor.getQueue().size(),
+                at
+            );
+            meter.registerLongGaugeObserver(
+                prefix + "active",
+                "number of active threads for " + name,
+                "count",
+                threadPoolExecutor::getActiveCount,
+                at
+            );
+            meter.registerLongGaugeObserver(
+                prefix + "largest",
+                "largest pool size for " + name,
+                "count",
+                threadPoolExecutor::getLargestPoolSize,
+                at
+            );
+            meter.registerLongGaugeObserver(
+                prefix + "completed",
+                "number of completed threads for " + name,
+                "count",
+                threadPoolExecutor::getCompletedTaskCount,
+                at
+            );
+            RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
+            if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
+                meter.registerLongGaugeObserver(
+                    prefix + "rejected",
+                    "number of rejected threads for " + name,
+                    "count",
+                    handler::rejected,
+                    at
+                );
+            }
+        }
     }
 
     // for subclassing by tests that don't actually use any of the machinery that the regular constructor sets up

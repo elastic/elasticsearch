@@ -49,7 +49,8 @@ class APMJvmOptions {
         // by the agent. Don't disable writing to a log file, as the agent will then
         // require extra Security Manager permissions when it tries to do something
         // else, and it's just painful.
-        "log_file", "_AGENT_HOME_/../../logs/apm.log",
+        "log_file", "/home/stu/tmp/apm.log",
+        "log_level", "TRACE",
 
         // ES does not use auto-instrumentation.
         "instrument", "false",
@@ -82,7 +83,7 @@ class APMJvmOptions {
         // is doing, leave this value alone.
         "log_level", "error",
         "application_packages", "org.elasticsearch,org.apache.lucene",
-        "metrics_interval", "120s",
+        "metrics_interval", "10s",
         "breakdown_metrics", "false",
         "central_config", "false"
         );

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -52,12 +51,6 @@ public class CoalesceTests extends AbstractFunctionTestCase {
         builder.expectInt(ints -> ints.filter(v -> v != null).findFirst());
         builder.expectBoolean(booleans -> booleans.filter(v -> v != null).findFirst());
         return parameterSuppliersFromTypedData(builder.suppliers());
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100559")
-    public void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
-        super.testEvaluateInManyThreads();
     }
 
     @Override

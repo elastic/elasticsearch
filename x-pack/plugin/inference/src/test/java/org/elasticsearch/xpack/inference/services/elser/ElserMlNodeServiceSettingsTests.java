@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.elser;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -70,6 +72,27 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
         assertThat(e.getMessage(), containsString("unknown ELSER model version [.elser_model_27]"));
     }
 
+    public void testBwcWrite() throws IOException {
+        {
+            var elserServiceModelVersionAdded = new TransportVersion(8_515_00_0);
+            var settings = new ElserMlNodeServiceSettings(1, 1, ".elser_model_1");
+            var copy = copyInstance(settings, elserServiceModelVersionAdded);
+            assertEquals(settings, copy);
+        }
+        {
+            var firstIncompatibleNotPatchVersion = new TransportVersion(8_513_00_0);
+            var settings = new ElserMlNodeServiceSettings(1, 1, ".elser_model_1");
+            var copy = copyInstance(settings, firstIncompatibleNotPatchVersion);
+            assertNotEquals(settings, copy);
+            assertEquals(".elser_model_2", copy.getModelVariant());
+        }
+        {
+            var settings = new ElserMlNodeServiceSettings(1, 1, ".elser_model_1");
+            var copy = copyInstance(settings, TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH);
+            assertEquals(settings, copy);
+        }
+    }
+
     public void testFromMapMissingOptions() {
         var e = expectThrows(
             ValidationException.class,
@@ -87,11 +110,8 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
     }
 
     public void testTransportVersionIsCompatibleWithElserModelVersion() {
-        assertTrue(
-            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
-                TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED
-            )
-        );
+        var elserServiceModelVersionAdded = new TransportVersion(8_515_00_0);
+        assertTrue(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(elserServiceModelVersionAdded));
         assertTrue(
             ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
                 TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH
@@ -101,16 +121,8 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
         assertFalse(
             ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)
         );
-        assertFalse(
-            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
-                TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME
-            )
-        );
-        assertFalse(
-            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
-                TransportVersions.UNIVERSAL_PROFILING_LICENSE_ADDED
-            )
-        );
+        var firstIncompatibleNotPatchVersion = new TransportVersion(8_513_00_0);
+        assertFalse(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(firstIncompatibleNotPatchVersion));
     }
 
     public void testFromMapInvalidSettings() {

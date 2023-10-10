@@ -95,11 +95,12 @@ public class ElserMlNodeServiceSettings implements ServiceSettings {
     }
 
     static boolean transportVersionIsCompatibleWithElserModelVersion(TransportVersion transportVersion) {
-        var nextNonPatchVersion = TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME;
+        var elserServiceModelVersionAdded = new TransportVersion(8_515_00_0);
 
-        if (transportVersion.onOrAfter(TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED)) {
+        if (transportVersion.onOrAfter(elserServiceModelVersionAdded)) {
             return true;
         } else {
+            var nextNonPatchVersion = new TransportVersion(8_513_00_0);
             return transportVersion.onOrAfter(TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH)
                 && transportVersion.before(nextNonPatchVersion);
         }

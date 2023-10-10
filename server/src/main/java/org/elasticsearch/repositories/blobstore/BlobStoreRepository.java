@@ -976,41 +976,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // The overall flow of execution
 
         private void runDelete(SnapshotDeleteListener listener) {
-            doDeleteShardSnapshots(
-                snapshotIds,
-                originalRepositoryDataGeneration,
-                originalIndexContainers,
-                originalRootBlobs,
-                originalRepositoryData,
-                repositoryFormatIndexVersion,
-                listener
-            );
-        }
-
-        /**
-         * After updating the {@link RepositoryData} each of the shards directories is individually first moved to the next shard generation
-         * and then has all now unreferenced blobs in it deleted.
-         *
-         * @param snapshotIds                      SnapshotIds to delete
-         * @param originalRepositoryDataGeneration {@link RepositoryData} generation at the start of the process.
-         * @param originalIndexContainers          All index containers at the start of the operation, obtained by listing the repository
-         *                                         contents.
-         * @param originalRootBlobs                All blobs found at the root of the repository at the start of the operation, obtained by
-         *                                         listing the repository contents.
-         * @param originalRepositoryData           {@link RepositoryData} at the start of the operation.
-         * @param repositoryFormatIndexVersion     The minimum {@link IndexVersion} of the nodes in the cluster and the snapshots remaining
-         *                                         in the repository.
-         * @param listener                         Listener to invoke once finished
-         */
-        private void doDeleteShardSnapshots(
-            Collection<SnapshotId> snapshotIds,
-            long originalRepositoryDataGeneration,
-            Map<String, BlobContainer> originalIndexContainers,
-            Map<String, BlobMetadata> originalRootBlobs,
-            RepositoryData originalRepositoryData,
-            IndexVersion repositoryFormatIndexVersion,
-            SnapshotDeleteListener listener
-        ) {
             if (SnapshotsService.useShardGenerations(repositoryFormatIndexVersion)) {
                 // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
                 final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =

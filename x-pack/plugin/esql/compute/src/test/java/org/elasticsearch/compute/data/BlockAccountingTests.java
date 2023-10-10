@@ -251,6 +251,8 @@ public class BlockAccountingTests extends ESTestCase {
                     } else {
                         queue.add(entry.getValue());
                     }
+                } else if (o instanceof AbstractArrayBlock && entry.getValue() instanceof Block.MvOrdering) {
+                    // skip; MvOrdering is an enum, so instances are shared
                 } else {
                     queue.add(entry.getValue());
                 }

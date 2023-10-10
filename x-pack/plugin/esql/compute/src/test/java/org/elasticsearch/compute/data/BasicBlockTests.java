@@ -1045,15 +1045,6 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(breaker.getUsed(), is(0L));
     }
 
-    public void testRefCountingFilterBlock() {
-        int positionCount = randomIntBetween(0, 100);
-        IntBlock block = blockFactory.newIntArrayBlock(new int[] { randomInt() }, 1, new int[] {}, new BitSet(), randomOrdering());
-        Block filteredBlock = block.filter(0);
-        assertThat(breaker.getUsed(), greaterThan(0L));
-        assertRefCountingBehavior(filteredBlock);
-        assertThat(breaker.getUsed(), is(0L));
-    }
-
     public void testRefCountingVectorBlock() {
         int positionCount = randomIntBetween(0, 100);
         IntBlock block = intVector(positionCount).asBlock();

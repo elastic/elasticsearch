@@ -17,9 +17,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
-import com.amazonaws.util.TimingInfo;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -30,7 +28,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
@@ -46,7 +43,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -88,6 +84,10 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector deleteMetricCollector;
     final RequestMetricCollector abortPartUploadMetricCollector;
 
+    private static final TimeValue RETRY_STATS_WINDOW = TimeValue.timeValueMinutes(5);
+
+    private volatile S3RequestRetryStats s3RequestRetryStats;
+
     S3BlobStore(
         S3Service service,
         String bucket,
@@ -114,7 +114,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 stats.getCount.addAndGet(getRequestCount(request));
-                recordRetryStats(request);
+                s3RequestRetryStats.addRequest(request);
             }
         };
         this.listMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -122,7 +122,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("GET");
                 stats.listCount.addAndGet(getRequestCount(request));
-                recordRetryStats(request);
+                s3RequestRetryStats.addRequest(request);
             }
         };
         this.putMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -130,7 +130,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT");
                 stats.putCount.addAndGet(getRequestCount(request));
-                recordRetryStats(request);
+                s3RequestRetryStats.addRequest(request);
             }
         };
         this.multiPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -138,7 +138,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("PUT") || request.getHttpMethod().name().equals("POST");
                 stats.postCount.addAndGet(getRequestCount(request));
-                recordRetryStats(request);
+                s3RequestRetryStats.addRequest(request);
             }
         };
         this.deleteMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -146,7 +146,7 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("POST");
                 stats.deleteCount.addAndGet(getRequestCount(request));
-                recordRetryStats(request);
+                s3RequestRetryStats.addRequest(request);
             }
         };
         this.abortPartUploadMetricCollector = new IgnoreNoResponseMetricsCollector() {
@@ -154,10 +154,15 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request) {
                 assert request.getHttpMethod().name().equals("DELETE");
                 stats.abortCount.addAndGet(getRequestCount(request));
-                recordRetryStats(request);
+                s3RequestRetryStats.addRequest(request);
             }
         };
-        threadPool.scheduleWithFixedDelay(this::maybeLogRetryStats, RETRY_STATS_WINDOW, threadPool.generic());
+        s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
+        threadPool.scheduleWithFixedDelay(() -> {
+            var priorRetryStats = s3RequestRetryStats;
+            s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
+            priorRetryStats.emitMetrics();
+        }, RETRY_STATS_WINDOW, threadPool.generic());
     }
 
     public Executor getSnapshotExecutor() {
@@ -200,7 +205,7 @@ class S3BlobStore implements BlobStore {
         return service.client(repositoryMetadata);
     }
 
-    int getMaxRetries() {
+    final int getMaxRetries() {
         return service.settings(repositoryMetadata).maxRetries;
     }
 
@@ -367,47 +372,5 @@ class S3BlobStore implements BlobStore {
             results.put("AbortMultipartObject", abortCount.get());
             return results;
         }
-    }
-
-    private static final TimeValue RETRY_STATS_WINDOW = TimeValue.timeValueMinutes(5);
-
-    private static class AwsApiRetryStats {
-        private final LongAdder requests = new LongAdder();
-        private final LongAdder retries = new LongAdder();
-        private final LongAdder throttles = new LongAdder();
-    }
-
-    private volatile AwsApiRetryStats awsApiRetryStats = new AwsApiRetryStats();
-
-    private void maybeLogRetryStats() {
-        var stats = awsApiRetryStats;
-        awsApiRetryStats = new AwsApiRetryStats();
-        long requests = stats.requests.sum();
-        long retries = stats.retries.sum();
-        long throttles = stats.throttles.sum();
-        boolean retried = retries > 0 || throttles > 0;
-        if (retried || logger.isDebugEnabled()) {
-            var message = new ESLogMessage(
-                "Recorded {} requests including {} retries and {} throttles within {}",
-                requests,
-                retries,
-                throttles,
-                RETRY_STATS_WINDOW
-            ).withFields(Map.of("requests", requests, "retries", retries, "throttles", throttles));
-            logger.log(retried ? Level.WARN : Level.DEBUG, message);
-        }
-    }
-
-    private void recordRetryStats(Request<?> request) {
-        var stats = awsApiRetryStats;
-        var info = request.getAWSRequestMetrics().getTimingInfo();
-        stats.requests.add(getCounter(info, AWSRequestMetrics.Field.RequestCount));
-        stats.retries.add(getCounter(info, AWSRequestMetrics.Field.Exception));
-        stats.throttles.add(getCounter(info, AWSRequestMetrics.Field.ThrottleException));
-    }
-
-    private static long getCounter(TimingInfo info, AWSRequestMetrics.Field field) {
-        var counter = info.getCounter(field.name());
-        return counter != null ? counter.longValue() : 0L;
     }
 }

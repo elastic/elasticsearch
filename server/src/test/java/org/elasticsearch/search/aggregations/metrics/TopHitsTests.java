@@ -183,4 +183,8 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             XContentType.JSON
         );
     }
+
+    public void testSupportsParallelCollection() {
+        assertFalse(createTestAggregatorBuilder().supportsParallelCollection());
+    }
 }

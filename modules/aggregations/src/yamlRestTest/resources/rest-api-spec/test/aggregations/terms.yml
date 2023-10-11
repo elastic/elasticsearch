@@ -696,6 +696,9 @@ setup:
 
 ---
 "Global ordinals are loaded with the global_ordinals execution hint":
+  - skip:
+      version: all
+      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/99774
 
   - do:
       index:

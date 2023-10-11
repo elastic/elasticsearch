@@ -1256,6 +1256,14 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
     }
 
+    public void testNonExistingEnrichNoMatchField() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | enrich foo
+            """));
+        assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
+    }
+
     public void testNonExistingEnrichPolicyWithSimilarName() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test

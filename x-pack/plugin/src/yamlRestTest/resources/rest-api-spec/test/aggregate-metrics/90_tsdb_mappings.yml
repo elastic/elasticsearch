@@ -7,10 +7,6 @@ aggregate_double_metric with time series mappings:
       indices.create:
           index: test_index
           body:
-            settings:
-              index:
-                number_of_replicas: 0
-                number_of_shards: 2
             mappings:
               properties:
                 "@timestamp":
@@ -51,10 +47,6 @@ aggregate_double_metric with wrong time series mappings:
       indices.create:
         index: tsdb_index
         body:
-          settings:
-            index:
-              number_of_replicas: 0
-              number_of_shards: 2
           mappings:
             properties:
               "@timestamp":
@@ -95,7 +87,6 @@ aggregate_double_metric with wrong time series mappings:
         index: tsdb-fieldcap
         body:
           settings:
-            number_of_replicas: 0
             mode: time_series
             routing_path: [field1]
             time_series:

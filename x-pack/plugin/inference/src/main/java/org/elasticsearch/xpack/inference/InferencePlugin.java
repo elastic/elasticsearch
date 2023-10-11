@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAct
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
@@ -62,13 +62,16 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+    public static final String HTTP_CLIENT_SENDER_THREAD_POOL_NAME = "inference_http_client_sender";
     private final Settings settings;
-    private final SetOnce<HttpClient> httpClient = new SetOnce<>();
+    private final SetOnce<HttpClientManager> httpClientManager = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -119,8 +122,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        var httpSettings = new HttpSettings(settings, clusterService);
-        httpClient.set(HttpClient.create(httpSettings, threadPool));
+        httpClientManager.set(HttpClientManager.create(settings, threadPool, clusterService));
 
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
@@ -154,22 +156,35 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings unused) {
-        ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
-            UTILITY_THREAD_POOL_NAME,
-            0,
-            1,
-            TimeValue.timeValueMinutes(10),
-            false,
-            "xpack.inference.utility_thread_pool"
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
+        return List.of(
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                0,
+                1,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            ),
+            /*
+             * This executor is specifically for enqueuing requests to be sent. The underlying
+             * connection pool used by the http client will block if there are no available connections to lease.
+             * See here for more info: https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html
+             */
+            new ScalingExecutorBuilder(
+                HTTP_CLIENT_SENDER_THREAD_POOL_NAME,
+                0,
+                1,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.http_client_sender_thread_pool"
+            )
         );
-
-        return List.of(utility);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return HttpSettings.getSettings();
+        return Stream.concat(HttpSettings.getSettings().stream(), HttpClientManager.getSettings().stream()).collect(Collectors.toList());
     }
 
     @Override
@@ -194,8 +209,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public void close() {
-        if (httpClient.get() != null) {
-            IOUtils.closeWhileHandlingException(httpClient.get());
+        if (httpClientManager.get() != null) {
+            IOUtils.closeWhileHandlingException(httpClientManager.get());
         }
     }
 }

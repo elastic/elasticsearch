@@ -17,6 +17,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
+import com.amazonaws.util.TimingInfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -83,8 +85,13 @@ class S3BlobStore implements BlobStore {
     private final Meter meter;
     private final LongCounter requestCounter;
     private final LongGauge requestGauge;
+    private final LongHistogram responseTimeHistogram;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
+
+    private static final TimeValue RETRY_STATS_WINDOW = TimeValue.timeValueMinutes(5);
+
+    private volatile S3RequestRetryStats s3RequestRetryStats;
 
     S3BlobStore(
         S3Service service,
@@ -109,12 +116,44 @@ class S3BlobStore implements BlobStore {
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meter = meter;
-        this.requestCounter = this.meter.getLongCounter(S3Repository.TYPE + "_request_counter");
-        this.requestGauge = this.meter.getLongGauge(S3Repository.TYPE + "_request_gauge");
+        this.requestCounter = this.meter.getLongCounter(S3Repository.TYPE + ".request_counter");
+        this.requestGauge = this.meter.getLongGauge(S3Repository.TYPE + ".request_gauge");
+        this.responseTimeHistogram = this.meter.getLongHistogram(S3Repository.TYPE + ".response_time_histogram");
+        s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
+        threadPool.scheduleWithFixedDelay(() -> {
+            var priorRetryStats = s3RequestRetryStats;
+            s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
+            priorRetryStats.emitMetrics();
+        }, RETRY_STATS_WINDOW, threadPool.generic());
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-        return statsCollectors.getMetricCollector(operation, purpose);
+        var collector = statsCollectors.getMetricCollector(operation, purpose);
+        return new RequestMetricCollector() {
+
+            private final Map<String, Object> attributes = Map.of(
+                "repo",
+                repositoryMetadata.name(),
+                "operation",
+                operation.getKey(),
+                "purpose",
+                purpose.getKey()
+            );
+
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                s3RequestRetryStats.addRequest(request);
+                final TimingInfo timingInfo = request.getAWSRequestMetrics().getTimingInfo();
+                final long requestCount = S3RequestRetryStats.getCounter(timingInfo, AWSRequestMetrics.Field.RequestCount);
+                requestCounter.incrementBy(requestCount, attributes);
+                requestGauge.record(requestCount, attributes);
+                responseTimeHistogram.record(
+                    S3RequestRetryStats.getCounter(timingInfo, AWSRequestMetrics.Field.ClientExecuteTime),
+                    attributes
+                );
+                collector.collectMetrics(request, response);
+            }
+        };
     }
 
     public Executor getSnapshotExecutor() {
@@ -127,25 +166,20 @@ class S3BlobStore implements BlobStore {
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
     // issue
-    private class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+    private static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
 
         private final LongAdder counter = new LongAdder();
         private final Operation operation;
-        private final Map<String, Object> attributes;
 
-        private IgnoreNoResponseMetricsCollector(Operation operation, OperationPurpose purpose) {
+        private IgnoreNoResponseMetricsCollector(Operation operation) {
             this.operation = operation;
-            this.attributes = Map.of("repo", repositoryMetadata.name(), "operation", operation.getKey(), "purpose", purpose.getKey());
         }
 
         @Override
         public final void collectMetrics(Request<?> request, Response<?> response) {
             if (response != null) {
                 assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
-                final long requestCount = getRequestCount(request);
-                requestCounter.incrementBy(requestCount, attributes);
-                requestGauge.record(requestCount, attributes);
-                counter.add(requestCount);
+                counter.add(getRequestCount(request));
             }
         }
 
@@ -189,7 +223,7 @@ class S3BlobStore implements BlobStore {
         return service.client(repositoryMetadata);
     }
 
-    int getMaxRetries() {
+    final int getMaxRetries() {
         return service.settings(repositoryMetadata).maxRetries;
     }
 
@@ -358,11 +392,11 @@ class S3BlobStore implements BlobStore {
 
     record StatsKey(Operation operation, OperationPurpose purpose) {}
 
-    class StatsCollectors {
+    static class StatsCollectors {
         final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
 
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-            return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
+            return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation()));
         }
 
         Map<String, Long> statsMap() {
@@ -371,8 +405,8 @@ class S3BlobStore implements BlobStore {
             return Map.copyOf(m);
         }
 
-        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
-            return new IgnoreNoResponseMetricsCollector(operation, purpose);
+        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {
+            return new IgnoreNoResponseMetricsCollector(operation);
         }
     }
 }

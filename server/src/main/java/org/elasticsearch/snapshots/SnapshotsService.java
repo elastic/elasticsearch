@@ -2589,7 +2589,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         if (foundId == null) {
                             if (snapshotEntries.stream()
                                 .noneMatch(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotOrPattern))) {
-                                throw new SnapshotMissingException(repositoryName, snapshotOrPattern);
+                                final SnapshotMissingException snapshotMissingException = new SnapshotMissingException(
+                                    repositoryName,
+                                    snapshotOrPattern
+                                );
+                                logger.debug(snapshotMissingException.getMessage());
+                                throw snapshotMissingException;
                             }
                         } else {
                             snapshotIds.add(foundId);
@@ -3066,7 +3071,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     ActionListener.wrap(updatedRepoData -> {
                         logger.info("snapshots {} deleted", snapshotIds);
                         removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
-                    }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+                    }, ex -> {
+                        logger.debug(() -> "failed to complete snapshot deletion [" + deleteEntry + "]", ex);
+                        removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData);
+                    })
                 );
         }
     }

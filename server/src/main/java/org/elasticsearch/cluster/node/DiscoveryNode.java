@@ -257,7 +257,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.hostAddress = nodeStringDeduplicator.deduplicate(hostAddress);
         this.address = address;
         this.versionInfo = Objects.requireNonNullElse(versionInfo, VersionInformation.CURRENT);
-        this.features = Collections.unmodifiableSet(new TreeSet<>(features));    // keep it ordered for easier output
+        this.features = Set.copyOf(features);
         this.attributes = Map.copyOf(attributes);
         assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
             : "Node roles must not be provided as attributes but saw attributes " + attributes;
@@ -627,7 +627,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         builder.field("version", versionInfo.nodeVersion());
         builder.field("min_index_version", versionInfo.minIndexVersion());
         builder.field("max_index_version", versionInfo.maxIndexVersion());
-        builder.array("features", features.toArray(String[]::new));
+        builder.array("features", features.stream().sorted().toArray(String[]::new));   // sort the features for clearer output
         builder.endObject();
         return builder;
     }

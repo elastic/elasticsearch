@@ -17,13 +17,12 @@ import org.elasticsearch.plugins.PluginsService;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.NavigableSet;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -144,19 +143,19 @@ public class FeatureService {
         readSpecs();
 
         // use sorted sets here so they're easier to look through in info & debug output
-        NavigableMap<Version, NavigableSet<String>> declaredHistoricalFeatures = new TreeMap<>();
+        NavigableMap<Version, Set<String>> declaredHistoricalFeatures = new TreeMap<>();
         for (FeatureSpecification spec : FEATURE_SPECS.values()) {
             for (var f : spec.getHistoricalFeatures().entrySet()) {
                 if (FeatureEra.isPublishable(f.getValue().major) == false) continue;    // don't include, it's before the valid eras
-                declaredHistoricalFeatures.computeIfAbsent(f.getValue(), k -> new TreeSet<>()).add(f.getKey().id());
+                declaredHistoricalFeatures.computeIfAbsent(f.getValue(), k -> new HashSet<>()).add(f.getKey().id());
             }
         }
 
         // add in all features from previous versions
-        Set<String> featureAggregator = new TreeSet<>();
-        for (Map.Entry<Version, NavigableSet<String>> versions : declaredHistoricalFeatures.entrySet()) {
+        Set<String> featureAggregator = new HashSet<>();
+        for (Map.Entry<Version, Set<String>> versions : declaredHistoricalFeatures.entrySet()) {
             featureAggregator.addAll(versions.getValue());
-            versions.setValue(Collections.unmodifiableNavigableSet(new TreeSet<>(featureAggregator)));
+            versions.setValue(Set.copyOf(featureAggregator));
         }
 
         return Collections.unmodifiableNavigableMap(declaredHistoricalFeatures);
@@ -177,15 +176,12 @@ public class FeatureService {
     private static Set<String> calculateFeaturesFromSpecs() {
         readSpecs();
 
-        Set<String> features = new TreeSet<>();
-        for (FeatureSpecification spec : FEATURE_SPECS.values()) {
-            for (NodeFeature f : spec.getFeatures()) {
-                if (f.era().isPublishable()) {
-                    features.add(f.id());
-                }
-            }
-        }
-        return Collections.unmodifiableSet(features);
+        return FEATURE_SPECS.values()
+            .stream()
+            .flatMap(s -> s.getFeatures().stream())
+            .filter(f -> f.era().isPublishable())
+            .map(NodeFeature::id)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

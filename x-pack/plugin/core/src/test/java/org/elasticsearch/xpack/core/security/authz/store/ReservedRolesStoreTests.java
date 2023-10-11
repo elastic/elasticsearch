@@ -3417,6 +3417,24 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
     }
 
+    public void testEnrichUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("enrich_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
+        assertTrue(role.cluster().check("cluster:admin/xpack/enrich/put", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/enrich/execute", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/enrich/esql/resolve", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/enrich/esql/lookup", request, authentication));
+        assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
+        assertFalse(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")));
+        assertOnlyReadAllowed(role, ".enrich-foo");
+    }
+
     private IndexAbstraction mockIndexAbstraction(String name) {
         IndexAbstraction mock = mock(IndexAbstraction.class);
         when(mock.getName()).thenReturn(name);

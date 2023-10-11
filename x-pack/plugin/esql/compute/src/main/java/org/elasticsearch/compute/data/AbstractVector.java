@@ -40,6 +40,7 @@ abstract class AbstractVector implements Vector {
         if (released) {
             throw new IllegalStateException("can't release already released vector [" + this + "]");
         }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 

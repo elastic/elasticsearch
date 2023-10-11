@@ -11,8 +11,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.junit.ClassRule;
 
 import java.util.Map;
 
@@ -23,9 +27,34 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESRestTestCase {
-    // From build.gradle
-    private final String KEYSTORE_PASSWORD = "keystore-password";
-    private final int NUM_NODES = 2;
+
+    private static final String KEYSTORE_PASSWORD = "keystore-password";
+    private static final int NUM_NODES = 2;
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(NUM_NODES)
+        .keystorePassword(KEYSTORE_PASSWORD)
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.anonymous.roles", "anonymous")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.certificate", "transport.crt")
+        .setting("xpack.security.transport.ssl.key", "transport.key")
+        .setting("xpack.security.transport.ssl.key_passphrase", "transport-password")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .configFile("transport.key", Resource.fromClasspath("ssl/transport.key"))
+        .configFile("transport.crt", Resource.fromClasspath("ssl/transport.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .user("admin_user", "admin-password")
+        .user("test-user", "test-user-password", "user_role", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @SuppressWarnings("unchecked")
     public void testReloadSecureSettingsWithCorrectPassword() throws Exception {
@@ -33,7 +62,7 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
         request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
         final Response response = client().performRequest(request);
         final Map<String, Object> map = entityAsMap(response);
-        assertThat(ObjectPath.eval("cluster_name", map), equalTo("javaRestTest"));
+        assertThat(ObjectPath.eval("cluster_name", map), equalTo("test-cluster"));
         assertThat(map.get("nodes"), instanceOf(Map.class));
         final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
         assertThat(nodes.size(), equalTo(NUM_NODES));
@@ -50,7 +79,7 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
         request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + randomAlphaOfLength(7) + "\"}");
         final Response response = client().performRequest(request);
         final Map<String, Object> map = entityAsMap(response);
-        assertThat(ObjectPath.eval("cluster_name", map), equalTo("javaRestTest"));
+        assertThat(ObjectPath.eval("cluster_name", map), equalTo("test-cluster"));
         assertThat(map.get("nodes"), instanceOf(Map.class));
         final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
         assertThat(nodes.size(), equalTo(NUM_NODES));
@@ -71,7 +100,7 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
         final Request request = new Request("POST", "_nodes/reload_secure_settings");
         final Response response = client().performRequest(request);
         final Map<String, Object> map = entityAsMap(response);
-        assertThat(ObjectPath.eval("cluster_name", map), equalTo("javaRestTest"));
+        assertThat(ObjectPath.eval("cluster_name", map), equalTo("test-cluster"));
         assertThat(map.get("nodes"), instanceOf(Map.class));
         final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
         assertThat(nodes.size(), equalTo(NUM_NODES));

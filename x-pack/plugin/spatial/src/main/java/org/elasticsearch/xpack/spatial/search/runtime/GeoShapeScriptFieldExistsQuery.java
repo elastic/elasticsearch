@@ -29,5 +29,5 @@ public class GeoShapeScriptFieldExistsQuery extends AbstractGeoShapeScriptFieldQ
         return fieldName() + ":" + getClass().getSimpleName();
     }
 
-    // Superclass's equals and hashCode are great for this class
+    // Superclass's equals and hashCode are fine for this class
 }

@@ -29,7 +29,7 @@ import java.util.Objects;
 
 public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFieldQuery {
 
-    private final Component2DVisitor visitor;
+    private final Component2D component2D;
     private final LatLonGeometry[] geometries;
     private final ShapeRelation relation;
     private final GeoShapeIndexer indexer;
@@ -45,9 +45,8 @@ public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFiel
         super(script, leafFactory, fieldName);
         this.geometries = geometries;
         this.relation = relation;
-        final Component2D component2D = LatLonGeometry.create(geometries);
-        this.visitor = Component2DVisitor.getVisitor(component2D, relation.getLuceneRelation(), CoordinateEncoder.GEO);
-        indexer = new GeoShapeIndexer(Orientation.CCW, fieldName);
+        this.component2D = LatLonGeometry.create(geometries);
+        this.indexer = new GeoShapeIndexer(Orientation.CCW, fieldName);
     }
 
     @Override
@@ -55,7 +54,7 @@ public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFiel
         if (geometry == null) {
             return false;
         }
-        visitor.reset();
+        final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation.getLuceneRelation(), CoordinateEncoder.GEO);
         try {
             reader.reset(encodeGeometry(geometry));
             reader.visit(visitor);

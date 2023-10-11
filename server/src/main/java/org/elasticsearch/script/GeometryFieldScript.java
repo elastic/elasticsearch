@@ -119,6 +119,7 @@ public abstract class GeometryFieldScript extends AbstractFieldScript {
      * the document exists, otherwise 0.
      */
     public final int count() {
+        // Note that emitting multiple geometries gets handled by a GeometryCollection
         return geometries.isEmpty() ? 0 : 1;
     }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -77,8 +78,13 @@ class S3BlobStore implements BlobStore {
 
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
+    private final Meter meter;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
+
+    private static final TimeValue RETRY_STATS_WINDOW = TimeValue.timeValueMinutes(5);
+
+    private volatile S3RequestRetryStats s3RequestRetryStats;
 
     S3BlobStore(
         S3Service service,
@@ -89,7 +95,8 @@ class S3BlobStore implements BlobStore {
         String storageClass,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Meter meter
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -101,10 +108,24 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        this.meter = meter;
+        s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
+        threadPool.scheduleWithFixedDelay(() -> {
+            var priorRetryStats = s3RequestRetryStats;
+            s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
+            priorRetryStats.emitMetrics();
+        }, RETRY_STATS_WINDOW, threadPool.generic());
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-        return statsCollectors.getMetricCollector(operation, purpose);
+        var collector = statsCollectors.getMetricCollector(operation, purpose);
+        return new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                s3RequestRetryStats.addRequest(request);
+                collector.collectMetrics(request, response);
+            }
+        };
     }
 
     public Executor getSnapshotExecutor() {
@@ -174,7 +195,7 @@ class S3BlobStore implements BlobStore {
         return service.client(repositoryMetadata);
     }
 
-    int getMaxRetries() {
+    final int getMaxRetries() {
         return service.settings(repositoryMetadata).maxRetries;
     }
 

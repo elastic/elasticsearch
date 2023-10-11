@@ -37,6 +37,7 @@ import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -205,7 +206,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final Meter meter
     ) {
         super(
             metadata,
@@ -214,7 +216,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            meter
         );
         this.service = service;
         this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);
@@ -314,12 +317,12 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        IndexVersion repositoryMetaVersion,
+        long repositoryDataGeneration,
+        IndexVersion repositoryFormatIndexVersion,
         SnapshotDeleteListener listener
     ) {
         final SnapshotDeleteListener wrappedListener;
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion)) {
+        if (SnapshotsService.useShardGenerations(repositoryFormatIndexVersion)) {
             wrappedListener = listener;
         } else {
             wrappedListener = new SnapshotDeleteListener() {
@@ -351,7 +354,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                 }
             };
         }
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, wrappedListener);
+        super.deleteSnapshots(snapshotIds, repositoryDataGeneration, repositoryFormatIndexVersion, wrappedListener);
     }
 
     /**
@@ -408,7 +411,18 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata, bigArrays, threadPool);
+        return new S3BlobStore(
+            service,
+            bucket,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            metadata,
+            bigArrays,
+            threadPool,
+            meter
+        );
     }
 
     // only use for testing

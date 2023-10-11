@@ -40,8 +40,10 @@ public class RequestTask extends HttpTask {
 
     @Override
     protected void doRun() throws Exception {
+        assert context != null : "the http context must be set before calling doRun";
+
         try {
-            httpClient.send(request, listener);
+            httpClient.send(request, context, listener);
         } catch (IOException e) {
             logger.error(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);
             listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));

@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.ArrayList;
@@ -27,6 +28,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * An {@link java.util.concurrent.ExecutorService} for queuing and executing {@link RequestTask} containing
+ * {@link org.apache.http.client.methods.HttpUriRequest}. This class is useful because the
+ * {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager} will block when leasing a connection if no
+ * connections are available. To avoid blocking the inference transport threads, this executor will queue up the
+ * requests until connections are available.
+ *
+ * <b>NOTE:</b> It is the responsibility of the class constructing the
+ * {@link org.apache.http.client.methods.HttpUriRequest} to set a timeout for how long this executor will wait
+ * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
+ * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
+ */
 public class HttpRequestExecutorService extends AbstractExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
@@ -35,21 +48,35 @@ public class HttpRequestExecutorService extends AbstractExecutorService {
     private final BlockingQueue<HttpTask> queue;
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
+    private final HttpClientContext httpContext;
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
     public HttpRequestExecutorService(ThreadContext contextHolder, String serviceName) {
-        this.contextHolder = Objects.requireNonNull(contextHolder);
-        this.serviceName = Objects.requireNonNull(serviceName);
-        this.queue = new LinkedBlockingQueue<>();
+        this(contextHolder, serviceName, null);
     }
 
+    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+    public HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, @Nullable Integer capacity) {
+        this.contextHolder = Objects.requireNonNull(contextHolder);
+        this.serviceName = Objects.requireNonNull(serviceName);
+        this.httpContext = HttpClientContext.create();
+
+        if (capacity == null) {
+            this.queue = new LinkedBlockingQueue<>();
+        } else {
+            this.queue = new LinkedBlockingQueue<>(capacity);
+        }
+    }
+
+    /**
+     * Begin servicing tasks.
+     */
     public void start() {
         try {
             while (running.get()) {
                 HttpTask task = queue.take();
-                logger.error("got a task");
                 if (task.shouldShutdown() || running.get() == false) {
-                    logger.error("shutting down " + task.shouldShutdown() + " " + running.get());
+                    running.set(false);
                     logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
                 } else {
                     executeTask(task);
@@ -77,8 +104,10 @@ public class HttpRequestExecutorService extends AbstractExecutorService {
 
     @Override
     public void shutdown() {
-        running.set(false);
-        execute(new ShutdownTask());
+        if (running.compareAndSet(true, false)) {
+            // if this fails because the queue is full, that's ok, we just want to ensure that queue.take() returns
+            queue.offer(new ShutdownTask());
+        }
     }
 
     @Override
@@ -102,42 +131,38 @@ public class HttpRequestExecutorService extends AbstractExecutorService {
         return terminationLatch.await(timeout, unit);
     }
 
+    /**
+     * Execute the task at some point in the future.
+     * @param command the runnable task, must be a class that extends {@link HttpTask}
+     */
     @Override
     public void execute(Runnable command) {
         if (command == null) {
             return;
         }
 
+        assert command instanceof HttpTask;
+        HttpTask task = (HttpTask) command;
+        task.setContext(httpContext);
+
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-                format("Http executor service [%s] has shutdown", serviceName),
+                format("Failed to execute task because the http executor service [%s] has shutdown", serviceName),
                 true
             );
 
-            rejectCommand(command, rejected);
+            task.onRejection(rejected);
             return;
         }
 
-        assert command instanceof HttpTask;
-        HttpTask task = (HttpTask) command;
-
         boolean added = queue.offer(task);
         if (added == false) {
-            rejectCommand(
-                task,
-                new EsRejectedExecutionException(
-                    format("Http executor service [%s] queue is full. Unable to execute request", serviceName),
-                    false
-                )
+            EsRejectedExecutionException rejected = new EsRejectedExecutionException(
+                format("Failed to execute task because the http executor service [%s] queue is full", serviceName),
+                false
             );
-        }
-    }
 
-    private void rejectCommand(Runnable command, EsRejectedExecutionException exception) {
-        if (command instanceof AbstractRunnable runnable) {
-            runnable.onRejection(exception);
-        } else {
-            throw exception;
+            task.onRejection(rejected);
         }
     }
 }

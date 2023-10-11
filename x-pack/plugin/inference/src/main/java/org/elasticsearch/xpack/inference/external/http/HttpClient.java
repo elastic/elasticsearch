@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
@@ -70,11 +71,11 @@ public class HttpClient implements Closeable {
         }
     }
 
-    public void send(HttpUriRequest request, ActionListener<HttpResult> listener) throws IOException {
+    public void send(HttpUriRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
         // The caller must call start() first before attempting to send a request
-        assert status.get() == Status.STARTED;
+        assert status.get() == Status.STARTED : "call start() before attempting to send a request";
 
-        SocketAccess.doPrivileged(() -> client.execute(request, new FutureCallback<>() {
+        SocketAccess.doPrivileged(() -> client.execute(request, context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
                 respondUsingUtilityThread(response, request, listener);

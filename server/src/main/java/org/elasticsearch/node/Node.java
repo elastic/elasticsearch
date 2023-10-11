@@ -258,7 +258,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -539,6 +538,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(InferenceServicePlugin.class),
                 factoryContext
             );
+            resourcesToClose.add(inferenceServiceRegistry);
 
             final IngestService ingestService = new IngestService(
                 clusterService,
@@ -1690,6 +1690,8 @@ public class Node implements Closeable {
         toClose.add(nodeService);
         toClose.add(() -> stopWatch.stop().start("http"));
         toClose.add(injector.getInstance(HttpServerTransport.class));
+        toClose.add(() -> stopWatch.stop().start("inference"));
+        toClose.add(injector.getInstance(InferenceServiceRegistry.class));
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));

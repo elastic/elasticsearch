@@ -70,10 +70,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
-    public static final String HTTP_CLIENT_SENDER_THREAD_POOL_NAME = "inference_http_client_sender";
     private final Settings settings;
-    private final SetOnce<HttpClientManager> httpClientManager = new SetOnce<>();
     private final SetOnce<HttpRequestSenderFactory> httpRequestSenderFactory = new SetOnce<>();
+    // We'll keep a reference to the http manager just in case the inference services don't get closed individually
+    private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -124,8 +124,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        httpClientManager.set(HttpClientManager.create(settings, threadPool, clusterService));
-        httpRequestSenderFactory.set(new HttpRequestSenderFactory(threadPool, httpClientManager.get()));
+        httpManager.set(HttpClientManager.create(settings, threadPool, clusterService));
+        httpRequestSenderFactory.set(new HttpRequestSenderFactory(threadPool, httpManager.get()));
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
     }
@@ -198,8 +198,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public void close() {
-        if (httpClientManager.get() != null) {
-            IOUtils.closeWhileHandlingException(httpClientManager.get());
+        if (httpManager.get() != null) {
+            IOUtils.closeWhileHandlingException(httpManager.get());
         }
     }
 }

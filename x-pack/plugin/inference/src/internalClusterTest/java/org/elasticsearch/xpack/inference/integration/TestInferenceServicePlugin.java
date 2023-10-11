@@ -137,6 +137,9 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         public void start(Model model, ActionListener<Boolean> listener) {
             listener.onResponse(true);
         }
+
+        @Override
+        public void close() throws IOException {}
     }
 
     public static class TestServiceModel extends Model {

@@ -13,11 +13,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
+/**
+ * A helper class for constructing a {@link HttpRequestSender}.
+ */
 public class HttpRequestSenderFactory {
     private final ThreadPool threadPool;
     private final HttpClientManager httpClientManager;
@@ -31,7 +36,11 @@ public class HttpRequestSenderFactory {
         return new HttpRequestSender(serviceName, threadPool, httpClientManager);
     }
 
-    public static final class HttpRequestSender {
+    /**
+     * A class for providing a more friendly interface for sending an {@link HttpUriRequest}. This leverages the queuing logic for sending
+     * a request.
+     */
+    public static final class HttpRequestSender implements Closeable {
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
         private final HttpRequestExecutorService service;
@@ -43,15 +52,24 @@ public class HttpRequestSenderFactory {
             service = new HttpRequestExecutorService(threadPool.getThreadContext(), serviceName);
         }
 
+        /**
+         * Start various internal services. This is required before sending requests.
+         */
         public void start() {
             if (started.compareAndSet(false, true)) {
                 manager.start();
-                threadPool.executor(UTILITY_THREAD_POOL_NAME).submit(service::start);
+                threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
             }
         }
 
+        @Override
+        public void close() throws IOException {
+            manager.close();
+            service.shutdown();
+        }
+
         public void send(HttpUriRequest request, ActionListener<HttpResult> listener) {
-            assert started.get();
+            assert started.get() : "call start() before sending a request";
             service.execute(new RequestTask(request, manager.getHttpClient(), listener));
         }
     }

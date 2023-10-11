@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,13 +31,13 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  *
  * See <a href="https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html#d5e418">here for more info.</a>
  */
-public class IdleConnectionEvictor {
+public class IdleConnectionEvictor implements Closeable {
     private static final Logger logger = LogManager.getLogger(IdleConnectionEvictor.class);
 
     private final ThreadPool threadPool;
     private final NHttpClientConnectionManager connectionManager;
     private final TimeValue sleepTime;
-    private final TimeValue maxIdleTime;
+    private final AtomicReference<TimeValue> maxIdleTime = new AtomicReference<>();
     private final AtomicReference<Scheduler.Cancellable> cancellableTask = new AtomicReference<>();
 
     public IdleConnectionEvictor(
@@ -45,10 +46,14 @@ public class IdleConnectionEvictor {
         TimeValue sleepTime,
         TimeValue maxIdleTime
     ) {
-        this.threadPool = threadPool;
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.connectionManager = Objects.requireNonNull(connectionManager);
-        this.sleepTime = sleepTime;
-        this.maxIdleTime = maxIdleTime;
+        this.sleepTime = Objects.requireNonNull(sleepTime);
+        this.maxIdleTime.set(maxIdleTime);
+    }
+
+    public void setMaxIdleTime(TimeValue maxIdleTime) {
+        this.maxIdleTime.set(maxIdleTime);
     }
 
     public synchronized void start() {
@@ -61,8 +66,8 @@ public class IdleConnectionEvictor {
         Scheduler.Cancellable task = threadPool.scheduleWithFixedDelay(() -> {
             try {
                 connectionManager.closeExpiredConnections();
-                if (maxIdleTime != null) {
-                    connectionManager.closeIdleConnections(maxIdleTime.millis(), TimeUnit.MILLISECONDS);
+                if (maxIdleTime.get() != null) {
+                    connectionManager.closeIdleConnections(maxIdleTime.get().millis(), TimeUnit.MILLISECONDS);
                 }
             } catch (Exception e) {
                 logger.warn("HTTP connection eviction failed", e);
@@ -72,7 +77,8 @@ public class IdleConnectionEvictor {
         cancellableTask.set(task);
     }
 
-    public void stop() {
+    @Override
+    public void close() {
         if (cancellableTask.get() != null) {
             cancellableTask.get().cancel();
         }

@@ -31,7 +31,7 @@ public class HttpClientManager implements Closeable {
      *
      * https://stackoverflow.com/questions/30989637/how-to-decide-optimal-settings-for-setmaxtotal-and-setdefaultmaxperroute
      */
-    static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
+    public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_connections",
         // TODO pick a reasonable values here
         20,
@@ -42,7 +42,7 @@ public class HttpClientManager implements Closeable {
     );
 
     private static final TimeValue DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME = TimeValue.timeValueSeconds(10);
-    static final Setting<TimeValue> CONNECTION_EVICTION_THREAD_INTERVAL_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> CONNECTION_EVICTION_THREAD_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.inference.http.connection_eviction_interval",
         DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME,
         Setting.Property.NodeScope,
@@ -50,7 +50,7 @@ public class HttpClientManager implements Closeable {
     );
 
     private static final TimeValue DEFAULT_CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING = DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME;
-    static final Setting<TimeValue> CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING = Setting.timeSetting(
         "xpack.inference.http.connection_eviction_max_idle_time",
         DEFAULT_CONNECTION_EVICTION_MAX_IDLE_TIME_SETTING,
         Setting.Property.NodeScope,
@@ -128,7 +128,7 @@ public class HttpClientManager implements Closeable {
     @Override
     public void close() throws IOException {
         httpClient.close();
-        connectionEvictor.stop();
+        connectionEvictor.close();
     }
 
     private void setMaxConnections(int maxConnections) {
@@ -136,21 +136,26 @@ public class HttpClientManager implements Closeable {
         connectionManager.setDefaultMaxPerRoute(maxConnections);
     }
 
+    // This is only used for testing
+    boolean isEvictionThreadRunning() {
+        return connectionEvictor.isRunning();
+    }
+
     // default for testing
     void setEvictionInterval(TimeValue evictionInterval) {
+        logger.error("called set eviction interval " + evictionInterval);
         evictorSettings = new EvictorSettings(evictionInterval, evictorSettings.evictionMaxIdle);
 
-        connectionEvictor.stop();
+        connectionEvictor.close();
         connectionEvictor = createConnectionEvictor();
         connectionEvictor.start();
     }
 
     void setEvictionMaxIdle(TimeValue evictionMaxIdle) {
-        evictorSettings = new EvictorSettings(evictorSettings.evictionInterval, evictionMaxIdle);
+        logger.error("called set eviction max idle " + evictionMaxIdle);
 
-        connectionEvictor.stop();
-        connectionEvictor = createConnectionEvictor();
-        connectionEvictor.start();
+        evictorSettings = new EvictorSettings(evictorSettings.evictionInterval, evictionMaxIdle);
+        connectionEvictor.setMaxIdleTime(evictionMaxIdle);
     }
 
     private static class EvictorSettings {

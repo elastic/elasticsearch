@@ -27,7 +27,6 @@ import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1)
 public class EsqlActionBreakerIT extends EsqlActionIT {
 
     public static class InternalTransportSettingPlugin extends Plugin {

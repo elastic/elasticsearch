@@ -82,7 +82,7 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasks() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasDeferredTasks() && random.nextBoolean()) {
                 advanceTime();
             } else if (hasRunnableTasks()) {
@@ -92,7 +92,7 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasksInTimeOrder() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasRunnableTasks()) {
                 runRandomTask();
             } else {
@@ -113,6 +113,13 @@ public class DeterministicTaskQueue {
      */
     public boolean hasDeferredTasks() {
         return deferredTasks.isEmpty() == false;
+    }
+
+    /**
+     * @return whether there are any runnable or deferred tasks
+     */
+    public boolean hasAnyTasks() {
+        return hasDeferredTasks() || hasRunnableTasks();
     }
 
     /**

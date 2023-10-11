@@ -245,7 +245,7 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testTooManyEval() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyEval(1000));
@@ -286,7 +286,7 @@ public class HeapAttackIT extends ESRestTestCase {
         fetchManyBigFields(100);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testFetchTooManyBigFields() throws IOException {
         initManyBigFieldsIndex(500);
         assertCircuitBreaks(() -> fetchManyBigFields(500));
@@ -342,7 +342,7 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testFetchTooManyMvLongs() throws IOException {
         initMvLongsIndex(500, 100, 1000);
         assertCircuitBreaks(() -> fetchMvLongs());

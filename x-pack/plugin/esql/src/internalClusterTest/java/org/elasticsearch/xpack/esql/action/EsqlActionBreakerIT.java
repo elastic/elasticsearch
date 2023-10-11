@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -23,16 +23,25 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100147")
+@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1)
 public class EsqlActionBreakerIT extends EsqlActionIT {
+
+    public static class InternalTransportSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(IGNORE_DESERIALIZATION_ERRORS_SETTING);
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
+        plugins.add(InternalTransportSettingPlugin.class);
         return plugins;
     }
 
@@ -55,6 +64,8 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            // allow reading pages from network can trip the circuit breaker
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
             .build();
     }
 

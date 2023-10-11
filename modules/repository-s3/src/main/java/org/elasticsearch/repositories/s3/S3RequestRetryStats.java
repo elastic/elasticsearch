@@ -58,7 +58,7 @@ public class S3RequestRetryStats {
         }
     }
 
-    public static long getCounter(TimingInfo info, AWSRequestMetrics.Field field) {
+    private static long getCounter(TimingInfo info, AWSRequestMetrics.Field field) {
         var counter = info.getCounter(field.name());
         return counter != null ? counter.longValue() : 0L;
     }

@@ -17,7 +17,6 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.util.AWSRequestMetrics;
-import com.amazonaws.util.TimingInfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,9 +31,9 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongGauge;
-import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -84,8 +83,8 @@ class S3BlobStore implements BlobStore {
     private final Executor snapshotExecutor;
     private final Meter meter;
     private final LongCounter requestCounter;
-    private final LongGauge clientTimeGauge;
-    private final LongHistogram clientTimeHistogram;
+    private final DoubleGauge clientTimeGauge;
+    private final DoubleHistogram clientTimeHistogram;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
@@ -117,8 +116,8 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meter = meter;
         this.requestCounter = this.meter.getLongCounter(S3Repository.TYPE + ".request_counter");
-        this.clientTimeGauge = this.meter.getLongGauge(S3Repository.TYPE + ".client_time_gauge");
-        this.clientTimeHistogram = this.meter.getLongHistogram(S3Repository.TYPE + ".client_time_histogram");
+        this.clientTimeGauge = this.meter.getDoubleGauge(S3Repository.TYPE + ".client_time_gauge");
+        this.clientTimeHistogram = this.meter.getDoubleHistogram(S3Repository.TYPE + ".client_time_histogram");
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {
             var priorRetryStats = s3RequestRetryStats;
@@ -143,12 +142,12 @@ class S3BlobStore implements BlobStore {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
                 s3RequestRetryStats.addRequest(request);
-                final TimingInfo timingInfo = request.getAWSRequestMetrics().getTimingInfo();
-                final long requestCount = S3RequestRetryStats.getCounter(timingInfo, AWSRequestMetrics.Field.RequestCount);
-                requestCounter.incrementBy(requestCount, attributes);
-                final long clientTime = S3RequestRetryStats.getCounter(timingInfo, AWSRequestMetrics.Field.ClientExecuteTime);
-                clientTimeGauge.record(clientTime, attributes);
-                clientTimeHistogram.record(clientTime, attributes);
+                requestCounter.incrementBy(getRequestCount(request), attributes);
+                final Double clientTime = request.getAWSRequestMetrics().getTimingInfo().getTimeTakenMillisIfKnown();
+                if (clientTime != null) {
+                    clientTimeGauge.record(clientTime, attributes);
+                    clientTimeHistogram.record(clientTime, attributes);
+                }
                 collector.collectMetrics(request, response);
             }
         };

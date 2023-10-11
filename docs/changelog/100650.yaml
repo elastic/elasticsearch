@@ -3,4 +3,4 @@ summary: "ESQL: Improve verifier error for incorrect agg declaration"
 area: ES|QL
 type: bug
 issues:
- - 100634
+ - 100641

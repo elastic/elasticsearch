@@ -143,7 +143,6 @@ public class HttpClientManager implements Closeable {
 
     // default for testing
     void setEvictionInterval(TimeValue evictionInterval) {
-        logger.error("called set eviction interval " + evictionInterval);
         evictorSettings = new EvictorSettings(evictionInterval, evictorSettings.evictionMaxIdle);
 
         connectionEvictor.close();
@@ -152,8 +151,6 @@ public class HttpClientManager implements Closeable {
     }
 
     void setEvictionMaxIdle(TimeValue evictionMaxIdle) {
-        logger.error("called set eviction max idle " + evictionMaxIdle);
-
         evictorSettings = new EvictorSettings(evictorSettings.evictionInterval, evictionMaxIdle);
         connectionEvictor.setMaxIdleTime(evictionMaxIdle);
     }

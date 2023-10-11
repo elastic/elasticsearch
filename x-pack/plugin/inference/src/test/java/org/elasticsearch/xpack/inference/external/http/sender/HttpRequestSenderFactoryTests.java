@@ -58,7 +58,6 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
     @After
     public void shutdown() throws IOException, InterruptedException {
         if (thread != null) {
-            // thread.interrupt();
             thread.join(TIMEOUT.millis());
         }
 
@@ -83,37 +82,38 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
 
         var senderFactory = new HttpRequestSenderFactory(mockThreadPool, clientManager);
 
-        var sender = senderFactory.createSender("test_service");
-        sender.start();
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
 
-        int responseCode = randomIntBetween(200, 203);
-        String body = randomAlphaOfLengthBetween(2, 8096);
-        webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+            int responseCode = randomIntBetween(200, 203);
+            String body = randomAlphaOfLengthBetween(2, 8096);
+            webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
 
-        String paramKey = randomAlphaOfLength(3);
-        String paramValue = randomAlphaOfLength(3);
-        var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
+            String paramKey = randomAlphaOfLength(3);
+            String paramValue = randomAlphaOfLength(3);
+            var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-        sender.send(httpPost, listener);
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            sender.send(httpPost, listener);
 
-        var result = listener.actionGet(TIMEOUT);
+            var result = listener.actionGet(TIMEOUT);
 
-        assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
-        assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
-        assertThat(webServer.requests(), hasSize(1));
-        assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.getURI().getPath()));
-        assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
-        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-        sender.close();
+            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
+            assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
+            assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.getURI().getPath()));
+            assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        }
     }
 
-    public void testHttpRequestSender_Throws_WhenCallingSendBeforeStart() {
+    public void testHttpRequestSender_Throws_WhenCallingSendBeforeStart() throws Exception {
         var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager);
 
-        var sender = senderFactory.createSender("test_service");
-        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-        var thrownException = expectThrows(AssertionError.class, () -> sender.send(mock(HttpUriRequest.class), listener));
-        assertThat(thrownException.getMessage(), is("call start() before sending a request"));
+        try (var sender = senderFactory.createSender("test_service")) {
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(AssertionError.class, () -> sender.send(mock(HttpUriRequest.class), listener));
+            assertThat(thrownException.getMessage(), is("call start() before sending a request"));
+        }
     }
 }

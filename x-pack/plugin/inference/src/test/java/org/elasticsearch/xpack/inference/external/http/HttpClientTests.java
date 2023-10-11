@@ -225,8 +225,8 @@ public class HttpClientTests extends ESTestCase {
             name,
             new ScalingExecutorBuilder(
                 UTILITY_THREAD_POOL_NAME,
-                100,
-                100,
+                1,
+                4,
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.utility_thread_pool"

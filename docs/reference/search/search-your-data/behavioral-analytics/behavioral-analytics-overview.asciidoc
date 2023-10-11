@@ -1,4 +1,4 @@
-[[behavioral-behavioral-analytics-overview]]
+[[behavioral-analytics-overview]]
 == Behavioral Analytics
 
 Behavioral Analytics is an analytics event collection platform introduced to Elastic in version *8.7.0*.

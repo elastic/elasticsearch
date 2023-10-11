@@ -196,6 +196,25 @@ public class BasicPageTests extends SerializationTestCase {
         }
     }
 
+    public void testPageMultiRelease() {
+        int positions = randomInt(1024);
+        var block = new IntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock();
+        Page page = new Page(block);
+        page.releaseBlocks();
+        assertThat(block.isReleased(), is(true));
+        page.releaseBlocks();
+    }
+
+    public void testNewPageAndRelease() {
+        int positions = randomInt(1024);
+        var blockA = new IntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock();
+        var blockB = new IntArrayVector(IntStream.range(0, positions).toArray(), positions).asBlock();
+        Page page = new Page(blockA, blockB);
+        Page newPage = page.newPageAndRelease(blockA);
+        assertThat(blockA.isReleased(), is(false));
+        assertThat(blockB.isReleased(), is(true));
+    }
+
     BytesRefArray bytesRefArrayOf(String... values) {
         var array = new BytesRefArray(values.length, bigArrays);
         Arrays.stream(values).map(BytesRef::new).forEach(array::append);

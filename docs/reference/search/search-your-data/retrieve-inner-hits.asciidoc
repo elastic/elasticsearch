@@ -1,5 +1,5 @@
 [[inner-hits]]
-== Retrieve inner hits
+=== Retrieve inner hits
 
 The <<parent-join, parent-join>> and <<nested, nested>> features allow the return of documents that
 have matches in a different scope. In the parent/child case, parent documents are returned based on matches in child
@@ -56,7 +56,7 @@ If `inner_hits` is defined on a query that supports it then each search hit will
 
 [discrete]
 [[inner-hits-options]]
-=== Options
+==== Options
 
 Inner hits support the following options:
 
@@ -82,7 +82,7 @@ Inner hits also supports the following per document features:
 
 [discrete]
 [[nested-inner-hits]]
-=== Nested inner hits
+==== Nested inner hits
 
 The nested `inner_hits` can be used to include nested inner objects as inner hits to a search hit.
 
@@ -199,7 +199,7 @@ document that contained the comment.
 
 [discrete]
 [[nested-inner-hits-source]]
-==== Nested inner hits and +_source+
+===== Nested inner hits and +_source+
 
 Nested document don't have a `_source` field, because the entire source of document is stored with the root document under
 its `_source` field. To include the source of just the nested document, the source of the root document is parsed and just
@@ -314,7 +314,7 @@ Response not included in text but tested for completeness sake.
 
 [discrete]
 [[hierarchical-nested-inner-hits]]
-=== Hierarchical levels of nested object fields and inner hits.
+==== Hierarchical levels of nested object fields and inner hits.
 
 If a mapping has multiple levels of hierarchical nested object fields each level can be accessed via dot notated path.
 For example if there is a `comments` nested field that contains a `votes` nested field and votes should directly be returned
@@ -434,7 +434,7 @@ This indirect referencing is only supported for nested inner hits.
 
 [discrete]
 [[parent-child-inner-hits]]
-=== Parent/child inner hits
+==== Parent/child inner hits
 
 The parent/child `inner_hits` can be used to include parent or child:
 

@@ -16,8 +16,7 @@ import java.io.IOException;
  * Vector that stores double values.
  * This class is generated. Do not edit it.
  */
-public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, FilterDoubleVector, DoubleArrayVector,
-    DoubleBigArrayVector {
+public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector {
     double getDouble(int position);
 
     @Override

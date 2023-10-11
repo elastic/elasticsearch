@@ -2,7 +2,8 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-unix
     display-name: "elastic / elasticsearch # %BRANCH% - unix compatibility"
-    description: "Elasticsearch %BRANCH% unix compatibility testing.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     project-type: matrix
     node: master
     child-workspace: "/var/lib/jenkins/workspace/elastic+elasticsearch+%BRANCH%+multijob+platform-support-unix"
@@ -34,7 +35,7 @@
             - "almalinux-8&&immutable"
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA11_HOME=$HOME/.java/java11

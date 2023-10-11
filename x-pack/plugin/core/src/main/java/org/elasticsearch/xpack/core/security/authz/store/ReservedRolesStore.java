@@ -607,7 +607,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "enrich_user",
                     new String[] { "manage_enrich", "manage_ingest_pipelines", "monitor" },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").privileges("manage", "read", "write").build() },
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .indices(".enrich-*")
+                            .privileges("read", "view_index_metadata")
+                            .allowRestrictedIndices(true)
+                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").privileges("manage", "write").build() },
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
                 )
@@ -712,11 +717,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         return Collections.emptyMap();
     }
 
-    public RoleDescriptor roleDescriptor(String role) {
+    public static RoleDescriptor roleDescriptor(String role) {
         return RESERVED_ROLES.get(role);
     }
 
-    public Collection<RoleDescriptor> roleDescriptors() {
+    public static Collection<RoleDescriptor> roleDescriptors() {
         return RESERVED_ROLES.values();
     }
 

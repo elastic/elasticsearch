@@ -56,7 +56,6 @@ import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.test.BuildUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -102,7 +101,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     public void setUp() throws Exception {
         super.setUp();
         clusterName = randomAlphaOfLength(5);
-        version = VersionUtils.randomVersion(random()).toString();
+        version = randomAlphaOfLengthBetween(6, 32);
         clusterStatus = randomFrom(ClusterHealthStatus.values());
         usages = emptyList();
         clusterStats = mock(ClusterStatsResponse.class);

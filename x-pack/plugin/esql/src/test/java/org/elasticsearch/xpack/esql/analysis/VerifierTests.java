@@ -298,7 +298,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnfinishedAggFunction() {
-        assertEquals("1:23: incomplete aggregate function declaration; add parenthesis to [avg]", error("from test | stats c = avg"));
+        assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
     }
 
     private String error(String query) {

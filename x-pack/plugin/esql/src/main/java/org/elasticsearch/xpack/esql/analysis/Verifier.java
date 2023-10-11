@@ -98,7 +98,7 @@ public class Verifier {
                         var child = as.child();
                         if (child instanceof UnresolvedAttribute u) {
                             failures.add(
-                                fail(child, "incomplete aggregate function declaration; add parenthesis to [{}]", child.sourceText())
+                                fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText())
                             );
                         }
                     }

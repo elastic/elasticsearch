@@ -50,6 +50,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private static final TransportVersion LICENSED_PLUGINS_SUPPORT = TransportVersions.V_7_11_0;
     private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersions.V_8_3_0;
     private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersions.V_8_4_0;
+    private static final Version BWC_PLACEHOLDER_VERSION = Version.V_8_12_0;
 
     private final String name;
     private final String description;
@@ -166,13 +167,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(description);
         out.writeString(version);
         if (out.getTransportVersion().before(TransportVersions.PLUGIN_DESCRIPTOR_STRING_VERSION)) {
-            // TODO[wrb]: should we send a placeholder if we don't have a semantic version?
             try {
-                Version v = Version.fromString(elasticsearchVersion);
-                Version.writeVersion(v, out);
+                Version.writeVersion(Version.fromString(elasticsearchVersion), out);
             } catch (IllegalArgumentException e) {
                 // can't parse current version, so send placeholder
-                Version.writeVersion(Version.fromString("8.12.0"), out);
+                Version.writeVersion(BWC_PLACEHOLDER_VERSION, out);
             }
         } else {
             out.writeString(elasticsearchVersion);
@@ -406,9 +405,15 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      *
      * @return an Elasticsearch version
      */
-    // TODO[wrb]: oh the outside world...
     public Version getElasticsearchVersion() {
-        return Version.fromString(elasticsearchVersion);
+        try {
+            return Version.fromString(elasticsearchVersion);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(
+                "The plugin descriptor cannot yet use opaque Elasticsearch version identifier [" + elasticsearchVersion + "]",
+                e
+            );
+        }
     }
 
     /**

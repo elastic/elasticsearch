@@ -1,6 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
@@ -22,6 +29,8 @@ import java.io.IOException;
 import java.util.List;
 
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
+
+    private static final Version DSL_DEFAULT_RETENTION_VERSION = V_8_12_0;
 
     // Legacy name we used for ILM policy configuration in versions prior to 8.12.0.
     private static final String EVENT_DATA_STREAM_LEGACY_ILM_POLICY_NAME = "behavioral_analytics-events-default_policy";
@@ -45,6 +54,11 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testBehavioralAnalyticsDataRetention() throws Exception {
+
+        assumeTrue(
+            "Data retention changed by default to DSL in " + DSL_DEFAULT_RETENTION_VERSION,
+            getOldClusterTestVersion().before(DSL_DEFAULT_RETENTION_VERSION)
+        );
 
         String legacyAnalyticsCollectionName = "oldstuff";
         String newAnalyticsCollectionName = "newstuff";

@@ -212,42 +212,41 @@ weights.
 
 [source,consol-result]
 ----
-"hits":[
-   {
-      "_index":"my-index",
-      "_id":"978UAYgBKCQMet06sLEy",
-      "_score":18.612831,
-      "_ignored":[
-         "content.keyword"
-      ],
-      "_source":{
-         "id":7361587,
-         "content":"For example, if you go for a run, you will mostly use the muscles in your lower body. Give yourself 2 days to rest those muscles so they have a chance to heal before you exercise them again. Not giving your muscles enough time to rest can cause muscle damage, rather than muscle development.",
-         "content_embedding":[
-          {
-            "muscular":0.075696334,
-            "mostly":0.52380747,
-            "practice":0.23430172,
-            "rehab":0.3673556,
-            "cycling":0.13947526,
-            "your":0.35725075,
-            "years":0.69484913,
-            "soon":0.005317828,
-            "leg":0.41748235,
-            "fatigue":0.3157955,
-            "rehabilitation":0.13636169,
-            "muscles":1.302141,
-            "exercises":0.36694175,
-            (...)
-          },
-          {
-            "model_id":".elser_model_2"
-          }
-         ]
+"hits": {
+  "total": {
+    "value": 10000,
+    "relation": "gte"
+  },
+  "max_score": 26.199875,
+  "hits": [
+    {
+      "_index": "my-index",
+      "_id": "FPr9HYsBag9jXmT8lEpI",
+      "_score": 26.199875,
+      "_source": {
+        "content_embedding": {
+          "muscular": 0.2821541,
+          "bleeding": 0.37929374,
+          "foods": 1.1718726,
+          "delayed": 1.2112266,
+          "cure": 0.6848574,
+          "during": 0.5886185,
+          "fighting": 0.35022718,
+          "rid": 0.2752442,
+          "soon": 0.2967024,
+          "leg": 0.37649947,
+          "preparation": 0.32974035,
+          "advance": 0.09652356,
+          (...)
+        },
+        "id": 1713868,
+        "model_id": ".elser_model_2",
+        "content": "For example, if you go for a run, you will mostly use the muscles in your lower body. Give yourself 2 days to rest those muscles so they have a chance to heal before you exercise them again. Not giving your muscles enough time to rest can cause muscle damage, rather than muscle development."
       }
-   },
-   (...)
-]
+    },
+    (...)
+  ]
+}
 ----
 // NOTCONSOLE
 

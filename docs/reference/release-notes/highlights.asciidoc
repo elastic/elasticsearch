@@ -28,8 +28,8 @@ endif::[]
 // tag::notable-highlights[]
 
 [discrete]
-[[introducing_es_ql_new_query_language_for_flexible_iterative_analytics]]
-=== Introducing ES|QL — A new query language for flexible, iterative analytics
+[[es_ql_new_query_language_for_flexible_iterative_analytics_in_technical_preview]]
+=== ES|QL — a new query language for flexible, iterative analytics in technical preview
 As the Elastic Platform has become more widely adopted for search, security, observability, and general analytics,
 analyst users require the ability to take data-as-ingested, transform it to fit their investigative needs
 post-ingestion, and derive insights from underlying Elasticsearch index data. They need a concise, integrated,

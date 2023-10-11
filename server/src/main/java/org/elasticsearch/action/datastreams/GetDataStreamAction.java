@@ -307,6 +307,24 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                 }
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
+                if (DataStream.isFailureStoreEnabled() && dataStream.getFailureStores().isEmpty() == false) {
+                    builder.field(DataStream.FAILURE_STORES_FIELD.getPreferredName());
+                    builder.startArray();
+                    for (Index failureStore : dataStream.getFailureStores()) {
+                        builder.startObject();
+                        failureStore.toXContentFragment(builder);
+                        IndexProperties indexProperties = indexSettingsValues.get(failureStore);
+                        if (indexProperties != null) {
+                            builder.field(PREFER_ILM.getPreferredName(), indexProperties.preferIlm());
+                            if (indexProperties.ilmPolicyName() != null) {
+                                builder.field(ILM_POLICY_FIELD.getPreferredName(), indexProperties.ilmPolicyName());
+                            }
+                            builder.field(MANAGED_BY.getPreferredName(), indexProperties.managedBy.displayValue);
+                        }
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                }
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
                 }

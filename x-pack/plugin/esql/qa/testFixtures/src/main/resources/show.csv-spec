@@ -14,7 +14,7 @@ acos                     |"double acos(n:integer|long|double|unsigned_long)"    
 asin                     |"double asin(n:integer|long|double|unsigned_long)"|n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double               | ""                      | false                | false
 atan                     |"double atan(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
 atan2                    |"double atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       |[y, x]                   |["integer|long|double|unsigned_long", "integer|long|double|unsigned_long"]            |["", ""]                                            |double                    | ""                      | [false, false]       | false
-auto_bucket              |? auto_bucket(arg1:?, arg2:?, arg3:?, arg4:?)           |[arg1, arg2, arg3, arg4] |[?, ?, ?, ?]      |["", "", "", ""]                                    |?                    | ""                      | [false, false, false, false]   | false
+auto_bucket              |"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date, to:integer|long|double|date)"           |[field, buckets, from, to] |["integer|long|double|date", "integer", "integer|long|double|date", "integer|long|double|date"]      |["", "", "", ""]                                    | "double|date"                    | ""                      | [false, false, false, false]   | false
 avg                      |? avg(arg1:?)                                           |arg1                     |?                 |   ""                                               |?                    | ""                      | false                | false
 case                     |? case(arg1:?, arg2...:?)                               |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
 ceil                     |"? ceil(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
@@ -103,7 +103,7 @@ synopsis:keyword
 "double asin(n:integer|long|double|unsigned_long)"     
 "double atan(n:integer|long|double|unsigned_long)"     
 "double atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       
-? auto_bucket(arg1:?, arg2:?, arg3:?, arg4:?)           
+"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date, to:integer|long|double|date)"
 ? avg(arg1:?)                                           
 ? case(arg1:?, arg2...:?)                               
 "? ceil(n:integer|long|double|unsigned_long)"     

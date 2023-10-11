@@ -1088,13 +1088,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryFormatIndexVersion,
                     Function.identity(),
                     listener.delegateFailureAndWrap(
-                        (l, v) -> cleanupStaleBlobs(
-                            Collections.emptyList(),
-                            originalIndexContainers,
-                            originalRootBlobs,
-                            originalRepositoryData,
-                            l.map(RepositoryCleanupResult::new)
-                        )
+                        (l, v) -> cleanupStaleBlobs(originalRepositoryData, l.map(RepositoryCleanupResult::new))
                     )
                 );
             }
@@ -1313,7 +1307,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * as well as any containers for indices that are now completely unreferenced.
          */
         private void cleanupUnlinkedRootAndIndicesBlobs(RepositoryData newRepositoryData, ActionListener<Void> listener) {
-            cleanupStaleBlobs(snapshotIds, originalIndexContainers, originalRootBlobs, newRepositoryData, listener.map(ignored -> null));
+            cleanupStaleBlobs(newRepositoryData, listener.map(ignored -> null));
         }
 
         private void cleanupUnlinkedShardLevelBlobs(
@@ -1357,20 +1351,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * Cleans up stale blobs directly under the repository root as well as all indices paths that aren't referenced by any existing
          * snapshots. This method is only to be called directly after a new {@link RepositoryData} was written to the repository.
          *
-         * @param snapshotIds             if this method is called as part of a delete operation, the snapshot ids just deleted, or empty if
-         *                                called as part of a repository cleanup
-         * @param originalIndexContainers all indices blob containers found in the repository before {@code newRepositoryData} was written
-         * @param originalRootBlobs       all blobs found directly under the repository root
          * @param newRepositoryData       new repository data that was just written
          * @param listener                listener to invoke with the combined {@link DeleteResult} of all blobs removed in this operation
          */
-        private void cleanupStaleBlobs(
-            Collection<SnapshotId> snapshotIds,
-            Map<String, BlobContainer> originalIndexContainers,
-            Map<String, BlobMetadata> originalRootBlobs,
-            RepositoryData newRepositoryData,
-            ActionListener<DeleteResult> listener
-        ) {
+        private void cleanupStaleBlobs(RepositoryData newRepositoryData, ActionListener<DeleteResult> listener) {
             final var blobsDeleted = new AtomicLong();
             final var bytesDeleted = new AtomicLong();
             try (

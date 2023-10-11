@@ -41,6 +41,13 @@ excludeList.add('aggregations/filter/Standard queries get cached')
 excludeList.add('aggregations/filter/Terms lookup gets cached')
 excludeList.add('aggregations/filters_bucket/cache hits')
 
+// The test checks that tsdb mappings report source as synthetic.
+// This was broken between 8.7 (synthetic source became the defaul for
+// tsdb) and 8.10 (fix ported to this version). The test doesn't
+// add much in mixed cluster setting and may be contributing to flaky
+// assertion errors like #100562.
+excludeList.add('tsdb/20_mapping/Synthetic source')
+
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {

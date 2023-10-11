@@ -11,7 +11,6 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -103,25 +102,6 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
                 len -= copyLen;
                 copyLen = Math.min(len, pageSize());
                 System.arraycopy(buf, offset, pages[pageIndex], 0, copyLen);
-            } while (len > copyLen);
-        }
-    }
-
-    @Override
-    public void set(long index, StreamInput input, int len) throws IOException {
-        assert index + len <= size();
-        int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        if (indexInPage + len <= pageSize()) {
-            input.readBytes(pages[pageIndex], indexInPage, len);
-        } else {
-            int copyLen = pageSize() - indexInPage;
-            input.readBytes(pages[pageIndex], indexInPage, copyLen);
-            do {
-                ++pageIndex;
-                len -= copyLen;
-                copyLen = Math.min(len, pageSize());
-                input.readBytes(pages[pageIndex], 0, copyLen);
             } while (len > copyLen);
         }
     }

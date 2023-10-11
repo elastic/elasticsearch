@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -211,6 +213,23 @@ class BytesReferenceStreamInput extends StreamInput {
             final long skipped = skip(mark);
             assert skipped == mark : skipped + " vs " + mark;
         }
+    }
+
+    @Override
+    public BytesReference readBytesReference(int length) throws IOException {
+        if (length == 0) {
+            return BytesArray.EMPTY;
+        }
+        final List<BytesReference> slices = new ArrayList<>();
+        while (length > 0) {
+            maybeNextSlice();
+            final byte[] bytes = slice.array().clone();
+            final int currentLen = Math.min(length, slice.remaining());
+            slices.add(new BytesArray(bytes, slice.position(), currentLen));
+            skip(currentLen);
+            length -= currentLen;
+        }
+        return CompositeBytesReference.of(slices.toArray(BytesReference[]::new));
     }
 
     @Override

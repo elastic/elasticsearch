@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -21,7 +20,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -261,24 +259,19 @@ public class BigArraysTests extends ESTestCase {
         array2.close();
     }
 
-    public void testByteArrayBulkSet() throws IOException {
+    public void testByteArrayBulkSet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
         random().nextBytes(array1);
         final ByteArray array2 = bigArrays.newByteArray(array1.length, randomBoolean());
-        final ByteArray array3 = bigArrays.newByteArray(array1.length, randomBoolean());
-        ByteArrayStreamInput input = new ByteArrayStreamInput(array1);
         for (int i = 0; i < array1.length;) {
             final int len = Math.min(array1.length - i, randomBoolean() ? randomInt(10) : randomInt(3 * PageCacheRecycler.BYTE_PAGE_SIZE));
             array2.set(i, array1, i, len);
-            array3.set(i, input, len);
             i += len;
         }
         for (int i = 0; i < array1.length; ++i) {
             assertEquals(array1[i], array2.get(i));
-            assertEquals(array1[i], array3.get(i));
         }
         array2.close();
-        array3.close();
     }
 
     public void testByteArrayEquals() {

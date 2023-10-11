@@ -20,7 +20,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -392,11 +391,6 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void set(long index, byte[] buf, int offset, int len) {
             in.set(index, buf, offset, len);
-        }
-
-        @Override
-        public void set(long index, StreamInput input, int len) throws IOException {
-            in.set(index, input, len);
         }
 
         @Override

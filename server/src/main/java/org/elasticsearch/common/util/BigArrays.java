@@ -14,7 +14,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
@@ -135,12 +134,6 @@ public class BigArrays {
         public void set(long index, byte[] buf, int offset, int len) {
             assert indexIsInt(index);
             System.arraycopy(buf, offset, array, (int) index, len);
-        }
-
-        @Override
-        public void set(long index, StreamInput input, int len) throws IOException {
-            assert indexIsInt(index);
-            input.readBytes(array, (int) index, len);
         }
 
         @Override

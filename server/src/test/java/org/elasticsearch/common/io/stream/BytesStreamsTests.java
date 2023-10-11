@@ -575,10 +575,16 @@ public class BytesStreamsTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         out.writeBytesReference(expected);
-        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final BytesReference loaded = in.readBytesReference();
-
-        assertThat(loaded, equalTo(expected));
+        {
+            final StreamInput in = out.bytes().streamInput(); // use the BytesReference version
+            final BytesReference loaded = in.readBytesReference();
+            assertThat(loaded, equalTo(expected));
+        }
+        {
+            final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes())); // use the byte[] version
+            final BytesReference loaded = in.readBytesReference();
+            assertThat(loaded, equalTo(expected));
+        }
     }
 
     private abstract static class BaseNamedWriteable implements NamedWriteable {

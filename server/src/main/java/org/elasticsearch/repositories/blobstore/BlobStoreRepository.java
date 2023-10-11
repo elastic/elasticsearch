@@ -849,6 +849,38 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
+    /**
+     * Runs cleanup actions on the repository. Increments the repository state id by one before executing any modifications on the
+     * repository.
+     * TODO: Add shard level cleanups
+     * TODO: Add unreferenced index metadata cleanup
+     * <ul>
+     *     <li>Deleting stale indices</li>
+     *     <li>Deleting unreferenced root level blobs</li>
+     * </ul>
+     *
+     * @param repositoryDataGeneration         Generation of {@link RepositoryData} at start of process
+     * @param repositoryFormatIndexVersion     Repository format version
+     * @param listener                         Listener to complete when done
+     */
+    public void cleanup(
+        long repositoryDataGeneration,
+        IndexVersion repositoryFormatIndexVersion,
+        ActionListener<RepositoryCleanupResult> listener
+    ) {
+        createSnapshotsDeletion(List.of(), repositoryDataGeneration, repositoryFormatIndexVersion, new ActionListener<>() {
+            @Override
+            public void onResponse(SnapshotsDeletion snapshotsDeletion) {
+                snapshotsDeletion.runCleanup(repositoryDataGeneration, repositoryFormatIndexVersion, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
     private void createSnapshotsDeletion(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
@@ -1295,201 +1327,208 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return absolutePath.substring(basePathLen);
             }).iterator();
         }
-    }
 
-    /**
-     * Cleans up stale blobs directly under the repository root as well as all indices paths that aren't referenced by any existing
-     * snapshots. This method is only to be called directly after a new {@link RepositoryData} was written to the repository.
-     *
-     * @param snapshotIds              if this method is called as part of a delete operation, the snapshot ids just deleted, or empty if
-     *                                 called as part of a repository cleanup
-     * @param originalIndexContainers  all indices blob containers found in the repository before {@code newRepositoryData} was written
-     * @param originalRootBlobs        all blobs found directly under the repository root
-     * @param newRepositoryData        new repository data that was just written
-     * @param listener                 listener to invoke with the combined {@link DeleteResult} of all blobs removed in this operation
-     */
-    private void cleanupStaleBlobs(
-        Collection<SnapshotId> snapshotIds,
-        Map<String, BlobContainer> originalIndexContainers,
-        Map<String, BlobMetadata> originalRootBlobs,
-        RepositoryData newRepositoryData,
-        ActionListener<DeleteResult> listener
-    ) {
-        final var blobsDeleted = new AtomicLong();
-        final var bytesDeleted = new AtomicLong();
-        try (var listeners = new RefCountingListener(listener.map(ignored -> DeleteResult.of(blobsDeleted.get(), bytesDeleted.get())))) {
+        /**
+         * Cleans up stale blobs directly under the repository root as well as all indices paths that aren't referenced by any existing
+         * snapshots. This method is only to be called directly after a new {@link RepositoryData} was written to the repository.
+         *
+         * @param snapshotIds             if this method is called as part of a delete operation, the snapshot ids just deleted, or empty if
+         *                                called as part of a repository cleanup
+         * @param originalIndexContainers all indices blob containers found in the repository before {@code newRepositoryData} was written
+         * @param originalRootBlobs       all blobs found directly under the repository root
+         * @param newRepositoryData       new repository data that was just written
+         * @param listener                listener to invoke with the combined {@link DeleteResult} of all blobs removed in this operation
+         */
+        private void cleanupStaleBlobs(
+            Collection<SnapshotId> snapshotIds,
+            Map<String, BlobContainer> originalIndexContainers,
+            Map<String, BlobMetadata> originalRootBlobs,
+            RepositoryData newRepositoryData,
+            ActionListener<DeleteResult> listener
+        ) {
+            final var blobsDeleted = new AtomicLong();
+            final var bytesDeleted = new AtomicLong();
+            try (
+                var listeners = new RefCountingListener(listener.map(ignored -> DeleteResult.of(blobsDeleted.get(), bytesDeleted.get())))
+            ) {
 
-            final List<String> staleRootBlobs = staleRootBlobs(newRepositoryData, originalRootBlobs.keySet());
-            if (staleRootBlobs.isEmpty() == false) {
-                staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
-                    try (ref) {
-                        logStaleRootLevelBlobs(newRepositoryData.getGenId() - 1, snapshotIds, staleRootBlobs);
-                        deleteFromContainer(blobContainer(), staleRootBlobs.iterator());
-                        for (final var staleRootBlob : staleRootBlobs) {
-                            bytesDeleted.addAndGet(originalRootBlobs.get(staleRootBlob).length());
+                final List<String> staleRootBlobs = staleRootBlobs(newRepositoryData, originalRootBlobs.keySet());
+                if (staleRootBlobs.isEmpty() == false) {
+                    staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
+                        try (ref) {
+                            logStaleRootLevelBlobs(newRepositoryData.getGenId() - 1, snapshotIds, staleRootBlobs);
+                            deleteFromContainer(blobContainer(), staleRootBlobs.iterator());
+                            for (final var staleRootBlob : staleRootBlobs) {
+                                bytesDeleted.addAndGet(originalRootBlobs.get(staleRootBlob).length());
+                            }
+                            blobsDeleted.addAndGet(staleRootBlobs.size());
+                        } catch (Exception e) {
+                            logger.warn(
+                                () -> format(
+                                    "[%s] The following blobs are no longer part of any snapshot [%s] but failed to remove them",
+                                    metadata.name(),
+                                    staleRootBlobs
+                                ),
+                                e
+                            );
                         }
-                        blobsDeleted.addAndGet(staleRootBlobs.size());
-                    } catch (Exception e) {
-                        logger.warn(
-                            () -> format(
-                                "[%s] The following blobs are no longer part of any snapshot [%s] but failed to remove them",
-                                metadata.name(),
-                                staleRootBlobs
-                            ),
-                            e
-                        );
+                    }));
+                }
+
+                final var survivingIndexIds = newRepositoryData.getIndices()
+                    .values()
+                    .stream()
+                    .map(IndexId::getId)
+                    .collect(Collectors.toSet());
+                for (final var indexEntry : originalIndexContainers.entrySet()) {
+                    final var indexId = indexEntry.getKey();
+                    if (survivingIndexIds.contains(indexId)) {
+                        continue;
                     }
-                }));
+                    staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
+                        try (ref) {
+                            logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexId);
+                            final var deleteResult = indexEntry.getValue().delete(OperationPurpose.SNAPSHOT);
+                            blobsDeleted.addAndGet(deleteResult.blobsDeleted());
+                            bytesDeleted.addAndGet(deleteResult.bytesDeleted());
+                            logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexId);
+                        } catch (IOException e) {
+                            logger.warn(() -> format("""
+                                [%s] index %s is no longer part of any snapshot in the repository, \
+                                but failed to clean up its index folder""", metadata.name(), indexId), e);
+                        }
+                    }));
+                }
             }
 
-            final var survivingIndexIds = newRepositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
-            for (final var indexEntry : originalIndexContainers.entrySet()) {
-                final var indexId = indexEntry.getKey();
-                if (survivingIndexIds.contains(indexId)) {
-                    continue;
+            // If we did the cleanup of stale indices purely using a throttled executor then there would be no backpressure to prevent us
+            // from falling arbitrarily far behind. But nor do we want to dedicate all the SNAPSHOT threads to stale index cleanups because
+            // that would slow down other snapshot operations in situations that do not need backpressure.
+            //
+            // The solution is to dedicate one SNAPSHOT thread to doing the cleanups eagerly, alongside the throttled executor which spreads
+            // the rest of the work across the other threads if they are free. If the eager cleanup loop doesn't finish before the next one
+            // starts then we dedicate another SNAPSHOT thread to the deletions, and so on, until eventually either we catch up or the
+            // SNAPSHOT pool is fully occupied with blob deletions, which pushes back on other snapshot operations.
+
+            staleBlobDeleteRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
+        }
+
+        /**
+         * Runs cleanup actions on the repository. Increments the repository state id by one before executing any modifications on the
+         * repository.
+         * TODO: Add shard level cleanups
+         * TODO: Add unreferenced index metadata cleanup
+         * <ul>
+         *     <li>Deleting stale indices</li>
+         *     <li>Deleting unreferenced root level blobs</li>
+         * </ul>
+         *
+         * @param originalRepositoryDataGeneration Current repository state id
+         * @param repositoryFormatIndexVersion     version of the updated repository metadata to write
+         * @param listener                         Listener to complete when done
+         */
+        public void runCleanup(
+            long originalRepositoryDataGeneration,
+            IndexVersion repositoryFormatIndexVersion,
+            ActionListener<RepositoryCleanupResult> listener
+        ) {
+            try {
+                if (isReadOnly()) {
+                    throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
                 }
-                staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
-                    try (ref) {
-                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexId);
-                        final var deleteResult = indexEntry.getValue().delete(OperationPurpose.SNAPSHOT);
-                        blobsDeleted.addAndGet(deleteResult.blobsDeleted());
-                        bytesDeleted.addAndGet(deleteResult.bytesDeleted());
-                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexId);
-                    } catch (IOException e) {
-                        logger.warn(() -> format("""
-                            [%s] index %s is no longer part of any snapshot in the repository, \
-                            but failed to clean up its index folder""", metadata.name(), indexId), e);
-                    }
-                }));
+                Map<String, BlobMetadata> originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
+                final RepositoryData originalRepositoryData = safeRepositoryData(originalRepositoryDataGeneration, originalRootBlobs);
+                final Map<String, BlobContainer> originalIndexContainers = blobStore().blobContainer(indicesPath())
+                    .children(OperationPurpose.SNAPSHOT);
+                final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
+                    .values()
+                    .stream()
+                    .map(IndexId::getId)
+                    .collect(Collectors.toSet());
+                final List<String> staleRootBlobs = staleRootBlobs(originalRepositoryData, originalRootBlobs.keySet());
+                if (survivingIndexIds.equals(originalIndexContainers.keySet()) && staleRootBlobs.isEmpty()) {
+                    // Nothing to clean up we return
+                    listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
+                } else {
+                    // write new index-N blob to ensure concurrent operations will fail
+                    writeIndexGen(
+                        originalRepositoryData,
+                        originalRepositoryDataGeneration,
+                        repositoryFormatIndexVersion,
+                        Function.identity(),
+                        listener.delegateFailureAndWrap(
+                            (l, v) -> cleanupStaleBlobs(
+                                Collections.emptyList(),
+                                originalIndexContainers,
+                                originalRootBlobs,
+                                originalRepositoryData,
+                                l.map(RepositoryCleanupResult::new)
+                            )
+                        )
+                    );
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
         }
 
-        // If we did the cleanup of stale indices purely using a throttled executor then there would be no backpressure to prevent us from
-        // falling arbitrarily far behind. But nor do we want to dedicate all the SNAPSHOT threads to stale index cleanups because that
-        // would slow down other snapshot operations in situations that do not need backpressure.
-        //
-        // The solution is to dedicate one SNAPSHOT thread to doing the cleanups eagerly, alongside the throttled executor which spreads
-        // the rest of the work across the other threads if they are free. If the eager cleanup loop doesn't finish before the next one
-        // starts then we dedicate another SNAPSHOT thread to the deletions, and so on, until eventually either we catch up or the SNAPSHOT
-        // pool is fully occupied with blob deletions, which pushes back on other snapshot operations.
-
-        staleBlobDeleteRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
-    }
-
-    /**
-     * Runs cleanup actions on the repository. Increments the repository state id by one before executing any modifications on the
-     * repository.
-     * TODO: Add shard level cleanups
-     * TODO: Add unreferenced index metadata cleanup
-     * <ul>
-     *     <li>Deleting stale indices</li>
-     *     <li>Deleting unreferenced root level blobs</li>
-     * </ul>
-     * @param originalRepositoryDataGeneration     Current repository state id
-     * @param repositoryFormatIndexVersion version of the updated repository metadata to write
-     * @param listener              Listener to complete when done
-     */
-    public void cleanup(
-        long originalRepositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
-        ActionListener<RepositoryCleanupResult> listener
-    ) {
-        try {
-            if (isReadOnly()) {
-                throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
-            }
-            Map<String, BlobMetadata> originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
-            final RepositoryData originalRepositoryData = safeRepositoryData(originalRepositoryDataGeneration, originalRootBlobs);
-            final Map<String, BlobContainer> originalIndexContainers = blobStore().blobContainer(indicesPath())
-                .children(OperationPurpose.SNAPSHOT);
-            final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
-                .values()
+        // Finds all blobs directly under the repository root path that are not referenced by the current RepositoryData
+        private static List<String> staleRootBlobs(RepositoryData originalRepositoryData, Set<String> originalRootBlobNames) {
+            final Set<String> allSnapshotIds = originalRepositoryData.getSnapshotIds()
                 .stream()
-                .map(IndexId::getId)
+                .map(SnapshotId::getUUID)
                 .collect(Collectors.toSet());
-            final List<String> staleRootBlobs = staleRootBlobs(originalRepositoryData, originalRootBlobs.keySet());
-            if (survivingIndexIds.equals(originalIndexContainers.keySet()) && staleRootBlobs.isEmpty()) {
-                // Nothing to clean up we return
-                listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
-            } else {
-                // write new index-N blob to ensure concurrent operations will fail
-                writeIndexGen(
-                    originalRepositoryData,
-                    originalRepositoryDataGeneration,
-                    repositoryFormatIndexVersion,
-                    Function.identity(),
-                    listener.delegateFailureAndWrap(
-                        (l, v) -> cleanupStaleBlobs(
-                            Collections.emptyList(),
-                            originalIndexContainers,
-                            originalRootBlobs,
-                            originalRepositoryData,
-                            l.map(RepositoryCleanupResult::new)
+            return originalRootBlobNames.stream().filter(blob -> {
+                if (FsBlobContainer.isTempBlobName(blob)) {
+                    return true;
+                }
+                if (blob.endsWith(".dat")) {
+                    final String foundUUID;
+                    if (blob.startsWith(SNAPSHOT_PREFIX)) {
+                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+                        assert SNAPSHOT_FORMAT.blobName(foundUUID).equals(blob);
+                    } else if (blob.startsWith(METADATA_PREFIX)) {
+                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
+                        assert GLOBAL_METADATA_FORMAT.blobName(foundUUID).equals(blob);
+                    } else {
+                        return false;
+                    }
+                    return allSnapshotIds.contains(foundUUID) == false;
+                } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
+                    // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
+                    try {
+                        return originalRepositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
+                    } catch (NumberFormatException nfe) {
+                        // odd case of an extra file with the index- prefix that we can't identify
+                        return false;
+                    }
+                }
+                return false;
+            }).toList();
+        }
+
+        private void logStaleRootLevelBlobs(
+            long originalRepositoryDataGeneration,
+            Collection<SnapshotId> snapshotIds,
+            List<String> blobsToDelete
+        ) {
+            if (logger.isInfoEnabled()) {
+                // If we're running root level cleanup as part of a snapshot delete we should not log the snapshot- and global metadata
+                // blobs associated with the just deleted snapshots as they are expected to exist and not stale. Otherwise every snapshot
+                // delete would also log a confusing INFO message about "stale blobs".
+                final Set<String> blobNamesToIgnore = snapshotIds.stream()
+                    .flatMap(
+                        snapshotId -> Stream.of(
+                            GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
+                            SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
+                            INDEX_FILE_PREFIX + originalRepositoryDataGeneration
                         )
                     )
-                );
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    // Finds all blobs directly under the repository root path that are not referenced by the current RepositoryData
-    private static List<String> staleRootBlobs(RepositoryData originalRepositoryData, Set<String> originalRootBlobNames) {
-        final Set<String> allSnapshotIds = originalRepositoryData.getSnapshotIds()
-            .stream()
-            .map(SnapshotId::getUUID)
-            .collect(Collectors.toSet());
-        return originalRootBlobNames.stream().filter(blob -> {
-            if (FsBlobContainer.isTempBlobName(blob)) {
-                return true;
-            }
-            if (blob.endsWith(".dat")) {
-                final String foundUUID;
-                if (blob.startsWith(SNAPSHOT_PREFIX)) {
-                    foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
-                    assert SNAPSHOT_FORMAT.blobName(foundUUID).equals(blob);
-                } else if (blob.startsWith(METADATA_PREFIX)) {
-                    foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
-                    assert GLOBAL_METADATA_FORMAT.blobName(foundUUID).equals(blob);
-                } else {
-                    return false;
+                    .collect(Collectors.toSet());
+                final List<String> blobsToLog = blobsToDelete.stream().filter(b -> blobNamesToIgnore.contains(b) == false).toList();
+                if (blobsToLog.isEmpty() == false) {
+                    logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToLog);
                 }
-                return allSnapshotIds.contains(foundUUID) == false;
-            } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
-                // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
-                try {
-                    return originalRepositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
-                } catch (NumberFormatException nfe) {
-                    // odd case of an extra file with the index- prefix that we can't identify
-                    return false;
-                }
-            }
-            return false;
-        }).toList();
-    }
-
-    private void logStaleRootLevelBlobs(
-        long originalRepositoryDataGeneration,
-        Collection<SnapshotId> snapshotIds,
-        List<String> blobsToDelete
-    ) {
-        if (logger.isInfoEnabled()) {
-            // If we're running root level cleanup as part of a snapshot delete we should not log the snapshot- and global metadata
-            // blobs associated with the just deleted snapshots as they are expected to exist and not stale. Otherwise every snapshot
-            // delete would also log a confusing INFO message about "stale blobs".
-            final Set<String> blobNamesToIgnore = snapshotIds.stream()
-                .flatMap(
-                    snapshotId -> Stream.of(
-                        GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
-                        SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
-                        INDEX_FILE_PREFIX + originalRepositoryDataGeneration
-                    )
-                )
-                .collect(Collectors.toSet());
-            final List<String> blobsToLog = blobsToDelete.stream().filter(b -> blobNamesToIgnore.contains(b) == false).toList();
-            if (blobsToLog.isEmpty() == false) {
-                logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToLog);
             }
         }
     }

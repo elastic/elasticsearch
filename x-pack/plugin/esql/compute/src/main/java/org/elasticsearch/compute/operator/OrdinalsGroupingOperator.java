@@ -133,25 +133,17 @@ public class OrdinalsGroupingOperator implements Operator {
             final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
                 new SegmentID(shardIndex, segmentIndexVector.getInt(0)),
                 k -> {
-                    final List<GroupingAggregator> groupingAggregators = createGroupingAggregators();
-                    boolean success = false;
                     try {
                         final LeafReaderContext leafReaderContext = source.reader().leaves().get(k.segmentIndex);
-                        final OrdinalSegmentAggregator ordinalSegmentAggregator = new OrdinalSegmentAggregator(
+                        return new OrdinalSegmentAggregator(
                             driverContext.blockFactory(),
-                            groupingAggregators,
+                            this::createGroupingAggregators,
                             withOrdinals,
                             leafReaderContext,
                             bigArrays
                         );
-                        success = true;
-                        return ordinalSegmentAggregator;
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
-                    } finally {
-                        if (success == false) {
-                            Releasables.close(groupingAggregators);
-                        }
                     }
                 }
             );
@@ -333,24 +325,29 @@ public class OrdinalsGroupingOperator implements Operator {
 
         OrdinalSegmentAggregator(
             BlockFactory blockFactory,
-            List<GroupingAggregator> aggregators,
+            Supplier<List<GroupingAggregator>> aggregatorsSupplier,
             ValuesSource.Bytes.WithOrdinals withOrdinals,
             LeafReaderContext leafReaderContext,
             BigArrays bigArrays
         ) throws IOException {
             boolean success = false;
+            List<GroupingAggregator> groupingAggregators = null;
+            BitArray bitArray = null;
             try {
+                final SortedSetDocValues sortedSetDocValues = withOrdinals.ordinalsValues(leafReaderContext);
+                bitArray = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
+                groupingAggregators = aggregatorsSupplier.get();
+                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues, blockFactory);
                 this.blockFactory = blockFactory;
-                this.aggregators = aggregators;
                 this.withOrdinals = withOrdinals;
                 this.leafReaderContext = leafReaderContext;
-                final SortedSetDocValues sortedSetDocValues = withOrdinals.ordinalsValues(leafReaderContext);
-                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues, blockFactory);
-                this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
+                this.aggregators = groupingAggregators;
+                this.visitedOrds = bitArray;
                 success = true;
             } finally {
                 if (success == false) {
-                    close();
+                    if (bitArray != null) Releasables.close(bitArray);
+                    if (groupingAggregators != null) Releasables.close(groupingAggregators);
                 }
             }
         }

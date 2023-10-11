@@ -69,6 +69,10 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         values.close();
     }
 

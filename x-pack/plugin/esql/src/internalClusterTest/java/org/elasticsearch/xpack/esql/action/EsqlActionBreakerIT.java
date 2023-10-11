@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlActionBreakerIT extends EsqlActionIT {
@@ -120,18 +121,13 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
                 .setId(Integer.toString(i))
                 .setSource("foo", "foo-" + i, "bar", "bar-" + (i * 2))
                 .get();
-            assertThat(
-                Strings.toString(response),
-                response.getResult(),
-                either(equalTo(DocWriteResponse.Result.CREATED)).or(equalTo(DocWriteResponse.Result.UPDATED))
-            );
+            assertThat(Strings.toString(response), response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
         }
         client().admin().indices().prepareRefresh("test_breaker").get();
         ensureYellow("test_breaker");
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 512)));
-        final ElasticsearchException e;
         try {
-            e = expectThrows(ElasticsearchException.class, () -> {
+            final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
                 var request = new EsqlQueryRequest();
                 request.query("from test_breaker | stats count_distinct(foo) by bar");
                 request.pragmas(randomPragmas());
@@ -139,19 +135,19 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
 
                 }
             });
+            logger.info("expected error", e);
+            if (e instanceof CircuitBreakingException) {
+                // The failure occurred before starting the drivers
+                assertThat(e.getMessage(), containsString("Data too large"));
+            } else {
+                // The failure occurred after starting the drivers
+                assertThat(e.getMessage(), containsString("Compute engine failure"));
+                assertThat(e.getMessage(), containsString("Data too large"));
+                assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
+                assertThat(e.getCause().getMessage(), containsString("Data too large"));
+            }
         } finally {
             setRequestCircuitBreakerLimit(null);
-        }
-        logger.info("expected error", e);
-        if (e instanceof CircuitBreakingException) {
-            // The failure occurred before starting the drivers
-            assertThat(e.getMessage(), containsString("Data too large"));
-        } else {
-            // The failure occurred after starting the drivers
-            assertThat(e.getMessage(), containsString("Compute engine failure"));
-            assertThat(e.getMessage(), containsString("Data too large"));
-            assertThat(e.getCause(), instanceOf(CircuitBreakingException.class));
-            assertThat(e.getCause().getMessage(), containsString("Data too large"));
         }
     }
 }

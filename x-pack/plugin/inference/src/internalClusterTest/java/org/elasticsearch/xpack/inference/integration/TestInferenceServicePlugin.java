@@ -103,11 +103,6 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
 
         }
 
-        // @Override
-        // public String name() {
-        // return NAME;
-        // }
-
         @Override
         public TestServiceModel parseRequestConfig(
             String modelId,

@@ -9,7 +9,7 @@
 package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -63,9 +63,7 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
         throws IOException {
         ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
-            throw new AggregationExecutionException(
-                "ValuesSource type " + rawValuesSource.toString() + "is not supported for aggregation " + this.name()
-            );
+            throw AggregationErrors.unsupportedValuesSourceType(rawValuesSource, this.name());
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(context.searcher().getIndexReader());

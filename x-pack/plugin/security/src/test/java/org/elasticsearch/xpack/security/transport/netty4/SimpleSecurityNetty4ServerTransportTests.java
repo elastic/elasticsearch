@@ -190,14 +190,12 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                service.boundAddress().publishAddress(),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
+                .name("TS_TPC")
+                .address(service.boundAddress().publishAddress())
+                .roles(emptySet())
+                .version(version0)
+                .build();
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             originalTransport.openConnection(node, connectionProfile, future);
             try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
@@ -876,7 +874,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     // A read call will execute the ssl handshake
                     int byteRead = acceptedSocket.getInputStream().read();
                     assertEquals('E', byteRead);
-                    doneLatch.await();
+                    safeAwait(doneLatch);
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 } finally {

@@ -24,7 +24,6 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -455,7 +454,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         final AtomicBoolean closed = new AtomicBoolean();
         final Thread updatingThread = new Thread(() -> {
             // synchronize starting with the listener thread and the main test thread
-            awaitQuietly(barrier);
+            safeAwait(barrier);
             for (int i = 0; i < numberOfIterations; i++) {
                 if (i > numberOfIterations / 2 && rarely() && closed.get() == false) {
                     closed.set(true);
@@ -470,13 +469,13 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                 }
             }
             // synchronize ending with the listener thread and the main test thread
-            awaitQuietly(barrier);
+            safeAwait(barrier);
         });
 
         final List<AtomicBoolean> invocations = new CopyOnWriteArrayList<>();
         final Thread listenersThread = new Thread(() -> {
             // synchronize starting with the updating thread and the main test thread
-            awaitQuietly(barrier);
+            safeAwait(barrier);
             for (int i = 0; i < numberOfIterations; i++) {
                 final AtomicBoolean invocation = new AtomicBoolean();
                 invocations.add(invocation);
@@ -502,7 +501,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                 );
             }
             // synchronize ending with the updating thread and the main test thread
-            awaitQuietly(barrier);
+            safeAwait(barrier);
         });
         updatingThread.start();
         listenersThread.start();
@@ -652,13 +651,4 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             return globalCheckpointListener;
         }
     }
-
-    private void awaitQuietly(final CyclicBarrier barrier) {
-        try {
-            barrier.await();
-        } catch (final BrokenBarrierException | InterruptedException e) {
-            throw new AssertionError(e);
-        }
-    }
-
 }

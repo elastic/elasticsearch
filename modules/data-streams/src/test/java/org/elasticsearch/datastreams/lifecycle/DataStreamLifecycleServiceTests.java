@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -44,6 +45,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -58,6 +60,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -79,8 +82,8 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -105,6 +108,7 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -244,6 +248,49 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         dataStreamLifecycleService.run(state);
         assertThat(clientSeenRequests.size(), is(3)); // rollover the write index, and force merge the other two
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+    }
+
+    public void testRetentionNotExecutedForTSIndicesWithinTimeBounds() {
+        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        // These ranges are on the edge of each other temporal boundaries.
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+        Instant start3 = currentTime.plus(2, ChronoUnit.HOURS);
+        Instant end3 = currentTime.plus(4, ChronoUnit.HOURS);
+
+        String dataStreamName = "logs_my-app_prod";
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
+        );
+        Metadata.Builder builder = Metadata.builder(clusterState.metadata());
+        DataStream dataStream = builder.dataStream(dataStreamName);
+        builder.put(
+            new DataStream(
+                dataStreamName,
+                dataStream.getIndices(),
+                dataStream.getGeneration() + 1,
+                dataStream.getMetadata(),
+                dataStream.isHidden(),
+                dataStream.isReplicated(),
+                dataStream.isSystem(),
+                dataStream.isAllowCustomRouting(),
+                dataStream.getIndexMode(),
+                DataStreamLifecycle.newBuilder().dataRetention(0L).build()
+            )
+        );
+        clusterState = ClusterState.builder(clusterState).metadata(builder).build();
+
+        dataStreamLifecycleService.run(clusterState);
+        assertThat(clientSeenRequests.size(), is(2)); // rollover the write index and one delete request for the index that's out of the
+        // TS time bounds
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        TransportRequest deleteIndexRequest = clientSeenRequests.get(1);
+        assertThat(deleteIndexRequest, instanceOf(DeleteIndexRequest.class));
+        // only the first generation index should be eligible for retention
+        assertThat(((DeleteIndexRequest) deleteIndexRequest).indices(), is(new String[] { dataStream.getIndices().get(0).getName() }));
     }
 
     public void testIlmManagedIndicesAreSkipped() {
@@ -1186,6 +1233,69 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(error, containsString("resource_already_exists_exception"));
     }
 
+    public void testTimeSeriesIndicesStillWithinTimeBounds() {
+        Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        // These ranges are on the edge of each other temporal boundaries.
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(4, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+        Instant start3 = currentTime.plus(2, ChronoUnit.HOURS);
+        Instant end3 = currentTime.plus(4, ChronoUnit.HOURS);
+
+        String dataStreamName = "logs_my-app_prod";
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
+        );
+        DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+
+        {
+            // test for an index for which `now` is outside its time bounds
+            Index firstGenIndex = dataStream.getIndices().get(0);
+            Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
+                clusterState.metadata(),
+                // the end_time for the first generation has lapsed
+                List.of(firstGenIndex),
+                currentTime::toEpochMilli
+            );
+            assertThat(indices.size(), is(0));
+        }
+
+        {
+            Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
+                clusterState.metadata(),
+                // the end_time for the first generation has lapsed, but the other 2 generations are still within bounds
+                dataStream.getIndices(),
+                currentTime::toEpochMilli
+            );
+            assertThat(indices.size(), is(2));
+            assertThat(indices, containsInAnyOrder(dataStream.getIndices().get(1), dataStream.getIndices().get(2)));
+        }
+
+        {
+            // non time_series indices are not within time bounds (they don't have any)
+            IndexMetadata indexMeta = IndexMetadata.builder(randomAlphaOfLengthBetween(10, 30))
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                        .build()
+                )
+                .build();
+
+            Metadata newMetadata = Metadata.builder(clusterState.metadata()).put(indexMeta, true).build();
+
+            Set<Index> indices = DataStreamLifecycleService.timeSeriesIndicesStillWithinTimeBounds(
+                newMetadata,
+                List.of(indexMeta.getIndex()),
+                currentTime::toEpochMilli
+            );
+            assertThat(indices.size(), is(0));
+        }
+    }
+
     /*
      * Creates a test cluster state with the given indexName. If customDataStreamLifecycleMetadata is not null, it is added as the value
      * of the index's custom metadata named "data_stream_lifecycle".
@@ -1294,17 +1404,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode getNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            nodeId,
-            nodeId,
-            "host",
-            "host_address",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE),
-            null
-        );
+        return DiscoveryNodeUtils.builder(nodeId)
+            .name(nodeId)
+            .ephemeralId(nodeId)
+            .address("host", "host_address", buildNewFakeTransportAddress())
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE))
+            .build();
     }
 
     /**

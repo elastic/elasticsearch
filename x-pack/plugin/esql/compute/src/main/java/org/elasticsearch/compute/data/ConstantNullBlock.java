@@ -68,7 +68,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public Block filter(int... positions) {
-        return new ConstantNullBlock(positions.length);
+        return blockFactory.newConstantNullBlock(positions.length);
     }
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

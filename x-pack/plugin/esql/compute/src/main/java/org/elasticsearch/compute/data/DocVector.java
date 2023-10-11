@@ -203,6 +203,10 @@ public class DocVector extends AbstractVector implements Vector {
         return shards.equals(other.shards) && segments.equals(other.segments) && docs.equals(other.docs);
     }
 
+    private static long ramBytesOrZero(int[] array) {
+        return array == null ? 0 : RamUsageEstimator.shallowSizeOf(array);
+    }
+
     public static long ramBytesEstimated(
         IntVector shards,
         IntVector segments,
@@ -211,7 +215,7 @@ public class DocVector extends AbstractVector implements Vector {
         int[] shardSegmentDocMapBackwards
     ) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shards) + RamUsageEstimator.sizeOf(segments) + RamUsageEstimator.sizeOf(docs)
-            + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapForwards) + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapBackwards);
+            + ramBytesOrZero(shardSegmentDocMapForwards) + ramBytesOrZero(shardSegmentDocMapBackwards);
     }
 
     @Override

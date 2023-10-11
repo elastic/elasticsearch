@@ -65,7 +65,7 @@ public class ActionTestUtils {
     }
 
     public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {
-        return ActionListener.wrap(consumer, e -> { throw new AssertionError(e); });
+        return ActionListener.wrap(consumer, e -> { throw new AssertionError("unexpected", e); });
     }
 
     public static ResponseListener wrapAsRestResponseListener(ActionListener<Response> listener) {

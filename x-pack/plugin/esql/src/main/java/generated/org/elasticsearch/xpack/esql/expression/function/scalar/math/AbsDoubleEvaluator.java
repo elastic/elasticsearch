@@ -33,7 +33,7 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   public Block.Ref eval(Page page) {
     try (Block.Ref fieldValRef = fieldVal.eval(page)) {
       if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       DoubleBlock fieldValBlock = (DoubleBlock) fieldValRef.block();
       DoubleVector fieldValVector = fieldValBlock.asVector();
@@ -45,23 +45,25 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock fieldValBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Abs.process(fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p))));
       }
-      result.appendDouble(Abs.process(fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldValVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Abs.process(fieldValVector.getDouble(p)));
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Abs.process(fieldValVector.getDouble(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

@@ -47,12 +47,12 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
       if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref newStrRef = newStr.eval(page)) {
         if (newStrRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         BytesRefBlock newStrBlock = (BytesRefBlock) newStrRef.block();
         BytesRefVector strVector = strBlock.asVector();
@@ -69,42 +69,44 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock newStrBlock) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef newStrScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef newStrScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (newStrBlock.isNull(p) || newStrBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
+        } catch (PatternSyntaxException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (newStrBlock.isNull(p) || newStrBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regex, newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
-      } catch (PatternSyntaxException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector,
       BytesRefVector newStrVector) {
-    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
-    BytesRef strScratch = new BytesRef();
-    BytesRef newStrScratch = new BytesRef();
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regex, newStrVector.getBytesRef(p, newStrScratch)));
-      } catch (PatternSyntaxException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef newStrScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regex, newStrVector.getBytesRef(p, newStrScratch)));
+        } catch (PatternSyntaxException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

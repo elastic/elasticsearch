@@ -98,9 +98,7 @@ public class Verifier {
                     if (agg instanceof Alias as) {
                         var child = as.child();
                         if (child instanceof UnresolvedAttribute u) {
-                            failures.add(
-                                fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText())
-                            );
+                            failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
                         }
                     }
                 }

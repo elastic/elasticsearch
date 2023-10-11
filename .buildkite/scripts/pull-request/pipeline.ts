@@ -160,9 +160,9 @@ export const generatePipelines = (
   pipelines.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 
   const finalPipelines = pipelines.map((pipeline) => {
-    const finalPipeline = { ...pipeline };
-    delete finalPipeline.config;
-    delete finalPipeline.name;
+    const finalPipeline = { name: pipeline.name, pipeline: { ...pipeline } };
+    delete finalPipeline.pipeline.config;
+    delete finalPipeline.pipeline.name;
 
     return finalPipeline;
   });

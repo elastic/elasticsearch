@@ -93,30 +93,24 @@ that is being ingested in the pipeline.
 
 [source,console]
 ----
-PUT _ingest/pipeline/elser-v2-test
-{
-  "processors": [
-    {
-      "inference": {
-        "model_id": ".elser_model_2",
-        "input_output": [ <1>
-          {
-            "input_field": "content",
-            "output_field": "content_embedding"
-          }
-        ],
-        "inference_config": {
-          "text_expansion": {} <2>
-        }
-      }
-    }
-  ]
+PUT _ingest/pipeline/elser-v2-test 
+{ 
+  "processors": [ 
+    { 
+      "inference": { 
+        "model_id": ".elser_model_2", 
+        "input_output": [ <1> 
+          { "input_field": "content", 
+          "output_field": "content_embedding" 
+          } 
+        ] 
+      } 
+    } 
+  ] 
 }
 ----
 <1> Configuration object that defines the `input_field` for the {infer} process 
 and the `output_field` that will contain the {infer} results.
-<2> The `text_expansion` {infer} type needs to be used in the {infer} ingest
-processor.
 
 
 [discrete]

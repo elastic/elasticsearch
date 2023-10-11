@@ -349,6 +349,9 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         public void accountMemory(Deployment m, Node n) {
             remainingNodeMemory.computeIfPresent(n, (k, v) -> v - m.memoryBytes());
+            if (remainingNodeMemory.get(n) < 0) {
+                throw new IllegalArgumentException("not enough memory on node [" + n.id() + "] to assign model [" + m.id() + "]");
+            }
         }
 
         public AssignmentPlan build() {

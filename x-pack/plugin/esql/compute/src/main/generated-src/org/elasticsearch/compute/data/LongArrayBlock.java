@@ -51,7 +51,26 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
 
     @Override
     public LongBlock filter(int... positions) {
-        return new FilterLongBlock(this, positions);
+        try (var builder = blockFactory.newLongBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendLong(getLong(getFirstValueIndex(pos)));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendLong(getLong(first + c));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override
@@ -74,8 +93,7 @@ public final class LongArrayBlock extends AbstractArrayBlock implements LongBloc
 
     public static long ramBytesEstimated(long[] values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
-        // TODO mvordering is shared
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override

@@ -1050,7 +1050,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertRequestBuilderThrows(
             client.admin().cluster().prepareDeleteSnapshot("readonly-repo", "test-snap"),
             RepositoryException.class,
-            "cannot delete snapshot from a readonly repository"
+            "repository is readonly"
         );
 
         logger.info("--> try making another snapshot");

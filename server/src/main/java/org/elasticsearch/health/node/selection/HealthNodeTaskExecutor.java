@@ -185,7 +185,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         }
     }
 
-    private boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
+    private static boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
         return event.previousState().metadata().nodeShutdowns().contains(nodeId) == false
             && event.state().metadata().nodeShutdowns().contains(nodeId);
     }

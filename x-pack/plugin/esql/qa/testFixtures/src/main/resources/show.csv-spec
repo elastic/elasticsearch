@@ -1,5 +1,4 @@
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-showInfo-Ignore
+showInfo
 show info | stats v = count(version);
 
 v:long

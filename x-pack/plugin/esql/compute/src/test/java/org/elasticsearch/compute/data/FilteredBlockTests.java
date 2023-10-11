@@ -316,6 +316,75 @@ public class FilteredBlockTests extends ESTestCase {
         }
     }
 
+    /** Tests filtering on the last position of a block with multi-values. */
+    public void testFilterOnLastPositionWithMultiValues() {
+        {
+            var builder = blockFactory.newBooleanBlockBuilder(0);
+            builder.beginPositionEntry().appendBoolean(true).appendBoolean(false).endPositionEntry();
+            builder.beginPositionEntry().appendBoolean(false).appendBoolean(true).endPositionEntry();
+            BooleanBlock block = builder.build();
+            var filter = block.filter(1);
+            assertThat(filter.getPositionCount(), is(1));
+            assertThat(filter.getValueCount(0), is(2));
+            assertThat(filter.getBoolean(filter.getFirstValueIndex(0)), is(false));
+            assertThat(filter.getBoolean(filter.getFirstValueIndex(0) + 1), is(true));
+            Releasables.close(builder, block);
+            releaseAndAssertBreaker(filter);
+        }
+        {
+            var builder = blockFactory.newIntBlockBuilder(6);
+            builder.beginPositionEntry().appendInt(0).appendInt(10).endPositionEntry();
+            builder.beginPositionEntry().appendInt(20).appendInt(50).endPositionEntry();
+            var block = builder.build();
+            var filter = block.filter(1);
+            assertThat(filter.getPositionCount(), is(1));
+            assertThat(filter.getInt(filter.getFirstValueIndex(0)), is(20));
+            assertThat(filter.getInt(filter.getFirstValueIndex(0) + 1), is(50));
+            assertThat(filter.getValueCount(0), is(2));
+            Releasables.close(builder, block);
+            releaseAndAssertBreaker(filter);
+        }
+        {
+            var builder = blockFactory.newLongBlockBuilder(6);
+            builder.beginPositionEntry().appendLong(0).appendLong(10).endPositionEntry();
+            builder.beginPositionEntry().appendLong(20).appendLong(50).endPositionEntry();
+            var block = builder.build();
+            var filter = block.filter(1);
+            assertThat(filter.getPositionCount(), is(1));
+            assertThat(filter.getValueCount(0), is(2));
+            assertThat(filter.getLong(filter.getFirstValueIndex(0)), is(20L));
+            assertThat(filter.getLong(filter.getFirstValueIndex(0) + 1), is(50L));
+            Releasables.close(builder, block);
+            releaseAndAssertBreaker(filter);
+        }
+        {
+            var builder = blockFactory.newDoubleBlockBuilder(6);
+            builder.beginPositionEntry().appendDouble(0).appendDouble(10).endPositionEntry();
+            builder.beginPositionEntry().appendDouble(0.002).appendDouble(10e8).endPositionEntry();
+            var block = builder.build();
+            var filter = block.filter(1);
+            assertThat(filter.getPositionCount(), is(1));
+            assertThat(filter.getValueCount(0), is(2));
+            assertThat(filter.getDouble(filter.getFirstValueIndex(0)), is(0.002));
+            assertThat(filter.getDouble(filter.getFirstValueIndex(0) + 1), is(10e8));
+            Releasables.close(builder, block);
+            releaseAndAssertBreaker(filter);
+        }
+        {
+            var builder = blockFactory.newBytesRefBlockBuilder(6);
+            builder.beginPositionEntry().appendBytesRef(new BytesRef("cat")).appendBytesRef(new BytesRef("dog")).endPositionEntry();
+            builder.beginPositionEntry().appendBytesRef(new BytesRef("pig")).appendBytesRef(new BytesRef("chicken")).endPositionEntry();
+            var block = builder.build();
+            var filter = block.filter(1);
+            assertThat(filter.getPositionCount(), is(1));
+            assertThat(filter.getValueCount(0), is(2));
+            assertThat(filter.getBytesRef(filter.getFirstValueIndex(0), new BytesRef()), equalTo(new BytesRef("pig")));
+            assertThat(filter.getBytesRef(filter.getFirstValueIndex(0) + 1, new BytesRef()), equalTo(new BytesRef("chicken")));
+            Releasables.close(builder, block);
+            releaseAndAssertBreaker(filter);
+        }
+    }
+
     static int randomPosition(int positionCount) {
         return positionCount == 1 ? 0 : randomIntBetween(0, positionCount - 1);
     }

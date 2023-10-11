@@ -206,6 +206,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96578")
     public void testCreateAndDeleteIndexConcurrently() throws InterruptedException {
         createIndex("test");
         final AtomicInteger indexVersion = new AtomicInteger(0);

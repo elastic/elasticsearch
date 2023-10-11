@@ -247,21 +247,37 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final int nRunnableTasks = randomIntBetween(0, 10);
         IntStream.range(0, nRunnableTasks).forEach(i -> taskQueue.scheduleNow(() -> seenNumbers.add(i)));
 
-        final int nDeferredTasksUptoCutoff = randomIntBetween(0, 10);
-        IntStream.range(0, nDeferredTasksUptoCutoff)
+        final int nDeferredTasksUpToCutoff = randomIntBetween(0, 10);
+        IntStream.range(0, nDeferredTasksUpToCutoff)
             .forEach(i -> taskQueue.scheduleAt(randomLongBetween(0, cutoffTimeInMillis), () -> seenNumbers.add(i + nRunnableTasks)));
 
         IntStream.range(0, randomIntBetween(0, 10))
             .forEach(
                 i -> taskQueue.scheduleAt(
                     randomLongBetween(cutoffTimeInMillis + 1, 2 * cutoffTimeInMillis),
-                    () -> seenNumbers.add(i + nRunnableTasks + nDeferredTasksUptoCutoff)
+                    () -> seenNumbers.add(i + nRunnableTasks + nDeferredTasksUpToCutoff)
                 )
             );
 
         taskQueue.runTasksUpToTimeInOrder(cutoffTimeInMillis);
-        assertThat(seenNumbers, equalTo(IntStream.range(0, nRunnableTasks + nDeferredTasksUptoCutoff).boxed().collect(Collectors.toSet())));
-        assertThat(taskQueue.getCurrentTimeMillis(), lessThanOrEqualTo(cutoffTimeInMillis));
+        assertThat(seenNumbers, equalTo(IntStream.range(0, nRunnableTasks + nDeferredTasksUpToCutoff).boxed().collect(Collectors.toSet())));
+        assertThat(taskQueue.getCurrentTimeMillis(), equalTo(cutoffTimeInMillis));
+    }
+
+    public void testScheduleAtAndRunUpTo() {
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final Set<Integer> seenNumbers = new HashSet<>();
+
+        final int nRunnableTasks = randomIntBetween(0, 10);
+        IntStream.range(0, nRunnableTasks).forEach(i -> taskQueue.scheduleNow(() -> seenNumbers.add(i)));
+        taskQueue.scheduleAt(500, () -> seenNumbers.add(500));
+        taskQueue.scheduleAt(800, () -> seenNumbers.add(800));
+
+        final long executionTimeMillis = randomLongBetween(1, 400);
+        taskQueue.scheduleAtAndRunUpTo(executionTimeMillis, () -> seenNumbers.add(nRunnableTasks));
+
+        assertThat(seenNumbers, equalTo(IntStream.rangeClosed(0, nRunnableTasks).boxed().collect(Collectors.toSet())));
+        assertThat(taskQueue.getCurrentTimeMillis(), equalTo(executionTimeMillis));
     }
 
     public void testThreadPoolEnqueuesTasks() {

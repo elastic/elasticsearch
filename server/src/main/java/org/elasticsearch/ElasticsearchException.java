@@ -1862,7 +1862,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             173,
             TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
         );
-        ;
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

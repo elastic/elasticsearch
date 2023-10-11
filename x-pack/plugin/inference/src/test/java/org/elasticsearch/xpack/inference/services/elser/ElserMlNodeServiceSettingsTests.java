@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.elser;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -19,14 +23,74 @@ import static org.hamcrest.Matchers.containsString;
 public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTestCase<ElserMlNodeServiceSettings> {
 
     public static ElserMlNodeServiceSettings createRandom() {
-        return new ElserMlNodeServiceSettings(randomIntBetween(1, 4), randomIntBetween(1, 2));
+        return new ElserMlNodeServiceSettings(
+            randomIntBetween(1, 4),
+            randomIntBetween(1, 2),
+            randomFrom(ElserMlNodeService.VALID_ELSER_MODELS)
+        );
+    }
+
+    public void testFromMap_DefaultModelVersion() {
+        var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(
+            new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
+        );
+        assertNull(serviceSettingsBuilder.getModelVariant());
     }
 
     public void testFromMap() {
         var serviceSettings = ElserMlNodeServiceSettings.fromMap(
-            new HashMap<>(Map.of(ElserMlNodeServiceSettings.NUM_ALLOCATIONS, 1, ElserMlNodeServiceSettings.NUM_THREADS, 4))
+            new HashMap<>(
+                Map.of(
+                    ElserMlNodeServiceSettings.NUM_ALLOCATIONS,
+                    1,
+                    ElserMlNodeServiceSettings.NUM_THREADS,
+                    4,
+                    ElserMlNodeServiceSettings.MODEL_VERSION,
+                    ".elser_model_1"
+                )
+            )
+        ).build();
+        assertEquals(new ElserMlNodeServiceSettings(1, 4, ".elser_model_1"), serviceSettings);
+    }
+
+    public void testFromMapInvalidVersion() {
+        var e = expectThrows(
+            ValidationException.class,
+            () -> ElserMlNodeServiceSettings.fromMap(
+                new HashMap<>(
+                    Map.of(
+                        ElserMlNodeServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElserMlNodeServiceSettings.NUM_THREADS,
+                        4,
+                        "model_version",
+                        ".elser_model_27"
+                    )
+                )
+            )
         );
-        assertEquals(new ElserMlNodeServiceSettings(1, 4), serviceSettings);
+        assertThat(e.getMessage(), containsString("unknown ELSER model version [.elser_model_27]"));
+    }
+
+    public void testBwcWrite() throws IOException {
+        {
+            var elserServiceModelVersionAdded = new TransportVersion(8_515_00_0);
+            var settings = new ElserMlNodeServiceSettings(1, 1, ".elser_model_1");
+            var copy = copyInstance(settings, elserServiceModelVersionAdded);
+            assertEquals(settings, copy);
+        }
+        {
+            var firstIncompatibleNotPatchVersion = new TransportVersion(8_513_00_0);
+            var settings = new ElserMlNodeServiceSettings(1, 1, ".elser_model_1");
+            var copy = copyInstance(settings, firstIncompatibleNotPatchVersion);
+            assertNotEquals(settings, copy);
+            assertEquals(".elser_model_2", copy.getModelVariant());
+        }
+        {
+            var settings = new ElserMlNodeServiceSettings(1, 1, ".elser_model_1");
+            var copy = copyInstance(settings, TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH);
+            assertEquals(settings, copy);
+        }
     }
 
     public void testFromMapMissingOptions() {
@@ -43,6 +107,22 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
         );
 
         assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_allocations]"));
+    }
+
+    public void testTransportVersionIsCompatibleWithElserModelVersion() {
+        var elserServiceModelVersionAdded = new TransportVersion(8_515_00_0);
+        assertTrue(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(elserServiceModelVersionAdded));
+        assertTrue(
+            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(
+                TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH
+            )
+        );
+
+        assertFalse(
+            ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)
+        );
+        var firstIncompatibleNotPatchVersion = new TransportVersion(8_513_00_0);
+        assertFalse(ElserMlNodeServiceSettings.transportVersionIsCompatibleWithElserModelVersion(firstIncompatibleNotPatchVersion));
     }
 
     public void testFromMapInvalidSettings() {
@@ -67,9 +147,22 @@ public class ElserMlNodeServiceSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected ElserMlNodeServiceSettings mutateInstance(ElserMlNodeServiceSettings instance) {
-        return switch (randomIntBetween(0, 1)) {
-            case 0 -> new ElserMlNodeServiceSettings(instance.getNumAllocations() + 1, instance.getNumThreads());
-            case 1 -> new ElserMlNodeServiceSettings(instance.getNumAllocations(), instance.getNumThreads() + 1);
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new ElserMlNodeServiceSettings(
+                instance.getNumAllocations() + 1,
+                instance.getNumThreads(),
+                instance.getModelVariant()
+            );
+            case 1 -> new ElserMlNodeServiceSettings(
+                instance.getNumAllocations(),
+                instance.getNumThreads() + 1,
+                instance.getModelVariant()
+            );
+            case 2 -> {
+                var versions = new HashSet<>(ElserMlNodeService.VALID_ELSER_MODELS);
+                versions.remove(instance.getModelVariant());
+                yield new ElserMlNodeServiceSettings(instance.getNumAllocations(), instance.getNumThreads(), versions.iterator().next());
+            }
             default -> throw new IllegalStateException();
         };
     }

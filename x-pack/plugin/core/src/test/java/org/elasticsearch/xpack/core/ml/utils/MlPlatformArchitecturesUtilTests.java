@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.deployment;
+package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -58,7 +58,7 @@ public class MlPlatformArchitecturesUtilTests extends ESTestCase {
             @Override
             public void accept(ActionListener<Set<String>> setActionListener) {
                 final ActionListener<NodesInfoResponse> nodesInfoResponseActionListener = MlPlatformArchitecturesUtil
-                    .getArchitecturesSetFromNodesInfoResponseListener(threadPool, setActionListener);
+                    .getArchitecturesSetFromNodesInfoResponseListener(threadPool.executor("utility_thread"), setActionListener);
                 nodesInfoResponseActionListener.onResponse(mockNodesInfoResponse);
             }
 

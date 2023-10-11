@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
@@ -32,6 +33,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -58,6 +61,7 @@ import java.util.function.Supplier;
 public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
+    public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -133,6 +137,20 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
                 .setNetNew()
                 .build()
         );
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings unused) {
+        ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
+            UTILITY_THREAD_POOL_NAME,
+            0,
+            1,
+            TimeValue.timeValueMinutes(10),
+            false,
+            "xpack.inference.utility_thread_pool"
+        );
+
+        return List.of(utility);
     }
 
     @Override

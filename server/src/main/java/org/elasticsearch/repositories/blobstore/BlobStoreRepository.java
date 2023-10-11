@@ -1088,7 +1088,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     repositoryFormatIndexVersion,
                     Function.identity(),
                     listener.delegateFailureAndWrap(
-                        (l, v) -> cleanupStaleBlobs(originalRepositoryData, l.map(RepositoryCleanupResult::new))
+                        // TODO should we pass newRepositoryData to cleanupStaleBlobs()?
+                        (l, newRepositoryData) -> cleanupStaleBlobs(originalRepositoryData, l.map(RepositoryCleanupResult::new))
                     )
                 );
             }

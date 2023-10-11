@@ -31,8 +31,10 @@ public class CacheIteratorHelper<K, V> {
         final ReadWriteLock lock = new ReentrantReadWriteLock();
         // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using the
         // iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
-        // the read lock is obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values
-        // of the cache the write lock must obtained to prevent any modifications.
+        // the read lock can be obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or
+        // values of the cache the write lock must be obtained to prevent any modifications.
+        // Note - the write lock is needed for concurrent modifications across Cache#put and Cache#invalidateAll
+        // see https://github.com/elastic/elasticsearch/issues/99326 for additional information
         updateLock = new ReleasableLock(lock.readLock());
         iteratorLock = new ReleasableLock(lock.writeLock());
     }
@@ -41,7 +43,7 @@ public class CacheIteratorHelper<K, V> {
         return updateLock.acquire();
     }
 
-    private ReleasableLock acquireForIterator() {
+    public ReleasableLock acquireForIterator() {
         return iteratorLock.acquire();
     }
 

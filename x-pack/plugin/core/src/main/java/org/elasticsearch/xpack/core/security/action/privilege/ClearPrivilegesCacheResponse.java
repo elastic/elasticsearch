@@ -32,7 +32,7 @@ public class ClearPrivilegesCacheResponse extends BaseNodesResponse<ClearPrivile
 
     @Override
     protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::new);
+        return in.readCollectionAsList(Node::new);
     }
 
     @Override

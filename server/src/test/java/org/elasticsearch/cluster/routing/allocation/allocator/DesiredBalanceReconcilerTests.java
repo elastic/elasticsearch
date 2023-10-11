@@ -72,6 +72,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1022,32 +1024,25 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var shardId = new ShardId(index, 0);
 
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(
-                DiscoveryNodes.builder()
-                    // data-node-1 left the cluster
-                    .localNodeId("data-node-2")
-                    .masterNodeId("data-node-2")
-                    .add(newNode("data-node-2"))
-            )
+            .nodes(discoveryNodes(1))// node-1 left the cluster
             .metadata(Metadata.builder().put(indexMetadata, true))
             .routingTable(
-                RoutingTable.builder()
-                    .add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "data-node-2", true, STARTED)))
+                RoutingTable.builder().add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "node-0", true, STARTED)))
             )
             .build();
 
         final var allocation = createRoutingAllocationFrom(clusterState);
         final var balance = new DesiredBalance(
             1,
-            Map.of(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0)) // shard is assigned to the node that has left
+            Map.of(shardId, new ShardAssignment(Set.of("node-1"), 1, 0, 0)) // shard is assigned to the node that has left
         );
 
         reconcile(allocation, balance);
 
-        assertThat(allocation.routingNodes().node("data-node-1"), nullValue());
-        assertThat(allocation.routingNodes().node("data-node-2"), notNullValue());
+        assertThat(allocation.routingNodes().node("node-0"), notNullValue());
+        assertThat(allocation.routingNodes().node("node-1"), nullValue());
         // shard is kept wherever until balance is recalculated
-        assertThat(allocation.routingNodes().node("data-node-2").getByShardId(shardId), notNullValue());
+        assertThat(allocation.routingNodes().node("node-0").getByShardId(shardId), notNullValue());
     }
 
     public void testDoNotAllocateIgnoredShards() {
@@ -1057,7 +1052,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var shardId = new ShardId(index, 0);
 
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().localNodeId("node-1").masterNodeId("node-1").add(newNode("node-1")))
+            .nodes(discoveryNodes(1))
             .metadata(Metadata.builder().put(indexMetadata, true))
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
             .build();
@@ -1070,7 +1065,103 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         reconcile(allocation, balance);
 
+        assertThat(allocation.routingNodes().node("node-0").size(), equalTo(0));
+        assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(1));
+    }
+
+    public void testFallbackAllocation() {
+
+        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(4))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+
+        final Set<String> desiredNodeIds = Set.of("node-1", "node-2");
+        final var initialForcedAllocationDecider = new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                // allocation on desired nodes is temporarily not possible
+                return desiredNodeIds.contains(node.nodeId()) ? Decision.NO : Decision.YES;
+            }
+        };
+
+        final var allocation = createRoutingAllocationFrom(clusterState, initialForcedAllocationDecider);
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(desiredNodeIds, 2, 0, 0)));
+
+        reconcile(allocation, balance);
+
+        // only primary is allocated to the fallback node, replica stays unassigned
+        assertThat(allocation.routingNodes().node("node-0").size() + allocation.routingNodes().node("node-1").size(), equalTo(0));
+        assertThat(allocation.routingNodes().node("node-2").size() + allocation.routingNodes().node("node-3").size(), equalTo(1));
+        assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(1));
+    }
+
+    public void testForcedInitialAllocation() {
+
+        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(2))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+
+        final var allocationIsNotPossibleOnDesiredNodeDesiredNode = new AllocationDecider() {
+            @Override
+            public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return Optional.of(Set.of("node-1"));// intentionally different from the desired balance
+            }
+        };
+
+        final var allocation = createRoutingAllocationFrom(clusterState, allocationIsNotPossibleOnDesiredNodeDesiredNode);
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0"), 1, 0, 0)));
+
+        reconcile(allocation, balance);
+
+        assertThat(allocation.routingNodes().node("node-0").size(), equalTo(0));
+        assertThat(allocation.routingNodes().node("node-1").size(), equalTo(1));
+        assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(0));
+    }
+
+    public void testForcedInitialAllocationDoNotFallback() {
+
+        final var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+            .build();
+
+        final var initialForcedAllocationDecider = new AllocationDecider() {
+            @Override
+            public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return Optional.of(Set.of("node-1"));// intentionally different from the desired balance
+            }
+
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return Objects.equals(node.nodeId(), "node-2") ? Decision.YES : Decision.NO; // can allocate only on fallback node
+            }
+        };
+
+        final var allocation = createRoutingAllocationFrom(clusterState, initialForcedAllocationDecider);
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0"), 1, 0, 0)));
+
+        reconcile(allocation, balance);
+
+        assertThat(allocation.routingNodes().node("node-0").size(), equalTo(0));
         assertThat(allocation.routingNodes().node("node-1").size(), equalTo(0));
+        assertThat(allocation.routingNodes().node("node-2").size(), equalTo(0));
         assertThat(allocation.routingNodes().unassigned().ignored(), hasSize(1));
     }
 

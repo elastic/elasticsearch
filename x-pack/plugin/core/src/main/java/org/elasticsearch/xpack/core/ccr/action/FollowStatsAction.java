@@ -64,7 +64,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
 
         public StatsResponses(StreamInput in) throws IOException {
             super(in);
-            statsResponse = in.readList(StatsResponse::new);
+            statsResponse = in.readCollectionAsList(StatsResponse::new);
         }
 
         @Override

@@ -39,10 +39,10 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Date Extract Year", () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date"),
-                    new TestCaseSupplier.TypedData(new BytesRef("YEAR"), DataTypes.KEYWORD, "field")
+                    new TestCaseSupplier.TypedData(new BytesRef("YEAR"), DataTypes.KEYWORD, "field"),
+                    new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date")
                 ),
-                "DateExtractEvaluator[value=Attribute[channel=0], chronoField=Attribute[channel=1], zone=Z]",
+                "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                 DataTypes.LONG,
                 equalTo(2023L)
             );
@@ -55,8 +55,8 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
         for (ChronoField value : ChronoField.values()) {
             DateExtract instance = new DateExtract(
                 Source.EMPTY,
-                new Literal(Source.EMPTY, epochMilli, DataTypes.DATETIME),
                 new Literal(Source.EMPTY, new BytesRef(value.name()), DataTypes.KEYWORD),
+                new Literal(Source.EMPTY, epochMilli, DataTypes.DATETIME),
                 EsqlTestUtils.TEST_CFG
             );
 
@@ -75,7 +75,7 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<ArgumentSpec> argSpec() {
-        return List.of(required(DataTypes.DATETIME), required(strings()));
+        return List.of(required(strings()), required(DataTypes.DATETIME));
     }
 
     @Override

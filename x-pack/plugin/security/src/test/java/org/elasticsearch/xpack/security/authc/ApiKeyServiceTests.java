@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -876,7 +877,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testCrossClusterApiKeyUsageFailsWhenIndexNotAvailable() {
         securityIndex = SecurityMocks.mockSecurityIndexManager(".security", true, false);
         final ElasticsearchException expectedException = new ElasticsearchException("not available");
-        when(securityIndex.getUnavailableReason()).thenReturn(expectedException);
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(expectedException);
         final ApiKeyService apiKeyService = createApiKeyService();
 
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
@@ -2191,7 +2192,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(request.getMetadata()).thenReturn(newMetadata);
         final var service = createApiKeyService();
 
-        final XContentBuilder builder = service.maybeBuildUpdatedDocument(
+        final XContentBuilder builder = ApiKeyService.maybeBuildUpdatedDocument(
             apiKeyId,
             oldApiKeyDoc,
             newVersion,
@@ -2341,7 +2342,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         // Selecting random unsupported version.
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
 
@@ -2431,7 +2432,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
@@ -2566,7 +2567,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION)
         );
         when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);

@@ -77,7 +77,7 @@ public class InternalItemSetMapReduceAggregationTests extends InternalAggregatio
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeMap(frequencies, StreamOutput::writeString, StreamOutput::writeLong);
+                out.writeMap(frequencies, StreamOutput::writeLong);
             }
 
             @Override

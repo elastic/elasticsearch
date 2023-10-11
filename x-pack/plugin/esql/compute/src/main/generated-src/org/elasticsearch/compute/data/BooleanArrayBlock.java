@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.stream.IntStream;
@@ -17,10 +19,23 @@ import java.util.stream.IntStream;
  */
 public final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayBlock.class);
+
     private final boolean[] values;
 
     public BooleanArrayBlock(boolean[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        super(positionCount, firstValueIndexes, nulls, mvOrdering);
+        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
+    }
+
+    public BooleanArrayBlock(
+        boolean[] values,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.values = values;
     }
 
@@ -36,7 +51,26 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
 
     @Override
     public BooleanBlock filter(int... positions) {
-        return new FilterBooleanBlock(this, positions);
+        try (var builder = blockFactory.newBooleanBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendBoolean(getBoolean(getFirstValueIndex(pos)));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendBoolean(getBoolean(first + c));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override
@@ -54,7 +88,17 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
             return new BooleanArrayVector(values, end).asBlock();
         }
         int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new BooleanArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
+        return new BooleanArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
+    }
+
+    public static long ramBytesEstimated(boolean[] values, int[] firstValueIndexes, BitSet nullsMask) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
     }
 
     @Override
@@ -80,5 +124,14 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
             + ", values="
             + Arrays.toString(values)
             + ']';
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

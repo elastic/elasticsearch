@@ -99,6 +99,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
@@ -261,7 +263,7 @@ public class ProfileService {
                 0,
                 new TotalHits(0, TotalHits.Relation.EQUAL_TO)
             );
-        })).ifPresent(frozenProfileIndex -> {
+        }), SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
             final SearchRequest searchRequest = buildSearchRequestForSuggest(request, parentTaskId);
 
             frozenProfileIndex.checkIndexVersionThenExecute(
@@ -334,7 +336,7 @@ public class ProfileService {
         tryFreezeAndCheckIndex(listener.map(response -> { // index does not exist
             assert response == null : "only null response can reach here";
             return Map.of("total", 0L, "enabled", 0L, "recent", 0L);
-        })).ifPresent(frozenProfileIndex -> {
+        }), SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
             final MultiSearchRequest multiSearchRequest = client.prepareMultiSearch()
                 .add(
                     client.prepareSearch(SECURITY_PROFILE_ALIAS)
@@ -445,7 +447,7 @@ public class ProfileService {
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+        tryFreezeAndCheckIndex(listener, PRIMARY_SHARDS).ifPresent(frozenProfileIndex -> {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -472,7 +474,7 @@ public class ProfileService {
             listener.onResponse(ResultsAndErrors.empty());
             return;
         }
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+        tryFreezeAndCheckIndex(listener, PRIMARY_SHARDS).ifPresent(frozenProfileIndex -> {
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> new OriginSettingClient(client, getActionOrigin()).prepareMultiGet()
@@ -544,7 +546,7 @@ public class ProfileService {
             listener.onResponse(new SubjectSearchResultsAndErrors<>(List.of(), Map.of()));
             return;
         }
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+        tryFreezeAndCheckIndex(listener, SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
             frozenProfileIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
                 subjects.forEach(subject -> multiSearchRequest.add(buildSearchRequestForSubject(subject)));
@@ -1006,14 +1008,17 @@ public class ProfileService {
      * Freeze the profile index check its availability and return it if everything is ok.
      * Otherwise it calls the listener with null and returns an empty Optional.
      */
-    private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(ActionListener<T> listener) {
-        final SecurityIndexManager frozenProfileIndex = profileIndex.freeze();
+    private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(
+        ActionListener<T> listener,
+        SecurityIndexManager.Availability availability
+    ) {
+        final SecurityIndexManager frozenProfileIndex = profileIndex.defensiveCopy();
         if (false == frozenProfileIndex.indexExists()) {
             logger.debug("profile index does not exist");
             listener.onResponse(null);
             return Optional.empty();
-        } else if (false == frozenProfileIndex.isAvailable()) {
-            listener.onFailure(frozenProfileIndex.getUnavailableReason());
+        } else if (false == frozenProfileIndex.isAvailable(availability)) {
+            listener.onFailure(frozenProfileIndex.getUnavailableReason(availability));
             return Optional.empty();
         }
         return Optional.of(frozenProfileIndex);

@@ -320,3 +320,85 @@ setup:
   - match: { values.0: [ 1 ] }
   - match: { values.0: [ 1 ] }
 
+---
+"text with synthetic source":
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              "emp_no":
+                type: long
+              name:
+                type: keyword
+              job:
+                type: text
+                fields:
+                  raw:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 10, "name": "Jenny", "job": "IT Director" }
+          - { "index": { } }
+          - { "emp_no": 20, "name": "John", "job": "Payroll Specialist" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test2 | sort emp_no | keep job'
+
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0.0: "IT Director" }
+  - match: { values.1.0: "Payroll Specialist" }
+
+
+---
+"stored text with synthetic source":
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              "emp_no":
+                type: long
+              name:
+                type: keyword
+              job:
+                type: text
+                store: true
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 10, "name": "Jenny", "job": "IT Director"}
+          - { "index": { } }
+          - { "emp_no": 20, "name": "John", "job": "Payroll Specialist" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test2 | sort emp_no | keep job'
+
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0.0: "IT Director" }
+  - match: { values.1.0: "Payroll Specialist" }

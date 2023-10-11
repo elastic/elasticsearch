@@ -1,5 +1,8 @@
 [[esql-to_string]]
 === `TO_STRING`
+[.text-center]
+image::esql/functions/signature/to_string.svg[Embedded,opts=inline]
+
 Converts a field into a string. For example:
 
 [source.merge.styled,esql]
@@ -23,3 +26,7 @@ include::{esql-specs}/string.csv-spec[tag=to_string_multivalue-result]
 |===
 
 Alias: TO_STR
+
+Supported types:
+
+include::types/to_string.asciidoc[]

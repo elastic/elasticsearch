@@ -231,7 +231,13 @@ public final class CsvAssert {
         return (x, y) -> {
             for (int i = 0; i < x.size(); i++) {
                 Object left = x.get(i);
+                if (left instanceof List<?> l) {
+                    left = l.isEmpty() ? null : l.get(0);
+                }
                 Object right = y.get(i);
+                if (right instanceof List<?> r) {
+                    right = r.isEmpty() ? null : r.get(0);
+                }
                 if (left == null && right == null) {
                     continue;
                 }

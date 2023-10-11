@@ -54,10 +54,10 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -317,7 +317,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -857,7 +857,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         return "Manages Watch definitions and state";
     }
 
-    private Settings getWatchesIndexSettings() {
+    private static Settings getWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -867,7 +867,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .build();
     }
 
-    private XContentBuilder getWatchesIndexMappings() {
+    private static XContentBuilder getWatchesIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -949,7 +949,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         }
     }
 
-    private Settings getTriggeredWatchesIndexSettings() {
+    private static Settings getTriggeredWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.auto_expand_replicas", "0-1")
@@ -959,7 +959,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .build();
     }
 
-    private XContentBuilder getTriggeredWatchesIndexMappings() {
+    private static XContentBuilder getTriggeredWatchesIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 

@@ -202,7 +202,7 @@ public class Shell {
     private String readFileIfExists(Path path) throws IOException {
         if (Files.exists(path)) {
             long size = Files.size(path);
-            final int maxFileSize = 100 * 1024;
+            final int maxFileSize = 1024 * 1024;
             if (size > maxFileSize) {
                 // file is really big, truncate
                 try (var br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {

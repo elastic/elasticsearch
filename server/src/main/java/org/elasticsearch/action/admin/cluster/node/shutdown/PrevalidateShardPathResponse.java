@@ -33,7 +33,7 @@ public class PrevalidateShardPathResponse extends BaseNodesResponse<NodePrevalid
 
     @Override
     protected List<NodePrevalidateShardPathResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodePrevalidateShardPathResponse::new);
+        return in.readCollectionAsList(NodePrevalidateShardPathResponse::new);
     }
 
     @Override

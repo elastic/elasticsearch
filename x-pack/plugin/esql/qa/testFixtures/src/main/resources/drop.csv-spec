@@ -1,19 +1,19 @@
 sortWithLimitOne_DropHeight
-from employees | sort languages | limit 1 | drop height*;
+from employees | sort languages, emp_no | limit 1 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
 244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |1989-09-12T00:00:00.000Z|[false, false, false, true]|null           |1              |1              |1              |1              |Maliniak       |63528          |[-2.14, 13.07] |[-2, 13]        |[-2.14, 13.07] |[-2, 13]          |true
 ;
 
 simpleEvalWithSortAndLimitOne_DropHeight
-from employees | eval x = languages + 7 | sort x | limit 1 | drop height*;
+from employees | eval x = languages + 7 | sort x, emp_no | limit 1 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean | x:integer
 244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |1989-09-12T00:00:00.000Z|[false, false, false, true]|null           |1              |1              |1              |1              |Maliniak       |63528          |[-2.14, 13.07] |[-2, 13]         |[-2.14, 13.07] |[-2, 13]          |true           |8
 ;
 
 whereWithEvalGeneratedValue_DropHeight
-from employees | eval x = salary / 2 | where x > 37000 | drop height*;
+from employees | sort emp_no | eval x = salary / 2 | where x > 37000 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean | x:integer
 393084805         |1957-05-23T00:00:00.000Z|10007          |Tzvetan        |F              |1989-02-10T00:00:00.000Z|[false, false, true, true]|null                                                                        |4              |4              |4              |4              |Zielinski      |74572          |[-7.06, 0.57, 1.99] |[-7, 0, 1]       |[-7.06, 0.57, 1.99]  |[-7, 0, 1]        |true           |37286          

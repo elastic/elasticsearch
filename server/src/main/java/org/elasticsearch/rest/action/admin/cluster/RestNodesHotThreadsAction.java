@@ -115,7 +115,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         return channel -> client.admin().cluster().nodesHotThreads(nodesHotThreadsRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) {
-                return RestResponse.chunked(RestStatus.OK, fromTextChunks(TEXT_CONTENT_TYPE, response.getTextChunks()));
+                return RestResponse.chunked(RestStatus.OK, fromTextChunks(TEXT_CONTENT_TYPE, response.getTextChunks(), null));
             }
         });
     }

@@ -14,6 +14,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -42,6 +45,12 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> PAGE_SIZE = Setting.intSetting("page_size", 0, 0);
 
+    /**
+     * The minimum interval between syncs of the {@link DriverStatus}, making
+     * the status available to task API.
+     */
+    public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -57,6 +66,10 @@ public final class QueryPragmas implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         settings.writeTo(out);
+    }
+
+    public Settings getSettings() {
+        return settings;
     }
 
     public int exchangeBufferSize() {
@@ -81,6 +94,14 @@ public final class QueryPragmas implements Writeable {
      */
     public int pageSize() {
         return PAGE_SIZE.get(settings);
+    }
+
+    /**
+     * The minimum interval between syncs of the {@link DriverStatus}, making
+     * the status available to task API.
+     */
+    public TimeValue statusInterval() {
+        return STATUS_INTERVAL.get(settings);
     }
 
     public boolean isEmpty() {

@@ -1,5 +1,5 @@
 [[search-multiple-indices]]
-== Search multiple data streams and indices
+=== Search multiple data streams and indices
 
 To search multiple data streams and indices, add them as comma-separated values
 in the <<search-search,search API>>'s request path.
@@ -78,7 +78,7 @@ GET /*/_search
 
 [discrete]
 [[index-boost]]
-=== Index boost
+==== Index boost
 
 When searching multiple indices, you can use the `indices_boost` parameter to
 boost results from one or more specified indices. This is useful when hits

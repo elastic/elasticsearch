@@ -659,11 +659,11 @@ numbering scheme separate to release version. The main ones are
 `TransportVersion` and `IndexVersion`, representing the version of the
 inter-node binary protocol and index data + metadata respectively.
 
-Separated version numbers are comprised of a simple incrementing number,
-with no semantic versioning information. There is no direct mapping between
-separated version numbers and the release version. The versions used by any
-particular instance of Elasticsearch can be obtained by querying `/`
-on the node.
+Separated version numbers are comprised of an integer number. The semantic
+meaing of a version number are defined within each `*Version` class.  There
+is no direct mapping between separated version numbers and the release version.
+The versions used by any particular instance of Elasticsearch can be obtained
+by querying `/_nodes/info` on the node.
 
 #### Using separated version numbers
 
@@ -674,14 +674,8 @@ number, there are a few rules that need to be followed:
    and should not be modified once it is defined. Each version is immutable
    once merged into `main`.
 2. To create a new component version, add a new constant to the respective class
-   using the preceding version number +1, modify the version id string to a new
-   unique string (normally a UUID), and set that constant as the new current
-   version.
-
-The version ID string in the constant definition is not used in the executing
-code; it is there to ensure that if two concurrent pull requests add the same
-version constant, there will be a git conflict on those lines. This is to ensure
-two PRs don't accidentally use the same version constant.
+   with a descriptive name of the change being made. Increment the integer
+   number according to the partciular `*Version` class.
 
 If your pull request has a conflict around your new version constant,
 you need to update your PR from `main` and change your PR to use the next

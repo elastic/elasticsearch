@@ -1,5 +1,0 @@
-pr: 98420
-summary: Fix election scheduling after discovery outage
-area: Cluster Coordination
-type: bug
-issues: []

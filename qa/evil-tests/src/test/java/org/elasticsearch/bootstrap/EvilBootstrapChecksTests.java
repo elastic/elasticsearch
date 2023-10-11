@@ -9,6 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
@@ -49,7 +50,17 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testEnforceBootstrapChecks() throws NodeValidationException {
         setEsEnforceBootstrapChecks("true");
-        final List<BootstrapCheck> checks = Collections.singletonList(context -> BootstrapCheck.BootstrapCheckResult.failure("error"));
+        final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.failure("error");
+            }
+
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
+        });
 
         final Logger logger = mock(Logger.class);
 

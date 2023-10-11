@@ -51,7 +51,7 @@ include::{esql-specs}/date.csv-spec[tag=auto_bucket_in_agg-result]
 |===
 
 NOTE: `AUTO_BUCKET` does not create buckets that don't match any documents. That's
-why the example above is missing `1985-02-01` and other dates.
+why the example above is missing `1985-03-01` and other dates.
 
 ==== Numeric fields
 

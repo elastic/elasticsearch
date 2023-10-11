@@ -33,6 +33,11 @@ public class RestGetStatusAction extends BaseRestHandler {
         GetStatusAction.Request request = new GetStatusAction.Request();
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        return channel -> client.execute(GetStatusAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        request.waitForResourcesCreated(restRequest.paramAsBoolean("wait_for_resources_created", false));
+        return channel -> client.execute(
+            GetStatusAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel, GetStatusAction.Response::status)
+        );
     }
 }

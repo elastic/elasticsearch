@@ -31,6 +31,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -263,7 +264,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, Meter.NOOP) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

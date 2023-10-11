@@ -127,7 +127,7 @@ Example response:
       },
       "security" : {
          "available" : true,
-         "enabled" : false
+         "enabled" : true
       },
       "slm" : {
          "available" : true,
@@ -166,6 +166,10 @@ Example response:
          "enabled" : true
       },
       "enterprise_search": {
+         "available": true,
+         "enabled": true
+      },
+      "universal_profiling": {
          "available": true,
          "enabled": true
       }

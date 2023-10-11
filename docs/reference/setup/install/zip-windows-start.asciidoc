@@ -47,4 +47,4 @@ To stop {es}, press `Ctrl-C`.
 
 :slash:     \
 
-include::../../../../x-pack/docs/en/security/enroll-nodes.asciidoc[]
+include::{es-repo-dir}/security/enroll-nodes.asciidoc[]

@@ -10,7 +10,6 @@ package org.elasticsearch.compute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -24,13 +23,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -38,20 +37,19 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -62,19 +60,17 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
-import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,164 +80,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
+import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.mockSearchContext;
 import static org.elasticsearch.compute.operator.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class OperatorTests extends ESTestCase {
-
-    public void testLuceneOperatorsLimit() throws IOException {
-        final int numDocs = randomIntBetween(10_000, 100_000);
-        try (Directory dir = newDirectory(); RandomIndexWriter w = writeTestDocs(dir, numDocs, "value", null)) {
-            try (IndexReader reader = w.getReader()) {
-                AtomicInteger rowCount = new AtomicInteger();
-                final int limit = randomIntBetween(1, numDocs * 2);
-                DriverContext driverContext = new DriverContext();
-                try (
-                    Driver driver = new Driver(
-                        driverContext,
-                        new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomPageSize(), limit),
-                        Collections.emptyList(),
-                        new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())),
-                        () -> {}
-                    )
-                ) {
-                    OperatorTestCase.runDriver(driver);
-                }
-                assertEquals(Math.min(limit, numDocs), rowCount.get());
-                assertDriverContext(driverContext);
-            }
-        }
-    }
-
-    public void testLuceneTopNSourceOperator() throws IOException {
-        final int numDocs = randomIntBetween(10_000, 100_000);
-        final int pageSize = randomIntBetween(1_000, 100_000);
-        final int limit = randomIntBetween(1, pageSize);
-        String fieldName = "value";
-
-        try (Directory dir = newDirectory(); RandomIndexWriter w = writeTestDocs(dir, numDocs, fieldName, null)) {
-            ValuesSource vs = new ValuesSource.Numeric.FieldData(
-                new SortedNumericIndexFieldData(
-                    fieldName,
-                    IndexNumericFieldData.NumericType.LONG,
-                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
-                    null
-                )
-            );
-            try (IndexReader reader = w.getReader()) {
-                AtomicInteger rowCount = new AtomicInteger();
-                Sort sort = new Sort(new SortField(fieldName, SortField.Type.LONG));
-                Holder<Long> expectedValue = new Holder<>(0L);
-                DriverContext driverContext = new DriverContext();
-                try (
-                    Driver driver = new Driver(
-                        driverContext,
-                        new LuceneTopNSourceOperator(reader, 0, sort, new MatchAllDocsQuery(), pageSize, limit),
-                        List.of(
-                            new ValuesSourceReaderOperator(
-                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                0,
-                                fieldName
-                            ),
-                            new TopNOperator(limit, List.of(new TopNOperator.SortOrder(1, true, true)), randomPageSize())
-                        ),
-                        new PageConsumerOperator(page -> {
-                            rowCount.addAndGet(page.getPositionCount());
-                            for (int i = 0; i < page.getPositionCount(); i++) {
-                                LongBlock longValuesBlock = page.getBlock(1);
-                                long expected = expectedValue.get();
-                                assertEquals(expected, longValuesBlock.getLong(i));
-                                expectedValue.set(expected + 1);
-                            }
-                        }),
-                        () -> {}
-                    )
-                ) {
-                    OperatorTestCase.runDriver(driver);
-                }
-                assertEquals(Math.min(limit, numDocs), rowCount.get());
-                assertDriverContext(driverContext);
-            }
-        }
-    }
-
-    public void testOperatorsWithLuceneSlicing() throws IOException {
-        final String fieldName = "value";
-        final int numDocs = 100000;
-        try (Directory dir = newDirectory(); RandomIndexWriter w = writeTestDocs(dir, numDocs, fieldName, randomIntBetween(1, 10))) {
-            ValuesSource vs = new ValuesSource.Numeric.FieldData(
-                new SortedNumericIndexFieldData(
-                    fieldName,
-                    IndexNumericFieldData.NumericType.LONG,
-                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
-                    null
-                )
-            );
-
-            try (IndexReader reader = w.getReader()) {
-                AtomicInteger rowCount = new AtomicInteger();
-
-                List<Driver> drivers = new ArrayList<>();
-                LuceneSourceOperator luceneOperator = new LuceneSourceOperator(
-                    reader,
-                    0,
-                    new MatchAllDocsQuery(),
-                    randomPageSize(),
-                    LuceneOperator.NO_LIMIT
-                );
-                try {
-                    for (LuceneOperator luceneSourceOperator : luceneOperator.docSlice(randomIntBetween(1, 10))) {
-                        drivers.add(
-                            new Driver(
-                                new DriverContext(),
-                                luceneSourceOperator,
-                                List.of(
-                                    new ValuesSourceReaderOperator(
-                                        List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                        0,
-                                        fieldName
-                                    )
-                                ),
-                                new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())),
-                                () -> {}
-                            )
-                        );
-                    }
-                    OperatorTestCase.runDriver(drivers);
-                } finally {
-                    Releasables.close(drivers);
-                }
-                assertEquals(numDocs, rowCount.get());
-                drivers.stream().map(Driver::driverContext).forEach(OperatorTests::assertDriverContext);
-            }
-        }
-    }
-
-    private static RandomIndexWriter writeTestDocs(Directory dir, int numDocs, String fieldName, Integer maxSegmentCount)
-        throws IOException {
-        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
-        Document doc = new Document();
-        NumericDocValuesField docValuesField = new NumericDocValuesField(fieldName, 0);
-        for (int i = 0; i < numDocs; i++) {
-            doc.clear();
-            docValuesField.setLongValue(i);
-            doc.add(docValuesField);
-            w.addDocument(doc);
-        }
-        if (maxSegmentCount != null && randomBoolean()) {
-            w.forceMerge(randomIntBetween(1, 10));
-        }
-        w.commit();
-
-        return w;
-    }
+// TODO: Move these tests to the right test classes.
+public class OperatorTests extends MapperServiceTestCase {
 
     public void testQueryOperator() throws IOException {
         Map<BytesRef, Long> docs = new HashMap<>();
@@ -249,24 +99,11 @@ public class OperatorTests extends ESTestCase {
             final long from = randomBoolean() ? Long.MIN_VALUE : randomLongBetween(0, 10000);
             final long to = randomBoolean() ? Long.MAX_VALUE : randomLongBetween(from, from + 10000);
             final Query query = LongPoint.newRangeQuery("pt", from, to);
-            final String partition = randomFrom("shard", "segment", "doc");
-            final LuceneSourceOperator luceneOperator = new LuceneSourceOperator(
-                reader,
-                0,
-                query,
-                randomPageSize(),
-                LuceneOperator.NO_LIMIT
-            );
-            final List<LuceneOperator> queryOperators = switch (partition) {
-                case "shard" -> List.of(luceneOperator);
-                case "segment" -> luceneOperator.segmentSlice();
-                case "doc" -> luceneOperator.docSlice(randomIntBetween(1, 10));
-                default -> throw new AssertionError("unknown partition [" + partition + "]");
-            };
+            LuceneOperator.Factory factory = luceneOperatorFactory(reader, query, LuceneOperator.NO_LIMIT);
             List<Driver> drivers = new ArrayList<>();
             try {
                 Set<Integer> actualDocIds = Collections.newSetFromMap(ConcurrentCollections.newConcurrentMap());
-                for (LuceneOperator queryOperator : queryOperators) {
+                for (int t = 0; t < factory.taskConcurrency(); t++) {
                     PageConsumerOperator docCollector = new PageConsumerOperator(page -> {
                         DocVector docVector = page.<DocBlock>getBlock(0).asVector();
                         IntVector doc = docVector.docs();
@@ -277,11 +114,12 @@ public class OperatorTests extends ESTestCase {
                             assertTrue("duplicated docId=" + docId, actualDocIds.add(docId));
                         }
                     });
-                    drivers.add(new Driver(new DriverContext(), queryOperator, List.of(), docCollector, () -> {}));
+                    DriverContext driverContext = driverContext();
+                    drivers.add(new Driver(driverContext, factory.get(driverContext), List.of(), docCollector, () -> {}));
                 }
                 OperatorTestCase.runDriver(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
-                assertThat("query=" + query + ", partition=" + partition, actualDocIds, equalTo(expectedDocIds));
+                assertThat("query=" + query, actualDocIds, equalTo(expectedDocIds));
                 drivers.stream().map(Driver::driverContext).forEach(OperatorTests::assertDriverContext);
             } finally {
                 Releasables.close(drivers);
@@ -309,8 +147,12 @@ public class OperatorTests extends ESTestCase {
     }
 
     public void testGroupingWithOrdinals() throws Exception {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        BigArrays bigArrays = driverContext.bigArrays();
+
         final String gField = "g";
-        final int numDocs = between(100, 10000);
+        final int numDocs = 2856; // between(100, 10000);
         final Map<BytesRef, Long> expectedCounts = new HashMap<>();
         int keyLength = randomIntBetween(1, 10);
         try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
@@ -324,7 +166,6 @@ public class OperatorTests extends ESTestCase {
             }
             writer.commit();
             Map<BytesRef, Long> actualCounts = new HashMap<>();
-            BigArrays bigArrays = bigArrays();
             boolean shuffleDocs = randomBoolean();
             Operator shuffleDocsOperator = new AbstractPageMappingOperator() {
                 @Override
@@ -357,7 +198,7 @@ public class OperatorTests extends ESTestCase {
                             ids.add(docs.getInt(i));
                         }
                         Collections.shuffle(ids, random());
-                        docs = new IntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
+                        docs = blockFactory.newIntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
                     }
                     Block[] blocks = new Block[page.getBlockCount()];
                     blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
@@ -374,10 +215,9 @@ public class OperatorTests extends ESTestCase {
             };
 
             try (DirectoryReader reader = writer.getReader()) {
-                DriverContext driverContext = new DriverContext();
                 Driver driver = new Driver(
                     driverContext,
-                    new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery(), randomPageSize(), LuceneOperator.NO_LIMIT),
+                    luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
                     List.of(shuffleDocsOperator, new AbstractPageMappingOperator() {
                         @Override
                         protected Page process(Page page) {
@@ -409,8 +249,9 @@ public class OperatorTests extends ESTestCase {
                             List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1, 2)).groupingAggregatorFactory(FINAL)),
                             () -> BlockHash.build(
                                 List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
-                                bigArrays,
-                                randomPageSize()
+                                driverContext,
+                                randomPageSize(),
+                                false
                             ),
                             driverContext
                         )
@@ -420,16 +261,20 @@ public class OperatorTests extends ESTestCase {
                         LongBlock counts = page.getBlock(1);
                         for (int i = 0; i < keys.getPositionCount(); i++) {
                             BytesRef spare = new BytesRef();
-                            actualCounts.put(keys.getBytesRef(i, spare), counts.getLong(i));
+                            keys.getBytesRef(i, spare);
+                            actualCounts.put(BytesRef.deepCopyOf(spare), counts.getLong(i));
                         }
+                        page.releaseBlocks();
                     }),
                     () -> {}
                 );
                 OperatorTestCase.runDriver(driver);
                 assertThat(actualCounts, equalTo(expectedCounts));
                 assertDriverContext(driverContext);
+                org.elasticsearch.common.util.MockBigArrays.ensureAllArraysAreReleased();
             }
         }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     public void testLimitOperator() {
@@ -438,11 +283,11 @@ public class OperatorTests extends ESTestCase {
         var values = randomList(positions, positions, ESTestCase::randomLong);
 
         var results = new ArrayList<Long>();
-        DriverContext driverContext = new DriverContext();
+        DriverContext driverContext = driverContext();
         try (
             var driver = new Driver(
                 driverContext,
-                new SequenceLongBlockSourceOperator(values, 100),
+                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                 List.of((new LimitOperator.Factory(limit)).get(driverContext)),
                 new PageConsumerOperator(page -> {
                     LongBlock block = page.getBlock(0);
@@ -550,8 +395,28 @@ public class OperatorTests extends ESTestCase {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
+    /**
+     * A {@link DriverContext} that won't throw {@link CircuitBreakingException}.
+     */
+    protected final DriverContext driverContext() {
+        var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()));
+    }
+
     public static void assertDriverContext(DriverContext driverContext) {
         assertTrue(driverContext.isFinished());
         assertThat(driverContext.getSnapshot().releasables(), empty());
+    }
+
+    static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit) {
+        final SearchContext searchContext = mockSearchContext(reader);
+        return new LuceneSourceOperator.Factory(
+            List.of(searchContext),
+            ctx -> query,
+            randomFrom(DataPartitioning.values()),
+            randomIntBetween(1, 10),
+            randomPageSize(),
+            limit
+        );
     }
 }

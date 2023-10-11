@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -98,7 +98,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
@@ -164,10 +164,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             stats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
-            databases = in.readImmutableSet(StreamInput::readString);
-            filesInTemp = in.readImmutableSet(StreamInput::readString);
-            configDatabases = in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
-                ? in.readImmutableSet(StreamInput::readString)
+            databases = in.readCollectionAsImmutableSet(StreamInput::readString);
+            filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
+            configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+                ? in.readCollectionAsImmutableSet(StreamInput::readString)
                 : null;
         }
 
@@ -208,10 +208,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             if (stats != null) {
                 stats.writeTo(out);
             }
-            out.writeCollection(databases, StreamOutput::writeString);
-            out.writeCollection(filesInTemp, StreamOutput::writeString);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
-                out.writeCollection(configDatabases, StreamOutput::writeString);
+            out.writeStringCollection(databases);
+            out.writeStringCollection(filesInTemp);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+                out.writeStringCollection(configDatabases);
             }
         }
 

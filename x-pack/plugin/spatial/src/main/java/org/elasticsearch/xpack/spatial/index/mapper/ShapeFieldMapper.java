@@ -122,7 +122,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 parser,
                 meta.get()
             );
-            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
     }
 
@@ -204,7 +204,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     }
 
     @Override
-    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) {
         // TODO: Make common with the index method GeoShapeWithDocValuesFieldMapper
         if (geometry == null) {
             return;

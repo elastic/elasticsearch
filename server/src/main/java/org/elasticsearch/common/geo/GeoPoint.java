@@ -38,6 +38,7 @@ public class GeoPoint implements SpatialPoint, ToXContentFragment {
      *
      * @param value String to create the point from
      */
+    @SuppressWarnings("this-escape")
     public GeoPoint(String value) {
         this.resetFromString(value);
     }

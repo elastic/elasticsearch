@@ -58,7 +58,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            deprecationIssues = in.readList(DeprecationIssue::new);
+            deprecationIssues = in.readCollectionAsList(DeprecationIssue::new);
         }
 
         public NodeResponse(DiscoveryNode node, List<DeprecationIssue> deprecationIssues) {

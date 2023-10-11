@@ -21,13 +21,12 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.BlockOrdinalsReader;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.GroupSpec;
@@ -43,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -52,7 +52,7 @@ import static java.util.stream.Collectors.joining;
  */
 public class OrdinalsGroupingOperator implements Operator {
     public record OrdinalsGroupingOperatorFactory(
-        List<ValueSourceInfo> sources,
+        Supplier<List<ValueSourceInfo>> sources,
         int docChannel,
         String groupingField,
         List<Factory> aggregators,
@@ -62,7 +62,15 @@ public class OrdinalsGroupingOperator implements Operator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new OrdinalsGroupingOperator(sources, docChannel, groupingField, aggregators, maxPageSize, bigArrays, driverContext);
+            return new OrdinalsGroupingOperator(
+                sources.get(),
+                docChannel,
+                groupingField,
+                aggregators,
+                maxPageSize,
+                bigArrays,
+                driverContext
+            );
         }
 
         @Override
@@ -97,12 +105,6 @@ public class OrdinalsGroupingOperator implements Operator {
         DriverContext driverContext
     ) {
         Objects.requireNonNull(aggregatorFactories);
-        boolean bytesValues = sources.get(0).source() instanceof ValuesSource.Bytes;
-        for (int i = 1; i < sources.size(); i++) {
-            if (sources.get(i).source() instanceof ValuesSource.Bytes != bytesValues) {
-                throw new IllegalStateException("ValuesSources are mismatched");
-            }
-        }
         this.sources = sources;
         this.docChannel = docChannel;
         this.groupingField = groupingField;
@@ -123,9 +125,6 @@ public class OrdinalsGroupingOperator implements Operator {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        if (docVector.getPositionCount() == 0) {
-            return;
-        }
         final int shardIndex = docVector.shards().getInt(0);
         final var source = sources.get(shardIndex);
         if (docVector.singleSegmentNonDecreasing() && source.source() instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
@@ -134,24 +133,17 @@ public class OrdinalsGroupingOperator implements Operator {
             final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
                 new SegmentID(shardIndex, segmentIndexVector.getInt(0)),
                 k -> {
-                    final List<GroupingAggregator> groupingAggregators = createGroupingAggregators();
-                    boolean success = false;
                     try {
                         final LeafReaderContext leafReaderContext = source.reader().leaves().get(k.segmentIndex);
-                        final OrdinalSegmentAggregator ordinalSegmentAggregator = new OrdinalSegmentAggregator(
-                            groupingAggregators,
+                        return new OrdinalSegmentAggregator(
+                            driverContext.blockFactory(),
+                            this::createGroupingAggregators,
                             withOrdinals,
                             leafReaderContext,
                             bigArrays
                         );
-                        success = true;
-                        return ordinalSegmentAggregator;
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
-                    } finally {
-                        if (success == false) {
-                            Releasables.close(groupingAggregators);
-                        }
                     }
                 }
             );
@@ -166,7 +158,6 @@ public class OrdinalsGroupingOperator implements Operator {
                     channelIndex,
                     aggregatorFactories,
                     maxPageSize,
-                    bigArrays,
                     driverContext
                 );
             }
@@ -234,41 +225,66 @@ public class OrdinalsGroupingOperator implements Operator {
         };
         final List<GroupingAggregator> aggregators = createGroupingAggregators();
         try {
+            boolean seenNulls = false;
+            for (OrdinalSegmentAggregator agg : ordinalAggregators.values()) {
+                if (agg.seenNulls()) {
+                    seenNulls = true;
+                    for (int i = 0; i < aggregators.size(); i++) {
+                        aggregators.get(i).addIntermediateRow(0, agg.aggregators.get(i), 0);
+                    }
+                }
+            }
             for (OrdinalSegmentAggregator agg : ordinalAggregators.values()) {
                 final AggregatedResultIterator it = agg.getResultIterator();
                 if (it.next()) {
                     pq.add(it);
                 }
             }
-            int position = -1;
+            final int startPosition = seenNulls ? 0 : -1;
+            int position = startPosition;
             final BytesRefBuilder lastTerm = new BytesRefBuilder();
-            var blockBuilder = BytesRefBlock.newBlockBuilder(1);
-            while (pq.size() > 0) {
-                final AggregatedResultIterator top = pq.top();
-                if (position == -1 || lastTerm.get().equals(top.currentTerm) == false) {
-                    position++;
-                    lastTerm.copyBytes(top.currentTerm);
-                    blockBuilder.appendBytesRef(top.currentTerm);
+            final Block[] blocks;
+            final int[] aggBlockCounts;
+            try (var keysBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(1)) {
+                if (seenNulls) {
+                    keysBuilder.appendNull();
                 }
-                for (int i = 0; i < top.aggregators.size(); i++) {
-                    aggregators.get(i).addIntermediateRow(position, top.aggregators.get(i), top.currentPosition());
+                while (pq.size() > 0) {
+                    final AggregatedResultIterator top = pq.top();
+                    if (position == startPosition || lastTerm.get().equals(top.currentTerm) == false) {
+                        position++;
+                        lastTerm.copyBytes(top.currentTerm);
+                        keysBuilder.appendBytesRef(top.currentTerm);
+                    }
+                    for (int i = 0; i < top.aggregators.size(); i++) {
+                        aggregators.get(i).addIntermediateRow(position, top.aggregators.get(i), top.currentPosition());
+                    }
+                    if (top.next()) {
+                        pq.updateTop();
+                    } else {
+                        pq.pop();
+                    }
                 }
-                if (top.next()) {
-                    pq.updateTop();
-                } else {
-                    pq.pop();
+                aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+                blocks = new Block[1 + Arrays.stream(aggBlockCounts).sum()];
+                blocks[0] = keysBuilder.build();
+            }
+            boolean success = false;
+            try {
+                try (IntVector selected = IntVector.range(0, blocks[0].getPositionCount(), driverContext.blockFactory())) {
+                    int offset = 1;
+                    for (int i = 0; i < aggregators.size(); i++) {
+                        aggregators.get(i).evaluate(blocks, offset, selected, driverContext);
+                        offset += aggBlockCounts[i];
+                    }
+                }
+                success = true;
+                return new Page(blocks);
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(blocks);
                 }
             }
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            Block[] blocks = new Block[1 + Arrays.stream(aggBlockCounts).sum()];
-            blocks[0] = blockBuilder.build();
-            IntVector selected = IntVector.range(0, blocks[0].getPositionCount());
-            int offset = 1;
-            for (int i = 0; i < aggregators.size(); i++) {
-                aggregators.get(i).evaluate(blocks, offset, selected);
-                offset += aggBlockCounts[i];
-            }
-            return new Page(blocks);
         } finally {
             Releasables.close(() -> Releasables.close(aggregators));
         }
@@ -300,6 +316,7 @@ public class OrdinalsGroupingOperator implements Operator {
     }
 
     static final class OrdinalSegmentAggregator implements Releasable, SeenGroupIds {
+        private final BlockFactory blockFactory;
         private final List<GroupingAggregator> aggregators;
         private final ValuesSource.Bytes.WithOrdinals withOrdinals;
         private final LeafReaderContext leafReaderContext;
@@ -307,23 +324,30 @@ public class OrdinalsGroupingOperator implements Operator {
         private BlockOrdinalsReader currentReader;
 
         OrdinalSegmentAggregator(
-            List<GroupingAggregator> aggregators,
+            BlockFactory blockFactory,
+            Supplier<List<GroupingAggregator>> aggregatorsSupplier,
             ValuesSource.Bytes.WithOrdinals withOrdinals,
             LeafReaderContext leafReaderContext,
             BigArrays bigArrays
         ) throws IOException {
             boolean success = false;
+            List<GroupingAggregator> groupingAggregators = null;
+            BitArray bitArray = null;
             try {
-                this.aggregators = aggregators;
+                final SortedSetDocValues sortedSetDocValues = withOrdinals.ordinalsValues(leafReaderContext);
+                bitArray = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
+                groupingAggregators = aggregatorsSupplier.get();
+                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues, blockFactory);
+                this.blockFactory = blockFactory;
                 this.withOrdinals = withOrdinals;
                 this.leafReaderContext = leafReaderContext;
-                final SortedSetDocValues sortedSetDocValues = withOrdinals.ordinalsValues(leafReaderContext);
-                this.currentReader = new BlockOrdinalsReader(sortedSetDocValues);
-                this.visitedOrds = new BitArray(sortedSetDocValues.getValueCount(), bigArrays);
+                this.aggregators = groupingAggregators;
+                this.visitedOrds = bitArray;
                 success = true;
             } finally {
                 if (success == false) {
-                    close();
+                    if (bitArray != null) Releasables.close(bitArray);
+                    if (groupingAggregators != null) Releasables.close(groupingAggregators);
                 }
             }
         }
@@ -336,30 +360,34 @@ public class OrdinalsGroupingOperator implements Operator {
                 }
 
                 if (BlockOrdinalsReader.canReuse(currentReader, docs.getInt(0)) == false) {
-                    currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
+                    currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext), blockFactory);
                 }
-                final IntBlock ordinals = currentReader.readOrdinals(docs);
-                for (int p = 0; p < ordinals.getPositionCount(); p++) {
-                    if (ordinals.isNull(p)) {
-                        continue;
+                try (IntBlock ordinals = currentReader.readOrdinalsAdded1(docs)) {
+                    for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                        int start = ordinals.getFirstValueIndex(p);
+                        int end = start + ordinals.getValueCount(p);
+                        for (int i = start; i < end; i++) {
+                            long ord = ordinals.getInt(i);
+                            visitedOrds.set(ord);
+                        }
                     }
-                    int start = ordinals.getFirstValueIndex(p);
-                    int end = start + ordinals.getValueCount(p);
-                    for (int i = start; i < end; i++) {
-                        long ord = ordinals.getInt(i);
-                        visitedOrds.set(ord);
+                    for (GroupingAggregatorFunction.AddInput addInput : prepared) {
+                        addInput.add(0, ordinals);
                     }
-                }
-                for (GroupingAggregator aggregator : aggregators) {
-                    aggregator.prepareProcessPage(this, page).add(0, ordinals);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            } finally {
+                page.releaseBlocks();
             }
         }
 
         AggregatedResultIterator getResultIterator() throws IOException {
             return new AggregatedResultIterator(aggregators, visitedOrds, withOrdinals.ordinalsValues(leafReaderContext));
+        }
+
+        boolean seenNulls() {
+            return visitedOrds.get(0);
         }
 
         @Override
@@ -377,7 +405,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
     private static class AggregatedResultIterator {
         private BytesRef currentTerm;
-        private long currentOrd = -1;
+        private long currentOrd = 0;
         private final List<GroupingAggregator> aggregators;
         private final BitArray ords;
         private final SortedSetDocValues dv;
@@ -395,8 +423,9 @@ public class OrdinalsGroupingOperator implements Operator {
 
         boolean next() throws IOException {
             currentOrd = ords.nextSetBit(currentOrd + 1);
+            assert currentOrd > 0 : currentOrd;
             if (currentOrd < Long.MAX_VALUE) {
-                currentTerm = dv.lookupOrd(currentOrd);
+                currentTerm = dv.lookupOrd(currentOrd - 1);
                 return true;
             } else {
                 currentTerm = null;
@@ -416,13 +445,17 @@ public class OrdinalsGroupingOperator implements Operator {
             int channelIndex,
             List<GroupingAggregator.Factory> aggregatorFactories,
             int maxPageSize,
-            BigArrays bigArrays,
             DriverContext driverContext
         ) {
             this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
-                () -> BlockHash.build(List.of(new GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays, maxPageSize),
+                () -> BlockHash.build(
+                    List.of(new GroupSpec(channelIndex, sources.get(0).elementType())),
+                    driverContext,
+                    maxPageSize,
+                    false
+                ),
                 driverContext
             );
         }
@@ -446,6 +479,53 @@ public class OrdinalsGroupingOperator implements Operator {
         @Override
         public void close() {
             Releasables.close(extractor, aggregator);
+        }
+    }
+
+    static final class BlockOrdinalsReader {
+        private final SortedSetDocValues sortedSetDocValues;
+        private final Thread creationThread;
+        private final BlockFactory blockFactory;
+
+        BlockOrdinalsReader(SortedSetDocValues sortedSetDocValues, BlockFactory blockFactory) {
+            this.sortedSetDocValues = sortedSetDocValues;
+            this.blockFactory = blockFactory;
+            this.creationThread = Thread.currentThread();
+        }
+
+        IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
+            final int positionCount = docs.getPositionCount();
+            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    int doc = docs.getInt(p);
+                    if (false == sortedSetDocValues.advanceExact(doc)) {
+                        builder.appendInt(0);
+                        continue;
+                    }
+                    int count = sortedSetDocValues.docValueCount();
+                    if (count == 1) {
+                        builder.appendInt(Math.toIntExact(sortedSetDocValues.nextOrd() + 1));
+                        continue;
+                    }
+                    builder.beginPositionEntry();
+                    for (int i = 0; i < count; i++) {
+                        builder.appendInt(Math.toIntExact(sortedSetDocValues.nextOrd() + 1));
+                    }
+                    builder.endPositionEntry();
+                }
+                return builder.build();
+            }
+        }
+
+        int docID() {
+            return sortedSetDocValues.docID();
+        }
+
+        /**
+         * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
+         */
+        static boolean canReuse(BlockOrdinalsReader reader, int startingDocID) {
+            return reader != null && reader.creationThread == Thread.currentThread() && reader.docID() <= startingDocID;
         }
     }
 }

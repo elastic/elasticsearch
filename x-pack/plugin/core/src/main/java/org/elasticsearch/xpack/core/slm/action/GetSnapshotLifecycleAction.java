@@ -92,7 +92,7 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
         }
 
         public Response(StreamInput in) throws IOException {
-            this.lifecycles = in.readList(SnapshotLifecyclePolicyItem::new);
+            this.lifecycles = in.readCollectionAsList(SnapshotLifecyclePolicyItem::new);
         }
 
         public List<SnapshotLifecyclePolicyItem> getPolicies() {

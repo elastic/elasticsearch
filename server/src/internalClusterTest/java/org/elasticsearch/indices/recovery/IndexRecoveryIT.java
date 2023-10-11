@@ -24,6 +24,8 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -33,13 +35,20 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -57,6 +66,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -64,6 +74,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -79,6 +91,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -104,6 +117,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -115,7 +129,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -125,6 +141,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
@@ -136,6 +153,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -385,11 +403,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action)) {
                 phase1ReadyBlocked.countDown();
-                try {
-                    allowToCompletePhase1Latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(allowToCompletePhase1Latch);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -398,7 +412,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().restartNode(nodeB, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                phase1ReadyBlocked.await();
+                safeAwait(phase1ReadyBlocked);
                 // nodeB stopped, peer recovery from nodeA to nodeC, it will be cancelled after nodeB get started.
                 RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
@@ -431,6 +445,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99941")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -894,11 +909,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         transport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action) && blockRecovery.tryAcquire()) {
                 phase1ReadyBlocked.countDown();
-                try {
-                    allowToCompletePhase1Latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(allowToCompletePhase1Latch);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -910,7 +921,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica),
                 indexName
             );
-            phase1ReadyBlocked.await();
+            safeAwait(phase1ReadyBlocked);
             internalCluster().restartNode(
                 clusterService().state().nodes().getMasterNode().getName(),
                 new InternalTestCluster.RestartCallback()
@@ -1498,7 +1509,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indexers[i] = new Thread(() -> {
                 while (stopped.get() == false) {
                     try {
-                        IndexResponse response = client().prepareIndex(indexName)
+                        DocWriteResponse response = client().prepareIndex(indexName)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
                         assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
@@ -1612,6 +1623,177 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .sum(),
             equalTo(0L)
         );
+    }
+
+    public void testWaitForClusterStateToBeAppliedOnSourceNode() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final var primaryNode = internalCluster().startDataOnlyNode();
+        String indexName = "test-index";
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .toList();
+        indexRandom(randomBoolean(), true, true, indexRequests);
+        assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
+
+        final var replicaNode = internalCluster().startDataOnlyNode();
+
+        final long initialClusterStateVersion = clusterService().state().version();
+
+        try (var recoveryClusterStateDelayListeners = new RecoveryClusterStateDelayListeners(initialClusterStateVersion)) {
+            final var primaryNodeTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                primaryNode
+            );
+            primaryNodeTransportService.addRequestHandlingBehavior(
+                Coordinator.COMMIT_STATE_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    assertThat(request, instanceOf(ApplyCommitRequest.class));
+                    recoveryClusterStateDelayListeners.getClusterStateDelayListener(((ApplyCommitRequest) request).getVersion())
+                        .addListener(
+                            ActionListener.wrap(ignored -> handler.messageReceived(request, channel, task), e -> fail(e, "unexpected"))
+                        );
+                }
+            );
+            primaryNodeTransportService.addRequestHandlingBehavior(
+                PeerRecoverySourceService.Actions.START_RECOVERY,
+                (handler, request, channel, task) -> {
+                    assertThat(request, instanceOf(StartRecoveryRequest.class));
+                    assertThat(((StartRecoveryRequest) request).clusterStateVersion(), greaterThan(initialClusterStateVersion));
+                    handler.messageReceived(
+                        request,
+                        new TestTransportChannel(
+                            new ChannelActionListener<>(channel).delegateResponse(
+                                (l, e) -> fail(e, "recovery should succeed on first attempt")
+                            )
+                        ),
+                        task
+                    );
+                    recoveryClusterStateDelayListeners.onStartRecovery();
+                }
+            );
+            recoveryClusterStateDelayListeners.addCleanup(primaryNodeTransportService::clearInboundRules);
+
+            final var replicaClusterService = internalCluster().getInstance(ClusterService.class, replicaNode);
+            final ClusterStateListener clusterStateListener = event -> {
+                final var primaryProceedListener = recoveryClusterStateDelayListeners.getClusterStateDelayListener(event.state().version());
+                final var indexRoutingTable = event.state().routingTable().index(indexName);
+                assertNotNull(indexRoutingTable);
+                final var indexShardRoutingTable = indexRoutingTable.shard(0);
+                if (indexShardRoutingTable.size() == 2 && indexShardRoutingTable.getAllInitializingShards().isEmpty() == false) {
+                    // this is the cluster state update which starts the recovery, so delay the primary node application until recovery
+                    // has started
+                    recoveryClusterStateDelayListeners.delayUntilRecoveryStart(primaryProceedListener);
+                } else {
+                    // this is some other cluster state update, so we must let it proceed now
+                    primaryProceedListener.onResponse(null);
+                }
+            };
+            replicaClusterService.addListener(clusterStateListener);
+            recoveryClusterStateDelayListeners.addCleanup(() -> replicaClusterService.removeListener(clusterStateListener));
+
+            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+            ensureGreen(indexName);
+        }
+    }
+
+    public void testDeleteIndexDuringFinalization() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final var primaryNode = internalCluster().startDataOnlyNode();
+        String indexName = "test-index";
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
+            .toList();
+        indexRandom(randomBoolean(), true, true, indexRequests);
+        assertThat(indicesAdmin().prepareFlush(indexName).get().getFailedShards(), equalTo(0));
+
+        final var replicaNode = internalCluster().startDataOnlyNode();
+
+        final SubscribableListener<Void> recoveryCompleteListener = new SubscribableListener<>();
+        final PlainActionFuture<AcknowledgedResponse> deleteListener = new PlainActionFuture<>();
+
+        final var threadPool = internalCluster().clusterService().threadPool();
+
+        final var indexId = internalCluster().clusterService().state().routingTable().index(indexName).getIndex();
+        final var primaryIndexShard = internalCluster().getInstance(IndicesService.class, primaryNode)
+            .indexServiceSafe(indexId)
+            .getShard(0);
+        final var globalCheckpointBeforeRecovery = primaryIndexShard.getLastSyncedGlobalCheckpoint();
+
+        final var replicaNodeTransportService = asInstanceOf(
+            MockTransportService.class,
+            internalCluster().getInstance(TransportService.class, replicaNode)
+        );
+        replicaNodeTransportService.addRequestHandlingBehavior(
+            PeerRecoveryTargetService.Actions.TRANSLOG_OPS,
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                new TestTransportChannel(ActionTestUtils.assertNoFailureListener(response -> {
+                    // Process the TRANSLOG_OPS response on the replica (avoiding failing it due to a concurrent delete) but
+                    // before sending the response back send another document to the primary, advancing the GCP to prevent the replica
+                    // being marked as in-sync (NB below we delay the replica write until after the index is deleted)
+                    client().prepareIndex(indexName).setSource("foo", "baz").execute(ActionListener.noop());
+
+                    primaryIndexShard.addGlobalCheckpointListener(
+                        globalCheckpointBeforeRecovery + 1,
+                        new GlobalCheckpointListeners.GlobalCheckpointListener() {
+                            @Override
+                            public Executor executor() {
+                                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                            }
+
+                            @Override
+                            public void accept(long globalCheckpoint, Exception e) {
+                                assertNull(e);
+
+                                // Now the GCP has advanced the replica won't be marked in-sync so respond to the TRANSLOG_OPS request
+                                // to start recovery finalization
+                                try {
+                                    channel.sendResponse(response);
+                                } catch (IOException ex) {
+                                    fail(ex);
+                                }
+
+                                // Wait a short while for finalization to block on advancing the replica's GCP and then delete the index
+                                threadPool.schedule(
+                                    () -> client().admin().indices().prepareDelete(indexName).execute(deleteListener),
+                                    TimeValue.timeValueMillis(100),
+                                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                                );
+                            }
+                        },
+                        TimeValue.timeValueSeconds(10)
+                    );
+                })),
+                task
+            )
+        );
+
+        // delay the delivery of the replica write until the end of the test so the replica never becomes in-sync
+        replicaNodeTransportService.addRequestHandlingBehavior(
+            BulkAction.NAME + "[s][r]",
+            (handler, request, channel, task) -> recoveryCompleteListener.addListener(
+                assertNoFailureListener(ignored -> handler.messageReceived(request, channel, task))
+            )
+        );
+
+        // Create the replica to trigger the whole process
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        // Wait for the index to be deleted
+        assertTrue(deleteListener.get(20, TimeUnit.SECONDS).isAcknowledged());
+
+        final var peerRecoverySourceService = internalCluster().getInstance(PeerRecoverySourceService.class, primaryNode);
+        assertBusy(() -> assertEquals(0, peerRecoverySourceService.numberOfOngoingRecoveries()));
+        recoveryCompleteListener.onResponse(null);
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

@@ -164,6 +164,6 @@ public class NodeAttributes implements ToXContentObject, Writeable {
         out.writeString(name);
         out.writeString(ephemeralId);
         out.writeString(transportAddress);
-        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(attributes, StreamOutput::writeString);
     }
 }

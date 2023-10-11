@@ -148,7 +148,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 fieldType,
                 buildFieldType(fieldType, context),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                copyTo,
                 this
             );
         }
@@ -480,7 +480,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, true, store, tsi, isSyntheticSource, null, meta);
+            super(name, true, store, tsi, isSyntheticSource, null, meta, false, false);
         }
 
         public AnnotatedTextFieldType(String name, Map<String, String> meta) {
@@ -508,7 +508,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.builder = builder;
         this.indexAnalyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
     }

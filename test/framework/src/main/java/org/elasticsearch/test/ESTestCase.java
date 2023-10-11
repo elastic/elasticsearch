@@ -114,6 +114,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -748,6 +749,30 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static long randomLongBetween(long min, long max) {
         return RandomNumbers.randomLongBetween(random(), min, max);
+    }
+
+    /**
+     * The maximum value that can be represented as an unsigned long.
+     */
+    public static final BigInteger UNSIGNED_LONG_MAX = BigInteger.ONE.shiftLeft(Long.SIZE).subtract(BigInteger.ONE);
+
+    /**
+     * A unsigned long in a {@link BigInteger} between min (inclusive) and max (inclusive).
+     */
+    public static BigInteger randomUnsignedLongBetween(BigInteger min, BigInteger max) {
+        if (min.compareTo(BigInteger.ZERO) < 0) {
+            throw new IllegalArgumentException("Must be between [0] and [" + UNSIGNED_LONG_MAX + "]");
+        }
+        if (0 < max.compareTo(UNSIGNED_LONG_MAX)) {
+            throw new IllegalArgumentException("Must be between [0] and [" + UNSIGNED_LONG_MAX + "]");
+        }
+        // Shift the min and max down into the long range
+        long minShifted = min.add(BigInteger.valueOf(Long.MIN_VALUE)).longValueExact();
+        long maxShifted = max.add(BigInteger.valueOf(Long.MIN_VALUE)).longValueExact();
+        // Grab a random number in that range
+        long randomShifted = randomLongBetween(minShifted, maxShifted);
+        // Shift back up into long range
+        return BigInteger.valueOf(randomShifted).subtract(BigInteger.valueOf(Long.MIN_VALUE));
     }
 
     /**
@@ -1522,7 +1547,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         Writeable.Reader<T> reader,
         TransportVersion version
     ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
+        return copyInstance(original, namedWriteableRegistry, StreamOutput::writeWriteable, reader, version);
     }
 
     /**
@@ -1849,7 +1874,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return MIN_PRIVATE_PORT + PORTS_PER_WORKER + effectiveWorkerId * PORTS_PER_WORKER;
     }
 
-    protected static InetAddress randomIp(boolean v4) {
+    public static InetAddress randomIp(boolean v4) {
         try {
             if (v4) {
                 byte[] ipv4 = new byte[4];
@@ -2010,5 +2035,19 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected static boolean isTurkishLocale() {
         return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
+
+    public static <T> T fail(Throwable t, String msg, Object... args) {
+        throw new AssertionError(org.elasticsearch.common.Strings.format(msg, args), t);
+    }
+
+    public static <T> T fail(Throwable t) {
+        return fail(t, "unexpected");
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T asInstanceOf(Class<T> clazz, Object o) {
+        assertThat(o, Matchers.instanceOf(clazz));
+        return (T) o;
     }
 }

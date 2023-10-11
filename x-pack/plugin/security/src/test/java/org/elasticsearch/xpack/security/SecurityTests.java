@@ -48,10 +48,12 @@ import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLogAppender;
@@ -60,7 +62,6 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -775,7 +776,8 @@ public class SecurityTests extends ESTestCase {
                 null,
                 Tracer.NOOP,
                 mock(ClusterService.class),
-                List.of()
+                List.of(),
+                RestExtension.allowAll()
             );
             actionModule.initRestHandlers(null);
 
@@ -922,7 +924,6 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testLoadExtensionsWhenOperatorPrivsAreDisabled() throws Exception {
-        assumeFalse("feature flag for serverless is expected to be false", DiscoveryNode.isServerless());
         Settings.Builder settingsBuilder = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir());
 
         if (randomBoolean()) {
@@ -947,36 +948,6 @@ public class SecurityTests extends ESTestCase {
         createComponentsUtil(settings);
         OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
         assertThat(operatorPrivilegesService, is(NOOP_OPERATOR_PRIVILEGES_SERVICE));
-    }
-
-    public void testLoadExtensionsWhenOperatorPrivsAreDisabledAndServerless() throws Exception {
-        assumeTrue("feature flag for serverless is expected to be true", DiscoveryNode.isServerless());
-        Settings.Builder settingsBuilder = Settings.builder().put("xpack.security.enabled", true).put("path.home", createTempDir());
-
-        if (randomBoolean()) {
-            settingsBuilder.put(OPERATOR_PRIVILEGES_ENABLED.getKey(), false); // doesn't matter if explicit or implicitly disabled
-        }
-
-        Settings settings = settingsBuilder.build();
-        constructNewSecurityObject(settings);
-        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
-            @Override
-            @SuppressWarnings("unchecked")
-            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
-                List<Object> extensions = new ArrayList<>();
-                if (extensionPointType == OperatorOnlyRegistry.class) {
-                    if (randomBoolean()) {
-                        extensions.add(new DummyOperatorOnlyRegistry()); // will be used
-                    }
-                }
-                return (List<T>) extensions;
-            }
-        });
-        createComponentsUtil(settings);
-        OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService = security.getOperatorPrivilegesService();
-        OperatorOnlyRegistry registry = ((OperatorPrivileges.DefaultOperatorPrivilegesService) operatorPrivilegesService)
-            .getOperatorOnlyRegistry();
-        assertThat(registry, instanceOf(DummyOperatorOnlyRegistry.class));
     }
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {

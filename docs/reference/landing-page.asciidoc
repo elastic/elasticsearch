@@ -62,7 +62,7 @@
       Elasticsearch is the search and analytics engine that powers the Elastic Stack.
     </p>
     <p>
-      <a href="https://www.elastic.co/guide/en/welcome-to-elastic/current/getting-started-guides.html">
+      <a href="https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/getting-started-guides.html">
         <button class="btn btn-primary">Get started</button>
       </a>
     </p>
@@ -218,7 +218,7 @@
     </a>
   </div>
   <div class="col-md-4 col-12 mb-2">
-    <a class="no-text-decoration" href="https://www.elastic.co/guide/en/welcome-to-elastic/current/getting-started-observability.html">
+    <a class="no-text-decoration" href="https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/getting-started-observability.html">
       <div class="card h-100">
         <h4 class="mt-3">
           <span class="inline-block float-left icon mr-2" style="background-image: url('https://images.contentstack.io/v3/assets/bltefdd0b53724fa2ce/bltaa08b370a00bbecc/634d9da14e565f1cdce27f7c/observability-logo-color-32px.png');"></span>

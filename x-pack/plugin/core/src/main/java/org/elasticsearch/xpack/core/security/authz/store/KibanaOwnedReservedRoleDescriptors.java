@@ -174,8 +174,30 @@ class KibanaOwnedReservedRoleDescriptors {
                     .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-fileds*").privileges("all").allowRestrictedIndices(true).build(),
+                // 8.9 BWC
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-file-data-*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-files-*").privileges("all").allowRestrictedIndices(true).build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-filedelivery-data-*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-filedelivery-meta-*")
+                    .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 // Fleet telemetry queries Agent Logs indices in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-elastic_agent*").privileges("read").build(),
+                // Fleet publishes Agent metrics in kibana task runner
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-fleet_server*")
+                    .privileges("auto_configure", "read", "write", "delete")
+                    .build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),
@@ -281,13 +303,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-ti_*_latest.*")
                     .privileges(
-                        // Require "create_index", "delete_index", "read", "index", "delete", IndicesAliasesAction.NAME, and
-                        // UpdateSettingsAction.NAME for transform
                         "create_index",
                         "delete_index",
                         "read",
                         "index",
                         "delete",
+                        "manage",
                         IndicesAliasesAction.NAME,
                         UpdateSettingsAction.NAME
                     )

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -156,7 +156,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         scheduledFuture = threadPool.scheduleWithFixedDelay(
             this::loadQueuedModels,
             MODEL_LOADING_CHECK_INTERVAL,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
     }
 
@@ -217,8 +217,16 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     logger.debug(() -> "[" + deploymentId + "] Start deployment failed as model [" + modelId + "] was not found", ex);
                     handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(modelId, ex));
                 } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
+                    /*
+                     * This case will not catch the ElasticsearchException generated from the ChunkedTrainedModelRestorer in a scenario
+                     * where the maximum number of retries for a SearchPhaseExecutionException or CBE occur. This is intentional. If the
+                     * retry logic fails after retrying we should return the error and not retry here. The generated
+                     * ElasticsearchException will contain the SearchPhaseExecutionException or CBE but cannot be unwrapped.
+                     */
                     logger.debug(() -> "[" + deploymentId + "] Start deployment failed, will retry", ex);
                     // A search phase execution failure should be retried, push task back to the queue
+
+                    // This will cause the entire model to be reloaded (all the chunks)
                     loadingToRetry.add(loadingTask);
                 } else {
                     handleLoadFailure(loadingTask, ex);
@@ -631,7 +639,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         }
     }
 
-    private boolean hasStartingAssignments(TrainedModelAssignment assignment) {
+    private static boolean hasStartingAssignments(TrainedModelAssignment assignment) {
         return assignment.getNodeRoutingTable()
             .values()
             .stream()

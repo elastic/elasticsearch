@@ -267,6 +267,7 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.addStateApplier(timestampFieldMapperService);
     }
 
+    @SuppressWarnings("this-escape")
     public IndicesService(
         Settings settings,
         PluginsService pluginsService,
@@ -879,7 +880,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    public IndexShard createShard(
+    public void createShard(
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -888,7 +889,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final GlobalCheckpointSyncer globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
-        final DiscoveryNode sourceNode
+        final DiscoveryNode sourceNode,
+        long clusterStateVersion
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
@@ -911,8 +913,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     .masterNodeTimeout(TimeValue.MAX_VALUE),
                 new ThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
             );
-        }, this);
-        return indexShard;
+        }, this, clusterStateVersion);
     }
 
     @Override
@@ -1484,7 +1485,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
-                threadPool.scheduleUnlessShuttingDown(interval, ThreadPool.Names.SAME, this);
+                threadPool.scheduleUnlessShuttingDown(interval, EsExecutors.DIRECT_EXECUTOR_SERVICE, this);
             }
         }
 
@@ -1842,5 +1843,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public IndexScopedSettings getIndexScopedSettings() {
         return indexScopedSettings;
+    }
+
+    // TODO move this?
+    public BigArrays getBigArrays() {
+        return bigArrays;
     }
 }

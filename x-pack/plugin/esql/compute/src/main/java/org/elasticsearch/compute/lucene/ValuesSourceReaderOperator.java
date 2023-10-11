@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -42,12 +43,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field being loaded
      */
-    public record ValuesSourceReaderOperatorFactory(List<ValueSourceInfo> sources, int docChannel, String field)
+    public record ValuesSourceReaderOperatorFactory(Supplier<List<ValueSourceInfo>> sources, int docChannel, String field)
         implements
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(sources, docChannel, field);
+            return new ValuesSourceReaderOperator(sources.get(), docChannel, field);
         }
 
         @Override
@@ -160,7 +161,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(readersBuilt, StreamOutput::writeString, StreamOutput::writeVInt);
+            out.writeMap(readersBuilt, StreamOutput::writeVInt);
         }
 
         @Override

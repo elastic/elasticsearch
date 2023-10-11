@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.explain.ExplainRequest;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
@@ -18,7 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -84,6 +85,6 @@ public class RestExplainAction extends BaseRestHandler {
 
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        return channel -> client.explain(explainRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.explain(explainRequest, new RestToXContentListener<>(channel, ExplainResponse::status));
     }
 }

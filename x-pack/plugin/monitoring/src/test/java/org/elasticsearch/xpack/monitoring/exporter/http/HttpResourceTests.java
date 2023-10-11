@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
  */
 public class HttpResourceTests extends ESTestCase {
 
+    @SuppressWarnings("this-escape")
     private final String owner = getTestName();
     private final RestClient mockClient = mock(RestClient.class);
 

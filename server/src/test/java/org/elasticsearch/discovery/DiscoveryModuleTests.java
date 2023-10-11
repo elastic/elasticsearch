@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -113,7 +114,8 @@ public class DiscoveryModuleTests extends ESTestCase {
             gatewayMetaState,
             mock(RerouteService.class),
             null,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            CompatibilityVersionsUtils.staticCurrent()
         );
     }
 

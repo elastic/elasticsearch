@@ -175,7 +175,7 @@ final class TransportKeepAlive implements Closeable {
                 return;
             }
 
-            threadPool.scheduleUnlessShuttingDown(pingInterval, ThreadPool.Names.GENERIC, this);
+            threadPool.scheduleUnlessShuttingDown(pingInterval, threadPool.generic(), this);
         }
 
         @Override

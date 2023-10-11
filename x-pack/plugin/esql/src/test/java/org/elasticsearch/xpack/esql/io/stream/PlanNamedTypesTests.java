@@ -169,20 +169,19 @@ public class PlanNamedTypesTests extends ESTestCase {
             "foo",
             new UnsupportedEsField("foo", "keyword"),
             "field not supported",
-            new NameId(53)
+            new NameId()
         );
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeUnsupportedAttr(out, orig);
-        var deser = PlanNamedTypes.readUnsupportedAttr(planStreamInput(bso));
+        var in = planStreamInput(bso);
+        var deser = PlanNamedTypes.readUnsupportedAttr(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(orig.id()));
+        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
     }
 
     public void testUnsupportedAttribute() {
-        Stream.generate(PlanNamedTypesTests::randomUnsupportedAttribute)
-            .limit(100)
-            .forEach(PlanNamedTypesTests::assertNamedExpressionAndId);
+        Stream.generate(PlanNamedTypesTests::randomUnsupportedAttribute).limit(100).forEach(PlanNamedTypesTests::assertNamedExpression);
     }
 
     public void testFieldAttributeSimple() throws IOException {
@@ -194,19 +193,20 @@ public class PlanNamedTypesTests extends ESTestCase {
             randomEsField(),
             null, // qualifier, can be null
             Nullability.TRUE,
-            new NameId(53),
+            new NameId(),
             true // synthetic
         );
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeFieldAttribute(out, orig);
-        var deser = PlanNamedTypes.readFieldAttribute(planStreamInput(bso));
+        var in = planStreamInput(bso);
+        var deser = PlanNamedTypes.readFieldAttribute(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(orig.id()));
+        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
     }
 
     public void testFieldAttribute() {
-        Stream.generate(PlanNamedTypesTests::randomFieldAttribute).limit(100).forEach(PlanNamedTypesTests::assertNamedExpressionAndId);
+        Stream.generate(PlanNamedTypesTests::randomFieldAttribute).limit(100).forEach(PlanNamedTypesTests::assertNamedExpression);
     }
 
     public void testKeywordEsFieldSimple() throws IOException {
@@ -353,9 +353,10 @@ public class PlanNamedTypesTests extends ESTestCase {
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeAlias(out, orig);
-        var deser = PlanNamedTypes.readAlias(planStreamInput(bso));
+        var in = planStreamInput(bso);
+        var deser = PlanNamedTypes.readAlias(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(orig.id(), equalTo(deser.id()));
+        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
     }
 
     public void testLiteralSimple() throws IOException {
@@ -404,10 +405,9 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
-    private static void assertNamedExpressionAndId(NamedExpression origObj) {
+    private static void assertNamedExpression(NamedExpression origObj) {
         var deserObj = serializeDeserialize(origObj, PlanStreamOutput::writeExpression, PlanStreamInput::readNamedExpression);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
-        assertThat(deserObj.id(), equalTo(origObj.id()));
     }
 
     private static <T> void assertNamedType(Class<T> type, T origObj) {

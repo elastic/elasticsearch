@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.fieldstats;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -95,7 +95,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
     }
 
     private void indexDocument(String id, String sValue) {
-        IndexResponse response = client().prepareIndex("index").setId(id).setSource("s", sValue).get();
+        DocWriteResponse response = client().prepareIndex("index").setId(id).setSource("s", sValue).get();
         assertThat(response.status(), anyOf(equalTo(RestStatus.OK), equalTo(RestStatus.CREATED)));
     }
 }

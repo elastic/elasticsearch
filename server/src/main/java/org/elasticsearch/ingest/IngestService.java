@@ -172,6 +172,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    @SuppressWarnings("this-escape")
     public IngestService(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -940,7 +941,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private void executePipeline(
+    private static void executePipeline(
         final IngestDocument ingestDocument,
         final Pipeline pipeline,
         final BiConsumer<Boolean, Exception> handler

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -90,7 +91,7 @@ public class TypeParsersTests extends ESTestCase {
             type -> typeParser,
             type -> null,
             olderVersion,
-            () -> TransportVersion.MINIMUM_COMPATIBLE,
+            () -> TransportVersions.MINIMUM_COMPATIBLE,
             null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
@@ -113,7 +114,7 @@ public class TypeParsersTests extends ESTestCase {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, IndexVersion.current());
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_8_0_0,
+            TransportVersions.V_8_0_0,
             TransportVersion.current()
         );
         MappingParserContext context = new MappingParserContext(

@@ -38,7 +38,7 @@ public class RollableIndexCaps implements Writeable, ToXContentObject {
 
     public RollableIndexCaps(StreamInput in) throws IOException {
         this.indexName = in.readString();
-        this.jobCaps = in.readList(RollupJobCaps::new);
+        this.jobCaps = in.readCollectionAsList(RollupJobCaps::new);
     }
 
     public String getIndexName() {

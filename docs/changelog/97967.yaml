@@ -1,5 +1,0 @@
-pr: 97967
-summary: Ensure frozen indices have correct tier preference
-area: "Indices APIs"
-type: bug
-issues: []

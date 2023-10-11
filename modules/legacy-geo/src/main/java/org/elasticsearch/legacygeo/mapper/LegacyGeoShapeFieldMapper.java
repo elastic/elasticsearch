@@ -294,7 +294,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
         }
 
-        private void setupPrefixTrees(GeoShapeFieldType ft) {
+        private static void setupPrefixTrees(GeoShapeFieldType ft) {
             SpatialPrefixTree prefixTree;
             if (ft.tree().equals(PrefixTrees.GEOHASH)) {
                 prefixTree = new GeohashPrefixTree(
@@ -363,7 +363,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public LegacyGeoShapeFieldMapper build(MapperBuilderContext context) {
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);
-            return new LegacyGeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new LegacyGeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
     }
 
@@ -583,7 +583,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected void index(DocumentParserContext context, ShapeBuilder<?, ?, ?> shapeBuilder) throws IOException {
+    protected void index(DocumentParserContext context, ShapeBuilder<?, ?, ?> shapeBuilder) {
         if (shapeBuilder == null) {
             return;
         }

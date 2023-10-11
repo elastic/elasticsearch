@@ -68,7 +68,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats length(first_name), count(1) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's parameters must be an attribute or literal; found [emp_no / 2] of type [Div]",
+            "1:19: aggregate function's field must be an attribute or literal; found [emp_no / 2] of type [Div]",
             error("from test | stats x = avg(emp_no / 2) by emp_no")
         );
         assertEquals(
@@ -76,12 +76,20 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's parameters must be an attribute or literal; found [length(first_name)] of type [Length]",
+            "1:19: aggregate function's field must be an attribute or literal; found [length(first_name)] of type [Length]",
             error("from test | stats count(length(first_name)) by first_name")
         );
         assertEquals(
             "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
             error("from test | stats x = emp_no + avg(emp_no) by emp_no")
+        );
+        assertEquals(
+            "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
+            error("from test | stats x = percentile(languages, languages) by emp_no")
+        );
+        assertEquals(
+            "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
+            error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
     }
 
@@ -267,6 +275,29 @@ public class VerifierTests extends ESTestCase {
                 error("row 1 " + unit + " - now() ")
             );
         }
+    }
+
+    public void testPeriodAndDurationInEval() {
+        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] in expression [1 " + unit + "]",
+                error("row x = 1 | eval y = 1 " + unit)
+            );
+        }
+        for (var unit : List.of("day", "week", "month", "year")) {
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] in expression [1 " + unit + "]",
+                error("row x = 1 | eval y = 1 " + unit)
+            );
+        }
+    }
+
+    public void testFilterNonBoolField() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+    }
+
+    public void testFilterDateConstant() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
     }
 
     private String error(String query) {

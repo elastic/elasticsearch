@@ -35,7 +35,7 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
 
     public BaseBulkUpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        this.ids = in.readStringList();
+        this.ids = in.readStringCollectionAsList();
     }
 
     @Override

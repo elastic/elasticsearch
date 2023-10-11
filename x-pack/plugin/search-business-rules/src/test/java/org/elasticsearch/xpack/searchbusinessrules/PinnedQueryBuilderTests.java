@@ -92,7 +92,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     private static Item[] generateRandomItems() {
-        return randomArray(1, 100, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
+        return randomArray(1, 100, Item[]::new, () -> new Item(randomBoolean() ? null : randomAlphaOfLength(64), randomAlphaOfLength(256)));
     }
 
     @Override

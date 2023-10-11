@@ -27,11 +27,12 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     private final List<TNodeResponse> nodes;
     private Map<String, TNodeResponse> nodesMap;
 
+    @SuppressWarnings("this-escape")
     protected BaseNodesResponse(StreamInput in) throws IOException {
         super(in);
         clusterName = new ClusterName(in);
         nodes = readNodesFrom(in);
-        failures = in.readList(FailedNodeException::new);
+        failures = in.readCollectionAsList(FailedNodeException::new);
     }
 
     protected BaseNodesResponse(ClusterName clusterName, List<TNodeResponse> nodes, List<FailedNodeException> failures) {

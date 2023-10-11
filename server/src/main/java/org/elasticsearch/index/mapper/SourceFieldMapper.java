@@ -77,13 +77,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
 
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE); // not indexed
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
+            FieldType ft = new FieldType();
+            ft.setIndexOptions(IndexOptions.NONE); // not indexed
+            ft.setStored(true);
+            ft.setOmitNorms(true);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
     }
 

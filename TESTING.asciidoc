@@ -453,6 +453,11 @@ You can run a group of YAML test by using wildcards:
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=index/*/*}"
 ---------------------------------------------------------------------------
 
+Note that if the selected test via the `--tests` filter is not a valid test, i.e., the YAML test
+runner is not able to parse and load it, you might get an error message indicating that the test
+was not found. In such cases, running the whole suite without using the `--tests` could show more
+specific error messages about why the test runner is not able to parse or load a certain test.
+
 The YAML REST tests support all the options provided by the randomized runner, plus the following:
 
 * `tests.rest.blacklist`: comma separated globs that identify tests that are

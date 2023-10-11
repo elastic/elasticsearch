@@ -9,9 +9,13 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 $endif$
 import java.util.BitSet;
@@ -23,6 +27,8 @@ import java.util.stream.IntStream;
  */
 public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
+
 $if(BytesRef)$
     private final BytesRefArray values;
 
@@ -30,12 +36,19 @@ $else$
     private final $type$[] values;
 $endif$
 
-$if(BytesRef)$
-    public $Type$ArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-$else$
-    public $Type$ArrayBlock($type$[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-$endif$
-        super(positionCount, firstValueIndexes, nulls, mvOrdering);
+    public $Type$ArrayBlock($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
+    }
+
+    public $Type$ArrayBlock(
+        $if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values,
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering,
+        BlockFactory blockFactory
+    ) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
         this.values = values;
     }
 
@@ -56,7 +69,29 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        return new Filter$Type$Block(this, positions);
+    $if(BytesRef)$
+        final BytesRef scratch = new BytesRef();
+    $endif$
+        try (var builder = blockFactory.new$Type$BlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.append$Type$(get$Type$(first + c$if(BytesRef)$, scratch$endif$));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override
@@ -74,7 +109,17 @@ $endif$
             return new $Type$ArrayVector(values, end).asBlock();
         }
         int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new $Type$ArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED);
+        return new $Type$ArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
+    }
+
+    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
     }
 
     @Override
@@ -105,5 +150,19 @@ $else$
             + Arrays.toString(values)
 $endif$
             + ']';
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+    $if(BytesRef)$
+        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        Releasables.closeExpectNoException(values);
+    $else$
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
+    $endif$
     }
 }

@@ -176,7 +176,7 @@ public class EsExecutorsTests extends ESTestCase {
         terminate(executor);
     }
 
-    public void testScaleUp() throws Exception {
+    public void testScaleUp() {
         final int min = between(1, 3);
         final int max = between(min + 1, 6);
         final CyclicBarrier barrier = new CyclicBarrier(max + 1);
@@ -198,23 +198,19 @@ public class EsExecutorsTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(() -> {
                 latch.countDown();
-                try {
-                    barrier.await();
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(barrier);
             });
 
             // wait until thread executes this task
             // otherwise, a task might be queued
-            latch.await();
+            safeAwait(latch);
         }
 
-        barrier.await();
+        safeAwait(barrier);
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
-        barrier.await();
+        safeAwait(barrier);
         terminate(pool);
     }
 
@@ -240,23 +236,19 @@ public class EsExecutorsTests extends ESTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             pool.execute(() -> {
                 latch.countDown();
-                try {
-                    barrier.await();
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(barrier);
             });
 
             // wait until thread executes this task
             // otherwise, a task might be queued
-            latch.await();
+            safeAwait(latch);
         }
 
-        barrier.await();
+        safeAwait(barrier);
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
-        barrier.await();
+        safeAwait(barrier);
         assertBusy(() -> {
             assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
             assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.application;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,8 +22,8 @@ import java.util.Objects;
 
 public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
 
-    static final TransportVersion BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION = TransportVersion.V_8_8_1;
-    static final TransportVersion QUERY_RULES_TRANSPORT_VERSION = TransportVersion.V_8_500_046;
+    static final TransportVersion BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION = TransportVersions.V_8_8_1;
+    static final TransportVersion QUERY_RULES_TRANSPORT_VERSION = TransportVersions.V_8_500_046;
 
     public static final String SEARCH_APPLICATIONS = "search_applications";
     public static final String ANALYTICS_COLLECTIONS = "analytics_collections";
@@ -80,7 +81,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_8_0;
+        return TransportVersions.V_8_8_0;
     }
 
     @Override

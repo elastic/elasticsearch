@@ -49,6 +49,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -73,6 +75,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
+        assertThat(nodeInfo.getTransportVersion(), equalTo(readNodeInfo.getTransportVersion()));
+        assertThat(nodeInfo.getIndexVersion(), equalTo(readNodeInfo.getIndexVersion()));
         compareJsonOutput(nodeInfo.getInfo(HttpInfo.class), readNodeInfo.getInfo(HttpInfo.class));
         compareJsonOutput(nodeInfo.getInfo(RemoteClusterServerInfo.class), readNodeInfo.getInfo(RemoteClusterServerInfo.class));
         compareJsonOutput(nodeInfo.getInfo(JvmInfo.class), readNodeInfo.getInfo(JvmInfo.class));
@@ -105,6 +109,9 @@ public class NodeInfoStreamingTests extends ESTestCase {
     }
 
     private static NodeInfo createNodeInfo() {
+        Map<String, Integer> componentVersions = IntStream.range(0, randomInt(5))
+            .boxed()
+            .collect(Collectors.toUnmodifiableMap(i -> randomAlphaOfLength(10), i -> randomInt(Integer.MAX_VALUE)));
         Build build = Build.current();
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
@@ -149,6 +156,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numPlugins = randomIntBetween(0, 5);
             List<PluginDescriptor> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
+                var isStable = randomBoolean();
+                var hasModuleName = randomBoolean();
                 plugins.add(
                     new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
@@ -156,19 +165,21 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomAlphaOfLengthBetween(3, 10),
                         VersionUtils.randomVersion(random()),
                         "1.8",
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        randomBoolean()
+                        isStable
                     )
                 );
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginDescriptor> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
+                var isStable = randomBoolean();
+                var hasModuleName = randomBoolean();
                 modules.add(
                     new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
@@ -176,13 +187,13 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomAlphaOfLengthBetween(3, 10),
                         VersionUtils.randomVersion(random()),
                         "1.8",
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        randomBoolean()
+                        isStable
                     )
                 );
             }
@@ -230,6 +241,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
         return new NodeInfo(
             VersionUtils.randomVersion(random()),
             TransportVersionUtils.randomVersion(random()),
+            IndexVersionUtils.randomVersion(random()),
+            componentVersions,
             build,
             node,
             settings,

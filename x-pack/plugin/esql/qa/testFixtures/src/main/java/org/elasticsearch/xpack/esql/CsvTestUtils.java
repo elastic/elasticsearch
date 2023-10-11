@@ -12,11 +12,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -60,7 +63,7 @@ public final class CsvTestUtils {
 
     public static Tuple<Page, List<String>> loadPageFromCsv(URL source) throws Exception {
 
-        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) {
+        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
                 if (stringValue.contains(",")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
@@ -78,6 +81,11 @@ public final class CsvTestUtils {
 
                 var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
                 builderWrapper().append().accept(converted);
+            }
+
+            @Override
+            public void close() {
+                builderWrapper.close();
             }
         }
 
@@ -119,7 +127,11 @@ public final class CsvTestUtils {
                             if (type == Type.NULL) {
                                 throw new IllegalArgumentException("Null type is not allowed in the test data; found " + entries[i]);
                             }
-                            columns[i] = new CsvColumn(name, type, BlockUtils.wrapperFor(ElementType.fromJava(type.clazz()), 8));
+                            columns[i] = new CsvColumn(
+                                name,
+                                type,
+                                BlockUtils.wrapperFor(BlockFactory.getNonBreakingInstance(), ElementType.fromJava(type.clazz()), 8)
+                            );
                         }
                     }
                     // data rows
@@ -151,11 +163,15 @@ public final class CsvTestUtils {
             }
         }
         var columnNames = new ArrayList<String>(columns.length);
-        var blocks = Arrays.stream(columns)
-            .peek(b -> columnNames.add(b.name))
-            .map(b -> b.builderWrapper.builder().build())
-            .toArray(Block[]::new);
-        return new Tuple<>(new Page(blocks), columnNames);
+        try {
+            var blocks = Arrays.stream(columns)
+                .peek(b -> columnNames.add(b.name))
+                .map(b -> b.builderWrapper.builder().build())
+                .toArray(Block[]::new);
+            return new Tuple<>(new Page(blocks), columnNames);
+        } finally {
+            Releasables.closeExpectNoException(columns);
+        }
     }
 
     /**
@@ -310,12 +326,18 @@ public final class CsvTestUtils {
         SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
         TEXT(Object::toString, BytesRef.class),
-        IP(StringUtils::parseIP, BytesRef.class),
+        IP(
+            StringUtils::parseIP,
+            (l, r) -> l instanceof String maybeIP
+                ? StringUtils.parseIP(maybeIP).compareTo(StringUtils.parseIP(String.valueOf(r)))
+                : ((BytesRef) l).compareTo((BytesRef) r),
+            BytesRef.class
+        ),
         VERSION(v -> new Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(
             x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(),
-            (l, r) -> l instanceof Long l2 ? l2.compareTo((Long) r) : l.toString().compareTo(r.toString()),
+            (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()),
             Long.class
         ),
         BOOLEAN(Booleans::parseBoolean, Boolean.class);
@@ -331,6 +353,7 @@ public final class CsvTestUtils {
             LOOKUP.put("BYTE", INTEGER);
 
             // add also the types with short names
+            LOOKUP.put("BOOL", BOOLEAN);
             LOOKUP.put("I", INTEGER);
             LOOKUP.put("L", LONG);
             LOOKUP.put("UL", UNSIGNED_LONG);
@@ -409,7 +432,7 @@ public final class CsvTestUtils {
         }
     }
 
-    static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
+    public static void logMetaData(List<String> actualColumnNames, List<Type> actualColumnTypes, Logger logger) {
         // header
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
@@ -435,21 +458,23 @@ public final class CsvTestUtils {
         logger.info(sb.toString());
     }
 
-    static void logData(List<List<Object>> values, Logger logger) {
-        for (List<Object> list : values) {
-            logger.info(rowAsString(list));
+    static void logData(Iterator<Iterator<Object>> values, Logger logger) {
+        while (values.hasNext()) {
+            var val = values.next();
+            logger.info(rowAsString(val));
         }
     }
 
-    private static String rowAsString(List<Object> list) {
+    private static String rowAsString(Iterator<Object> iterator) {
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
-        for (int i = 0; i < list.size(); i++) {
+        for (int i = 0; iterator.hasNext(); i++) {
             column.setLength(0);
             if (i > 0) {
                 sb.append(" | ");
             }
-            sb.append(trimOrPad(column.append(list.get(i))));
+            var next = iterator.next();
+            sb.append(trimOrPad(column.append(next)));
         }
         return sb.toString();
     }

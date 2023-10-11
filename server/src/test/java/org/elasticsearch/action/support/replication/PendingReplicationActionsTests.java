@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
@@ -91,7 +92,14 @@ public class PendingReplicationActionsTests extends ESTestCase {
         }
 
         private TestAction(ActionListener<Void> listener, boolean succeed) {
-            super(logger, threadPool, TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1), listener);
+            super(
+                logger,
+                threadPool,
+                TimeValue.timeValueMillis(1),
+                TimeValue.timeValueMinutes(1),
+                listener,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
             this.succeed = succeed;
         }
 

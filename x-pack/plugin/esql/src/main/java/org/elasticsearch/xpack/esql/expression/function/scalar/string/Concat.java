@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -24,9 +27,9 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
@@ -34,6 +37,9 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
  * Join strings.
  */
 public class Concat extends ScalarFunction implements EvaluatorMapper {
+
+    static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
+
     public Concat(Source source, Expression first, List<? extends Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
@@ -72,23 +78,39 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        List<Supplier<EvalOperator.ExpressionEvaluator>> values = children().stream().map(toEvaluator).toList();
-        return () -> new ConcatEvaluator(
-            new BytesRefBuilder(),
-            values.stream().map(Supplier::get).toArray(EvalOperator.ExpressionEvaluator[]::new)
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var values = children().stream().map(toEvaluator).toList();
+        return dvrCtx -> new ConcatEvaluator(
+            new BreakingBytesRefBuilder(dvrCtx.breaker(), "concat"),
+            values.stream().map(fac -> fac.get(dvrCtx)).toArray(EvalOperator.ExpressionEvaluator[]::new),
+            dvrCtx
         );
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false) BytesRefBuilder scratch, BytesRef[] values) {
+    static BytesRef process(@Fixed(includeInToString = false) BreakingBytesRefBuilder scratch, BytesRef[] values) {
+        scratch.grow(checkedTotalLength(values));
         scratch.clear();
         for (int i = 0; i < values.length; i++) {
             scratch.append(values[i]);
         }
-        return scratch.get();
+        return scratch.bytesRefView();
+    }
+
+    private static int checkedTotalLength(BytesRef[] values) {
+        int length = 0;
+        for (var v : values) {
+            length += v.length;
+        }
+        if (length > MAX_CONCAT_LENGTH) {
+            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported") {
+                @Override
+                public RestStatus status() {
+                    return RestStatus.BAD_REQUEST; // return a 400 response
+                }
+            };
+        }
+        return length;
     }
 
     @Override

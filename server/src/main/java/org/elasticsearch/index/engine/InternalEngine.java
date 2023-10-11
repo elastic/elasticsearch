@@ -88,6 +88,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -125,6 +126,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.core.Strings.format;
 
 public class InternalEngine extends Engine {
+
     /**
      * When we last pruned expired tombstones from versionMap.deletes:
      */
@@ -219,10 +221,12 @@ public class InternalEngine extends Engine {
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
 
+    @SuppressWarnings("this-escape")
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
 
+    @SuppressWarnings("this-escape")
     InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
@@ -360,24 +364,55 @@ public class InternalEngine extends Engine {
 
     @Nullable
     private CombinedDeletionPolicy.CommitsListener newCommitsListener() {
-        final Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
+        Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
         if (listener != null) {
+            final IndexCommitListener wrappedListener = Assertions.ENABLED ? assertingCommitsOrderListener(listener) : listener;
             return new CombinedDeletionPolicy.CommitsListener() {
                 @Override
                 public void onNewAcquiredCommit(final IndexCommit commit, final Set<String> additionalFiles) {
                     final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
                     var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
                     assert indexCommitRef.getIndexCommit() == commit;
-                    listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
+                    wrappedListener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
                 }
 
                 @Override
                 public void onDeletedCommit(IndexCommit commit) {
-                    listener.onIndexCommitDelete(shardId, commit);
+                    wrappedListener.onIndexCommitDelete(shardId, commit);
                 }
             };
         }
         return null;
+    }
+
+    private IndexCommitListener assertingCommitsOrderListener(final IndexCommitListener listener) {
+        final AtomicLong generation = new AtomicLong(0L);
+        return new IndexCommitListener() {
+            @Override
+            public void onNewCommit(
+                ShardId shardId,
+                Store store,
+                long primaryTerm,
+                IndexCommitRef indexCommitRef,
+                Set<String> additionalFiles
+            ) {
+                final long nextGen = indexCommitRef.getIndexCommit().getGeneration();
+                final long prevGen = generation.getAndSet(nextGen);
+                assert prevGen < nextGen
+                    : "Expect new commit generation "
+                        + nextGen
+                        + " to be greater than previous commit generation "
+                        + prevGen
+                        + " for shard "
+                        + shardId;
+                listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
+            }
+
+            @Override
+            public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
+                listener.onIndexCommitDelete(shardId, deletedCommit);
+            }
+        };
     }
 
     @Override
@@ -843,6 +878,18 @@ public class InternalEngine extends Engine {
         }
         boolean getFromSearcherIfNotInTranslog = getFromSearcher;
         if (versionValue != null) {
+            /*
+             * Once we've seen the ID in the live version map, in two cases it is still possible not to
+             * be able to follow up with serving the get from the translog:
+             *  1. It is possible that once attempt handling the get, we won't see the doc in the translog
+             *     since it might have been moved out.
+             *     TODO: ideally we should keep around translog entries long enough to cover this case
+             *  2. We might not be tracking translog locations in the live version map (see @link{trackTranslogLocation})
+             *
+             * In these cases, we should always fall back to get the doc from the internal searcher.
+             */
+
+            getFromSearcherIfNotInTranslog = true;
             if (versionValue.isDelete()) {
                 return GetResult.NOT_EXISTS;
             }
@@ -876,11 +923,8 @@ public class InternalEngine extends Engine {
                         throw new EngineException(shardId, "failed to read operation from translog", e);
                     }
                 } else {
+                    // We need to start tracking translog locations in the live version map.
                     trackTranslogLocation.set(true);
-                    // We need to start tracking translog locations in the live version map. Refresh and
-                    // serve all the real-time gets with a missing translog location from the internal searcher
-                    // (until a flush happens) even if we're supposed to only get from translog.
-                    getFromSearcherIfNotInTranslog = true;
                 }
             }
             assert versionValue.seqNo >= 0 : versionValue;
@@ -2035,9 +2079,28 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {
+    public void writeIndexingBuffer() throws IOException {
+        final long versionMapBytesUsed = versionMap.ramBytesUsedForRefresh();
+        // Only count bytes that are not already being written to disk. Note: this number may be negative at times if these two metrics get
+        // updated concurrently. It's fine as it's only being used as a heuristic to decide on a full refresh vs. writing a single segment.
+        // TODO: it might be more relevant to use the RAM usage of the largest DWPT as opposed to the overall RAM usage? Can we get this
+        // exposed in Lucene?
+        final long indexWriterBytesUsed = indexWriter.ramBytesUsed() - indexWriter.getFlushingBytes();
+
+        if (versionMapBytesUsed >= indexWriterBytesUsed) {
+            // This method expects to reclaim memory quickly, so if the version map is using more memory than the IndexWriter buffer then we
+            // do a refresh, which is the only way to reclaim memory from the version map. IndexWriter#flushNextBuffer has similar logic: if
+            // pending deletes occupy more than half of RAMBufferSizeMB then deletes are applied too.
+            reclaimVersionMapMemory();
+        } else {
+            // Write the largest pending segment.
+            indexWriter.flushNextBuffer();
+        }
+    }
+
+    private void reclaimVersionMapMemory() {
         // If we're already halfway through the flush thresholds, then we do a flush. This will save us from writing segments twice
-        // independently in a short period of time, once to reclaim IndexWriter buffer memory and then to reclaim the translog. For
+        // independently in a short period of time, once to reclaim version map memory and then to reclaim the translog. For
         // memory-constrained deployments that need to refresh often to reclaim memory, this may require flushing 2x more often than
         // expected, but the general assumption is that this downside is an ok trade-off given the benefit of flushing the whole content of
         // the indexing buffer less often.
@@ -2048,12 +2111,9 @@ public class InternalEngine extends Engine {
         final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos() / 2;
         if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
             flush(false, false, ActionListener.noop());
-            return;
+        } else {
+            refresh("write indexing buffer", SearcherScope.INTERNAL, false);
         }
-
-        // TODO: revise https://github.com/elastic/elasticsearch/pull/34553 to use IndexWriter.flushNextBuffer to flush only the largest
-        // pending DWPT. Note that benchmarking this PR with a heavy update user case (geonames) and a small heap (1GB) caused OOM.
-        refresh("write indexing buffer", SearcherScope.INTERNAL, false);
     }
 
     @Override

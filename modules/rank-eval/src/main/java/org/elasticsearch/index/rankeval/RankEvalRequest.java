@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -35,6 +35,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
 
     private SearchType searchType = SearchType.DEFAULT;
 
+    @SuppressWarnings("this-escape")
     public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
         this.rankingEvaluationSpec = Objects.requireNonNull(rankingEvaluationSpec, "ranking evaluation specification must not be null");
         indices(indices);
@@ -45,7 +46,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         rankingEvaluationSpec = new RankEvalSpec(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
             searchType = SearchType.fromId(in.readByte());
         }
     }
@@ -126,7 +127,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         rankingEvaluationSpec.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
             out.writeByte(searchType.id());
         }
     }

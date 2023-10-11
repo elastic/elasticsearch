@@ -95,11 +95,13 @@ public class TimeSeriesIndexSearcher {
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
         if (searcher.getExecutor() == null) {
             search(bucketCollector, weight);
+            bucketCollector.postCollection();
             return;
         }
         // offload to the search worker thread pool whenever possible. It will be null only when search.worker_threads_enabled is false
         RunnableFuture<Void> task = new FutureTask<>(() -> {
             search(bucketCollector, weight);
+            bucketCollector.postCollection();
             return null;
         });
         searcher.getExecutor().execute(task);

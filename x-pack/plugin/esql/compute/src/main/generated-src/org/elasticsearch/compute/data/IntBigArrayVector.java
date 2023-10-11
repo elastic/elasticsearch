@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.Releasable;
 
@@ -16,16 +17,25 @@ import org.elasticsearch.core.Releasable;
  */
 public final class IntBigArrayVector extends AbstractVector implements IntVector, Releasable {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntBigArrayVector.class);
+
     private final IntArray values;
 
+    private final IntBlock block;
+
     public IntBigArrayVector(IntArray values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public IntBigArrayVector(IntArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new IntVectorBlock(this);
     }
 
     @Override
     public IntBlock asBlock() {
-        return new IntVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -44,12 +54,25 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
     public IntVector filter(int... positions) {
-        return new FilterIntVector(this, positions);
+        final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length, true);
+        for (int i = 0; i < positions.length; i++) {
+            filtered.set(i, values.get(positions[i]));
+        }
+        return new IntBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         values.close();
     }
 

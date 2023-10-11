@@ -48,6 +48,7 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     private final Rounding.DateTimeUnit rateUnit;
 
     // Unused parameters are so that the constructor implements `RateAggregatorSupplier`
+    @SuppressWarnings("this-escape")
     protected TimeSeriesRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

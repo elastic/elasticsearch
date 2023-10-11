@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RestMultiTermVectorsActionTests extends RestActionTestCase {
+    @SuppressWarnings("this-escape")
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
 
     @Before

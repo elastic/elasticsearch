@@ -398,9 +398,11 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final AtomicBoolean executedNested = new AtomicBoolean(false);
         threadPool.generic().execute(() -> {
-            threadPool.executor(ThreadPool.Names.SAME).execute(() -> executedNested.set(true));
+            final var executor = threadPool.executor(ThreadPool.Names.SAME);
+            assertSame(EsExecutors.DIRECT_EXECUTOR_SERVICE, executor);
+            executor.execute(() -> assertTrue(executedNested.compareAndSet(false, true)));
             assertThat(executedNested.get(), is(true));
-            executed.set(true);
+            assertTrue(executed.compareAndSet(false, true));
         });
         taskQueue.runAllRunnableTasks();
         assertThat(executed.get(), is(true));

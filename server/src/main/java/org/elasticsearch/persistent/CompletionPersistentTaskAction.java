@@ -145,7 +145,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
                 Request::new,
                 indexNameExpressionResolver,
                 PersistentTaskResponse::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

@@ -107,6 +107,7 @@ public class TransformConfigUpdate implements Writeable {
         this.retentionPolicyConfig = retentionPolicyConfig;
     }
 
+    @SuppressWarnings("this-escape")
     public TransformConfigUpdate(final StreamInput in) throws IOException {
         source = in.readOptionalWriteable(SourceConfig::new);
         dest = in.readOptionalWriteable(DestConfig::new);
@@ -174,7 +175,7 @@ public class TransformConfigUpdate implements Writeable {
         out.writeOptionalNamedWriteable(syncConfig);
         if (headers != null) {
             out.writeBoolean(true);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
@@ -239,7 +240,7 @@ public class TransformConfigUpdate implements Writeable {
         return isNullOrEqual(headers, config.getHeaders()) == false;
     }
 
-    private boolean isNullOrEqual(Object lft, Object rgt) {
+    private static boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }
 

@@ -72,7 +72,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             actionFilters,
             NodesRequest::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.frozenCacheService = frozenCacheService;
         this.licenseState = licenseState;
@@ -289,7 +289,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
         @Override
         protected List<NodeCachesStatsResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeCachesStatsResponse::new);
+            return in.readCollectionAsList(NodeCachesStatsResponse::new);
         }
 
         @Override

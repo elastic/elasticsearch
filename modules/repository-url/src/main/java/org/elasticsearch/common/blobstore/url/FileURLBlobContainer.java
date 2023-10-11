@@ -9,6 +9,7 @@
 package org.elasticsearch.common.blobstore.url;
 
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 
 import java.io.InputStream;
 import java.net.URL;
@@ -19,7 +20,7 @@ public class FileURLBlobContainer extends URLBlobContainer {
     }
 
     @Override
-    public InputStream readBlob(String blobName, long position, long length) {
+    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) {
         throw new UnsupportedOperationException("URL repository doesn't support this operation. Please use a 'fs' repository instead");
     }
 }

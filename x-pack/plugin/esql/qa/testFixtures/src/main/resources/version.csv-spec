@@ -6,6 +6,7 @@
 
 selectAll
 FROM apps;
+ignoreOrder:true
 
 id:integer |name:keyword   |version:version
 1          |aaaaa          |1

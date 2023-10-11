@@ -8,7 +8,7 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,7 +67,7 @@ public record TaskInfo(
         return new TaskInfo(
             taskId,
             in.readString(),
-            in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_055) ? in.readString() : taskId.getNodeId(),
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_055) ? in.readString() : taskId.getNodeId(),
             in.readString(),
             in.readOptionalString(),
             in.readOptionalNamedWriteable(Task.Status.class),
@@ -84,7 +84,7 @@ public record TaskInfo(
     public void writeTo(StreamOutput out) throws IOException {
         taskId.writeTo(out);
         out.writeString(type);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_055)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_055)) {
             out.writeString(node);
         }
         out.writeString(action);
@@ -95,7 +95,7 @@ public record TaskInfo(
         out.writeBoolean(cancellable);
         out.writeBoolean(cancelled);
         parentTaskId.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
     }
 
     public long id() {

@@ -10,6 +10,8 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -315,6 +317,7 @@ public class SearchModule {
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        registerGenericNamedWriteable(new SearchPlugin.GenericNamedWriteableSpec("GeoBoundingBox", GeoBoundingBox::new));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -652,6 +655,9 @@ public class SearchModule {
             }
         });
 
+        // Register GenericNamedWriteable classes for use in StreamOutput/StreamInput as generic types in query hits
+        registerFromPlugin(plugins, SearchPlugin::getGenericNamedWriteables, this::registerGenericNamedWriteable);
+
         return builder.build();
     }
 
@@ -676,6 +682,10 @@ public class SearchModule {
             // have to register usage explicitly here.
             builder.registerUsage(spec.getName().getPreferredName());
         }
+    }
+
+    private void registerGenericNamedWriteable(SearchPlugin.GenericNamedWriteableSpec spec) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(GenericNamedWriteable.class, spec.name(), spec.reader()));
     }
 
     private void registerPipelineAggregations(List<SearchPlugin> plugins) {

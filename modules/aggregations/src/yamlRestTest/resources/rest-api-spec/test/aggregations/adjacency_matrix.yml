@@ -5,7 +5,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 num:
@@ -75,7 +74,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 num:
@@ -97,6 +95,7 @@ setup:
         version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test
+        preference: hit-same-shard-copy
         body:
           size: 0
           aggs:
@@ -140,7 +139,7 @@ setup:
 
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
@@ -150,6 +149,7 @@ setup:
         version: current # the version of the node that parsed the request is part of the cache key.
       search:
         index: test
+        preference: hit-same-shard-copy
         body:
           size: 0
           aggs:
@@ -176,6 +176,6 @@ setup:
                         path: num
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }

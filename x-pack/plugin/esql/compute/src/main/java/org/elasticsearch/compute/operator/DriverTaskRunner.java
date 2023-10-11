@@ -36,13 +36,13 @@ public class DriverTaskRunner {
     public static final String ACTION_NAME = "internal:data/read/esql/compute";
     private final TransportService transportService;
 
-    public DriverTaskRunner(TransportService transportService, String executorName) {
+    public DriverTaskRunner(TransportService transportService, Executor executor) {
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_NAME, executorName, DriverRequest::new, new DriverRequestHandler());
+        transportService.registerRequestHandler(ACTION_NAME, executor, DriverRequest::new, new DriverRequestHandler());
     }
 
     public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener) {
-        var runner = new DriverRunner() {
+        var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
                 transportService.sendChildRequest(

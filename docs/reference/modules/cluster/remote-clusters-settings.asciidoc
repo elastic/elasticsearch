@@ -65,12 +65,10 @@ mode are described separately.
   is used as the fallback setting.
 
 
-// TODO: fix the link to new page of API key based remote clusters
-
 `cluster.remote.<cluster_alias>.credentials` (<<secure-settings,Secure>>)::
 
 beta:[]
-  Per cluster setting for configuring remote clusters with the API Key based model.
+  Per cluster setting for configuring <<remote-clusters-api-key,remote clusters with the API Key based model>>.
   This setting takes the encoded value of a
   <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and must be set
   in the <<secure-settings,{es} keystore>> on each node in the cluster.

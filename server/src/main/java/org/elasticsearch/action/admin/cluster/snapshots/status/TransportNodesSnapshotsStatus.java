@@ -69,7 +69,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
             actionFilters,
             Request::new,
             NodeRequest::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.snapshotShardsService = snapshotShardsService;
     }
@@ -159,7 +159,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
 
         @Override
         protected List<NodeSnapshotStatus> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeSnapshotStatus::new);
+            return in.readCollectionAsList(NodeSnapshotStatus::new);
         }
 
         @Override
@@ -174,7 +174,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            snapshots = in.readList(Snapshot::new);
+            snapshots = in.readCollectionAsList(Snapshot::new);
         }
 
         NodeRequest(TransportNodesSnapshotsStatus.Request request) {
@@ -210,11 +210,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (status != null) {
-                out.writeMap(
-                    status,
-                    (o, s) -> s.writeTo(o),
-                    (output, v) -> output.writeMap(v, (o, shardId) -> shardId.writeTo(o), (o, sis) -> sis.writeTo(o))
-                );
+                out.writeMap(status, StreamOutput::writeWriteable, StreamOutput::writeMap);
             } else {
                 out.writeVInt(0);
             }

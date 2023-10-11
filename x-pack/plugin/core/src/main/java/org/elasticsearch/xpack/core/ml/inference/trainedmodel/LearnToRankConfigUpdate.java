@@ -92,7 +92,7 @@ public class LearnToRankConfigUpdate implements InferenceConfigUpdate, NamedXCon
 
     public LearnToRankConfigUpdate(StreamInput in) throws IOException {
         this.numTopFeatureImportanceValues = in.readOptionalVInt();
-        this.featureExtractorBuilderList = in.readNamedWriteableList(LearnToRankFeatureExtractorBuilder.class);
+        this.featureExtractorBuilderList = in.readNamedWriteableCollectionAsList(LearnToRankFeatureExtractorBuilder.class);
     }
 
     public Integer getNumTopFeatureImportanceValues() {
@@ -117,7 +117,7 @@ public class LearnToRankConfigUpdate implements InferenceConfigUpdate, NamedXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(numTopFeatureImportanceValues);
-        out.writeNamedWriteableList(featureExtractorBuilderList);
+        out.writeNamedWriteableCollection(featureExtractorBuilderList);
     }
 
     @Override

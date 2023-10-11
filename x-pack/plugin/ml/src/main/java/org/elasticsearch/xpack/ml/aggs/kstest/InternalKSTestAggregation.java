@@ -40,7 +40,7 @@ public class InternalKSTestAggregation extends InternalAggregation {
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(modeValues, StreamOutput::writeString, StreamOutput::writeDouble);
+        out.writeMap(modeValues, StreamOutput::writeDouble);
     }
 
     Map<String, Double> getModeValues() {

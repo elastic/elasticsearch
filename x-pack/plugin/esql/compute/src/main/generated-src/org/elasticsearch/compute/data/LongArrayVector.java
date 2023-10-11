@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -15,16 +17,25 @@ import java.util.Arrays;
  */
 public final class LongArrayVector extends AbstractVector implements LongVector {
 
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class);
+
     private final long[] values;
 
+    private final LongBlock block;
+
     public LongArrayVector(long[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new LongVectorBlock(this);
     }
 
     @Override
     public LongBlock asBlock() {
-        return new LongVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -44,7 +55,21 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
 
     @Override
     public LongVector filter(int... positions) {
-        return new FilterLongVector(this, positions);
+        try (LongVector.Builder builder = blockFactory.newLongVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendLong(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    public static long ramBytesEstimated(long[] values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
     }
 
     @Override
@@ -64,4 +89,5 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
 }

@@ -1077,9 +1077,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         void runCleanup(ActionListener<RepositoryCleanupResult> listener) {
             try {
-                if (isReadOnly()) {
-                    throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
-                }
                 final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
                     .values()
                     .stream()

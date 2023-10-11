@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -51,7 +52,7 @@ import static java.util.stream.Collectors.joining;
  */
 public class OrdinalsGroupingOperator implements Operator {
     public record OrdinalsGroupingOperatorFactory(
-        List<ValueSourceInfo> sources,
+        Supplier<List<ValueSourceInfo>> sources,
         int docChannel,
         String groupingField,
         List<Factory> aggregators,
@@ -61,7 +62,15 @@ public class OrdinalsGroupingOperator implements Operator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new OrdinalsGroupingOperator(sources, docChannel, groupingField, aggregators, maxPageSize, bigArrays, driverContext);
+            return new OrdinalsGroupingOperator(
+                sources.get(),
+                docChannel,
+                groupingField,
+                aggregators,
+                maxPageSize,
+                bigArrays,
+                driverContext
+            );
         }
 
         @Override
@@ -96,12 +105,6 @@ public class OrdinalsGroupingOperator implements Operator {
         DriverContext driverContext
     ) {
         Objects.requireNonNull(aggregatorFactories);
-        boolean bytesValues = sources.get(0).source() instanceof ValuesSource.Bytes;
-        for (int i = 1; i < sources.size(); i++) {
-            if (sources.get(i).source() instanceof ValuesSource.Bytes != bytesValues) {
-                throw new IllegalStateException("ValuesSources are mismatched");
-            }
-        }
         this.sources = sources;
         this.docChannel = docChannel;
         this.groupingField = groupingField;

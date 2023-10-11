@@ -1,7 +1,11 @@
 [[release-notes-8.10.3]]
 == {es} version 8.10.3
 
-coming[8.10.3]
+[[known-issues-8.10.3]]
+[float]
+=== Known issues
+
+include::8.10.0.asciidoc[tag=repositorydata-format-change]
 
 Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
 

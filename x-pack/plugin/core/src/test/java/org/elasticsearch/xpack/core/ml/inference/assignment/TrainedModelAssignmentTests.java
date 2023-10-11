@@ -210,7 +210,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1);
+        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1, RoutingState.STARTED);
         assertThat(nodes, hasSize(1));
         assertEquals(nodes.get(0).v2(), Integer.valueOf(1));
     }

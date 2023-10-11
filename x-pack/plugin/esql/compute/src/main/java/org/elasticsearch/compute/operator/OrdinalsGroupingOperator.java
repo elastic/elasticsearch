@@ -105,12 +105,6 @@ public class OrdinalsGroupingOperator implements Operator {
         DriverContext driverContext
     ) {
         Objects.requireNonNull(aggregatorFactories);
-        boolean bytesValues = sources.get(0).source() instanceof ValuesSource.Bytes;
-        for (int i = 1; i < sources.size(); i++) {
-            if (sources.get(i).source() instanceof ValuesSource.Bytes != bytesValues) {
-                throw new IllegalStateException("ValuesSources are mismatched");
-            }
-        }
         this.sources = sources;
         this.docChannel = docChannel;
         this.groupingField = groupingField;

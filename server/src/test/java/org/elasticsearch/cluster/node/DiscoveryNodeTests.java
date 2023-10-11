@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.features.FeatureEra;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
@@ -24,7 +23,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -179,23 +177,19 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeFeatures() {
-        List<FeatureEra> publishableEras = Arrays.stream(FeatureEra.values()).filter(FeatureEra::isPublishable).toList();
-        List<FeatureEra> elidedEras = Arrays.stream(FeatureEra.values()).filter(e -> e.isPublishable() == false).toList();
-
         DiscoveryNode node = DiscoveryNodeUtils.builder("node1").features(Set.of("f1", "f2")).build();
 
-        assertThat(node.hasFeature(new NodeFeature("f1", randomFrom(publishableEras))), is(true));
-        assertThat(node.hasFeature(new NodeFeature("f2", randomFrom(publishableEras))), is(true));
-        assertThat(node.hasFeature(new NodeFeature("f3", randomFrom(elidedEras))), is(true));
-        assertThat(node.hasFeature(new NodeFeature("nf1", randomFrom(publishableEras))), is(false));
+        assertThat(node.hasFeature(new NodeFeature("f1")), is(true));
+        assertThat(node.hasFeature(new NodeFeature("f2")), is(true));
+        assertThat(node.hasFeature(new NodeFeature("nf1")), is(false));
 
-        NodeFeature hf1 = new NodeFeature("hf1", publishableEras.get(1));
-        NodeFeature hf2 = new NodeFeature("hf2", publishableEras.get(0));
-        NodeFeature hf3 = new NodeFeature("hf3", randomFrom(elidedEras));
+        NodeFeature hf1 = new NodeFeature("hf1");
+        NodeFeature hf2 = new NodeFeature("hf2");
+        NodeFeature hf3 = new NodeFeature("hf3");
 
-        Version v1 = Version.fromString(hf1.era().era() + ".0.0");
-        Version v2 = Version.fromString(hf2.era().era() + ".0.0");
-        Version v3 = Version.fromString(hf3.era().era() + ".0.0");
+        Version v1 = Version.fromString("8.0.0");
+        Version v2 = Version.fromString("7.0.0");
+        Version v3 = Version.fromString("6.0.0");
 
         FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification() {
             @Override
@@ -209,21 +203,21 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertThat(node.hasFeature(hf1), is(true));
         assertThat(node.hasFeature(hf2), is(true));
         assertThat(node.hasFeature(hf3), is(true));
-        assertThat(node.hasFeature(new NodeFeature("nf1", randomFrom(publishableEras))), is(false));
+        assertThat(node.hasFeature(new NodeFeature("nf1")), is(false));
 
         node = DiscoveryNodeUtils.builder("node1").features(Set.of()).version(v2).build();
 
         assertThat(node.hasFeature(hf1), is(false));
         assertThat(node.hasFeature(hf2), is(true));
         assertThat(node.hasFeature(hf3), is(true));
-        assertThat(node.hasFeature(new NodeFeature("nf1", randomFrom(publishableEras))), is(false));
+        assertThat(node.hasFeature(new NodeFeature("nf1")), is(false));
 
         node = DiscoveryNodeUtils.builder("node1").features(Set.of()).version(v3).build();
 
         assertThat(node.hasFeature(hf1), is(false));
         assertThat(node.hasFeature(hf2), is(false));
         assertThat(node.hasFeature(hf3), is(true));
-        assertThat(node.hasFeature(new NodeFeature("nf1", randomFrom(publishableEras))), is(false));
+        assertThat(node.hasFeature(new NodeFeature("nf1")), is(false));
     }
 
     public void testDiscoveryNodeToXContent() {

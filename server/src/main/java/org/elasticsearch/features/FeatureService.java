@@ -123,18 +123,6 @@ public class FeatureService {
                         )
                     );
                 }
-                if (hfe.getKey().era().era() != hfe.getValue().major) {
-                    throw new IllegalArgumentException(
-                        Strings.format(
-                            "Historical feature [%s] declared by [%s] has incorrect feature era [%s] for version [%s]",
-                            hfe.getKey().id(),
-                            spec,
-                            hfe.getKey().era(),
-                            hfe.getValue(),
-                            spec
-                        )
-                    );
-                }
             }
         }
     }
@@ -146,7 +134,6 @@ public class FeatureService {
         NavigableMap<Version, Set<String>> declaredHistoricalFeatures = new TreeMap<>();
         for (FeatureSpecification spec : FEATURE_SPECS.values()) {
             for (var f : spec.getHistoricalFeatures().entrySet()) {
-                if (FeatureEra.isPublishable(f.getValue().major) == false) continue;    // don't include, it's before the valid eras
                 declaredHistoricalFeatures.computeIfAbsent(f.getValue(), k -> new HashSet<>()).add(f.getKey().id());
             }
         }
@@ -179,7 +166,6 @@ public class FeatureService {
         return FEATURE_SPECS.values()
             .stream()
             .flatMap(s -> s.getFeatures().stream())
-            .filter(f -> f.era().isPublishable())
             .map(NodeFeature::id)
             .collect(Collectors.toUnmodifiableSet());
     }
@@ -222,11 +208,6 @@ public class FeatureService {
      * {@code true} if the node with version {@code nodeVersion} and published features {@code features} has feature {@code feature}
      */
     public static boolean nodeHasFeature(Version nodeVersion, Set<String> features, NodeFeature feature) {
-        if (feature.era().isPublishable() == false) {
-            // this feature can never appear in our lists - its true by default
-            return true;
-        } else {
-            return features.contains(feature.id()) || readHistoricalFeatures(nodeVersion).contains(feature.id());
-        }
+        return features.contains(feature.id()) || readHistoricalFeatures(nodeVersion).contains(feature.id());
     }
 }

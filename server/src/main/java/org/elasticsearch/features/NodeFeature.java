@@ -14,17 +14,10 @@ import java.util.Objects;
  * A feature published by a node.
  *
  * @param id        The feature id. Must be unique in the node.
- * @param era       The {@link FeatureEra} this feature was first declared.
- * @param optional  {@code true} if this feature is required for a node to join a cluster that already has this feature
  */
-public record NodeFeature(String id, FeatureEra era, boolean optional) {
-
-    public NodeFeature(String id, FeatureEra era) {
-        this(id, era, false);
-    }
+public record NodeFeature(String id) {
 
     public NodeFeature {
         Objects.requireNonNull(id);
-        Objects.requireNonNull(era);
     }
 }

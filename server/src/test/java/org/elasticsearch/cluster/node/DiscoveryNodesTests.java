@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.features.FeatureEra;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -442,19 +441,15 @@ public class DiscoveryNodesTests extends ESTestCase {
     }
 
     public void testNodeFeatures() {
-        List<FeatureEra> publishableEras = Arrays.stream(FeatureEra.values()).filter(FeatureEra::isPublishable).toList();
-        List<FeatureEra> elidedEras = Arrays.stream(FeatureEra.values()).filter(e -> e.isPublishable() == false).toList();
-
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.builder("node1").features(Set.of("f1", "f2", "f3")).build())
             .add(DiscoveryNodeUtils.builder("node2").features(Set.of("f1", "f2")).build())
             .add(DiscoveryNodeUtils.builder("node3").features(Set.of("f1", "f3")).build())
             .build();
 
-        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f1", randomFrom(publishableEras))), is(true));
-        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f2", randomFrom(publishableEras))), is(false));
-        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f3", randomFrom(publishableEras))), is(false));
-        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f4", randomFrom(elidedEras))), is(true));
+        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f1")), is(true));
+        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f2")), is(false));
+        assertThat(nodes.allNodesHaveFeature(new NodeFeature("f3")), is(false));
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

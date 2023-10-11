@@ -851,8 +851,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void createSnapshotsDeletion(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        IndexVersion repositoryMetaVersion,
+        long repositoryDataGeneration,
+        IndexVersion repositoryFormatIndexVersion,
         ActionListener<SnapshotsDeletion> listener
     ) {
         if (isReadOnly()) {
@@ -862,11 +862,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final var originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
                 return new SnapshotsDeletion(
                     snapshotIds,
-                    repositoryStateId,
-                    repositoryMetaVersion,
+                    repositoryDataGeneration,
+                    repositoryFormatIndexVersion,
                     originalRootBlobs,
                     blobStore().blobContainer(indicesPath()).children(OperationPurpose.SNAPSHOT),
-                    safeRepositoryData(repositoryStateId, originalRootBlobs)
+                    safeRepositoryData(repositoryDataGeneration, originalRootBlobs)
                 );
             }));
         }

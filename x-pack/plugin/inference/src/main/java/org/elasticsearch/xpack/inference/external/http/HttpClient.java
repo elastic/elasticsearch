@@ -13,9 +13,6 @@ import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.nio.reactor.ConnectingIOReactor;
-import org.apache.http.nio.reactor.IOReactorException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -29,6 +26,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferencePlugin.HTTP_CLIENT_SENDER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 public class HttpClient implements Closeable {
@@ -41,45 +39,19 @@ public class HttpClient implements Closeable {
     }
 
     private final CloseableHttpAsyncClient client;
-    private final IdleConnectionEvictor connectionEvictor;
     private final AtomicReference<Status> status = new AtomicReference<>(Status.CREATED);
     private final ThreadPool threadPool;
     private final HttpSettings settings;
 
-    public static HttpClient create(HttpSettings settings, ThreadPool threadPool) {
-        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager();
-        IdleConnectionEvictor connectionEvictor = new IdleConnectionEvictor(
-            threadPool,
-            connectionManager,
-            settings.getEvictionInterval(),
-            settings.getEvictionMaxIdle()
-        );
+    public static HttpClient create(HttpSettings settings, ThreadPool threadPool, PoolingNHttpClientConnectionManager connectionManager) {
+        CloseableHttpAsyncClient client = createAsyncClient(connectionManager);
 
-        int maxConnections = settings.getMaxConnections();
-        CloseableHttpAsyncClient client = createAsyncClient(connectionManager, maxConnections);
-
-        return new HttpClient(settings, client, connectionEvictor, threadPool);
+        return new HttpClient(settings, client, threadPool);
     }
 
-    private static PoolingNHttpClientConnectionManager createConnectionManager() {
-        ConnectingIOReactor ioReactor;
-        try {
-            ioReactor = new DefaultConnectingIOReactor();
-        } catch (IOReactorException e) {
-            var message = "Failed to initialize the inference http client";
-            logger.error(message, e);
-            throw new ElasticsearchException(message, e);
-        }
-
-        return new PoolingNHttpClientConnectionManager(ioReactor);
-    }
-
-    private static CloseableHttpAsyncClient createAsyncClient(PoolingNHttpClientConnectionManager connectionManager, int maxConnections) {
+    private static CloseableHttpAsyncClient createAsyncClient(PoolingNHttpClientConnectionManager connectionManager) {
         HttpAsyncClientBuilder clientBuilder = HttpAsyncClientBuilder.create();
-
         clientBuilder.setConnectionManager(connectionManager);
-        clientBuilder.setMaxConnPerRoute(maxConnections);
-        clientBuilder.setMaxConnTotal(maxConnections);
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
@@ -88,24 +60,32 @@ public class HttpClient implements Closeable {
     }
 
     // Default for testing
-    HttpClient(HttpSettings settings, CloseableHttpAsyncClient asyncClient, IdleConnectionEvictor evictor, ThreadPool threadPool) {
+    HttpClient(HttpSettings settings, CloseableHttpAsyncClient asyncClient, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.client = asyncClient;
-        this.connectionEvictor = evictor;
     }
 
     public void start() {
         if (status.compareAndSet(Status.CREATED, Status.STARTED)) {
             client.start();
-            connectionEvictor.start();
         }
     }
 
-    public void send(HttpUriRequest request, ActionListener<HttpResult> listener) throws IOException {
+    public void send(HttpUriRequest request, ActionListener<HttpResult> listener) {
         // The caller must call start() first before attempting to send a request
         assert status.get() == Status.STARTED;
 
+        threadPool.executor(HTTP_CLIENT_SENDER_THREAD_POOL_NAME).execute(() -> {
+            try {
+                doPrivilegedSend(request, listener);
+            } catch (IOException e) {
+                listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
+            }
+        });
+    }
+
+    private void doPrivilegedSend(HttpUriRequest request, ActionListener<HttpResult> listener) throws IOException {
         SocketAccess.doPrivileged(() -> client.execute(request, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
@@ -144,6 +124,5 @@ public class HttpClient implements Closeable {
     public void close() throws IOException {
         status.set(Status.STOPPED);
         client.close();
-        connectionEvictor.stop();
     }
 }

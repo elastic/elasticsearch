@@ -1,6 +1,0 @@
-pr: 99892
-summary: Support $ and / in restore rename replacements
-area: Snapshot/Restore
-type: bug
-issues:
- - 99078

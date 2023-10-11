@@ -1411,7 +1411,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // starts then we dedicate another SNAPSHOT thread to the deletions, and so on, until eventually either we catch up or the
             // SNAPSHOT pool is fully occupied with blob deletions, which pushes back on other snapshot operations.
 
-            staleBlobDeleteRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
+            staleBlobDeleteRunner.runSyncTasksEagerly(snapshotExecutor);
         }
 
         // Finds all blobs directly under the repository root path that are not referenced by the current RepositoryData

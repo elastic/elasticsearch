@@ -47,6 +47,16 @@ excludeList.add('aggregations/filters_bucket/cache hits')
 // comment above.
 excludeList.add('tsdb/20_mapping/Synthetic source')
 
+// These tests check setting validations in the desired_node API.
+// Validation (and associated tests) are supposed to be skipped/have
+// different behaviour for versions before and after 8.10 but mixed
+// cluster tests may not respect that - see the comment above.
+excludeList.add('cluster.desired_nodes/10_basic/Test settings are validated')
+excludeList.add('cluster.desired_nodes/10_basic/Test unknown settings are forbidden in known versions')
+excludeList.add('cluster.desired_nodes/10_basic/Test unknown settings are allowed in future versions')
+excludeList.add('cluster.desired_nodes/10_basic/Test some settings can be overridden')
+excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry run updates')
+
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {

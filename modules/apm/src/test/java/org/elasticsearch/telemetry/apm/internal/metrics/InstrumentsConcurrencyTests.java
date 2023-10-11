@@ -28,12 +28,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class InstrumentsConcurrencyTests extends ESTestCase {
-    String name = "name";
-    String description = "desc";
-    String unit = "kg";
-    Meter noopMeter = OpenTelemetry.noop().getMeter("noop");
-    CountDownLatch registerLatch = new CountDownLatch(1);
-    Meter lockingMeter = new Meter() {
+    private final String name = "name";
+    private final String description = "desc";
+    private final String unit = "kg";
+    private final Meter noopMeter = OpenTelemetry.noop().getMeter("noop");
+    private final CountDownLatch buildLatch = new CountDownLatch(1);
+    private final CountDownLatch registerLatch = new CountDownLatch(1);
+    private final Meter lockingMeter = new Meter() {
         @Override
         public LongCounterBuilder counterBuilder(String name) {
             return new LockingLongCounterBuilder();
@@ -75,6 +76,7 @@ public class InstrumentsConcurrencyTests extends ESTestCase {
         @Override
         public LongCounter build() {
             try {
+                buildLatch.countDown();
                 registerLatch.await();
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -88,13 +90,14 @@ public class InstrumentsConcurrencyTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100587")
     public void testLockingWhenRegistering() throws Exception {
         Instruments instruments = new Instruments(lockingMeter);
 
         var registerThread = new Thread(() -> instruments.registerLongCounter(name, description, unit));
         // registerThread has a countDown latch that is simulating a long-running registration
         registerThread.start();
+        buildLatch.await(); // wait for registerThread to hold the lock
+
         var setProviderThread = new Thread(() -> instruments.setProvider(noopMeter));
         // a setProviderThread will attempt to override a meter, but will wait to acquireLock
         setProviderThread.start();

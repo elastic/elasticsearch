@@ -2317,57 +2317,52 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return;
             }
             repositoriesService.repository(deleteEntry.repository())
-                .deleteSnapshots(
-                    snapshotIds,
-                    repositoryData.getGenId(),
-                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                    new SnapshotDeleteListener() {
+                .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new SnapshotDeleteListener() {
 
-                        private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
+                    private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
 
-                        @Override
-                        public void onDone() {
-                            logger.info("snapshots {} deleted", snapshotIds);
-                            doneFuture.onResponse(null);
-                        }
-
-                        @Override
-                        public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
-                            removeSnapshotDeletionFromClusterState(
-                                deleteEntry,
-                                updatedRepoData,
-                                listeners -> doneFuture.addListener(new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(Void unused) {
-                                        completeListenersIgnoringException(listeners, null);
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        // this should never be called, once updated repository metadata has been written to the
-                                        // repository and the delete been removed from the cluster state, we ignore any further failures
-                                        // and always complete the delete successfully
-                                        assert false : e;
-                                    }
-                                })
-                            );
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.debug(() -> "failed to complete snapshot deletion [" + deleteEntry + "]", e);
-                            submitUnbatchedTask(
-                                "remove snapshot deletion metadata after failed delete",
-                                new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
-                                    @Override
-                                    protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
-                                        failListenersIgnoringException(deleteListeners, e);
-                                    }
-                                }
-                            );
-                        }
+                    @Override
+                    public void onDone() {
+                        logger.info("snapshots {} deleted", snapshotIds);
+                        doneFuture.onResponse(null);
                     }
-                );
+
+                    @Override
+                    public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
+                        removeSnapshotDeletionFromClusterState(
+                            deleteEntry,
+                            updatedRepoData,
+                            listeners -> doneFuture.addListener(new ActionListener<>() {
+                                @Override
+                                public void onResponse(Void unused) {
+                                    completeListenersIgnoringException(listeners, null);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    // this should never be called, once updated repository metadata has been written to the
+                                    // repository and the delete been removed from the cluster state, we ignore any further failures
+                                    // and always complete the delete successfully
+                                    assert false : e;
+                                }
+                            })
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(() -> "failed to complete snapshot deletion [" + deleteEntry + "]", e);
+                        submitUnbatchedTask(
+                            "remove snapshot deletion metadata after failed delete",
+                            new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
+                                @Override
+                                protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
+                                    failListenersIgnoringException(deleteListeners, e);
+                                }
+                            }
+                        );
+                    }
+                });
         }
     }
 

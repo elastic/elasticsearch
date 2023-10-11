@@ -829,14 +829,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return getRepositoryData(genToLoad);
     }
 
+    /**
+     * Some repositories (i.e. S3) run at extra risk of corruption when using the pre-7.6.0 repository format, against which we try and
+     * protect by adding some delays in between operations so that things have a chance to settle down. This method is the hook that allows
+     * the delete process to add this protection when necessary.
+     */
+    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener snapshotDeleteListener) {
+        return snapshotDeleteListener;
+    }
+
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
+        IndexVersion minimumNodeVersion,
         SnapshotDeleteListener listener
     ) {
-        createSnapshotsDeletion(snapshotIds, repositoryDataGeneration, repositoryFormatIndexVersion, new ActionListener<>() {
+        createSnapshotsDeletion(snapshotIds, repositoryDataGeneration, minimumNodeVersion, new ActionListener<>() {
             @Override
             public void onResponse(SnapshotsDeletion snapshotsDeletion) {
                 snapshotsDeletion.runDelete(listener);
@@ -879,7 +888,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void createSnapshotsDeletion(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
+        IndexVersion minimumNodeVersion,
         ActionListener<SnapshotsDeletion> listener
     ) {
         if (isReadOnly()) {
@@ -887,13 +896,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
                 final var originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
+                final var originalRepositoryData = safeRepositoryData(repositoryDataGeneration, originalRootBlobs);
+                final var repositoryFormatIndexVersion = SnapshotsService.minCompatibleVersion(
+                    minimumNodeVersion,
+                    originalRepositoryData,
+                    snapshotIds
+                );
                 return new SnapshotsDeletion(
                     snapshotIds,
                     repositoryDataGeneration,
                     repositoryFormatIndexVersion,
                     originalRootBlobs,
                     blobStore().blobContainer(indicesPath()).children(OperationPurpose.SNAPSHOT),
-                    safeRepositoryData(repositoryDataGeneration, originalRootBlobs)
+                    originalRepositoryData
                 );
             }));
         }
@@ -1042,6 +1057,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }, listener::onFailure));
             } else {
                 // Write the new repository data first (with the removed snapshot), using no shard generations
+                final var saferListener = wrapWithWeakConsistencyProtection(listener);
                 writeIndexGen(
                     originalRepositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY),
                     originalRepositoryDataGeneration,
@@ -1049,8 +1065,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     Function.identity(),
                     ActionListener.wrap(newRepositoryData -> {
                         try (var refs = new RefCountingRunnable(() -> {
-                            listener.onRepositoryDataWritten(newRepositoryData);
-                            listener.onDone();
+                            saferListener.onRepositoryDataWritten(newRepositoryData);
+                            saferListener.onDone();
                         })) {
                             // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                             cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
@@ -1065,7 +1081,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 )
                             );
                         }
-                    }, listener::onFailure)
+                    }, saferListener::onFailure)
                 );
             }
         }

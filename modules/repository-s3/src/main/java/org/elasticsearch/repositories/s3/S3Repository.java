@@ -35,14 +35,12 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -315,46 +313,35 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
-        long repositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
-        SnapshotDeleteListener listener
-    ) {
-        final SnapshotDeleteListener wrappedListener;
-        if (SnapshotsService.useShardGenerations(repositoryFormatIndexVersion)) {
-            wrappedListener = listener;
-        } else {
-            wrappedListener = new SnapshotDeleteListener() {
-                @Override
-                public void onDone() {
-                    listener.onDone();
-                }
+    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener snapshotDeleteListener) {
+        return new SnapshotDeleteListener() {
+            @Override
+            public void onDone() {
+                snapshotDeleteListener.onDone();
+            }
 
-                @Override
-                public void onRepositoryDataWritten(RepositoryData repositoryData) {
-                    logCooldownInfo();
-                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                        assert cancellable != null;
-                        listener.onRepositoryDataWritten(repositoryData);
-                    }, coolDown, snapshotExecutor));
-                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-                }
+            @Override
+            public void onRepositoryDataWritten(RepositoryData repositoryData) {
+                logCooldownInfo();
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                    assert cancellable != null;
+                    snapshotDeleteListener.onRepositoryDataWritten(repositoryData);
+                }, coolDown, snapshotExecutor));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logCooldownInfo();
-                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                        assert cancellable != null;
-                        listener.onFailure(e);
-                    }, coolDown, snapshotExecutor));
-                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-                }
-            };
-        }
-        super.deleteSnapshots(snapshotIds, repositoryDataGeneration, repositoryFormatIndexVersion, wrappedListener);
+            @Override
+            public void onFailure(Exception e) {
+                logCooldownInfo();
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                    assert cancellable != null;
+                    snapshotDeleteListener.onFailure(e);
+                }, coolDown, snapshotExecutor));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
+        };
     }
 
     /**

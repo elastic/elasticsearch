@@ -206,6 +206,17 @@ public class Stateless extends Plugin
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting for triggering a restart, if you want to restart a cluster, set a new positive number as the value of this setting in the
+     * `projectOverrides`. This setting does not influence anything else in the elasticsearch codebase.
+     **/
+    private static final Setting<Integer> RESTART_TRIGGER_SETTING = Setting.intSetting(
+        "stateless.restart.trigger",
+        0,
+        0,
+        Setting.Property.NodeScope
+    );
+
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
@@ -551,7 +562,8 @@ public class Stateless extends Plugin
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
-            BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING
+            BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING,
+            RESTART_TRIGGER_SETTING
         );
     }
 

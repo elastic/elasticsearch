@@ -38,8 +38,9 @@ The result of a query is the table produced by the final processing command.
 [discrete]
 ==== The {esql} API
 
-Use the `_query` endpoint to run an {esql} query:
+Use the <<esql-rest,`_query` endpoint>> to run an {esql} query:
 
+// tag::esql-query-api-example[]
 [source,console]
 ----
 POST /_query
@@ -54,6 +55,7 @@ POST /_query
 }
 ----
 // TEST[setup:library]
+// end::esql-query-api-example[]
 
 The results come back in rows:
 
@@ -74,28 +76,13 @@ The results come back in rows:
 }
 ----
 
-By default, results are returned as JSON. To return results formatted as text,
-CSV, or TSV, use the `format` parameter:
+By default, results are returned as JSON. You can return data in other
+<<esql-rest-format,response formats>> by specifying the `format` parameter in
+the URL or by setting the `Accept` or `Content-Type` HTTP header.
 
-[source,console]
-----
-POST /_query?format=txt
-{
-  "query": """
-    FROM library
-    | EVAL year = DATE_TRUNC(1 YEARS, release_date)
-    | STATS MAX(page_count) BY year
-    | SORT year
-    | LIMIT 5
-  """
-}
-----
-// TEST[setup:library]
-
-The above query's `LIMIT` command limits results to 5 rows.
-
-If not specified, `LIMIT` defaults to `500`. A single query will not return
-more than 10,000 rows, regardless of the `LIMIT` value.
+The previous query's `LIMIT` command limits results to 5 rows. If not specified,
+`LIMIT` defaults to `500`. A single query will not return more than 10,000 rows,
+regardless of the `LIMIT` value.
 
 [discrete]
 ==== {kib}
@@ -119,6 +106,8 @@ include::esql-processing-commands.asciidoc[]
 include::esql-functions.asciidoc[]
 
 include::aggregation-functions.asciidoc[]
+
+include::esql-rest.asciidoc[]
 
 include::multivalued-fields.asciidoc[]
 

@@ -161,58 +161,61 @@ public final class QuantileStates {
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             assert blocks.length >= offset + 1;
-            var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int group = selected.getInt(i);
-                TDigestState state;
-                if (group < digests.size()) {
-                    state = getOrNull(group);
-                    if (state == null) {
+            try (var builder = BytesRefBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int group = selected.getInt(i);
+                    TDigestState state;
+                    if (group < digests.size()) {
+                        state = getOrNull(group);
+                        if (state == null) {
+                            state = TDigestState.create(DEFAULT_COMPRESSION);
+                        }
+                    } else {
                         state = TDigestState.create(DEFAULT_COMPRESSION);
                     }
-                } else {
-                    state = TDigestState.create(DEFAULT_COMPRESSION);
+                    builder.appendBytesRef(serializeDigest(state));
                 }
-                builder.appendBytesRef(serializeDigest(state));
+                blocks[offset] = builder.build();
             }
-            blocks[offset] = builder.build();
         }
 
         Block evaluateMedianAbsoluteDeviation(IntVector selected, DriverContext driverContext) {
             assert percentile == MEDIAN : "Median must be 50th percentile [percentile = " + percentile + "]";
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
-                if (si >= digests.size()) {
-                    builder.appendNull();
-                    continue;
+            try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int si = selected.getInt(i);
+                    if (si >= digests.size()) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    final TDigestState digest = digests.get(si);
+                    if (digest != null && digest.size() > 0) {
+                        builder.appendDouble(InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest));
+                    } else {
+                        builder.appendNull();
+                    }
                 }
-                final TDigestState digest = digests.get(si);
-                if (digest != null && digest.size() > 0) {
-                    builder.appendDouble(InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation(digest));
-                } else {
-                    builder.appendNull();
-                }
+                return builder.build();
             }
-            return builder.build();
         }
 
         Block evaluatePercentile(IntVector selected, DriverContext driverContext) {
-            final DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
-                if (si >= digests.size()) {
-                    builder.appendNull();
-                    continue;
+            try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int si = selected.getInt(i);
+                    if (si >= digests.size()) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    final TDigestState digest = digests.get(si);
+                    if (percentile != null && digest != null && digest.size() > 0) {
+                        builder.appendDouble(digest.quantile(percentile / 100));
+                    } else {
+                        builder.appendNull();
+                    }
                 }
-                final TDigestState digest = digests.get(si);
-                if (percentile != null && digest != null && digest.size() > 0) {
-                    builder.appendDouble(digest.quantile(percentile / 100));
-                } else {
-                    builder.appendNull();
-                }
+                return builder.build();
             }
-            return builder.build();
         }
 
         @Override

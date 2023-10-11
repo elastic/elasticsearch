@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
+import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.putTSDBIndexTemplate;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -77,8 +78,19 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
                     )
                 )
                 .build();
-            int indexedDocs = DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
+            DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
+                client(),
+                dataStreamName,
+                "1986-01-08T23:40:53.384Z",
+                "2022-01-08T23:40:53.384Z",
+                lifecycle,
+                DOC_COUNT,
+                "1990-09-09T18:00:00"
+            );
 
+            // before we rollover we update the index template to remove the start/end time boundaries (they're there just to ease with
+            // testing so DSL doesn't have to wait for the end_time to lapse)
+            putTSDBIndexTemplate(client(), dataStreamName, null, null, lifecycle);
             client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
 
             // DSL runs every second and it has to tail forcemerge the index (2 seconds) and mark it as read-only (2s) before it starts

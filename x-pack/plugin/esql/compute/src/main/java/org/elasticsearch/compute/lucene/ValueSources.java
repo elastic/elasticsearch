@@ -69,6 +69,18 @@ public final class ValueSources {
                 sources.add(new ValueSourceInfo(new NullValueSourceType(), new NullValueSource(), elementType, ctx.getIndexReader()));
                 continue; // the field does not exist in this context
             }
+            if (asUnsupportedSource) {
+                sources.add(
+                    new ValueSourceInfo(
+                        new UnsupportedValueSourceType(fieldType.typeName()),
+                        new UnsupportedValueSource(null),
+                        elementType,
+                        ctx.getIndexReader()
+                    )
+                );
+                HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", fieldName);
+                continue;
+            }
 
             if (fieldType.hasDocValues() == false) {
                 // MatchOnlyTextFieldMapper class lives in the mapper-extras module. We use string equality
@@ -99,19 +111,7 @@ public final class ValueSources {
             var fieldContext = new FieldContext(fieldName, fieldData, fieldType);
             var vsType = fieldData.getValuesSourceType();
             var vs = vsType.getField(fieldContext, null);
-
-            if (asUnsupportedSource) {
-                sources.add(
-                    new ValueSourceInfo(
-                        new UnsupportedValueSourceType(fieldType.typeName()),
-                        new UnsupportedValueSource(vs),
-                        elementType,
-                        ctx.getIndexReader()
-                    )
-                );
-            } else {
-                sources.add(new ValueSourceInfo(vsType, vs, elementType, ctx.getIndexReader()));
-            }
+            sources.add(new ValueSourceInfo(vsType, vs, elementType, ctx.getIndexReader()));
         }
 
         return sources;

@@ -44,7 +44,7 @@ abstract class AbstractVector implements Vector {
     }
 
     @Override
-    public final boolean released() {
+    public final boolean isReleased() {
         return released;
     }
 }

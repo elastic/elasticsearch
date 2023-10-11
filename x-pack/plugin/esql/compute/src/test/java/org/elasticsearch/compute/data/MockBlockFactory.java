@@ -104,7 +104,7 @@ public class MockBlockFactory extends BlockFactory {
                     TRACKED_BLOCKS.remove(vecBuilder);
                 }
             } else if (b instanceof Vector vector) {
-                if (vector.released() || vector.asBlock().isReleased()) {
+                if (vector.asBlock().isReleased()) {
                     TRACKED_BLOCKS.remove(vector);
                 }
             } else {

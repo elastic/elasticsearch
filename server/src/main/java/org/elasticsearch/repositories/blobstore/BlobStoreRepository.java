@@ -1008,7 +1008,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // ---------------------------------------------------------------------------------------------------------------------------------
         // The overall flow of execution
 
-        private void runDelete(SnapshotDeleteListener listener) {
+        void runDelete(SnapshotDeleteListener listener) {
             if (useShardGenerations) {
                 // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
                 final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =
@@ -1072,6 +1072,51 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }, listener::onFailure)
                 );
+            }
+        }
+
+        void runCleanup(
+            long originalRepositoryDataGeneration,
+            IndexVersion repositoryFormatIndexVersion,
+            ActionListener<RepositoryCleanupResult> listener
+        ) {
+            try {
+                if (isReadOnly()) {
+                    throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
+                }
+                Map<String, BlobMetadata> originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
+                final RepositoryData originalRepositoryData = safeRepositoryData(originalRepositoryDataGeneration, originalRootBlobs);
+                final Map<String, BlobContainer> originalIndexContainers = blobStore().blobContainer(indicesPath())
+                    .children(OperationPurpose.SNAPSHOT);
+                final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
+                    .values()
+                    .stream()
+                    .map(IndexId::getId)
+                    .collect(Collectors.toSet());
+                final List<String> staleRootBlobs = staleRootBlobs(originalRepositoryData, originalRootBlobs.keySet());
+                if (survivingIndexIds.equals(originalIndexContainers.keySet()) && staleRootBlobs.isEmpty()) {
+                    // Nothing to clean up we return
+                    listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
+                } else {
+                    // write new index-N blob to ensure concurrent operations will fail
+                    writeIndexGen(
+                        originalRepositoryData,
+                        originalRepositoryDataGeneration,
+                        repositoryFormatIndexVersion,
+                        Function.identity(),
+                        listener.delegateFailureAndWrap(
+                            (l, v) -> cleanupStaleBlobs(
+                                Collections.emptyList(),
+                                originalIndexContainers,
+                                originalRootBlobs,
+                                originalRepositoryData,
+                                l.map(RepositoryCleanupResult::new)
+                            )
+                        )
+                    );
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
         }
 
@@ -1411,65 +1456,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // SNAPSHOT pool is fully occupied with blob deletions, which pushes back on other snapshot operations.
 
             staleBlobDeleteRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
-        }
-
-        /**
-         * Runs cleanup actions on the repository. Increments the repository state id by one before executing any modifications on the
-         * repository.
-         * TODO: Add shard level cleanups
-         * TODO: Add unreferenced index metadata cleanup
-         * <ul>
-         *     <li>Deleting stale indices</li>
-         *     <li>Deleting unreferenced root level blobs</li>
-         * </ul>
-         *
-         * @param originalRepositoryDataGeneration Current repository state id
-         * @param repositoryFormatIndexVersion     version of the updated repository metadata to write
-         * @param listener                         Listener to complete when done
-         */
-        public void runCleanup(
-            long originalRepositoryDataGeneration,
-            IndexVersion repositoryFormatIndexVersion,
-            ActionListener<RepositoryCleanupResult> listener
-        ) {
-            try {
-                if (isReadOnly()) {
-                    throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
-                }
-                Map<String, BlobMetadata> originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
-                final RepositoryData originalRepositoryData = safeRepositoryData(originalRepositoryDataGeneration, originalRootBlobs);
-                final Map<String, BlobContainer> originalIndexContainers = blobStore().blobContainer(indicesPath())
-                    .children(OperationPurpose.SNAPSHOT);
-                final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
-                    .values()
-                    .stream()
-                    .map(IndexId::getId)
-                    .collect(Collectors.toSet());
-                final List<String> staleRootBlobs = staleRootBlobs(originalRepositoryData, originalRootBlobs.keySet());
-                if (survivingIndexIds.equals(originalIndexContainers.keySet()) && staleRootBlobs.isEmpty()) {
-                    // Nothing to clean up we return
-                    listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
-                } else {
-                    // write new index-N blob to ensure concurrent operations will fail
-                    writeIndexGen(
-                        originalRepositoryData,
-                        originalRepositoryDataGeneration,
-                        repositoryFormatIndexVersion,
-                        Function.identity(),
-                        listener.delegateFailureAndWrap(
-                            (l, v) -> cleanupStaleBlobs(
-                                Collections.emptyList(),
-                                originalIndexContainers,
-                                originalRootBlobs,
-                                originalRepositoryData,
-                                l.map(RepositoryCleanupResult::new)
-                            )
-                        )
-                    );
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
         }
 
         // Finds all blobs directly under the repository root path that are not referenced by the current RepositoryData

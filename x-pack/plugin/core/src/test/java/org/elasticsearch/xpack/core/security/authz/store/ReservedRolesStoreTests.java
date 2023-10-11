@@ -3421,7 +3421,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = AuthenticationTestHelper.builder().build();
 
-        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("enrich_user");
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("enrich_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 

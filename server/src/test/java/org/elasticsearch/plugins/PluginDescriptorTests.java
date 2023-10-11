@@ -9,7 +9,6 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -42,7 +41,7 @@ public class PluginDescriptorTests extends ESTestCase {
         "version",
         "1.0",
         "elasticsearch.version",
-        Version.CURRENT.toString(),
+        Build.current().version(),
         "java.version",
         System.getProperty("java.specification.version"),
         "classname",
@@ -59,7 +58,7 @@ public class PluginDescriptorTests extends ESTestCase {
         "version",
         "1.0",
         "elasticsearch.version",
-        Version.CURRENT.toString(),
+        Build.current().version(),
         "java.version",
         System.getProperty("java.specification.version"),
         "modular",

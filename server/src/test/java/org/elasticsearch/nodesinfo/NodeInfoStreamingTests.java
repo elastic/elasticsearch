@@ -163,8 +163,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
-                        // TODO[wrb]: random alphas?
-                        VersionUtils.randomVersion(random()).toString(),
+                        randomAlphaOfLengthBetween(3, 10),
                         "1.8",
                         isStable ? null : randomAlphaOfLengthBetween(3, 10),
                         isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
@@ -186,8 +185,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
-                        // TODO[wrb]: random alphas?
-                        VersionUtils.randomVersion(random()).toString(),
+                        randomAlphaOfLengthBetween(3, 10),
                         "1.8",
                         isStable ? null : randomAlphaOfLengthBetween(3, 10),
                         isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),

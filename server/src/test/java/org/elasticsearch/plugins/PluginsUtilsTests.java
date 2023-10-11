@@ -383,7 +383,6 @@ public class PluginsUtilsTests extends ESTestCase {
     }
 
     public void testStableEarlierElasticsearchVersion() throws Exception {
-        // TODO[wrb]: how to handle stable plugin compatibility guarantee
         PluginDescriptor info = getPluginDescriptorForVersion(Version.fromId(Version.CURRENT.id + 1).toString(), "1.8", true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
         assertThat(

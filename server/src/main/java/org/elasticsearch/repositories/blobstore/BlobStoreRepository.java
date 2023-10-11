@@ -1036,7 +1036,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     listener.onRepositoryDataWritten(newRepositoryData);
                     // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                     try (var refs = new RefCountingRunnable(listener::onDone)) {
-                        cleanupStaleBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
+                        cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
                         cleanupUnlinkedShardLevelBlobs(writeShardMetaDataAndComputeDeletesStep.result(), refs.acquireListener());
                     }
                 }, listener::onFailure));
@@ -1053,7 +1053,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             listener.onDone();
                         })) {
                             // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                            cleanupStaleBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
+                            cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
 
                             // writeIndexGen finishes on master-service thread so must fork here.
                             snapshotExecutor.execute(
@@ -1089,7 +1089,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     Function.identity(),
                     listener.delegateFailureAndWrap(
                         // TODO should we pass newRepositoryData to cleanupStaleBlobs()?
-                        (l, newRepositoryData) -> cleanupStaleBlobs(originalRepositoryData, l.map(RepositoryCleanupResult::new))
+                        (l, newRepositoryData) -> cleanupUnlinkedRootAndIndicesBlobs(
+                            originalRepositoryData,
+                            l.map(RepositoryCleanupResult::new)
+                        )
                     )
                 );
             }
@@ -1347,7 +1350,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @param newRepositoryData       new repository data that was just written
          * @param listener                listener to invoke with the combined {@link DeleteResult} of all blobs removed in this operation
          */
-        private void cleanupStaleBlobs(RepositoryData newRepositoryData, ActionListener<DeleteResult> listener) {
+        private void cleanupUnlinkedRootAndIndicesBlobs(RepositoryData newRepositoryData, ActionListener<DeleteResult> listener) {
             final var blobsDeleted = new AtomicLong();
             final var bytesDeleted = new AtomicLong();
             try (

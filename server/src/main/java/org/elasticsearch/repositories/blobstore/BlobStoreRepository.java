@@ -871,7 +871,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         createSnapshotsDeletion(List.of(), repositoryDataGeneration, repositoryFormatIndexVersion, new ActionListener<>() {
             @Override
             public void onResponse(SnapshotsDeletion snapshotsDeletion) {
-                snapshotsDeletion.runCleanup(repositoryDataGeneration, repositoryFormatIndexVersion, listener);
+                snapshotsDeletion.runCleanup(listener);
             }
 
             @Override
@@ -1075,11 +1075,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
 
-        void runCleanup(
-            long originalRepositoryDataGeneration,
-            IndexVersion repositoryFormatIndexVersion,
-            ActionListener<RepositoryCleanupResult> listener
-        ) {
+        void runCleanup(ActionListener<RepositoryCleanupResult> listener) {
             try {
                 if (isReadOnly()) {
                     throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");

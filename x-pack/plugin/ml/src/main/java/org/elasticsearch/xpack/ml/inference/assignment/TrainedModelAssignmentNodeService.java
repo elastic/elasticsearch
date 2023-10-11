@@ -451,7 +451,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
 
         if (routingInfo == null) {
-            return false;
+            return true;
         }
 
         boolean isCurrentNodeShuttingDown = shuttingDownNodes.contains(currentNode);

@@ -240,7 +240,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            false
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -263,8 +263,18 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            false
         );
+        BytesStreamOutput output = new BytesStreamOutput();
+        info.writeTo(output);
+        ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);
+        ByteBufferStreamInput input = new ByteBufferStreamInput(buffer);
+        PluginDescriptor info2 = new PluginDescriptor(input);
+        assertThat(info2.toString(), equalTo(info.toString()));
+    }
+
+    public void testSerializeStablePluginDescriptor() throws Exception {
+        PluginDescriptor info = mockStableDescriptor();
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
         ByteBuffer buffer = ByteBuffer.wrap(output.bytes().toBytesRef().bytes);
@@ -286,7 +296,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            false
         );
     }
 
@@ -316,19 +326,21 @@ public class PluginDescriptorTests extends ESTestCase {
      * use the hashcode to catch duplicate names
      */
     public void testPluginEqualityAndHash() {
+        var isStable = randomBoolean();
+        var classname = isStable ? null : "dummyclass";
         PluginDescriptor descriptor1 = new PluginDescriptor(
             "c",
             "foo",
             "dummy",
             Build.current().version(),
             "1.8",
-            "dummyclass",
+            classname,
             null,
             Collections.singletonList("foo"),
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            isStable
         );
         // everything but name is different from descriptor1
         PluginDescriptor descriptor2 = new PluginDescriptor(
@@ -337,8 +349,8 @@ public class PluginDescriptorTests extends ESTestCase {
             randomValueOtherThan(descriptor1.getVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
             descriptor1.getElasticsearchVersion().previousMajor().toString(),
             randomValueOtherThan(descriptor1.getJavaVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
-            randomValueOtherThan(descriptor1.getClassname(), () -> randomAlphaOfLengthBetween(4, 12)),
-            randomAlphaOfLength(6),
+            descriptor1.isStable() ? randomAlphaOfLengthBetween(4, 12) : null,
+            descriptor1.isStable() ? randomAlphaOfLength(6) : null,
             Collections.singletonList(
                 randomValueOtherThanMany(v -> descriptor1.getExtendedPlugins().contains(v), () -> randomAlphaOfLengthBetween(4, 12))
             ),
@@ -354,7 +366,7 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.getVersion(),
             descriptor1.getElasticsearchVersion().toString(),
             descriptor1.getJavaVersion(),
-            descriptor1.getClassname(),
+            classname,
             descriptor1.getModuleName().orElse(null),
             descriptor1.getExtendedPlugins(),
             descriptor1.hasNativeController(),

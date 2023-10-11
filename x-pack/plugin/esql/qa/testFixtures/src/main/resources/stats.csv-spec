@@ -525,8 +525,7 @@ min(salary):i | max(salary):i | c:l
 25324         | 74999         | 100
 ;
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-statsWithLiterals-Ignore
+statsWithLiterals
 from employees | limit 10 | eval x = 1 | stats c = count(x);
 
 c:l

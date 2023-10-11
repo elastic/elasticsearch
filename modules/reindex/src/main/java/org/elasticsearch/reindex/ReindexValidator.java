@@ -31,6 +31,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class ReindexValidator {
@@ -138,12 +139,27 @@ public class ReindexValidator {
              */
             target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
         }
-        for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
+        SearchRequest filteredSource = skipRemoteIndexNames(source);
+        if (filteredSource.indices().length == 0) {
+            return;
+        }
+        String[] sourceIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, filteredSource);
+        for (String sourceIndex : sourceIndexNames) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
                 throw e;
             }
         }
+    }
+
+    private static SearchRequest skipRemoteIndexNames(SearchRequest source) {
+        return new SearchRequest(source).indices(
+            Arrays.stream(source.indices()).filter(name -> isRemoteExpression(name) == false).toArray(String[]::new)
+        );
+    }
+
+    private static boolean isRemoteExpression(String expression) {
+        return expression.contains(":");
     }
 }

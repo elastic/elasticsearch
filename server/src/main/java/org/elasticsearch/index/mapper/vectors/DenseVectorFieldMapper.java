@@ -458,6 +458,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ) {
                 StringBuilder errorBuilder = null;
 
+                if (Float.isNaN(squaredMagnitude) || Float.isInfinite(squaredMagnitude)) {
+                    errorBuilder = new StringBuilder(
+                        "NaN or Infinite magnitude detected, this usually means the vector values are too extreme to fit within a float."
+                    );
+                }
+                if (errorBuilder != null) {
+                    throw new IllegalArgumentException(appender.apply(errorBuilder).toString());
+                }
+
                 if (similarity == VectorSimilarity.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
                     errorBuilder = new StringBuilder(
                         "The [" + VectorSimilarity.DOT_PRODUCT + "] similarity can only be used with unit-length vectors."
@@ -591,7 +600,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         }
 
-        StringBuilder appendErrorElements(StringBuilder errorBuilder, float[] vector) {
+        static StringBuilder appendErrorElements(StringBuilder errorBuilder, float[] vector) {
             // Include the first five elements of the invalid vector in the error message
             errorBuilder.append(" Preview of invalid vector: [");
             for (int i = 0; i < Math.min(5, vector.length); i++) {
@@ -607,7 +616,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return errorBuilder;
         }
 
-        StringBuilder appendErrorElements(StringBuilder errorBuilder, byte[] vector) {
+        static StringBuilder appendErrorElements(StringBuilder errorBuilder, byte[] vector) {
             // Include the first five elements of the invalid vector in the error message
             errorBuilder.append(" Preview of invalid vector: [");
             for (int i = 0; i < Math.min(5, vector.length); i++) {
@@ -623,11 +632,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return errorBuilder;
         }
 
-        Function<StringBuilder, StringBuilder> errorFloatElementsAppender(float[] vector) {
+        static Function<StringBuilder, StringBuilder> errorFloatElementsAppender(float[] vector) {
             return sb -> appendErrorElements(sb, vector);
         }
 
-        Function<StringBuilder, StringBuilder> errorByteElementsAppender(byte[] vector) {
+        static Function<StringBuilder, StringBuilder> errorByteElementsAppender(byte[] vector) {
             return sb -> appendErrorElements(sb, vector);
         }
     }
@@ -851,7 +860,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, elementType.errorByteElementsAppender(queryVector), squaredMagnitude);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = parentFilter != null
                 ? new DiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, numCands, parentFilter)
@@ -886,9 +895,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             elementType.checkVectorBounds(queryVector);
 
-            if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
+            if (similarity == VectorSimilarity.DOT_PRODUCT
+                || similarity == VectorSimilarity.COSINE
+                || similarity == VectorSimilarity.MAX_INNER_PRODUCT) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
             }
             Query knnQuery = switch (elementType) {
                 case BYTE -> {

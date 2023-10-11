@@ -16,7 +16,7 @@ import java.io.IOException;
  * Vector that stores long values.
  * This class is generated. Do not edit it.
  */
-public sealed interface LongVector extends Vector permits ConstantLongVector, FilterLongVector, LongArrayVector, LongBigArrayVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector {
 
     long getLong(int position);
 
@@ -73,17 +73,18 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Fi
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static LongVector of(StreamInput in) throws IOException {
+    static LongVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantLongVector(in.readLong(), positions);
+            return blockFactory.newConstantLongVector(in.readLong(), positions);
         } else {
-            var builder = LongVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendLong(in.readLong());
+            try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendLong(in.readLong());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 

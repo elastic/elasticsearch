@@ -19,9 +19,7 @@ import org.junit.ClassRule;
 public class IngestAttachmentClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("ingest-attachment")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("ingest-attachment").build();
 
     @Override
     protected String getTestRestCluster() {

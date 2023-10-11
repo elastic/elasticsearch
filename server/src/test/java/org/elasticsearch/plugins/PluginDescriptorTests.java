@@ -180,11 +180,14 @@ public class PluginDescriptorTests extends ESTestCase {
     // TODO[wrb]: remove this test once es version is all the way opaque
     public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
         assertBothDescriptors(writer -> {
-            var e = expectThrows(IllegalArgumentException.class, () -> {
+            var e = expectThrows(IllegalStateException.class, () -> {
                 PluginDescriptor pd = writer.write("elasticsearch.version", "bogus");
                 pd.getElasticsearchVersion();
             });
-            assertThat(e.getMessage(), containsString("version needs to contain major, minor, and revision"));
+            assertThat(
+                e.getMessage(),
+                containsString("The plugin descriptor cannot yet use opaque Elasticsearch version identifier [bogus]")
+            );
         });
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.internal.Client;
@@ -100,7 +99,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("_node_id").roles(emptySet()).build();
 
         NodeInfo nodeInfo = new NodeInfo(
-            Version.CURRENT,
+            Build.current().version(),
             TransportVersion.current(),
             IndexVersion.current(),
             Map.of(),

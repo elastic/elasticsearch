@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.enrollment;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -231,7 +232,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 new ClusterName("cluster_name"),
                 List.of(
                     new NodeInfo(
-                        Version.CURRENT,
+                        Build.current().version(),
                         TransportVersion.current(),
                         IndexVersion.current(),
                         Map.of(),
@@ -266,7 +267,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 new ClusterName("cluster_name"),
                 List.of(
                     new NodeInfo(
-                        Version.CURRENT,
+                        Build.current().version(),
                         TransportVersion.current(),
                         IndexVersion.current(),
                         Map.of(),

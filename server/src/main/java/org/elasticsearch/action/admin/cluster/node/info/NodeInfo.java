@@ -113,7 +113,7 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     public NodeInfo(
-        Version version,
+        String version,
         TransportVersion transportVersion,
         IndexVersion indexVersion,
         Map<String, Integer> componentVersions,
@@ -133,7 +133,7 @@ public class NodeInfo extends BaseNodeResponse {
         @Nullable ByteSizeValue totalIndexingBuffer
     ) {
         super(node);
-        this.version = version.toString();
+        this.version = version;
         this.transportVersion = transportVersion;
         this.indexVersion = indexVersion;
         this.componentVersions = componentVersions;

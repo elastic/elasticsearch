@@ -236,7 +236,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final IndexMode indexMode;
     private final boolean setDefaultSytheticMode;
 
-    private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes, IndexMode indexMode) {
+    private SourceFieldMapper(
+        Mode mode,
+        Explicit<Boolean> enabled,
+        String[] includes,
+        String[] excludes,
+        IndexMode indexMode) {
         this(mode, enabled, includes, excludes, indexMode, false);
     }
 

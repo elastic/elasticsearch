@@ -137,9 +137,9 @@ https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarc
 
 Download the file and upload it to your cluster using the
 {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer]
-in the {ml-app} UI. Assign the name `id` to the first column and `text` to the
-second column. The index name is `test-data`. Once the upload is complete, you
-can see an index named `test-data` with 182469 documents.
+in the {ml-app} UI. Assign the name `id` to the first column and `content` to 
+the second column. The index name is `test-data`. Once the upload is complete, 
+you can see an index named `test-data` with 182469 documents.
 
 
 [discrete]

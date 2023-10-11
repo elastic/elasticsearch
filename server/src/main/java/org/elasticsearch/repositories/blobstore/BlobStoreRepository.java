@@ -1310,21 +1310,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final var survivingIndexIds = newRepositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
             for (final var indexEntry : originalIndexContainers.entrySet()) {
-                final var indexSnId = indexEntry.getKey();
-                if (survivingIndexIds.contains(indexSnId)) {
+                final var indexId = indexEntry.getKey();
+                if (survivingIndexIds.contains(indexId)) {
                     continue;
                 }
                 staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
                     try (ref) {
-                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
+                        logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexId);
                         final var deleteResult = indexEntry.getValue().delete(OperationPurpose.SNAPSHOT);
                         blobsDeleted.addAndGet(deleteResult.blobsDeleted());
                         bytesDeleted.addAndGet(deleteResult.bytesDeleted());
-                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
+                        logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexId);
                     } catch (IOException e) {
                         logger.warn(() -> format("""
                             [%s] index %s is no longer part of any snapshot in the repository, \
-                            but failed to clean up its index folder""", metadata.name(), indexSnId), e);
+                            but failed to clean up its index folder""", metadata.name(), indexId), e);
                     }
                 }));
             }

@@ -1080,10 +1080,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (isReadOnly()) {
                     throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
                 }
-                Map<String, BlobMetadata> originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
-                final RepositoryData originalRepositoryData = safeRepositoryData(originalRepositoryDataGeneration, originalRootBlobs);
-                final Map<String, BlobContainer> originalIndexContainers = blobStore().blobContainer(indicesPath())
-                    .children(OperationPurpose.SNAPSHOT);
                 final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
                     .values()
                     .stream()

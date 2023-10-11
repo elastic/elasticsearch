@@ -917,7 +917,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     class SnapshotsDeletion {
 
         /**
-         * The IDs of the snapshots to delete.
+         * The IDs of the snapshots to delete. This collection is empty if the deletion is a repository cleanup.
          */
         private final Collection<SnapshotId> snapshotIds;
 

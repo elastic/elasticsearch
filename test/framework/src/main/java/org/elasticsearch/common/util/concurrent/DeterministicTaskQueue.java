@@ -102,6 +102,17 @@ public class DeterministicTaskQueue {
     }
 
     /**
+     * Run all {@code runnableTasks} and {@code deferredTasks} that are scheduled to run before or on the given {@code timeInMillis}.
+     */
+    public void runTasksUpToTimeInOrder(long timeInMillis) {
+        runAllRunnableTasks();
+        while (nextDeferredTaskExecutionTimeMillis <= timeInMillis) {
+            advanceTime();
+            runAllRunnableTasks();
+        }
+    }
+
+    /**
      * @return whether there are any runnable tasks.
      */
     public boolean hasRunnableTasks() {

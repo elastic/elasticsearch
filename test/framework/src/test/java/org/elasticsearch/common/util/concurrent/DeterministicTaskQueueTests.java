@@ -14,10 +14,14 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -227,6 +231,37 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         taskQueue.runAllTasksInTimeOrder();
         assertThat(strings, contains("foo", "bar"));
+    }
+
+    public void testRunTasksUpToTimeInOrder() {
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        // The queue does _not_ have to be a clean slate before test
+        if (randomBoolean()) {
+            taskQueue.scheduleAt(randomLongBetween(1, 100), () -> {});
+            taskQueue.runAllTasksInTimeOrder();
+        }
+
+        final long cutoffTimeInMillis = randomLongBetween(taskQueue.getCurrentTimeMillis(), 1000);
+        final Set<Integer> seenNumbers = new HashSet<>();
+
+        final int nRunnableTasks = randomIntBetween(0, 10);
+        IntStream.range(0, nRunnableTasks).forEach(i -> taskQueue.scheduleNow(() -> seenNumbers.add(i)));
+
+        final int nDeferredTasksUptoCutoff = randomIntBetween(0, 10);
+        IntStream.range(0, nDeferredTasksUptoCutoff)
+            .forEach(i -> taskQueue.scheduleAt(randomLongBetween(0, cutoffTimeInMillis), () -> seenNumbers.add(i + nRunnableTasks)));
+
+        IntStream.range(0, randomIntBetween(0, 10))
+            .forEach(
+                i -> taskQueue.scheduleAt(
+                    randomLongBetween(cutoffTimeInMillis + 1, 2 * cutoffTimeInMillis),
+                    () -> seenNumbers.add(i + nRunnableTasks + nDeferredTasksUptoCutoff)
+                )
+            );
+
+        taskQueue.runTasksUpToTimeInOrder(cutoffTimeInMillis);
+        assertThat(seenNumbers, equalTo(IntStream.range(0, nRunnableTasks + nDeferredTasksUptoCutoff).boxed().collect(Collectors.toSet())));
+        assertThat(taskQueue.getCurrentTimeMillis(), lessThanOrEqualTo(cutoffTimeInMillis));
     }
 
     public void testThreadPoolEnqueuesTasks() {

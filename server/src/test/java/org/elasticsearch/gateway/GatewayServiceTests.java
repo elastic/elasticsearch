@@ -304,8 +304,7 @@ public class GatewayServiceTests extends ESTestCase {
             elapsed.millis(),
             () -> setClusterStateTaskQueue.submitTask(randomAlphaOfLength(5), new SetClusterStateTask(clusterStateOfTerm2), null)
         );
-        deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks();
+        deterministicTaskQueue.runTasksUpToTimeInOrder(elapsed.millis());
         assertThat(gatewayService.currentPendingStateRecovery, not(sameInstance(pendingStateRecoveryOfTerm1)));
         // The 1st scheduled recovery is now a no-op
         deterministicTaskQueue.advanceTime();
@@ -388,16 +387,14 @@ public class GatewayServiceTests extends ESTestCase {
             elapsed.millis(),
             () -> setDataNodeCountTaskQueue.submitTask(randomAlphaOfLength(5), new SetDataNodeCountTask(recoverAfterNodes - 1), null)
         );
-        deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks();
+        deterministicTaskQueue.runTasksUpToTimeInOrder(elapsed.millis());
 
         // The 2nd scheduled recovery when data nodes are above recoverAfterDataNodes again
         deterministicTaskQueue.scheduleAt(
             elapsed.millis() * 2,
             () -> setDataNodeCountTaskQueue.submitTask(randomAlphaOfLength(5), new SetDataNodeCountTask(recoverAfterNodes), null)
         );
-        deterministicTaskQueue.advanceTime();
-        deterministicTaskQueue.runAllRunnableTasks();
+        deterministicTaskQueue.runTasksUpToTimeInOrder(elapsed.millis() * 2);
 
         assertThat(gatewayService.currentPendingStateRecovery, sameInstance(pendingStateRecoveryOfInitialTerm));
         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(elapsed.millis() * 2));

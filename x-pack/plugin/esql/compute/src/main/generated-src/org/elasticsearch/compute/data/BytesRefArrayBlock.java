@@ -53,7 +53,27 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     @Override
     public BytesRefBlock filter(int... positions) {
-        return new FilterBytesRefBlock(this, positions);
+        final BytesRef scratch = new BytesRef();
+        try (var builder = blockFactory.newBytesRefBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendBytesRef(getBytesRef(first + c, scratch));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
     }
 
     @Override
@@ -76,8 +96,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     public static long ramBytesEstimated(BytesRefArray values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
-        // TODO mvordering is shared
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override

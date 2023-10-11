@@ -1,0 +1,7 @@
+pr: 100645
+summary: "ESQL: Graceful handling of non-bool condition in the filter"
+area: ES|QL
+type: bug
+issues:
+ - 100049
+ - 100409

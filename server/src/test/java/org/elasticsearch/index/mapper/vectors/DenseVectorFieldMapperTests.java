@@ -20,7 +20,9 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
@@ -229,6 +231,26 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 )
             );
         }
+    }
+
+    public void testMergeDims() throws IOException {
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "dense_vector");
+            b.endObject();
+        });
+        MapperService mapperService = createMapperService(mapping);
+
+        mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "dense_vector").field("dims", 4).field("similarity", "cosine").field("index", true);
+            b.endObject();
+        });
+        merge(mapperService, mapping);
+        assertEquals(
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
+        );
     }
 
     public void testDefaults() throws Exception {

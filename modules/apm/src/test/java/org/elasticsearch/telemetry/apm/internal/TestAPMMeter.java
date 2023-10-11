@@ -1,0 +1,27 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.telemetry.apm.internal;
+
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMeter;
+
+import java.util.List;
+import java.util.Map;
+
+public class TestAPMMeter extends APMMeter {
+    public TestAPMMeter() {
+        super(true, RecordingMeterProvider::new, noopMeter());
+    }
+
+
+
+    public List<Tuple<Double, Map<String, Object>>> getDoubleCounterCalls(String name) {
+
+    }
+}

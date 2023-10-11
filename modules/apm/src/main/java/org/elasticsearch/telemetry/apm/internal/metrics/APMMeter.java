@@ -51,7 +51,11 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
     }
 
     public APMMeter(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
-        this.enabled = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
+        this(TELEMETRY_METRICS_ENABLED_SETTING.get(settings), otelMeterSupplier, noopMeterSupplier);
+    }
+
+    public APMMeter(boolean enabled, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
+        this.enabled = enabled;
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
         this.instruments = new Instruments(enabled ? createOtelMeter() : createNoopMeter());
@@ -226,7 +230,7 @@ public class APMMeter extends AbstractLifecycleComponent implements org.elastics
         return noopMeterSupplier.get();
     }
 
-    private static Supplier<Meter> noopMeter() {
+    protected static Supplier<Meter> noopMeter() {
         return () -> OpenTelemetry.noop().getMeter("noop");
     }
 

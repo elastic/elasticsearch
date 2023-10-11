@@ -868,17 +868,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         IndexVersion repositoryFormatIndexVersion,
         ActionListener<RepositoryCleanupResult> listener
     ) {
-        createSnapshotsDeletion(List.of(), repositoryDataGeneration, repositoryFormatIndexVersion, new ActionListener<>() {
-            @Override
-            public void onResponse(SnapshotsDeletion snapshotsDeletion) {
-                snapshotsDeletion.runCleanup(listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        createSnapshotsDeletion(
+            List.of(),
+            repositoryDataGeneration,
+            repositoryFormatIndexVersion,
+            listener.delegateFailureAndWrap((delegate, snapshotsDeletion) -> snapshotsDeletion.runCleanup(delegate))
+        );
     }
 
     private void createSnapshotsDeletion(
@@ -1076,36 +1071,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         void runCleanup(ActionListener<RepositoryCleanupResult> listener) {
-            try {
-                final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
-                    .values()
-                    .stream()
-                    .map(IndexId::getId)
-                    .collect(Collectors.toSet());
-                final List<String> staleRootBlobs = staleRootBlobs(originalRepositoryData, originalRootBlobs.keySet());
-                if (survivingIndexIds.equals(originalIndexContainers.keySet()) && staleRootBlobs.isEmpty()) {
-                    // Nothing to clean up we return
-                    listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
-                } else {
-                    // write new index-N blob to ensure concurrent operations will fail
-                    writeIndexGen(
-                        originalRepositoryData,
-                        originalRepositoryDataGeneration,
-                        repositoryFormatIndexVersion,
-                        Function.identity(),
-                        listener.delegateFailureAndWrap(
-                            (l, v) -> cleanupStaleBlobs(
-                                Collections.emptyList(),
-                                originalIndexContainers,
-                                originalRootBlobs,
-                                originalRepositoryData,
-                                l.map(RepositoryCleanupResult::new)
-                            )
+            final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
+                .values()
+                .stream()
+                .map(IndexId::getId)
+                .collect(Collectors.toSet());
+            final List<String> staleRootBlobs = staleRootBlobs(originalRepositoryData, originalRootBlobs.keySet());
+            if (survivingIndexIds.equals(originalIndexContainers.keySet()) && staleRootBlobs.isEmpty()) {
+                // Nothing to clean up we return
+                listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
+            } else {
+                // write new index-N blob to ensure concurrent operations will fail
+                writeIndexGen(
+                    originalRepositoryData,
+                    originalRepositoryDataGeneration,
+                    repositoryFormatIndexVersion,
+                    Function.identity(),
+                    listener.delegateFailureAndWrap(
+                        (l, v) -> cleanupStaleBlobs(
+                            Collections.emptyList(),
+                            originalIndexContainers,
+                            originalRootBlobs,
+                            originalRepositoryData,
+                            l.map(RepositoryCleanupResult::new)
                         )
-                    );
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
+                    )
+                );
             }
         }
 

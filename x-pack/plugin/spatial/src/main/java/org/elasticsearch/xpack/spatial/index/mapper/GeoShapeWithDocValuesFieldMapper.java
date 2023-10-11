@@ -444,13 +444,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         int doc,
         DocumentParserContext documentParserContext
     ) {
-        fieldType().scriptValues.valuesForDoc(searchLookup, readerContext, doc, geometry -> {
-            try {
-                index(documentParserContext, geometry);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);  // only thrown by MultiFields which is always null
-            }
-        });
+        fieldType().scriptValues.valuesForDoc(searchLookup, readerContext, doc, geometry -> index(documentParserContext, geometry));
     }
 
     @Override

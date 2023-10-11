@@ -2,7 +2,7 @@ steps:
   - group: platform-support-unix
     steps:
       - label: "{{matrix.image}} / platform-support-unix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true platformSupportTests
         timeout_in_minutes: 420
         matrix:
           setup:
@@ -45,7 +45,6 @@ steps:
             GRADLE_TASK:
               - checkPart1
               - checkPart2
-              - bwcTestSnapshots
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -57,7 +56,7 @@ steps:
   - group: platform-support-arm
     steps:
       - label: "{{matrix.image}} / platform-support-arm"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true platformSupportTests
         timeout_in_minutes: 420
         matrix:
           setup:

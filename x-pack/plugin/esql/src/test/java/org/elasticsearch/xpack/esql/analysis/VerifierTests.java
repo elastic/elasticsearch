@@ -293,6 +293,14 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testFilterNonBoolField() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+    }
+
+    public void testFilterDateConstant() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
+    }
+
     public void testNestedAggField() {
         assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
     }

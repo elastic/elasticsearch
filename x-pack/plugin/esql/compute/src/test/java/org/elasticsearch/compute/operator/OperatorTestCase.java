@@ -212,7 +212,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 unreleasedInputs++;
             }
         }
-        if ((canLeak() == false) && unreleasedInputs > 0) {
+        if (unreleasedInputs > 0) {
             throw new AssertionError("[" + unreleasedInputs + "] unreleased input blocks");
         }
     }
@@ -306,12 +306,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         } finally {
             terminate(threadPool);
         }
-    }
-
-    // TODO: Remove this once all operators do not leak anymore
-    // https://github.com/elastic/elasticsearch/issues/99826
-    protected boolean canLeak() {
-        return false;
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

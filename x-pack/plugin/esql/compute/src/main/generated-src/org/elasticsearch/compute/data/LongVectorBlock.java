@@ -71,8 +71,13 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
+    public boolean isReleased() {
+        return released || vector.isReleased();
+    }
+
+    @Override
     public void close() {
-        if (released) {
+        if (released || vector.isReleased()) {
             throw new IllegalStateException("can't release already released block [" + this + "]");
         }
         released = true;

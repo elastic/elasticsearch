@@ -69,7 +69,6 @@ public class IdLoaderTests extends ESTestCase {
         prepareIndexReader(indexAndForceMerge(routing, docs), verify, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100580")
     public void testSynthesizeIdMultipleSegments() throws Exception {
         var routingPaths = List.of("dim1");
         var routing = createRouting(routingPaths);
@@ -203,6 +202,7 @@ public class IdLoaderTests extends ESTestCase {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (noMergePolicy) {
                 config.setMergePolicy(NoMergePolicy.INSTANCE);
+                config.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
             }
             Sort sort = new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),

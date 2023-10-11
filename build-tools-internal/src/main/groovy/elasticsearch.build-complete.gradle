@@ -28,6 +28,7 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
             include("**/build/testrun/*/temp/**")
+            include("**/build/**/hs_err_pid*.log")
             exclude("**/build/testclusters/**/data/**")
             exclude("**/build/testclusters/**/distro/**")
             exclude("**/build/testclusters/**/repo/**")

@@ -202,6 +202,7 @@ public class IdLoaderTests extends ESTestCase {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (noMergePolicy) {
                 config.setMergePolicy(NoMergePolicy.INSTANCE);
+                config.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
             }
             Sort sort = new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),

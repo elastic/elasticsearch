@@ -101,7 +101,8 @@ public class TestFeatureResetIT extends TransformRestTestCase {
         assertThat((Integer) getTransforms("_all").get("count"), equalTo(0));
 
         // assert transform indices are gone
-        assertThat(ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*"))), is(anEmptyMap()));
+        Map<String, Object> transformIndices = ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*")));
+        assertThat("Indices were: " + transformIndices, transformIndices, is(anEmptyMap()));
     }
 
 }

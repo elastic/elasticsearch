@@ -24,15 +24,20 @@ import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100147")
 public class EsqlActionBreakerIT extends EsqlActionIT {
+
+    public static class InternalTransportSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(IGNORE_DESERIALIZATION_ERRORS_SETTING);
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -60,17 +65,10 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(),
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(2000, 3000)))
-            // reading pages from network can trip the circuit breaker
-            .put(AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            // allow reading pages from network can trip the circuit breaker
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
             .build();
-    }
-
-    public static class InternalTransportSettingPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING);
-        }
     }
 
     private void setRequestCircuitBreakerLimit(ByteSizeValue limit) {

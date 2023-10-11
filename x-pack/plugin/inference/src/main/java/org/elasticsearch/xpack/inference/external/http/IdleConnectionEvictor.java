@@ -19,6 +19,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 /**
@@ -63,6 +64,8 @@ public class IdleConnectionEvictor implements Closeable {
     }
 
     private void startInternal() {
+        logger.debug(() -> format("Idle connection evictor started with wait time: [%s] max idle: [%s]", sleepTime, maxIdleTime));
+
         Scheduler.Cancellable task = threadPool.scheduleWithFixedDelay(() -> {
             try {
                 connectionManager.closeExpiredConnections();
@@ -80,6 +83,7 @@ public class IdleConnectionEvictor implements Closeable {
     @Override
     public void close() {
         if (cancellableTask.get() != null) {
+            logger.debug("Idle connection evictor closing");
             cancellableTask.get().cancel();
         }
     }

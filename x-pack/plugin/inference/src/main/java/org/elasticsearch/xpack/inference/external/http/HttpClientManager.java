@@ -24,6 +24,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class HttpClientManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
     /**
@@ -143,6 +145,8 @@ public class HttpClientManager implements Closeable {
 
     // default for testing
     void setEvictionInterval(TimeValue evictionInterval) {
+        logger.debug(() -> format("Eviction thread's interval time updated to [%s]", evictionInterval));
+
         evictorSettings = new EvictorSettings(evictionInterval, evictorSettings.evictionMaxIdle);
 
         connectionEvictor.close();
@@ -151,6 +155,7 @@ public class HttpClientManager implements Closeable {
     }
 
     void setEvictionMaxIdle(TimeValue evictionMaxIdle) {
+        logger.debug(() -> format("Eviction thread's max idle time updated to [%s]", evictionMaxIdle));
         evictorSettings = new EvictorSettings(evictorSettings.evictionInterval, evictionMaxIdle);
         connectionEvictor.setMaxIdleTime(evictionMaxIdle);
     }

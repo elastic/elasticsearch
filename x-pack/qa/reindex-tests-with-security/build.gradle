@@ -1,12 +1,5 @@
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
-dependencies {
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(project(xpackModule('security'))))
-  yamlRestTestImplementation(project(':modules:reindex'))
-  yamlRestTestImplementation(project(":client:rest-high-level"))
-}
-
 tasks.named("yamlRestTest") {
   usesDefaultDistribution()
 }

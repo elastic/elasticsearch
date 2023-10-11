@@ -916,8 +916,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         /**
          * All blobs in the repository root at the start of the operation, obtained by listing the repository contents. Note that this may
          * include some blobs which are no longer referenced by the current {@link RepositoryData}, but which have not yet been removed by
-         * the cleanup that follows an earlier deletion. This cleanup may or may not still be ongoing (it could have been running on a
-         * different node, which died before completing it) so we track all the blobs here and clean them up again at the end.
+         * the cleanup that follows an earlier deletion. This cleanup may still be ongoing (we do not wait for it to complete before
+         * starting the next repository operation) or it may have failed before completion (it could have been running on a different node,
+         * which crashed for unrelated reasons) so we track all the blobs here and clean them up again at the end.
          */
         private final Map<String, BlobMetadata> originalRootBlobs;
 

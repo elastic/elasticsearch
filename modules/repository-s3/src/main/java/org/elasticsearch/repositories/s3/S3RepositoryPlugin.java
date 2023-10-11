@@ -112,8 +112,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         meter.set(telemetryProvider.getMeter());
         meter.get().registerLongCounter(S3Repository.TYPE + ".request_counter", "request counter", "unit");
-        meter.get().registerLongGauge(S3Repository.TYPE + ".request_gauge", "request gauge", "unit");
-        meter.get().registerLongHistogram(S3Repository.TYPE + ".response_time_histogram", "response time histogram", "millis");
+        meter.get().registerLongGauge(S3Repository.TYPE + ".client_time_gauge", "request gauge", "unit");
+        meter.get().registerLongHistogram(S3Repository.TYPE + ".client_time_histogram", "response time histogram", "millis");
         return List.of(service);
     }
 

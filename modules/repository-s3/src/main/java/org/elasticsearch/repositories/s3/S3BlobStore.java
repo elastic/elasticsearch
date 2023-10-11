@@ -84,8 +84,8 @@ class S3BlobStore implements BlobStore {
     private final Executor snapshotExecutor;
     private final Meter meter;
     private final LongCounter requestCounter;
-    private final LongGauge requestGauge;
-    private final LongHistogram responseTimeHistogram;
+    private final LongGauge clientTimeGauge;
+    private final LongHistogram clientTimeHistogram;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
@@ -117,8 +117,8 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meter = meter;
         this.requestCounter = this.meter.getLongCounter(S3Repository.TYPE + ".request_counter");
-        this.requestGauge = this.meter.getLongGauge(S3Repository.TYPE + ".request_gauge");
-        this.responseTimeHistogram = this.meter.getLongHistogram(S3Repository.TYPE + ".response_time_histogram");
+        this.clientTimeGauge = this.meter.getLongGauge(S3Repository.TYPE + ".client_time_gauge");
+        this.clientTimeHistogram = this.meter.getLongHistogram(S3Repository.TYPE + ".client_time_histogram");
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {
             var priorRetryStats = s3RequestRetryStats;
@@ -146,11 +146,9 @@ class S3BlobStore implements BlobStore {
                 final TimingInfo timingInfo = request.getAWSRequestMetrics().getTimingInfo();
                 final long requestCount = S3RequestRetryStats.getCounter(timingInfo, AWSRequestMetrics.Field.RequestCount);
                 requestCounter.incrementBy(requestCount, attributes);
-                requestGauge.record(requestCount, attributes);
-                responseTimeHistogram.record(
-                    S3RequestRetryStats.getCounter(timingInfo, AWSRequestMetrics.Field.ClientExecuteTime),
-                    attributes
-                );
+                final long clientTime = S3RequestRetryStats.getCounter(timingInfo, AWSRequestMetrics.Field.ClientExecuteTime);
+                clientTimeGauge.record(clientTime, attributes);
+                clientTimeHistogram.record(clientTime, attributes);
                 collector.collectMetrics(request, response);
             }
         };

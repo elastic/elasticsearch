@@ -114,17 +114,17 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         );
 
         private final IndexMode indexMode;
-        private final boolean setDefaultSytheticMode;
 
-        public Builder(IndexMode indexMode, boolean setDefaultSytheticMode) {
+        public Builder(IndexMode indexMode, IndexVersion indexVersion) {
             super(Defaults.NAME);
             this.indexMode = indexMode;
-            this.setDefaultSytheticMode = setDefaultSytheticMode;
             this.mode = new Parameter<>(
                 "mode",
                 true,
                 // The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic source mode.
-                () -> getIndexMode() == IndexMode.TIME_SERIES && setDefaultSytheticMode ? Mode.SYNTHETIC : null,
+                () -> getIndexMode() == IndexMode.TIME_SERIES && indexVersion.between(IndexVersion.V_8_7_0, IndexVersion.V_8_10_0)
+                    ? Mode.SYNTHETIC
+                    : null,
                 (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
                 m -> toType(m).enabled.explicit() ? null : toType(m).mode,
                 (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
@@ -171,8 +171,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 enabled.get(),
                 includes.getValue().toArray(String[]::new),
                 excludes.getValue().toArray(String[]::new),
-                indexMode,
-                setDefaultSytheticMode
+                indexMode
             );
             if (indexMode != null) {
                 indexMode.validateSourceFieldMapper(sourceFieldMapper);
@@ -189,10 +188,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
             ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersion.V_8_7_0) ? TSDB_DEFAULT : TSDB_LEGACY_DEFAULT
             : DEFAULT,
-        c -> new Builder(
-            c.getIndexSettings().getMode(),
-            c.getIndexSettings().getIndexVersionCreated().between(IndexVersion.V_8_7_0, IndexVersion.V_8_10_0)
-        )
+        c -> new Builder(c.getIndexSettings().getMode(), c.getIndexSettings().getIndexVersionCreated())
     );
 
     static final class SourceFieldType extends MappedFieldType {
@@ -234,25 +230,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final SourceFilter sourceFilter;
 
     private final IndexMode indexMode;
-    private final boolean setDefaultSytheticMode;
 
-    private SourceFieldMapper(
-        Mode mode,
-        Explicit<Boolean> enabled,
-        String[] includes,
-        String[] excludes,
-        IndexMode indexMode) {
-        this(mode, enabled, includes, excludes, indexMode, false);
-    }
-
-    private SourceFieldMapper(
-        Mode mode,
-        Explicit<Boolean> enabled,
-        String[] includes,
-        String[] excludes,
-        IndexMode indexMode,
-        boolean setDefaultSytheticMode
-    ) {
+    private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes, IndexMode indexMode) {
         super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
         assert enabled.explicit() == false || mode == null;
         this.mode = mode;
@@ -265,7 +244,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
         this.complete = stored() && sourceFilter == null;
         this.indexMode = indexMode;
-        this.setDefaultSytheticMode = setDefaultSytheticMode;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -335,7 +313,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(indexMode, setDefaultSytheticMode).init(this);
+        return new Builder(indexMode, IndexVersion.current()).init(this);
     }
 
     /**

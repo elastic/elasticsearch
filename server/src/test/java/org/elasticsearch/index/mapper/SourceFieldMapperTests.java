@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -241,8 +242,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSyntheticSourceInTimeSeriesBwc() throws IOException {
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(IndexMode.TIME_SERIES, true).build();
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(IndexMode.TIME_SERIES, IndexVersion.V_8_8_0).build();
         assertTrue(sourceMapper.isSynthetic());
-        assertEquals("{}", sourceMapper.toString());
+        assertEquals("{\"_source\":{\"mode\":\"synthetic\"}}", sourceMapper.toString());
     }
 }

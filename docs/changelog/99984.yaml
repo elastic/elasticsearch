@@ -1,0 +1,6 @@
+pr: 99984
+summary: Switch fleet's built-in ILM policies to use .actions.rollover.max_primary_shard_size
+area: ILM+SLM
+type: enhancement
+issues:
+ - 99983

@@ -35,6 +35,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -45,10 +46,10 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
-import org.elasticsearch.xpack.ml.inference.deployment.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
@@ -103,7 +104,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         this.systemAuditor = Objects.requireNonNull(systemAuditor);
         this.nodeAvailabilityZoneMapper = Objects.requireNonNull(nodeAvailabilityZoneMapper);
         this.maxMemoryPercentage = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-        this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.useAuto = MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.maxMLNodeSize = MachineLearning.MAX_ML_NODE_SIZE.get(settings).getBytes();
@@ -115,7 +116,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMemoryPercentage);
             clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
+                .addSettingsUpdateConsumer(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMLNodeSize);
@@ -206,7 +207,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     void logMlNodeHeterogeneity() {
         ActionListener<Set<String>> architecturesListener = getArchitecturesSetActionListener();
-        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            architecturesListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
     }
 
     static ActionListener<Set<String>> getArchitecturesSetActionListener() {
@@ -590,7 +595,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             });
         }, listener::onFailure);
 
-        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(architecturesListener, client, threadPool);
+        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
+            architecturesListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+        );
     }
 
     ClusterState stopPlatformSpecificModelsInHeterogeneousClusters(

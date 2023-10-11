@@ -302,8 +302,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        IndexVersion repositoryMetaVersion,
+        long repositoryDataGeneration,
+        IndexVersion repositoryFormatIndexVersion,
         SnapshotDeleteListener listener
     ) {
         listener.onFailure(new UnsupportedOperationException("Unsupported for repository of type: " + TYPE));

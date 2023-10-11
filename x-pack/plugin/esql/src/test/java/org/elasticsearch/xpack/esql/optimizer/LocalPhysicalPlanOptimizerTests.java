@@ -296,7 +296,6 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
-    @AwaitsFix(bugUrl = "intermediateAgg does proper reduction but the agg itself does not - the optimizer needs to improve")
     public void testMultiCountAllWithFilter() {
         var plan = plan("""
             from test
@@ -311,7 +310,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen", "count", "seen", "count", "seen"));
         var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no");
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }

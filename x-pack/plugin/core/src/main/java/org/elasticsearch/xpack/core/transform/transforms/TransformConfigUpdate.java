@@ -240,7 +240,7 @@ public class TransformConfigUpdate implements Writeable {
         return isNullOrEqual(headers, config.getHeaders()) == false;
     }
 
-    private boolean isNullOrEqual(Object lft, Object rgt) {
+    private static boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }
 

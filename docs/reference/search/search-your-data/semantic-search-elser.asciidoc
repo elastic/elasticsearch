@@ -100,8 +100,9 @@ PUT _ingest/pipeline/elser-v2-test
       "inference": { 
         "model_id": ".elser_model_2", 
         "input_output": [ <1> 
-          { "input_field": "content", 
-          "output_field": "content_embedding" 
+          { 
+            "input_field": "content", 
+            "output_field": "content_embedding" 
           } 
         ] 
       } 

@@ -23,8 +23,9 @@ PUT _ingest/pipeline/my-text-embeddings-pipeline
       "inference": { 
         "model_id": ".elser_model_2", 
         "input_output": [ <1> 
-          { "input_field": "my_text_field", 
-          "output_field": "my_text_embedding" 
+          { 
+            "input_field": "my_text_field", 
+            "output_field": "my_text_embedding" 
           } 
         ] 
       } 

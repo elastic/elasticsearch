@@ -30,6 +30,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -77,19 +79,51 @@ public class PluginsUtils {
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
     public static void verifyCompatibility(PluginDescriptor info) {
-        if (info.isStable()) {
-            if (info.getElasticsearchVersion().major != Version.CURRENT.major) {
+        // stable plugins can run on the exact version they're built with even if it's not semantic
+        if (info.isStable() && info.getElasticsearchVersion().equals(Build.current().version()) == false) {
+            SemanticVersion currentElasticsearchVersion;
+            try {
+                currentElasticsearchVersion = SemanticVersion.create(Build.current().version());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Stable Plugin ["
+                        + info.getName()
+                        + "] was built for Elasticsearch version "
+                        + info.getElasticsearchVersion()
+                        + " but cannot run on non-semantic version "
+                        + Build.current().version()
+                );
+            }
+
+            SemanticVersion pluginElasticsearchVersion;
+            try {
+                pluginElasticsearchVersion = SemanticVersion.create(info.getElasticsearchVersion());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Stable Plugin ["
+                        + info.getName()
+                        + "] was built for non-semantic Elasticsearch version "
+                        + info.getElasticsearchVersion()
+                        + " and cannot run on version "
+                        + Build.current().version()
+                );
+            }
+
+            // case: Major version mismatch
+            if (pluginElasticsearchVersion.major != currentElasticsearchVersion.major) {
                 throw new IllegalArgumentException(
                     "Stable Plugin ["
                         + info.getName()
                         + "] was built for Elasticsearch major version "
-                        + info.getElasticsearchVersion().major
+                        + pluginElasticsearchVersion.major
                         + " but version "
-                        + Version.CURRENT
+                        + Build.current().version()
                         + " is running"
                 );
             }
-            if (info.getElasticsearchVersion().after(Version.CURRENT)) {
+
+            // case: stable plugin from the future
+            if (pluginElasticsearchVersion.after(currentElasticsearchVersion)) {
                 throw new IllegalArgumentException(
                     "Stable Plugin ["
                         + info.getName()
@@ -100,7 +134,7 @@ public class PluginsUtils {
                         + " is running"
                 );
             }
-        } else if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+        } else if (info.getElasticsearchVersion().equals(Build.current().version()) == false) {
             throw new IllegalArgumentException(
                 "Plugin ["
                     + info.getName()
@@ -112,6 +146,45 @@ public class PluginsUtils {
             );
         }
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
+    }
+
+    private record SemanticVersion(int major, int minor, int bugfix, String suffix) {
+        static SemanticVersion create(String version) {
+            Matcher matcher = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(\\D?.*)$").matcher(version);
+            if (matcher.matches() == false) {
+                throw new IllegalArgumentException("Cannot be parsed as a semantic version: " + version);
+            }
+            try {
+                return new SemanticVersion(
+                    Integer.parseInt(matcher.group(1)),
+                    Integer.parseInt(matcher.group(2)),
+                    Integer.parseInt(matcher.group(3)),
+                    matcher.group(4)
+                );
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Cannot be parsed as a semantic version: " + version, e);
+            }
+        }
+
+        // does not compare anything after the semantic version
+        boolean after(SemanticVersion other) {
+            // major
+            if (this.major < other.major) {
+                return false;
+            }
+            if (this.major > other.major) {
+                return true;
+            }
+            // minor
+            if (this.minor < other.minor) {
+                return false;
+            }
+            if (this.minor > other.minor) {
+                return true;
+            }
+            // bugfix
+            return this.bugfix > other.bugfix;
+        }
     }
 
     /**

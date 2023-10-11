@@ -17,7 +17,7 @@ Even if you don't use Elastic for search, you can use these tools to collect ana
 === Availability and prerequisites
 
 Behavioral Analytics is available in Elastic *8.7.0* and later.
-(See {enterprise-search-ref}/analytics-migration.html[Migrating from 8.7 to 8.8] in the Enterprise Search documentation if you're upgrading from 8.7 to 8.8.)
+(See {enterprise-search-ref}/analytics-migration.html[Migrating from 8.7 to 8.8] in the Search documentation if you're upgrading from 8.7 to 8.8.)
 
 [NOTE]
 ====
@@ -30,7 +30,7 @@ Analytics are available to all Elastic Cloud users.
 Analytics are also available to *self-managed* deployments that satisfy subscription requirements.
 View the requirements for this feature under the *Elastic Search* section of the https://www.elastic.co/subscriptions[Elastic Stack subscriptions^] page.
 
-Your Elastic deployment must include the {es}, {kb}, and Enterprise Search services.
+Your Elastic deployment must include the {es}, {kib}, and Enterprise Search services.
 
 [discrete]
 [[behavioral-analytics-overview-docs]]

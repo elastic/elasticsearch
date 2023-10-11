@@ -4,7 +4,7 @@
 <titleabbrev>Get started</titleabbrev>
 ++++
 
-You can manage your analytics in the Search UI in {kb}.
+You can manage your analytics in the Search UI in {kib}.
 Go to *Search > Behavioral Analytics* to get started.
 
 Using behavioral analytics is a three-step process:
@@ -35,7 +35,7 @@ To do this in the Search UI:
 4. Select *Create*.
 
 When you create a collection we automatically create a {kibana-ref}/data-views.html[data view^] for the collection.
-This allows {kb} to access your analytics data stored in {es}.
+This allows {kib} to access your analytics data stored in {es}.
 
 This means that once you integrate analytics into your application or website, you can immediately use {kibana-ref}/discover.html[Discover^] to view events, set filters, and create visualizations using {kibana-ref}/lens.html[Lens^].
 
@@ -47,7 +47,7 @@ Once you've created a collection, you need to complete your UI integration.
 
 [NOTE]
 ====
-Detailed integration instructions are provided in the {kb} UI.
+Detailed integration instructions are provided in the {kib} UI.
 Find these in the *Integrate* tab under *Search > Behavioral Analytics >* _<your-collection>_.
 ====
 
@@ -69,7 +69,7 @@ Add a JavaScript snippet to your website or application source files, using the 
 This approach is best for web browsers.
 Node apps and Search UI users shouldn't choose this option.
 
-Instructions for getting started are available in the {kb} UI.
+Instructions for getting started are available in the {kib} UI.
 
 *Follow these steps*:
 
@@ -111,7 +111,7 @@ Analytics will be bundled with your app.
 
 This allows the browser to optimize the JavaScript download.
 
-Instructions for getting started are also available in the {kb} UI.
+Instructions for getting started are also available in the {kib} UI.
 
 *Follow these steps* to get started:
 

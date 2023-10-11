@@ -785,16 +785,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Loads {@link RepositoryData} ensuring that it is consistent with the given {@code rootBlobs} as well of the assumed generation.
      *
-     * @param repositoryStateId Expected repository generation
-     * @param rootBlobs         Blobs at the repository root
+     * @param repositoryDataGeneration Expected repository generation
+     * @param rootBlobs                Blobs at the repository root
      * @return RepositoryData
      */
-    private RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetadata> rootBlobs) {
+    private RepositoryData safeRepositoryData(long repositoryDataGeneration, Map<String, BlobMetadata> rootBlobs) {
         final long generation = latestGeneration(rootBlobs.keySet());
         final long genToLoad;
         final RepositoryData cached;
         if (bestEffortConsistency) {
-            genToLoad = latestKnownRepoGen.accumulateAndGet(repositoryStateId, Math::max);
+            genToLoad = latestKnownRepoGen.accumulateAndGet(repositoryDataGeneration, Math::max);
             cached = null;
         } else {
             genToLoad = latestKnownRepoGen.get();
@@ -813,11 +813,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     + "]"
             );
         }
-        if (genToLoad != repositoryStateId) {
+        if (genToLoad != repositoryDataGeneration) {
             throw new RepositoryException(
                 metadata.name(),
                 "concurrent modification of the index-N file, expected current generation ["
-                    + repositoryStateId
+                    + repositoryDataGeneration
                     + "], actual current generation ["
                     + genToLoad
                     + "]"

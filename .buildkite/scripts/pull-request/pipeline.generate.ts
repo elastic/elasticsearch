@@ -6,11 +6,16 @@ import { generatePipelines } from "./pipeline";
 const pipelines = generatePipelines();
 
 for (const pipeline of pipelines) {
-  if (!process.env.CI) {
-    // Just for local debugging purposes
-    console.log("");
-    console.log(stringify(pipeline));
-  } else {
+  const yaml = stringify(pipeline);
+
+  console.log("--- Generated pipeline");
+  console.log(yaml);
+
+  // Only do the pipeline upload if we're actually in CI
+  // This lets us run the tool locally and see the output
+  if (process.env.CI) {
+    console.log("--- Uploading pipeline");
+
     execSync(`buildkite-agent pipeline upload`, {
       input: stringify(pipeline),
       stdio: ["pipe", "inherit", "inherit"],

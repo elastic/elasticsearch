@@ -116,6 +116,7 @@ export const generatePipelines = (
     .filter((x) => x);
 
   if (!changedFiles?.length) {
+    console.log("Doing git fetch and getting merge-base");
     const mergeBase = execSync(
       `git fetch origin ${process.env["GITHUB_PR_TARGET_BRANCH"]}; git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`,
       { cwd: PROJECT_ROOT }
@@ -123,12 +124,17 @@ export const generatePipelines = (
       .toString()
       .trim();
 
+    console.log(`Merge base: ${mergeBase}`);
+
     const changedFilesOutput = execSync(`git diff --name-only ${mergeBase}`, { cwd: PROJECT_ROOT }).toString().trim();
 
     changedFiles = changedFilesOutput
       .split("\n")
       .map((x) => x.trim())
       .filter((x) => x);
+
+    console.log("Changed files (first 50):");
+    console.log(changedFiles.slice(0, 50).join("\n"));
   }
 
   let filters: ((pipeline: EsPipeline) => boolean)[] = [

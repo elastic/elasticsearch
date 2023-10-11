@@ -599,7 +599,11 @@ public class NodeEnvironmentTests extends ESTestCase {
                 allOf(
                     containsString("Cannot start this node"),
                     containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
-                    containsString("Revert this node to version [" + previousNodeVersion + "]")
+                    containsString(
+                        "Revert this node to version ["
+                            + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)
+                            + "]"
+                    )
                 )
             );
 
@@ -620,8 +624,13 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
-            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"));
-            assertThat(ex.getMessage(), containsString("upgrade to version [" + Build.current().minWireCompatVersion()));
+            assertThat(
+                ex.getMessage(),
+                allOf(
+                    startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"),
+                    containsString("upgrade to version [" + Build.current().minWireCompatVersion())
+                )
+            );
         }
     }
 

@@ -213,6 +213,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
+                        // We fork here just to call SnapshotsService#minCompatibleVersion (which may be to expensive to run directly) but
+                        // BlobStoreRepository#cleanup forks again straight away. TODO reduce the forking here.
                         threadPool.executor(ThreadPool.Names.SNAPSHOT)
                             .execute(
                                 ActionRunnable.wrap(

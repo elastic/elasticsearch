@@ -25,7 +25,7 @@ PUT _ingest/pipeline/my-text-embeddings-pipeline
         "input_output": [ <1> 
           { 
             "input_field": "my_text_field", 
-            "output_field": "my_text_embedding" 
+            "output_field": "my_tokens" 
           } 
         ] 
       } 

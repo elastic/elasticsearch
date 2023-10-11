@@ -15,8 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
@@ -559,32 +557,6 @@ public class BytesStreamsTests extends ESTestCase {
 
         assertThat(loaded.size(), equalTo(expected.size()));
         assertThat(expected, equalTo(loaded));
-    }
-
-    public void testWriteBigBytesReference() throws IOException {
-        final int length = randomIntBetween(1024, 1024 * 1024);
-        final byte[] bytes = randomizedByteArrayWithSize(length);
-        BytesReference expected;
-        if (randomBoolean()) {
-            final ByteArray byteArray = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length, randomBoolean());
-            byteArray.set(0, bytes, 0, length);
-            expected = BytesReference.fromByteArray(byteArray, length);
-        } else {
-            expected = new BytesArray(bytes);
-        }
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeBytesReference(expected);
-        {
-            final StreamInput in = out.bytes().streamInput(); // use the BytesReference version
-            final BytesReference loaded = in.readBytesReference();
-            assertThat(loaded, equalTo(expected));
-        }
-        {
-            final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes())); // use the byte[] version
-            final BytesReference loaded = in.readBytesReference();
-            assertThat(loaded, equalTo(expected));
-        }
     }
 
     private abstract static class BaseNamedWriteable implements NamedWriteable {

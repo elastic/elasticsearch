@@ -737,4 +737,25 @@ public abstract class AbstractStreamTests extends ESTestCase {
             assertThat(read, equalTo(original));
         });
     }
+
+    public void testBytesReferenceSerialization() throws IOException {
+        final int length = randomIntBetween(1024, 1024 * 1024);
+        final byte[] bytes = new byte[length];
+        random().nextBytes(bytes);
+        BytesReference expected;
+        if (randomBoolean()) {
+            final ByteArray byteArray = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length, randomBoolean());
+            byteArray.set(0, bytes, 0, length);
+            expected = BytesReference.fromByteArray(byteArray, length);
+        } else {
+            expected = new BytesArray(bytes);
+        }
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeBytesReference(expected);
+        final StreamInput in = getStreamInput(output.bytes());
+
+        final BytesReference loaded = in.readBytesReference();
+        assertThat(loaded, equalTo(expected));
+    }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -38,8 +37,6 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         ToXContentObject,
         Rewriteable<RB> {
 
-    public static final ParseField FROM_FIELD = new ParseField("from");
-    public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
     public static final ParseField _NAME_FIELD = new ParseField("_name");
 
@@ -47,8 +44,6 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         String name,
         AbstractObjectParser<? extends RetrieverBuilder<?>, RetrieverParserContext> parser
     ) {
-        parser.declareInt(RetrieverBuilder::from, FROM_FIELD);
-        parser.declareInt(RetrieverBuilder::size, SIZE_FIELD);
         parser.declareObject(RetrieverBuilder::preFilterQueryBuilder, (p, c) -> {
             QueryBuilder preFilterQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
             c.trackSectionUsage(name + ":" + PRE_FILTER_FIELD.getPreferredName());
@@ -164,8 +159,6 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         return retrieverBuilder;
     }
 
-    protected int from = SearchService.DEFAULT_FROM;
-    protected int size = SearchService.DEFAULT_SIZE;
     protected QueryBuilder preFilterQueryBuilder;
     protected String _name;
 
@@ -174,23 +167,17 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     }
 
     public RetrieverBuilder(RetrieverBuilder<?> original) {
-        from = original.from;
-        size = original.size;
         preFilterQueryBuilder = original.preFilterQueryBuilder;
         _name = original._name;
     }
 
     public RetrieverBuilder(StreamInput in) throws IOException {
-        from = in.readVInt();
-        size = in.readVInt();
         preFilterQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         _name = in.readOptionalString();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(from);
-        out.writeVInt(size);
         out.writeOptionalNamedWriteable(preFilterQueryBuilder);
         out.writeOptionalString(_name);
         doWriteTo(out);
@@ -201,8 +188,6 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FROM_FIELD.getPreferredName(), from);
-        builder.field(SIZE_FIELD.getPreferredName(), size);
         if (preFilterQueryBuilder != null) {
             builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilder);
         }
@@ -238,35 +223,12 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RetrieverBuilder<?> that = (RetrieverBuilder<?>) o;
-        return from == that.from
-            && size == that.size
-            && Objects.equals(preFilterQueryBuilder, that.preFilterQueryBuilder)
-            && Objects.equals(_name, that._name);
+        return Objects.equals(preFilterQueryBuilder, that.preFilterQueryBuilder) && Objects.equals(_name, that._name);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(from, size, preFilterQueryBuilder, _name);
-    }
-
-    public int from() {
-        return from;
-    }
-
-    @SuppressWarnings("unchecked")
-    public RB from(int from) {
-        this.from = from;
-        return (RB) this;
-    }
-
-    public int size() {
-        return size;
-    }
-
-    @SuppressWarnings("unchecked")
-    public RB size(int size) {
-        this.size = size;
-        return (RB) this;
+        return Objects.hash(preFilterQueryBuilder, _name);
     }
 
     public QueryBuilder preFilterQueryBuilder() {
@@ -291,18 +253,6 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
 
     public final void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
         doExtractToSearchSourceBuilder(searchSourceBuilder);
-
-        if (searchSourceBuilder.from() == -1) {
-            searchSourceBuilder.from(from);
-        } else {
-            throw new IllegalStateException("[from] cannot be declared as a retriever value and as a global value");
-        }
-
-        if (searchSourceBuilder.size() == -1) {
-            searchSourceBuilder.size(size);
-        } else {
-            throw new IllegalStateException("[from] cannot be declared as a retriever value and as a global value");
-        }
 
         if (preFilterQueryBuilder != null) {
             throw new IllegalStateException("[filter] is not supported");

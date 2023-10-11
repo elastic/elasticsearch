@@ -413,6 +413,40 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testMaxInnerProductWithValidNorm() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 3)
+                    .field("index", true)
+                    .field("similarity", VectorSimilarity.MAX_INNER_PRODUCT)
+            )
+        );
+        float[] vector = { -12.1f, 2.7f, -4 };
+        // Shouldn't throw
+        mapper.parse(source(b -> b.array("field", vector)));
+    }
+
+    public void testWithExtremeFloatVector() throws Exception {
+        for (VectorSimilarity vs : List.of(VectorSimilarity.COSINE, VectorSimilarity.DOT_PRODUCT, VectorSimilarity.COSINE)) {
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", vs))
+            );
+            float[] vector = { 0.07247924f, -4.310546E-11f, -1.7255947E30f };
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
+                () -> mapper.parse(source(b -> b.array("field", vector)))
+            );
+            assertNotNull(e.getCause());
+            assertThat(
+                e.getCause().getMessage(),
+                containsString(
+                    "NaN or Infinite magnitude detected, this usually means the vector values are too extreme to fit within a float."
+                )
+            );
+        }
+    }
+
     public void testInvalidParameters() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,

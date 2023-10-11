@@ -40,14 +40,20 @@ public class MvExpandOperatorStatusTests extends AbstractWireSerializingTestCase
 
     @Override
     protected MvExpandOperator.Status mutateInstance(MvExpandOperator.Status instance) {
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
             case 0:
                 return new MvExpandOperator.Status(
                     randomValueOtherThan(instance.pagesIn(), ESTestCase::randomNonNegativeInt),
-                    randomValueOtherThan(instance.pagesOut(), ESTestCase::randomNonNegativeInt),
+                    instance.pagesOut(),
                     instance.noops()
                 );
             case 1:
+                return new MvExpandOperator.Status(
+                    instance.pagesIn(),
+                    randomValueOtherThan(instance.pagesOut(), ESTestCase::randomNonNegativeInt),
+                    instance.noops()
+                );
+            case 2:
                 return new MvExpandOperator.Status(
                     instance.pagesIn(),
                     instance.pagesOut(),

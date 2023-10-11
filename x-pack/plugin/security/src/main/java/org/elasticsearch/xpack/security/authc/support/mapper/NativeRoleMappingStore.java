@@ -136,21 +136,17 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             ScrollHelper.fetchAllByEntity(
                 client,
                 request,
-                new ContextPreservingActionListener<>(
-                    supplier,
-                    ActionListener.wrap(
-                        (Collection<ExpressionRoleMapping> mappings) -> listener.onResponse(
-                            mappings.stream().filter(Objects::nonNull).toList()
-                        ),
-                        ex -> {
-                            logger.error(
-                                () -> format("failed to load role mappings from index [%s] skipping all mappings.", SECURITY_MAIN_ALIAS),
-                                ex
-                            );
-                            listener.onResponse(Collections.emptyList());
-                        }
-                    )
-                ),
+                new ContextPreservingActionListener<>(supplier, ActionListener.wrap((Collection<ExpressionRoleMapping> mappings) -> {
+                    final List<ExpressionRoleMapping> mappingList = mappings.stream().filter(Objects::nonNull).toList();
+                    logger.debug("successfully loaded [{}] role-mapping(s) from [{}]", mappingList.size(), securityIndex.aliasName());
+                    listener.onResponse(mappingList);
+                }, ex -> {
+                    logger.error(
+                        () -> format("failed to load role mappings from index [%s] skipping all mappings.", SECURITY_MAIN_ALIAS),
+                        ex
+                    );
+                    listener.onResponse(Collections.emptyList());
+                })),
                 doc -> buildMapping(getNameFromId(doc.getId()), doc.getSourceRef())
             );
         }
@@ -202,6 +198,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             );
         } else {
             try {
+                logger.trace("Modifying role mapping [{}] for [{}]", name, request.getClass().getSimpleName());
                 inner.accept(request, ActionListener.wrap(r -> refreshRealms(listener, r), listener::onFailure));
             } catch (Exception e) {
                 logger.error(() -> "failed to modify role-mapping [" + name + "]", e);

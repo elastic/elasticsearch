@@ -1419,8 +1419,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         // Finds all blobs directly under the repository root path that are not referenced by the current RepositoryData
-        private static List<String> staleRootBlobs(RepositoryData originalRepositoryData, Set<String> originalRootBlobNames) {
-            final Set<String> allSnapshotIds = originalRepositoryData.getSnapshotIds()
+        private static List<String> staleRootBlobs(RepositoryData newRepositoryData, Set<String> originalRootBlobNames) {
+            final Set<String> allSnapshotIds = newRepositoryData.getSnapshotIds()
                 .stream()
                 .map(SnapshotId::getUUID)
                 .collect(Collectors.toSet());
@@ -1443,7 +1443,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } else if (blob.startsWith(INDEX_FILE_PREFIX)) {
                     // TODO: Include the current generation here once we remove keeping index-(N-1) around from #writeIndexGen
                     try {
-                        return originalRepositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
+                        return newRepositoryData.getGenId() > Long.parseLong(blob.substring(INDEX_FILE_PREFIX.length()));
                     } catch (NumberFormatException nfe) {
                         // odd case of an extra file with the index- prefix that we can't identify
                         return false;
@@ -1454,7 +1454,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         private void logStaleRootLevelBlobs(
-            long originalRepositoryDataGeneration,
+            long newestStaleRepositoryDataGeneration,
             Collection<SnapshotId> snapshotIds,
             List<String> blobsToDelete
         ) {
@@ -1467,7 +1467,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotId -> Stream.of(
                             GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
                             SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
-                            INDEX_FILE_PREFIX + originalRepositoryDataGeneration
+                            INDEX_FILE_PREFIX + newestStaleRepositoryDataGeneration
                         )
                     )
                     .collect(Collectors.toSet());

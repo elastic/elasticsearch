@@ -18,7 +18,6 @@ Infra/Core::
 
 Aggregations::
 * Allow parsing on non-string routing fields {es-pull}97729[#97729]
-* Fix cardinality agg for `const_keyword` {es-pull}99814[#99814] (issue: {es-issue}99776[#99776])
 * Support runtime fields in synthetic source {es-pull}99796[#99796] (issue: {es-issue}98287[#98287])
 
 Allocation::
@@ -26,6 +25,9 @@ Allocation::
 
 Application::
 * [Profiling] Tighten resource creation check {es-pull}99873[#99873]
+
+CCR::
+* CCR: Use local cluster state request {es-pull}100323[#100323]
 
 CRUD::
 * Change `GetFromTranslog` to indices action {es-pull}99300[#99300]
@@ -37,21 +39,24 @@ Cluster Coordination::
 Data streams::
 * Propagate cancellation in `DataTiersUsageTransportAction` {es-pull}100253[#100253]
 
-Distributed::
-* Skip settings validation during desired nodes updates {es-pull}99946[#99946]
-
 Downsampling::
 * Make downsample target index replicas configurable {es-pull}99712[#99712]
 
 ES|QL::
 * "params" correctly parses the values including an optional "type" {es-pull}99310[#99310] (issue: {es-issue}99294[#99294])
 * Account for an exception being thrown when building a `BytesRefArrayBlock` {es-pull}99726[#99726] (issue: {es-issue}99472[#99472])
-* Add ESQL own flavor of arithmetic operators {es-pull}98628[#98628]
+* Add arithmetic operators {es-pull}98628[#98628]
 * Better management of not stored TEXT fiels with synthetic source {es-pull}99695[#99695]
 * Continue resolving attributes for Eval {es-pull}99601[#99601] (issue: {es-issue}99576[#99576])
 * Create a Vector when needed for IN {es-pull}99382[#99382] (issue: {es-issue}99347[#99347])
+* ESQL: Add identity check in Block equality {es-pull}100377[#100377] (issue: {es-issue}100374[#100374])
+* ESQL: Fix NPE when aggregating literals {es-pull}99827[#99827]
+* ESQL: Limit how many bytes `concat()` can process {es-pull}100360[#100360]
+* ESQL: Page shouldn't close a block twice {es-pull}100370[#100370] (issues: {es-issue}100356[#100356], {es-issue}100365[#100365])
+* ESQL: Remove aliasing inside Eval {es-pull}100238[#100238] (issue: {es-issue}100174[#100174])
+* ESQL: support metric tsdb fields while querying index patterns {es-pull}100351[#100351] (issue: {es-issue}100144[#100144])
 * Implement serialization of `InvalidMappedField` {es-pull}98972[#98972] (issue: {es-issue}98851[#98851])
-* Make ESQL more resilient to non-indexed fields {es-pull}99588[#99588] (issue: {es-issue}99506[#99506])
+* Resilience to non-indexed fields {es-pull}99588[#99588] (issue: {es-issue}99506[#99506])
 * Skip synthetic attributes when planning the physical fragment {es-pull}99188[#99188] (issue: {es-issue}99170[#99170])
 * Support queries that don't return underlying fields {es-pull}98759[#98759] (issue: {es-issue}98404[#98404])
 * Use exact attributes for data source extraction {es-pull}99874[#99874] (issue: {es-issue}99183[#99183])
@@ -61,31 +66,28 @@ Geo::
 
 Health::
 * Fix NPE in `StableMasterHealthIndicatorService` {es-pull}98635[#98635]
+* Propagate cancellation in `GetHealthAction` {es-pull}100273[#100273]
 
 Highlighting::
 * Correctly handle `ScriptScoreQuery` in plain highlighter {es-pull}99804[#99804] (issue: {es-issue}99700[#99700])
 
 ILM+SLM::
 * Compute SLM retention from `RepositoryData` {es-pull}100092[#100092] (issue: {es-issue}99953[#99953])
-* ILM introduce the `check-ts-end-time-passed` step {es-pull}100179[#100179] (issue: {es-issue}99696[#99696])
-* ILM the delete action waits for a TSDS index time/bounds to lapse {es-pull}100207[#100207]
 
 Infra/Core::
 * Add `java.net.NetPermission` to APM module's permissions {es-pull}99474[#99474]
 * Revert "Kibana system index does not allow user templates to affect it" {es-pull}98888[#98888]
 * Specify correct current `IndexVersion` after 8.10 release {es-pull}98574[#98574] (issue: {es-issue}98555[#98555])
+* Tracing: Use `doPriv` when working with spans, use `SpanId` {es-pull}100232[#100232]
 
 Ingest Node::
 * Update enrich execution to only set index false on fields that support it {es-pull}98038[#98038] (issue: {es-issue}98019[#98019])
-* Validate enrich index before completing policy execution {es-pull}100106[#100106]
 
 Machine Learning::
-* Adding retry logic for start model deployment API {es-pull}99673[#99673]
 * Avoid risk of OOM in datafeeds when memory is constrained {es-pull}98915[#98915] (issue: {es-issue}89769[#89769])
-* Defend against negative datafeed start times {es-pull}100284[#100284]
+* Fix for inference requests being sent to every node with a model allocation. If there are more nodes than items in the original request then empty requests were sent. {es-pull}100388[#100388] (issue: {es-issue}100180[#100180])
 * Preserve order of inference results when calling the _infer API with multiple inputs on a model deployment with more than one allocation the output results order was not guaranteed to match the input order. The fix ensures the output order matches the input order. {es-pull}100143[#100143]
 * Safely drain deployment request queues before allowing node to shutdown {es-pull}98406[#98406]
-* Using 1 MB chunks for elser model storage {es-pull}99677[#99677]
 
 Mapping::
 * Automatically disable `ignore_malformed` on datastream `@timestamp` fields {es-pull}99346[#99346]
@@ -99,30 +101,26 @@ Percolator::
 * Fix percolator query for stored queries that expand on wildcard field names {es-pull}98878[#98878]
 
 Search::
-* Close expired search contexts on SEARCH thread {es-pull}99660[#99660]
 * Fix UnsignedLong field range query gt "0" can get the result equal to 0 {es-pull}98843[#98843]
 * Fix `advanceExact` for doc values from sources {es-pull}99685[#99685]
-* Fix fields API for `geo_point` fields inside other arrays {es-pull}99868[#99868] (issue: {es-issue}99781[#99781])
 * Fork response-sending in `OpenPointInTimeAction` {es-pull}99222[#99222]
+* Search of remote clusters with no shards results in successful status {es-pull}100354[#100354]
 * [CI] `SearchResponseTests#testSerialization` failing resolved {es-pull}100020[#100020] (issue: {es-issue}100005[#100005])
 * fix fuzzy query rewrite parameter not work {es-pull}97642[#97642]
 
 Snapshot/Restore::
 * Fix thread context in `getRepositoryData` {es-pull}99627[#99627]
 * Frozen index input clone copy cache file {es-pull}98930[#98930]
-* Support $ and / in restore rename replacements {es-pull}99892[#99892] (issue: {es-issue}99078[#99078])
+* Improve `RepositoryData` BwC {es-pull}100401[#100401]
+* Reinstate `RepositoryData` BwC {es-pull}100447[#100447]
 
 TSDB::
 * Don't ignore empty index template that have no template definition {es-pull}98840[#98840] (issue: {es-issue}98834[#98834])
 * Make tsdb settings public in Serverless {es-pull}99567[#99567] (issue: {es-issue}99563[#99563])
 
 Transform::
-* Do not use PIT in the presence of remote indices in source {es-pull}99803[#99803]
-* Ignore "index not found" error when `delete_dest_index` flag is set but the dest index doesn't exist {es-pull}99738[#99738]
-* Let `_stats` internally timeout if checkpoint information can not be retrieved {es-pull}99914[#99914]
-
-Vector Search::
-* Update version range in `jvm.options` for the Panama Vector API {es-pull}99846[#99846]
+* Fix possible NPE when getting transform stats for failed transforms {es-pull}98061[#98061] (issue: {es-issue}98052[#98052])
+* Shutdown the task immediately when `force` == `true` {es-pull}100203[#100203]
 
 Watcher::
 * Treating watcher webhook response header names as case-insensitive {es-pull}99717[#99717]
@@ -151,9 +149,6 @@ Audit::
 Authentication::
 * Allow native users/roles to be disabled via setting {es-pull}98654[#98654]
 
-Authorization::
-* Add manage permission for fleet managed threat intel indices {es-pull}99231[#99231]
-
 CAT APIs::
 * Add 'dataset' size to cat indices and cat shards {es-pull}98622[#98622] (issue: {es-issue}95092[#95092])
 
@@ -176,8 +171,8 @@ ES|QL::
 * Mark counter fields as unsupported {es-pull}99054[#99054]
 * Serialize the source in expressions {es-pull}99956[#99956]
 * Simple check if all blocks get released {es-pull}100199[#100199]
-* Support unsigned long in sqrt and log10 for ESQL {es-pull}98711[#98711]
-* Use DEBUG log level to report ESQL execution steps {es-pull}99303[#99303]
+* Support unsigned long in sqrt and log10 {es-pull}98711[#98711]
+* Use DEBUG log level to report execution steps {es-pull}99303[#99303]
 
 Engine::
 * Use `IndexWriter.flushNextBuffer()` to reclaim memory from indexing buffers {es-pull}94607[#94607]
@@ -185,9 +180,6 @@ Engine::
 Health::
 * Avoiding the use of nodes that are no longer in the cluster when computing master stability {es-pull}98809[#98809] (issue: {es-issue}98636[#98636])
 * When a primary is inactive but this is considered expected, the same applies for the replica of this shard. {es-pull}99995[#99995] (issue: {es-issue}99951[#99951])
-
-Highlighting::
-* Implement matches() on `SourceConfirmedTextQuery` {es-pull}100134[#100134]
 
 Infra/Core::
 * APM Metering API {es-pull}99832[#99832]
@@ -202,9 +194,6 @@ Infra/REST API::
 * Add `IndexVersion` to node info {es-pull}99515[#99515]
 * Add component info versions to node info in a pluggable way {es-pull}99631[#99631]
 * Return a 410 (Gone) status code for unavailable API endpoints {es-pull}97397[#97397]
-
-Ingest Node::
-* Show concrete error when enrich index not exist rather than NPE {es-pull}99604[#99604]
 
 Machine Learning::
 * Add new _inference API {es-pull}99224[#99224]
@@ -225,7 +214,6 @@ Recovery::
 
 Search::
 * Add additional counters to `_clusters` response for all Cluster search states {es-pull}99566[#99566] (issue: {es-issue}98927[#98927])
-* Add checks in term and terms queries that input terms are not too long {es-pull}99818[#99818] (issue: {es-issue}99802[#99802])
 * Adding support for exist queries to `sparse_vector` fields {es-pull}99775[#99775] (issue: {es-issue}99319[#99319])
 * Make `_index` optional for pinned query docs {es-pull}97450[#97450]
 * Optimize ContentPath#pathAsText {es-pull}98244[#98244] (issue: {es-issue}94544[#94544])
@@ -281,9 +269,6 @@ ES|QL::
 [[upgrade-8.11.0]]
 [float]
 === Upgrades
-
-Packaging::
-* Upgrade bundled JDK to Java 21 {es-pull}99724[#99724]
 
 Search::
 * Upgrade main to Lucene 9.8.0 {es-pull}100138[#100138]

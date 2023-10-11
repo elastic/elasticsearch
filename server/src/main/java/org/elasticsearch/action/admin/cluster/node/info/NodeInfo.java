@@ -65,8 +65,7 @@ public class NodeInfo extends BaseNodeResponse {
             version = in.readString();
             transportVersion = TransportVersion.readVersion(in);
             indexVersion = IndexVersion.readVersion(in);
-        }
-        else {
+        } else {
             Version legacyVersion = Version.readVersion(in);
             version = legacyVersion.toString();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
@@ -237,8 +236,7 @@ public class NodeInfo extends BaseNodeResponse {
         super.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_VERSION_AS_STRING)) {
             out.writeString(version);
-        }
-        else {
+        } else {
             var legacyVersion = Version.fromString(version);
             Version.writeVersion(legacyVersion, out);
         }

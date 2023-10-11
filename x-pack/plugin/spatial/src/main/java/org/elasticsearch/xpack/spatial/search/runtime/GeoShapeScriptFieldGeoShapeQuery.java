@@ -33,7 +33,6 @@ public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFiel
     private final LatLonGeometry[] geometries;
     private final ShapeRelation relation;
     private final GeoShapeIndexer indexer;
-    private final GeometryDocValueReader reader = new GeometryDocValueReader();
 
     public GeoShapeScriptFieldGeoShapeQuery(
         Script script,
@@ -54,6 +53,7 @@ public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFiel
         if (geometry == null) {
             return false;
         }
+        final GeometryDocValueReader reader = new GeometryDocValueReader();
         final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation.getLuceneRelation(), CoordinateEncoder.GEO);
         try {
             reader.reset(encodeGeometry(geometry));

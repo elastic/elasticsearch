@@ -55,6 +55,7 @@ public class TestFeatureResetIT extends TransformRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100596")
     public void testTransformFeatureReset() throws Exception {
         String indexName = "basic-crud-reviews";
         String transformId = "batch-transform-feature-reset";

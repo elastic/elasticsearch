@@ -336,7 +336,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             "_plugin",
             "_plugin_desc",
             "_plugin_version",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             "_plugin_class",
             null,

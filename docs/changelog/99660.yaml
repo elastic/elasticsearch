@@ -1,5 +1,0 @@
-pr: 99660
-summary: Close expired search contexts on SEARCH thread
-area: Search
-type: bug
-issues: []

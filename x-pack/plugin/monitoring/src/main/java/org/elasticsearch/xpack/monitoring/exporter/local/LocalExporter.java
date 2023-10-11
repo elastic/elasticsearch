@@ -596,6 +596,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     @Override
     public void onCleanUpIndices(TimeValue retention) {
+        if (stateInitialized.get() == false) {
+            // ^ this is once the cluster state is recovered. Don't try to interact with the cluster service until that happens
+            logger.debug("exporter not yet initialized");
+            return;
+        }
         ClusterState clusterState = clusterService.state();
         if (clusterService.localNode() == null
             || clusterState == null

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocati
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
@@ -255,7 +256,12 @@ public class DeploymentManager {
         Client client,
         ThreadPool threadPool
     ) {
-        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(configToReturnListener, client, threadPool, configToReturn);
+        MlPlatformArchitecturesUtil.verifyMlNodesAndModelArchitectures(
+            configToReturnListener,
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            configToReturn
+        );
     }
 
     private SearchRequest vocabSearchRequest(VocabularyConfig vocabularyConfig, String modelId) {

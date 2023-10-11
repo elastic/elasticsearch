@@ -359,8 +359,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void deleteSnapshots(
             Collection<SnapshotId> snapshotIds,
-            long repositoryStateId,
-            IndexVersion repositoryMetaVersion,
+            long repositoryDataGeneration,
+            IndexVersion repositoryFormatIndexVersion,
             SnapshotDeleteListener listener
         ) {
             listener.onFailure(new UnsupportedOperationException());

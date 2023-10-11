@@ -32,7 +32,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,10 +113,12 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
     public void testLegacyResponse() {
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1")
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()).build();
+            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
         DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2")
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()).build();
+            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
         final ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[2];
         {
             ShardId shardId = new ShardId("index-1", "uuid-1", 0);

@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Map.entry;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
@@ -151,19 +151,19 @@ public class FeatureServiceTests extends ESTestCase {
         Version emptyVersion = versionFor(publishableEra(1), "0.0");
         assertThat(
             FeatureService.readHistoricalFeatures(VersionUtils.randomVersionBetween(random(), hf3Version, Version.CURRENT)),
-            contains("hf1", "hf2", "hf3")
+            containsInAnyOrder("hf1", "hf2", "hf3")
         );
         assertThat(
             FeatureService.readHistoricalFeatures(
                 VersionUtils.randomVersionBetween(random(), hf2Version, VersionUtils.getPreviousVersion(hf3Version))
             ),
-            contains("hf1", "hf2")
+            containsInAnyOrder("hf1", "hf2")
         );
         assertThat(
             FeatureService.readHistoricalFeatures(
                 VersionUtils.randomVersionBetween(random(), hf1Version, VersionUtils.getPreviousVersion(hf2Version))
             ),
-            contains("hf1")
+            containsInAnyOrder("hf1")
         );
         assertThat(
             FeatureService.readHistoricalFeatures(
@@ -184,8 +184,8 @@ public class FeatureServiceTests extends ESTestCase {
 
     public void testLoadingNewSpecsChangesOutputs() {
         // does not contain elided features
-        assertThat(FeatureService.readFeatures(), contains("f1", "f1_v7", "f2"));
-        assertThat(FeatureService.readHistoricalFeatures(Version.CURRENT), contains("hf1", "hf2", "hf3"));
+        assertThat(FeatureService.readFeatures(), containsInAnyOrder("f1", "f1_v7", "f2"));
+        assertThat(FeatureService.readHistoricalFeatures(Version.CURRENT), containsInAnyOrder("hf1", "hf2", "hf3"));
 
         FeatureService.registerSpecificationsFrom(List.of(new FeatureSpecification() {
             @Override
@@ -199,12 +199,12 @@ public class FeatureServiceTests extends ESTestCase {
             }
         }));
 
-        assertThat(FeatureService.readFeatures(), contains("f1", "f1_v7", "f2", "new_feature"));
-        assertThat(FeatureService.readHistoricalFeatures(Version.CURRENT), contains("hf1", "hf2", "hf3", "new_hist_feature"));
+        assertThat(FeatureService.readFeatures(), containsInAnyOrder("f1", "f1_v7", "f2", "new_feature"));
+        assertThat(FeatureService.readHistoricalFeatures(Version.CURRENT), containsInAnyOrder("hf1", "hf2", "hf3", "new_hist_feature"));
     }
 
     public void testSpecificFeaturesOverridesSpecs() {
         Set<String> features = Set.of("nf1", "nf2", "nf3");
-        assertThat(new FeatureService(features).getPublishableFeatures(), contains(features.toArray()));
+        assertThat(new FeatureService(features).getPublishableFeatures(), containsInAnyOrder(features.toArray()));
     }
 }

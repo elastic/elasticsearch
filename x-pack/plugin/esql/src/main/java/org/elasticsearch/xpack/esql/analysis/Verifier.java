@@ -225,7 +225,7 @@ public class Verifier {
         p.forEachExpression(e -> {
             Failure f = null;
 
-            if (e instanceof BinaryComparison bo) {
+            if (e instanceof BinaryOperator<?, ?, ?, ?> bo) {
                 f = validateUnsignedLongOperator(bo);
             } else if (e instanceof Neg neg) {
                 f = validateUnsignedLongNegation(neg);

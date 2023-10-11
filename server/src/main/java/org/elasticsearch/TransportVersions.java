@@ -198,7 +198,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_500_061;
+    public static final TransportVersion MINIMUM_CCS_VERSION = ML_PACKAGE_LOADER_PLATFORM_ADDED;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

@@ -101,7 +101,20 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 (previous, current, conflicts) -> (previous.value() == current.value()) || (previous.value() && current.value() == false)
             );
 
-        private final Parameter<Mode> mode;
+        /*
+         * The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic
+         * source mode.
+         */
+        private final Parameter<Mode> mode = new Parameter<>(
+            "mode",
+            true,
+            () -> null,
+            (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
+            m -> toType(m).enabled.explicit() ? null : toType(m).mode,
+            (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
+            v -> v.toString().toLowerCase(Locale.ROOT)
+        ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
+            .setSerializerCheck((includeDefaults, isConfigured, value) -> value != null); // don't emit if `enabled` is configured
         private final Parameter<List<String>> includes = Parameter.stringArrayParam(
             "includes",
             false,
@@ -115,22 +128,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private final IndexMode indexMode;
 
-        public Builder(IndexMode indexMode, IndexVersion indexVersion) {
+        public Builder(IndexMode indexMode) {
             super(Defaults.NAME);
             this.indexMode = indexMode;
-            this.mode = new Parameter<>(
-                "mode",
-                true,
-                // The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic source mode.
-                () -> getIndexMode() == IndexMode.TIME_SERIES && indexVersion.between(IndexVersion.V_8_7_0, IndexVersion.V_8_10_0)
-                    ? Mode.SYNTHETIC
-                    : null,
-                (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
-                m -> toType(m).enabled.explicit() ? null : toType(m).mode,
-                (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
-                v -> v.toString().toLowerCase(Locale.ROOT)
-            ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
-                .setSerializerCheck((includeDefaults, isConfigured, value) -> value != null); // don't emit if `enabled` is configured
         }
 
         public Builder setSynthetic() {
@@ -188,7 +188,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
             ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersion.V_8_7_0) ? TSDB_DEFAULT : TSDB_LEGACY_DEFAULT
             : DEFAULT,
-        c -> new Builder(c.getIndexSettings().getMode(), c.getIndexSettings().getIndexVersionCreated())
+        c -> new Builder(c.getIndexSettings().getMode())
     );
 
     static final class SourceFieldType extends MappedFieldType {
@@ -313,7 +313,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(indexMode, IndexVersion.current()).init(this);
+        return new Builder(indexMode).init(this);
     }
 
     /**

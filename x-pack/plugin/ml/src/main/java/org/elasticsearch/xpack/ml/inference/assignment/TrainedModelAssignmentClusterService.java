@@ -653,6 +653,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         );
 
         Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        /*
+         * To signal that we should gracefully stop the deployments routed to a particular node we set the routing state to stopping.
+         * The TrainedModelAssignmentNodeService will see that the route is in stopping for a shutting down node and gracefully shut down
+         * the native process after draining the queues.
+         */
         TrainedModelAssignmentMetadata.Builder rebalanced = setShuttingDownNodeRoutesToStopping(
             currentMetadata,
             shuttingDownNodeIds,

@@ -79,6 +79,11 @@ patterns. It also includes the authority to grant the privileges necessary to
 manage follower indices and auto-follow patterns. This privilege is necessary
 only on clusters that contain follower indices.
 
+`manage_enrich`::
+Grants access and use all of the {ref}/enrich-apis.html[enrich APIs].
+Users with this privilege can manage enrich policies that add data from your existing
+indices to incoming documents during ingest.
+
 `manage_ilm`::
 All {Ilm} operations related to managing policies.
 

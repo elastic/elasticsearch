@@ -1,5 +1,5 @@
 pr: 99983
-summary: Use non-deprecated URL: /api/security/callback/saml
+summary: Use non-deprecated SAML callback URL in tests
 area: Authorization
 type: enhancement
 issues:

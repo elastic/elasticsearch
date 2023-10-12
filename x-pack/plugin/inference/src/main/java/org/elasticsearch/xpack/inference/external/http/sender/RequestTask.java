@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -20,17 +21,19 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class RequestTask extends HttpTask {
+class RequestTask extends HttpTask {
     private static final Logger logger = LogManager.getLogger(RequestTask.class);
 
     private final HttpUriRequest request;
     private final ActionListener<HttpResult> listener;
     private final HttpClient httpClient;
+    private final HttpClientContext context;
 
-    public RequestTask(HttpUriRequest request, HttpClient httpClient, ActionListener<HttpResult> listener) {
+    RequestTask(HttpUriRequest request, HttpClient httpClient, HttpClientContext context, ActionListener<HttpResult> listener) {
         this.request = Objects.requireNonNull(request);
         this.httpClient = Objects.requireNonNull(httpClient);
         this.listener = Objects.requireNonNull(listener);
+        this.context = Objects.requireNonNull(context);
     }
 
     @Override
@@ -40,8 +43,6 @@ public class RequestTask extends HttpTask {
 
     @Override
     protected void doRun() throws Exception {
-        assert context != null : "the http context must be set before calling doRun";
-
         try {
             httpClient.send(request, context, listener);
         } catch (IOException e) {

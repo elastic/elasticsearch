@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-public class ShutdownTask extends HttpTask {
+class ShutdownTask extends HttpTask {
     @Override
     public boolean shouldShutdown() {
         return true;

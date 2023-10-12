@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -112,7 +112,7 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
 
         try (var sender = senderFactory.createSender("test_service")) {
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(AssertionError.class, () -> sender.send(mock(HttpUriRequest.class), listener));
+            var thrownException = expectThrows(AssertionError.class, () -> sender.send(mock(HttpRequestBase.class), listener));
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
     }

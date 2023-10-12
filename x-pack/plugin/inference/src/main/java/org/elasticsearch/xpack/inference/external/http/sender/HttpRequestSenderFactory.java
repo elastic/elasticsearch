@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,7 +50,7 @@ public class HttpRequestSenderFactory {
         private HttpRequestSender(String serviceName, ThreadPool threadPool, HttpClientManager httpClientManager) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService(threadPool.getThreadContext(), serviceName);
+            service = new HttpRequestExecutorService(threadPool.getThreadContext(), serviceName, manager.getHttpClient());
         }
 
         /**
@@ -68,9 +69,9 @@ public class HttpRequestSenderFactory {
             service.shutdown();
         }
 
-        public void send(HttpUriRequest request, ActionListener<HttpResult> listener) {
+        public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
             assert started.get() : "call start() before sending a request";
-            service.execute(new RequestTask(request, manager.getHttpClient(), listener));
+            service.send(request, listener);
         }
     }
 }

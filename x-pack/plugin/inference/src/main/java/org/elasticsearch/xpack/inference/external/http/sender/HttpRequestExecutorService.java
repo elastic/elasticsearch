@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +44,7 @@ import static org.elasticsearch.core.Strings.format;
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-public class HttpRequestExecutorService extends AbstractExecutorService {
+class HttpRequestExecutorService extends AbstractExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
     private final ThreadContext contextHolder;
@@ -49,16 +53,18 @@ public class HttpRequestExecutorService extends AbstractExecutorService {
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final HttpClientContext httpContext;
+    private final HttpClient httpClient;
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    public HttpRequestExecutorService(ThreadContext contextHolder, String serviceName) {
-        this(contextHolder, serviceName, null);
+    HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, HttpClient httpClient) {
+        this(contextHolder, serviceName, httpClient, null);
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    public HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, @Nullable Integer capacity) {
+    HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, HttpClient httpClient, @Nullable Integer capacity) {
         this.contextHolder = Objects.requireNonNull(contextHolder);
         this.serviceName = Objects.requireNonNull(serviceName);
+        this.httpClient = Objects.requireNonNull(httpClient);
         this.httpContext = HttpClientContext.create();
 
         if (capacity == null) {
@@ -132,18 +138,12 @@ public class HttpRequestExecutorService extends AbstractExecutorService {
     }
 
     /**
-     * Execute the task at some point in the future.
-     * @param command the runnable task, must be a class that extends {@link HttpTask}
+     * Send the request at some point in the future.
+     * @param request the http request to send
+     * @param listener an {@link ActionListener<HttpResult>} for the response or failure
      */
-    @Override
-    public void execute(Runnable command) {
-        if (command == null) {
-            return;
-        }
-
-        assert command instanceof HttpTask;
-        HttpTask task = (HttpTask) command;
-        task.setContext(httpContext);
+    public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
+        RequestTask task = new RequestTask(request, httpClient, httpContext, listener);
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(
@@ -164,5 +164,14 @@ public class HttpRequestExecutorService extends AbstractExecutorService {
 
             task.onRejection(rejected);
         }
+    }
+
+    /**
+     * This method is not supported. Use {@link #send} instead.
+     * @param runnable the runnable task
+     */
+    @Override
+    public void execute(Runnable runnable) {
+        throw new UnsupportedOperationException("use send instead");
     }
 }

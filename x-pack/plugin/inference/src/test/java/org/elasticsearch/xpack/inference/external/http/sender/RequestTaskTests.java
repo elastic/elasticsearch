@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -69,8 +68,7 @@ public class RequestTaskTests extends ESTestCase {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            var requestTask = new RequestTask(httpPost, httpClient, listener);
-            requestTask.setContext(HttpClientContext.create());
+            var requestTask = new RequestTask(httpPost, httpClient, HttpClientContext.create(), listener);
             requestTask.doRun();
             var result = listener.actionGet(TIMEOUT);
 
@@ -83,14 +81,6 @@ public class RequestTaskTests extends ESTestCase {
         }
     }
 
-    public void testDoRun_Throws_WhenContextIsNotSet() {
-        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-
-        var requestTask = new RequestTask(mock(HttpUriRequest.class), mock(HttpClient.class), listener);
-        var thrownException = expectThrows(AssertionError.class, requestTask::doRun);
-        assertThat(thrownException.getMessage(), is("the http context must be set before calling doRun"));
-    }
-
     public void testDoRun_SendThrowsIOException() throws Exception {
         var httpClient = mock(HttpClient.class);
         doThrow(new IOException("exception")).when(httpClient).send(any(), any(), any());
@@ -100,8 +90,7 @@ public class RequestTaskTests extends ESTestCase {
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-        var requestTask = new RequestTask(httpPost, httpClient, listener);
-        requestTask.setContext(HttpClientContext.create());
+        var requestTask = new RequestTask(httpPost, httpClient, HttpClientContext.create(), listener);
         requestTask.doRun();
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

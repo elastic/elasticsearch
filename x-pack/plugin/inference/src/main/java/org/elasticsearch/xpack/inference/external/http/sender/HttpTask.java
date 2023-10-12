@@ -7,17 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
-public abstract class HttpTask extends AbstractRunnable {
-    protected HttpClientContext context;
-
+abstract class HttpTask extends AbstractRunnable {
     public boolean shouldShutdown() {
         return false;
-    }
-
-    public void setContext(HttpClientContext context) {
-        this.context = context;
     }
 }

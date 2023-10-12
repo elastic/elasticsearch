@@ -162,13 +162,24 @@ public class ValuesSourceReaderBenchmark {
                     BytesRef scratch = new BytesRef();
                     BytesRefVector values = op.getOutput().<BytesRefBlock>getBlock(1).asVector();
                     for (int p = 0; p < values.getPositionCount(); p++) {
-                        sum += Integer.parseInt(values.getBytesRef(p, scratch).utf8ToString());
+                        BytesRef r = values.getBytesRef(p, scratch);
+                        r.offset++;
+                        r.length--;
+                        sum += Integer.parseInt(r.utf8ToString());
                     }
                 }
             }
         }
-        long expected = INDEX_SIZE;
-        expected = expected * (expected - 1) / 2;
+        long expected;
+        if (name.equals("keyword")) {
+            expected = 0;
+            for (int i = 0; i < INDEX_SIZE; i++) {
+                expected += i % 1000;
+            }
+        } else {
+            expected = INDEX_SIZE;
+            expected = expected * (expected - 1) / 2;
+        }
         if (expected != sum) {
             throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");
         }
@@ -184,16 +195,13 @@ public class ValuesSourceReaderBenchmark {
         directory = new ByteBuffersDirectory();
         try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
             for (int i = 0; i < INDEX_SIZE; i++) {
+                String c = Character.toString('a' - ((i % 1000) % 26) + 26);
                 iw.addDocument(
                     List.of(
                         new NumericDocValuesField("long", i),
                         new NumericDocValuesField("int", i),
                         new NumericDocValuesField("double", NumericUtils.doubleToSortableLong(i)),
-                        new KeywordFieldMapper.KeywordField(
-                            "keyword",
-                            new BytesRef(Integer.toString(i)),
-                            KeywordFieldMapper.Defaults.FIELD_TYPE
-                        )
+                        new KeywordFieldMapper.KeywordField("keyword", new BytesRef(c + i % 1000), KeywordFieldMapper.Defaults.FIELD_TYPE)
                     )
                 );
                 if (i % COMMIT_INTERVAL == 0) {

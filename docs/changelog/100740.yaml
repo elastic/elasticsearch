@@ -1,0 +1,6 @@
+pr: 100740
+summary: "ESQL: Improve grammar to allow identifiers with"
+area: ES|QL
+type: bug
+issues:
+ - 100312

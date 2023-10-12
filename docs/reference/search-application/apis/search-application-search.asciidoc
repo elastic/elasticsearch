@@ -104,6 +104,7 @@ GET _application/search_application/my-app/
 {
   "name": "my-app",
   "updated_at_millis": 1682105622204,
+  "indices": ["index1"],
   "template": {
     "script": {
       "source": """
@@ -138,8 +139,6 @@ GET _application/search_application/my-app/
   }
 }
 ----
-// TESTRESPONSE[skip:indices key mis-match]
-// TODO: fix test failure
 
 The following request will use the search template to generate & run an Elasticsearch query against the search
 application:

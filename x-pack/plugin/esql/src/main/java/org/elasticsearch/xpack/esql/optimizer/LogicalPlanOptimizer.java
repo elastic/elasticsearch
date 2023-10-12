@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -126,6 +127,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PushDownEval(),
             new PushDownRegexExtract(),
             new PushDownEnrich(),
+            new PushDownMvExpand(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
             new PruneRedundantSortClauses()
@@ -383,7 +385,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 // check if there's a 'visible' descendant limit lower than the current one
                 // and if so, align the current limit since it adds no value
                 // this applies for cases such as | limit 1 | sort field | limit 10
-                else {
+                // but NOT for mv_expand (ie | limit 1 | mv_expand x | limit 20) where we want that last "limit" to apply on expand results
+                else if (unary instanceof MvExpand == false) {
                     Limit descendantLimit = descendantLimit(unary);
                     if (descendantLimit != null) {
                         var l1 = (int) limit.limit().fold();
@@ -653,8 +656,22 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    protected static class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
+    protected static class PushDownMvExpand extends OptimizerRules.OptimizerRule<MvExpand> {
+        @Override
+        protected LogicalPlan rule(MvExpand mve) {
+            LogicalPlan child = mve.child();
 
+            if (child instanceof OrderBy orderBy) {
+                return orderBy.replaceChild(mve.replaceChild(orderBy.child()));
+            } else if (child instanceof Project) {
+                return pushDownPastProject(mve);
+            }
+
+            return mve;
+        }
+    }
+
+    protected static class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
         @Override
         protected LogicalPlan rule(OrderBy orderBy) {
             LogicalPlan child = orderBy.child();

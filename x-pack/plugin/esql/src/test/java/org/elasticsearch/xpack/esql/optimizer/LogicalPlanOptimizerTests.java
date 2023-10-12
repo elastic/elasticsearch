@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -886,6 +887,50 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(orderNames(topN), contains("salary", "emp_no"));
         var filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | mv_expand first_name
+            | sort first_name""");
+
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("first_name", "emp_no"));
+        var mvExpand = as(topN.child(), MvExpand.class);
+        as(mvExpand.child(), EsRelation.class);
+    }
+
+    public void testPushDownMvExpandPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename first_name as x
+            | keep x
+            | mv_expand x
+            """);
+
+        var keep = as(plan, Project.class);
+        var limit = as(keep.child(), Limit.class);
+        var mvExpand = as(limit.child(), MvExpand.class);
+        assertThat(as(mvExpand.target(), FieldAttribute.class).name(), is("first_name"));
+    }
+
+    public void testDontPushDownLimitPastMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | limit 1
+            | keep first_name, last_name
+            | mv_expand first_name
+            | limit 10""");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(10));
+        var mvExpand = as(limit.child(), MvExpand.class);
+        limit = as(mvExpand.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1));
+        as(limit.child(), EsRelation.class);
     }
 
     private static List<String> orderNames(TopN topN) {

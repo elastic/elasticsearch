@@ -22,7 +22,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -191,7 +190,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) {
         if (geometry == null) {
             return;
         }

@@ -36,7 +36,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.gateway.GatewayService.EXPECTED_DATA_NODES_SETTING;
@@ -68,10 +67,6 @@ public class GatewayServiceTests extends ESTestCase {
         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(0L));
         rerouteCount = new AtomicInteger();
         dataNodeIdPrefix = randomAlphaOfLength(10) + "-";
-    }
-
-    public void test() {
-        System.out.println(Stream.of(1, 2, null).mapToInt(i -> i).max().orElse(0));
     }
 
     private GatewayService createGatewayService(final Settings.Builder settingsBuilder, final ClusterState initialState) {

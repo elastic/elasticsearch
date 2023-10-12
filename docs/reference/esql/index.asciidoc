@@ -103,6 +103,8 @@ include::esql-commands-functions-operators.asciidoc[]
 
 include::esql-rest.asciidoc[]
 
+include::esql-kibana.asciidoc[]
+
 include::task-management.asciidoc[]
 
 include::esql-limitations.asciidoc[]

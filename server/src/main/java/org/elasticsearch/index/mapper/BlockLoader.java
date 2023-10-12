@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 
@@ -53,6 +54,10 @@ public interface BlockLoader {
         LongBuilder longs(int expectedCount);
 
         Builder nulls(int expectedCount);
+
+        SingletonOrdinalBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount);
+
+        OrdinalsBuilder ordinalsBuilder(SortedSetDocValues ordinals, int expectedCount);
     }
 
     interface Builder {
@@ -97,4 +102,8 @@ public interface BlockLoader {
          */
         LongBuilder appendLong(long value);
     }
+
+    interface SingletonOrdinalBuilder extends IntBuilder {}
+
+    interface OrdinalsBuilder extends LongBuilder {}
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -284,6 +286,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public BlockLoader.Builder nulls(int expectedCount) {
             return ElementType.NULL.newBlockBuilder(expectedCount, factory);
+        }
+
+        @Override public BlockLoader.SingletonOrdinalBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount) {
+            return null;
+        }
+
+        @Override public BlockLoader.OrdinalsBuilder ordinalsBuilder(SortedSetDocValues ordinals, int expectedCount) {
+            return null;
         }
     }
 }

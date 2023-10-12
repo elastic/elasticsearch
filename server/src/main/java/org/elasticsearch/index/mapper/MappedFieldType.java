@@ -636,7 +636,7 @@ public abstract class MappedFieldType {
      * ESQL.
      */
     public BlockLoader blockLoader(
-        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
+        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,  // NOCOMMIT "go around". scripts have trouble with that!
         Function<String, Set<String>> sourcePathsLookup
     ) {
         return null;

@@ -44,6 +44,7 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
@@ -132,6 +133,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             }
         }
+        status.postProcessSearchableSnapshotsWithUnavailableShards();
         return createIndicator(
             status.getStatus(),
             status.getSymptom(),
@@ -391,7 +393,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         );
 
     private class ShardAllocationCounts {
-        private boolean available = true; // This will be true even if no replicas are expected, as long as none are unavailable
         private int unassigned = 0;
         private int unassigned_new = 0;
         private int unassigned_restarting = 0;
@@ -399,14 +400,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int started = 0;
         private int relocating = 0;
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
+        // We keep the searchable snapshots separately as long as the original index is still available
+        // This is checked during the post-processing
+        private final Set<String> searchableSnapshotsWithUnavailableShards = new HashSet<>();
         private final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             boolean isNew = isUnassignedDueToNewInitialization(routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
-            available &= routing.active() || isRestarting || isNew;
             if ((routing.active() || isRestarting || isNew) == false) {
-                indicesWithUnavailableShards.add(routing.getIndexName());
+                String indexName = routing.getIndexName();
+                Settings indexSettings = state.getMetadata().index(indexName).getSettings();
+                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
+                    searchableSnapshotsWithUnavailableShards.add(indexName);
+                } else {
+                    indicesWithUnavailableShards.add(indexName);
+                }
             }
 
             switch (routing.state()) {
@@ -433,6 +442,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 case STARTED -> started++;
                 case RELOCATING -> relocating++;
             }
+        }
+
+        public boolean areAllAvailable() {
+            return indicesWithUnavailableShards.isEmpty();
         }
 
         private void addDefinition(Diagnosis.Definition diagnosisDefinition, String indexName) {
@@ -797,18 +810,33 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+        void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             primaries.increment(routing, state, shutdowns, verbose);
         }
 
-        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
+        void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             replicas.increment(routing, state, shutdowns, verbose);
         }
 
+        // If the original index of a searchable snapshot with unavailable shards is not available then we count the searchable snapshot as
+        // an unavailable index. Otherwise, we consider it GREEN because the data is available via the original index.
+        void postProcessSearchableSnapshotsWithUnavailableShards() {
+            // Searchable snapshots do not have replicas, so this post-processing is not applicable for the replicas
+            for (String index : primaries.searchableSnapshotsWithUnavailableShards) {
+                Settings indexSettings = clusterMetadata.index(index).getSettings();
+                String originalIndex = indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY);
+                if (originalIndex == null
+                    || clusterMetadata.indices().containsKey(originalIndex) == false
+                    || primaries.indicesWithUnavailableShards.contains(originalIndex)) {
+                    primaries.indicesWithUnavailableShards.add(index);
+                }
+            }
+        }
+
         public HealthStatus getStatus() {
-            if (primaries.available == false) {
+            if (primaries.areAllAvailable() == false) {
                 return RED;
-            } else if (replicas.available == false) {
+            } else if (replicas.areAllAvailable() == false) {
                 return YELLOW;
             } else {
                 return GREEN;

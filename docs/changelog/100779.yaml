@@ -1,0 +1,6 @@
+pr: 100779
+summary: Fix bugs causing `RotatableSecretTests#testBasicRotation` to fail
+area: Security
+type: bug
+issues:
+ - 99759

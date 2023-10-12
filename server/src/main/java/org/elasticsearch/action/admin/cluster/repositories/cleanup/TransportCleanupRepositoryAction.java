@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -213,21 +212,10 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
-                        threadPool.executor(ThreadPool.Names.SNAPSHOT)
-                            .execute(
-                                ActionRunnable.wrap(
-                                    delegate,
-                                    l -> blobStoreRepository.cleanup(
-                                        repositoryStateId,
-                                        SnapshotsService.minCompatibleVersion(
-                                            newState.nodes().getMaxDataNodeCompatibleIndexVersion(),
-                                            repositoryData,
-                                            null
-                                        ),
-                                        ActionListener.wrap(result -> after(null, result), e -> after(e, null))
-                                    )
-                                )
-                            );
+                        ActionListener.run(
+                            ActionListener.<RepositoryCleanupResult>wrap(result -> after(null, result), e -> after(e, null)),
+                            l -> blobStoreRepository.cleanup(repositoryStateId, newState.nodes().getMaxDataNodeCompatibleIndexVersion(), l)
+                        );
                     }
 
                     private void after(@Nullable Exception failure, @Nullable RepositoryCleanupResult result) {

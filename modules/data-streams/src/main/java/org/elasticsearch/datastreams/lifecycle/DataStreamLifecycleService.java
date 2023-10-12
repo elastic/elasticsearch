@@ -63,7 +63,9 @@ import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDo
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,6 +73,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -140,7 +143,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final ThreadPool threadPool;
     final ResultDeduplicator<TransportRequest, Void> transportActionsDeduplicator;
     final ResultDeduplicator<String, Void> clusterStateChangesDeduplicator;
-    private final LongSupplier nowSupplier;
+    private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
     private volatile boolean isMaster = false;
@@ -304,11 +307,24 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     }
                 }
             }
-            Set<Index> indicesBeingRemoved;
+
+            Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
+            // the following indices should not be considered for the remainder of this service run:
+            // 1) the write index as it's still getting writes and we'll have to roll it over when the conditions are met
+            // 2) tsds indices that are still within their time bounds (i.e. now < time_series.end_time) - we don't want these indices to be
+            // deleted, forcemerged, or downsampled as they're still expected to receive large amounts of writes
+            indicesToExcludeForRemainingRun.add(currentRunWriteIndex);
+            indicesToExcludeForRemainingRun.addAll(
+                timeSeriesIndicesStillWithinTimeBounds(
+                    state.metadata(),
+                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index),
+                    nowSupplier
+                )
+            );
+
             try {
-                indicesBeingRemoved = maybeExecuteRetention(state, dataStream);
+                indicesToExcludeForRemainingRun.addAll(maybeExecuteRetention(state, dataStream, indicesToExcludeForRemainingRun));
             } catch (Exception e) {
-                indicesBeingRemoved = Set.of();
                 // individual index errors would be reported via the API action listener for every delete call
                 // we could potentially record errors at a data stream level and expose it via the _data_stream API?
                 logger.error(
@@ -320,13 +336,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     e
                 );
             }
-
-            // the following indices should not be considered for the remainder of this service run:
-            // 1) the write index as it's still getting writes and we'll have to roll it over when the conditions are met
-            // 2) we exclude any indices that we're in the process of deleting because they'll be gone soon anyway
-            Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
-            indicesToExcludeForRemainingRun.add(currentRunWriteIndex);
-            indicesToExcludeForRemainingRun.addAll(indicesBeingRemoved);
 
             try {
                 indicesToExcludeForRemainingRun.addAll(
@@ -370,6 +379,30 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             affectedIndices,
             affectedDataStreams
         );
+    }
+
+    // visible for testing
+    static Set<Index> timeSeriesIndicesStillWithinTimeBounds(Metadata metadata, List<Index> targetIndices, LongSupplier nowSupplier) {
+        Set<Index> tsIndicesWithinBounds = new HashSet<>();
+        for (Index index : targetIndices) {
+            IndexMetadata backingIndex = metadata.index(index);
+            assert backingIndex != null : "the data stream backing indices must exist";
+            if (IndexSettings.MODE.get(backingIndex.getSettings()) == IndexMode.TIME_SERIES) {
+                Instant configuredEndTime = IndexSettings.TIME_SERIES_END_TIME.get(backingIndex.getSettings());
+                assert configuredEndTime != null
+                    : "a time series index must have an end time configured but [" + index.getName() + "] does not";
+                if (nowSupplier.getAsLong() <= configuredEndTime.toEpochMilli()) {
+                    logger.trace(
+                        "Data stream lifecycle will not perform any operations in this run on time series index [{}] because "
+                            + "its configured [{}] end time has not lapsed",
+                        index.getName(),
+                        configuredEndTime
+                    );
+                    tsIndicesWithinBounds.add(index);
+                }
+            }
+        }
+        return tsIndicesWithinBounds;
     }
 
     /**
@@ -716,11 +749,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * This method sends requests to delete any indices in the datastream that exceed its retention policy. It returns the set of indices
      * it has sent delete requests for.
-     * @param state The cluster state from which to get index metadata
-     * @param dataStream The datastream
+     *
+     * @param state                           The cluster state from which to get index metadata
+     * @param dataStream                      The datastream
+     * @param indicesToExcludeForRemainingRun Indices to exclude from retention even if it would be time for them to be deleted
      * @return The set of indices that delete requests have been sent for
      */
-    private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream) {
+    private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
         TimeValue retention = getRetentionConfiguration(dataStream);
         Set<Index> indicesToBeRemoved = new HashSet<>();
         if (retention != null) {
@@ -728,14 +763,16 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
 
             for (Index index : backingIndicesOlderThanRetention) {
-                indicesToBeRemoved.add(index);
-                IndexMetadata backingIndex = metadata.index(index);
-                assert backingIndex != null : "the data stream backing indices must exist";
+                if (indicesToExcludeForRemainingRun.contains(index) == false) {
+                    indicesToBeRemoved.add(index);
+                    IndexMetadata backingIndex = metadata.index(index);
+                    assert backingIndex != null : "the data stream backing indices must exist";
 
-                // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
-                // let's start simple and reevaluate
-                String indexName = backingIndex.getIndex().getName();
-                deleteIndexOnce(indexName, "the lapsed [" + retention + "] retention period");
+                    // there's an opportunity here to batch the delete requests (i.e. delete 100 indices / request)
+                    // let's start simple and reevaluate
+                    String indexName = backingIndex.getIndex().getName();
+                    deleteIndexOnce(indexName, "the lapsed [" + retention + "] retention period");
+                }
             }
         }
         return indicesToBeRemoved;
@@ -1096,7 +1133,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field
      * "data_stream_lifecycle".
      */
-    private boolean isForceMergeComplete(IndexMetadata backingIndex) {
+    private static boolean isForceMergeComplete(IndexMetadata backingIndex) {
         Map<String, String> customMetadata = backingIndex.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
         return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
     }
@@ -1225,6 +1262,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     // public visibility for testing
     public DataStreamLifecycleErrorStore getErrorStore() {
         return errorStore;
+    }
+
+    // visible for testing
+    public void setNowSupplier(LongSupplier nowSupplier) {
+        this.nowSupplier = nowSupplier;
     }
 
     /**

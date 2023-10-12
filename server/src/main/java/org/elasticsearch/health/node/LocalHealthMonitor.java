@@ -212,7 +212,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         }
     }
 
-    private boolean hasMasterNodeChanged(DiscoveryNode currentMasterNode, ClusterChangedEvent event) {
+    private static boolean hasMasterNodeChanged(DiscoveryNode currentMasterNode, ClusterChangedEvent event) {
         DiscoveryNode previousMasterNode = event.previousState().nodes().getMasterNode();
         if (currentMasterNode == null || previousMasterNode == null) {
             return currentMasterNode != previousMasterNode;

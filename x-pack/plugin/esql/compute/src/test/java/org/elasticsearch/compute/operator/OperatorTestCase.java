@@ -212,12 +212,15 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 unreleasedInputs++;
             }
         }
-        if ((canLeak() == false) && unreleasedInputs > 0) {
+        if (unreleasedInputs > 0) {
             throw new AssertionError("[" + unreleasedInputs + "] unreleased input blocks");
         }
     }
 
-    // Tests that finish then close without calling getOutput to retrieve a potential last page, releases all memory
+    /**
+     * Tests that finish then close without calling {@link Operator#getOutput} to
+     * retrieve a potential last page, releases all memory.
+     */
     public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
@@ -303,12 +306,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         } finally {
             terminate(threadPool);
         }
-    }
-
-    // TODO: Remove this once all operators do not leak anymore
-    // https://github.com/elastic/elasticsearch/issues/99826
-    protected boolean canLeak() {
-        return false;
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

@@ -65,7 +65,7 @@ public class S3HttpFixtureWithEC2 extends S3HttpFixtureWithSessionToken {
         };
     }
 
-    protected String buildCredentialResponse(final String ec2AccessKey, final String ec2SessionToken) {
+    protected static String buildCredentialResponse(final String ec2AccessKey, final String ec2SessionToken) {
         return String.format(Locale.ROOT, """
             {
               "AccessKeyId": "%s",

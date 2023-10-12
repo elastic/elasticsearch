@@ -48,7 +48,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @SuppressWarnings("unchecked")
-    private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
+    private static ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
         // load the new settings into a builder so their paths are normalized
         @SuppressWarnings("unchecked")
         Settings.Builder newSettings = Settings.builder().loadFromMap((Map<String, ?>) input);

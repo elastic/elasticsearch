@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.jdk.JarHell;
 
@@ -79,22 +80,16 @@ public class PluginsUtils {
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
     public static void verifyCompatibility(PluginDescriptor info) {
+        boolean buildSupportsStablePlugins;
+        SemanticVersion currentElasticsearchVersion = null;
+        try {
+            currentElasticsearchVersion = SemanticVersion.create(Build.current().version());
+            buildSupportsStablePlugins = true;
+        } catch (IllegalArgumentException e ) {
+            buildSupportsStablePlugins = false;
+        }
         // stable plugins can run on the exact version they're built with even if it's not semantic
-        if (info.isStable() && info.getElasticsearchVersion().equals(Build.current().version()) == false) {
-            SemanticVersion currentElasticsearchVersion;
-            try {
-                currentElasticsearchVersion = SemanticVersion.create(Build.current().version());
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "Stable Plugin ["
-                        + info.getName()
-                        + "] was built for Elasticsearch version "
-                        + info.getElasticsearchVersion()
-                        + " but cannot run on non-semantic version "
-                        + Build.current().version()
-                );
-            }
-
+        if (info.isStable() && buildSupportsStablePlugins) {
             SemanticVersion pluginElasticsearchVersion;
             try {
                 pluginElasticsearchVersion = SemanticVersion.create(info.getElasticsearchVersion());
@@ -134,7 +129,7 @@ public class PluginsUtils {
                         + " is running"
                 );
             }
-        } else if (info.getElasticsearchVersion().equals(Build.current().version()) == false) {
+        } else if (info.getElasticsearchVersion().equals(currentElasticsearchVersion.toString()) == false) {
             throw new IllegalArgumentException(
                 "Plugin ["
                     + info.getName()
@@ -184,6 +179,11 @@ public class PluginsUtils {
             }
             // bugfix
             return this.bugfix > other.bugfix;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format("%d.%d.%d", this.major, this.minor, this.bugfix);
         }
     }
 

@@ -10,6 +10,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100762")
 public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     private static MutableSettingsProvider clusterSettings = new MutableSettingsProvider() {
         {

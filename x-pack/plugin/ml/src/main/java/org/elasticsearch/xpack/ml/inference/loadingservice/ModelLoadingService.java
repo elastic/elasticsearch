@@ -491,7 +491,12 @@ public class ModelLoadingService implements ClusterStateListener {
                 handleLoadFailure(modelId, failure);
             }));
         }, failure -> {
-            logger.warn(() -> "[" + modelId + "] failed to load model configuration", failure);
+            if (consumer != Consumer.PIPELINE) {
+                // The model loading was triggered by an ingest pipeline change
+                // referencing a model that cannot be found. This is not an error
+                // as the model may be put later
+                logger.warn(() -> "[" + modelId + "] failed to load model configuration ", failure);
+            }
             handleLoadFailure(modelId, failure);
         }));
     }
@@ -745,14 +750,13 @@ public class ModelLoadingService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
-        // If we are not prefetching models and there were no model alias changes, don't bother handling the changes
-        if ((prefetchModels == false)
-            && (event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) == false)
-            && (event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME) == false)) {
+        // If no changes to ingest pipelines and no model alias changes, nothing to do
+        if (event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) == false
+            && event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME) == false) {
             return;
         }
 
+        final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
         ClusterState state = event.state();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)

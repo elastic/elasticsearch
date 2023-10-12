@@ -109,7 +109,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         FieldContext fc = new FieldContext(ft.name(), fd, ft);
         ValuesSource vs = vsType.getField(fc, null);
         return new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
-            List.of(new ValueSourceInfo(vsType, vs, elementType, reader)),
+            () -> List.of(new ValueSourceInfo(vsType, vs, elementType, reader)),
             0,
             ft.name()
         );

@@ -99,8 +99,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        IndexVersion repositoryMetaVersion,
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
         SnapshotDeleteListener listener
     ) {
         listener.onFailure(new UnsupportedOperationException());

@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,11 +50,36 @@ public final class ValueSources {
         List<ValueSourceInfo> sources = new ArrayList<>(searchContexts.size());
 
         for (SearchContext searchContext : searchContexts) {
-            SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
+            // TODO: remove this workaround
+            // Create a separate SearchExecutionContext for each ValuesReader, as it seems that
+            // the synthetic source doesn't work properly with inter-segment or intra-segment parallelism.
+            ShardSearchRequest shardRequest = searchContext.request();
+            SearchExecutionContext ctx = searchContext.readerContext()
+                .indexService()
+                .newSearchExecutionContext(
+                    shardRequest.shardId().id(),
+                    shardRequest.shardRequestIndex(),
+                    searchContext.searcher(),
+                    shardRequest::nowInMillis,
+                    shardRequest.getClusterAlias(),
+                    shardRequest.getRuntimeMappings()
+                );
             var fieldType = ctx.getFieldType(fieldName);
             if (fieldType == null) {
                 sources.add(new ValueSourceInfo(new NullValueSourceType(), new NullValueSource(), elementType, ctx.getIndexReader()));
                 continue; // the field does not exist in this context
+            }
+            if (asUnsupportedSource) {
+                sources.add(
+                    new ValueSourceInfo(
+                        new UnsupportedValueSourceType(fieldType.typeName()),
+                        new UnsupportedValueSource(null),
+                        elementType,
+                        ctx.getIndexReader()
+                    )
+                );
+                HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", fieldName);
+                continue;
             }
 
             if (fieldType.hasDocValues() == false) {
@@ -85,19 +111,7 @@ public final class ValueSources {
             var fieldContext = new FieldContext(fieldName, fieldData, fieldType);
             var vsType = fieldData.getValuesSourceType();
             var vs = vsType.getField(fieldContext, null);
-
-            if (asUnsupportedSource) {
-                sources.add(
-                    new ValueSourceInfo(
-                        new UnsupportedValueSourceType(fieldType.typeName()),
-                        new UnsupportedValueSource(vs),
-                        elementType,
-                        ctx.getIndexReader()
-                    )
-                );
-            } else {
-                sources.add(new ValueSourceInfo(vsType, vs, elementType, ctx.getIndexReader()));
-            }
+            sources.add(new ValueSourceInfo(vsType, vs, elementType, ctx.getIndexReader()));
         }
 
         return sources;

@@ -71,7 +71,7 @@ A large number of inline synonyms increases cluster size unnecessarily and can l
 
 [discrete]
 [[synonyms-synonym-token-filters]]
-=== Configure synonyms token filters and analyzers
+==== Configure synonyms token filters and analyzers
 
 Once your synonyms sets are created, you can start configuring your token filters and analyzers to use them.
 

@@ -896,16 +896,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
                 final var originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
+
+                // One final best-effort check for other clusters concurrently writing to the repository:
                 final var originalRepositoryData = safeRepositoryData(repositoryDataGeneration, originalRootBlobs);
-                final var repositoryFormatIndexVersion = SnapshotsService.minCompatibleVersion(
-                    minimumNodeVersion,
-                    originalRepositoryData,
-                    snapshotIds
-                );
+
                 return new SnapshotsDeletion(
                     snapshotIds,
                     repositoryDataGeneration,
-                    repositoryFormatIndexVersion,
+                    SnapshotsService.minCompatibleVersion(minimumNodeVersion, originalRepositoryData, snapshotIds),
                     originalRootBlobs,
                     blobStore().blobContainer(indicesPath()).children(OperationPurpose.SNAPSHOT),
                     originalRepositoryData

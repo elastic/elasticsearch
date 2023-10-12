@@ -11,7 +11,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -278,12 +278,12 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
             Map<String, ?> nodeMap = (Map<String, ?>) entityAsMap(client.performRequest(nodesRequest)).get("nodes");
             Map<String, ?> nameMap = (Map<String, ?>) nodeMap.values().iterator().next();
             String version = (String) nameMap.get("version");
-            if (version.equals(Version.CURRENT.toString())) {
+            if (version.equals(Build.current().version())) {
                 return client;
             }
             client.close();
         }
-        throw new IllegalStateException("Couldn't find node on version " + Version.CURRENT);
+        throw new IllegalStateException("Couldn't find node on version " + Build.current().version());
     }
 
     // Test field type filtering on mixed cluster

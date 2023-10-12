@@ -303,11 +303,27 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
+    boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
+
+        // TODO[lor]: the method can be kept, but we need to replace version check with features checks
+        String versionString = (String) nodeDetails.get("version");
+        Version version;
+        try {
+            version = Version.fromString(versionString.replace("-SNAPSHOT", ""));
+        } catch (IllegalArgumentException ignored) {
+            // placeholder version: new enough to be compatible with all checks in this class, old enough to represent
+            // non-semantic versions
+            version = Version.V_8_10_0;
+        }
+
+        return version.onOrAfter(API_KEY_SUPPORT_REMOTE_INDICES_VERSION);
+    }
+
     private void createClientsByVersion() throws IOException {
-        Map<Version, RestClient> clientsByVersion = getRestClientByVersion();
-        if (clientsByVersion.size() == 2) {
-            for (Map.Entry<Version, RestClient> client : clientsByVersion.entrySet()) {
-                if (client.getKey().before(API_KEY_SUPPORT_REMOTE_INDICES_VERSION)) {
+        var clientsByCapability = getRestClientByCapability();
+        if (clientsByCapability.size() == 2) {
+            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
+                if (client.getKey() == false) {
                     oldVersionClient = client.getValue();
                 } else {
                     newVersionClient = client.getValue();
@@ -316,7 +332,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertThat(oldVersionClient, notNullValue());
             assertThat(newVersionClient, notNullValue());
         } else {
-            fail("expected 2 versions during rolling upgrade but got: " + clientsByVersion.size());
+            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
         }
     }
 
@@ -332,23 +348,24 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Version, RestClient> getRestClientByVersion() throws IOException {
+    private Map<Boolean, RestClient> getRestClientByCapability() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Version, List<HttpHost>> hostsByVersion = new HashMap<>();
+        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
         for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
             Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            Version version = Version.fromString((String) nodeDetails.get("version"));
+            var capabilitySupported = nodeSupportApiKeyRemoteIndices(nodeDetails);
             Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
-            hostsByVersion.computeIfAbsent(version, k -> new ArrayList<>()).add(HttpHost.create((String) httpInfo.get("publish_address")));
+            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
+                .add(HttpHost.create((String) httpInfo.get("publish_address")));
         }
-        Map<Version, RestClient> clientsByVersion = new HashMap<>();
-        for (Map.Entry<Version, List<HttpHost>> entry : hostsByVersion.entrySet()) {
-            clientsByVersion.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
+        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
+        for (var entry : hostsByCapability.entrySet()) {
+            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
         }
-        return clientsByVersion;
+        return clientsByCapability;
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteIndices) {

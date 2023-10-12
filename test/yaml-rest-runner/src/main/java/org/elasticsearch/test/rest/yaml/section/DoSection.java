@@ -632,8 +632,7 @@ public class DoSection implements ExecutableSection {
         try {
             Version version = Version.fromString(nodeVersionSting.replace("-SNAPSHOT", ""));
             return acceptedVersionRanges.stream().anyMatch(v -> v.contains(version));
-        } catch (IllegalArgumentException ignored) {
-        }
+        } catch (IllegalArgumentException ignored) {}
         return false;
     }
 

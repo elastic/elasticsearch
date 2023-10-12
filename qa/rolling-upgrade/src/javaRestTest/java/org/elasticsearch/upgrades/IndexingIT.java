@@ -139,8 +139,7 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
             Request waitForGreen = new Request("GET", "/_cluster/health");
             waitForGreen.addParameter("wait_for_nodes", "3");
             client().performRequest(waitForGreen);
-            Version minNodeVersion = minNodeVersion();
-            if (minNodeVersion.before(Version.V_7_5_0)) {
+            if (allNodesSupportBulkApi() == false) {
                 ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                 assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
                 assertThat(
@@ -410,19 +409,29 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
         );
     }
 
-    private Version minNodeVersion() throws IOException {
+    private boolean nodeSupportBulkApi(Map<?, ?> nodeInfo) {
+        // TODO[lor]: replace this check with a (historical) feature check ("supports bulk requests")
+        var versionString = nodeInfo.get("version").toString();
+        Version version;
+        try {
+            version = Version.fromString(versionString.replace("-SNAPSHOT", ""));
+        } catch (IllegalArgumentException ignored) {
+            // placeholder version: new enough to be compatible with all checks in this class, old enough to represent all
+            // non-semantic versions
+            version = Version.V_8_8_0;
+        }
+        return version.onOrAfter(Version.V_7_5_0);
+    }
+
+    private boolean allNodesSupportBulkApi() throws IOException {
         Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
         Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-        Version minNodeVersion = null;
+
+        boolean allSupportBulkApi = true;
         for (Map.Entry<?, ?> node : nodes.entrySet()) {
             Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-            Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
-            if (minNodeVersion == null) {
-                minNodeVersion = nodeVersion;
-            } else if (nodeVersion.before(minNodeVersion)) {
-                minNodeVersion = nodeVersion;
-            }
+            allSupportBulkApi &= nodeSupportBulkApi(nodeInfo);
         }
-        return minNodeVersion;
+        return allSupportBulkApi;
     }
 }

@@ -49,7 +49,7 @@ public abstract class ModuleQualifiedExportsService {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    private <T> Map<String, List<String>> invert(
+    private static <T> Map<String, List<String>> invert(
         Collection<T> sourcesToTargets,
         Predicate<T> qualifiedPredicate,
         Function<T, String> sourceGetter,

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -36,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,7 +67,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100365")
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     long epoch = System.currentTimeMillis();
@@ -576,7 +575,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testFilterWithNullAndEvalFromIndex() {
         // append entry, with an absent count, to the index
         client().prepareBulk().add(new IndexRequest("test").id("no_count").source("data", 12, "data_d", 2d, "color", "red")).get();
@@ -864,7 +862,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99826")
     public void testFromLimit() {
         try (EsqlQueryResponse results = run("from test | keep data | limit 2")) {
             logger.info(results);
@@ -1187,6 +1184,39 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (String fn : functions) {
             String query = String.format(Locale.ROOT, "from %s | stats s = %s by kw", indexName, fn);
             run(query).close();
+        }
+    }
+
+    public void testUnsupportedTypesOrdinalGrouping() {
+        assertAcked(
+            client().admin().indices().prepareCreate("index-1").setMapping("f1", "type=keyword", "f2", "type=keyword", "v", "type=long")
+        );
+        assertAcked(
+            client().admin().indices().prepareCreate("index-2").setMapping("f1", "type=object", "f2", "type=keyword", "v", "type=long")
+        );
+        Map<String, Long> groups = new HashMap<>();
+        int numDocs = randomIntBetween(10, 20);
+        for (int i = 0; i < numDocs; i++) {
+            String k = randomFrom("a", "b", "c");
+            long v = randomIntBetween(1, 10);
+            groups.merge(k, v, Long::sum);
+            groups.merge(null, v, Long::sum); // null group
+            client().prepareIndex("index-1").setSource("f1", k, "v", v).get();
+            client().prepareIndex("index-2").setSource("f2", k, "v", v).get();
+        }
+        client().admin().indices().prepareRefresh("index-1", "index-2").get();
+        for (String field : List.of("f1", "f2")) {
+            try (var resp = run("from index-1,index-2 | stats sum(v) by " + field)) {
+                Iterator<Iterator<Object>> values = resp.values();
+                Map<String, Long> actual = new HashMap<>();
+                while (values.hasNext()) {
+                    Iterator<Object> row = values.next();
+                    Long v = (Long) row.next();
+                    String k = (String) row.next();
+                    actual.put(k, v);
+                }
+                assertThat(actual, equalTo(groups));
+            }
         }
     }
 

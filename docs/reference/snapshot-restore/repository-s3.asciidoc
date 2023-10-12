@@ -224,10 +224,12 @@ covered by the {es} test suite.
 Note that some storage systems claim to be S3-compatible but do not faithfully
 emulate S3's behaviour in full. The `repository-s3` type requires full
 compatibility with S3. In particular it must support the same set of API
-endpoints, return the same errors in case of failures, and offer consistency
-and performance at least as good as S3 even when accessed concurrently by
-multiple nodes. You will need to work with the supplier of your storage system
-to address any incompatibilities you encounter.
+endpoints, return the same errors in case of failures, and offer consistency and
+performance at least as good as S3 even when accessed concurrently by multiple
+nodes. You will need to work with the supplier of your storage system to address
+any incompatibilities you encounter. Please do not report {es} issues involving
+storage systems which claim to be S3-compatible unless you can demonstrate that
+the same issue exists when using a genuine AWS S3 repository.
 
 You can perform some basic checks of the suitability of your storage system
 using the {ref}/repo-analysis-api.html[repository analysis API]. If this API

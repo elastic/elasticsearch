@@ -255,9 +255,11 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.UNMANAGED.displayValue)
                 );
 
-                List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(DataStream.INDICES_FIELD.getPreferredName());
+                List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
+                    DataStream.FAILURE_STORES_FIELD.getPreferredName()
+                );
                 Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
-                assertThat(failureStoreRepresentation.get("index_name"), is(writeIndex.getName()));
+                assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
                 assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
                 assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
                 assertThat(

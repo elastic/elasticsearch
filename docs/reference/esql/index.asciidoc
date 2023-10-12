@@ -97,17 +97,11 @@ with the time filter.
 
 include::esql-get-started.asciidoc[]
 
-include::esql-syntax.asciidoc[]
+include::esql-language.asciidoc[]
 
 include::esql-commands-functions-operators.asciidoc[]
 
-//include::esql-functions.asciidoc[]
-
 include::esql-rest.asciidoc[]
-
-include::multivalued-fields.asciidoc[]
-
-include::metadata-fields.asciidoc[]
 
 include::task-management.asciidoc[]
 

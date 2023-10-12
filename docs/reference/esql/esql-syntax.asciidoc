@@ -1,5 +1,5 @@
 [[esql-syntax]]
-== {esql} syntax reference
+=== {esql} syntax reference
 
 ++++
 <titleabbrev>Syntax reference</titleabbrev>
@@ -38,7 +38,7 @@ source-command | processing-command1 | processing-command2
 
 [discrete]
 [[esql-comments]]
-=== Comments
+==== Comments
 {esql} uses C++ style comments:
 
 * double slash `//` for single line comments
@@ -68,7 +68,7 @@ FROM employees
 
 [discrete]
 [[esql-timespan-literals]]
-=== Timespan literals
+==== Timespan literals
 
 Datetime intervals and timespans can be expressed using timespan literals.
 Timespan literals are a combination of a number and a qualifier. These

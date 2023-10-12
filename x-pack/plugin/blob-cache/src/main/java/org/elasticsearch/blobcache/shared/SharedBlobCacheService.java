@@ -346,11 +346,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
         this.evictedCountNonZeroFrequency = meter.registerLongCounter(
-            "blobCacheEvictionCountNonZeroFrequency",
-            "blobCacheEvictionCountNonZeroFrequency",
-            "count"
+            "elasticsearch.blob_cache.evicted_count_non_zero_frequency",
+            "The number of times a cache entry was evicted where the frequency was not zero",
+            "entries"
         );
-
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -526,9 +525,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assignToSlot(entry, freeSlot);
         } else {
             // need to evict something
+            long nonZeroEvictedCount;
             synchronized (this) {
-                maybeEvict();
+                nonZeroEvictedCount = maybeEvict();
             }
+            evictedCountNonZeroFrequency.incrementBy(nonZeroEvictedCount);
             final SharedBytes.IO freeSlotRetry = freeRegions.poll();
             if (freeSlotRetry != null) {
                 assignToSlot(entry, freeSlotRetry);
@@ -629,21 +630,23 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         return true;
     }
 
-    private void maybeEvict() {
+    private long maybeEvict() {
         assert Thread.holdsLock(this);
+        long nonZeroEvictedCount = 0;
         for (int i = 0; i < maxFreq; i++) {
             for (Entry<CacheFileRegion> entry = freqs[i]; entry != null; entry = entry.next) {
                 boolean evicted = entry.chunk.tryEvict();
                 if (evicted && entry.freq > 0) {
-                    evictedCountNonZeroFrequency.increment();
+                    nonZeroEvictedCount++;
                 }
                 if (evicted && entry.chunk.io != null) {
                     unlink(entry);
                     keyMapping.remove(entry.chunk.regionKey, entry);
-                    return;
+                    return nonZeroEvictedCount;
                 }
             }
         }
+        return nonZeroEvictedCount;
     }
 
     private void pushEntryToBack(final Entry<CacheFileRegion> entry) {
@@ -732,11 +735,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         });
         var evictedCount = 0;
         if (matchingEntries.isEmpty() == false) {
+            long nonZeroEvictedCount = 0;
             synchronized (this) {
                 for (Entry<CacheFileRegion> entry : matchingEntries) {
                     boolean evicted = entry.chunk.forceEvict();
                     if (evicted && entry.freq > 0) {
-                        evictedCountNonZeroFrequency.increment();
+                        nonZeroEvictedCount++;
                     }
                     if (evicted && entry.chunk.io != null) {
                         unlink(entry);
@@ -745,6 +749,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     }
                 }
             }
+            evictedCountNonZeroFrequency.incrementBy(nonZeroEvictedCount);
         }
         return evictedCount;
     }

@@ -313,11 +313,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener snapshotDeleteListener) {
+    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener listener) {
         return new SnapshotDeleteListener() {
             @Override
             public void onDone() {
-                snapshotDeleteListener.onDone();
+                listener.onDone();
             }
 
             @Override
@@ -326,7 +326,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
                     final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
                     assert cancellable != null;
-                    snapshotDeleteListener.onRepositoryDataWritten(repositoryData);
+                    listener.onRepositoryDataWritten(repositoryData);
                 }, coolDown, snapshotExecutor));
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }
@@ -337,7 +337,7 @@ class S3Repository extends MeteredBlobStoreRepository {
                 final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
                     final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
                     assert cancellable != null;
-                    snapshotDeleteListener.onFailure(e);
+                    listener.onFailure(e);
                 }, coolDown, snapshotExecutor));
                 assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
             }

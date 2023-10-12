@@ -769,12 +769,20 @@ public class LocalExecutionPlanner {
 
         public List<Driver> createDrivers(String sessionId) {
             List<Driver> drivers = new ArrayList<>();
-            for (DriverFactory df : driverFactories) {
-                for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
-                    drivers.add(df.driverSupplier.apply(sessionId));
+            boolean success = false;
+            try {
+                for (DriverFactory df : driverFactories) {
+                    for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
+                        drivers.add(df.driverSupplier.apply(sessionId));
+                    }
+                }
+                success = true;
+                return drivers;
+            } finally {
+                if (success == false) {
+                    Releasables.close(() -> Releasables.close(drivers));
                 }
             }
-            return drivers;
         }
 
         @Override

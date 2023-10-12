@@ -19,6 +19,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
@@ -292,9 +293,24 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testFilterNonBoolField() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+    }
+
+    public void testFilterDateConstant() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
+    }
+
+    public void testNestedAggField() {
+        assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
+    }
+
+    public void testUnfinishedAggFunction() {
+        assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
-
     }
 
     private String error(String query, Object... params) {

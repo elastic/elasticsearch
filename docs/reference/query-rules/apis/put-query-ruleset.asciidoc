@@ -86,7 +86,7 @@ Actions depend on the rule type.
 For `pinned` rules, actions follow the format specified by the <<query-dsl-pinned-query,Pinned Query>>.
 The following actions are allowed:
 
-- `ids` (Optional, array of strings) The The unique <<mapping-id-field, document IDs>> of the documents to pin.
+- `ids` (Optional, array of strings) The unique <<mapping-id-field, document IDs>> of the documents to pin.
 Only one of `ids` or `docs` may be specified, and at least one must be specified.
 - `docs` (Optional, array of objects) The documents to pin.
 Only one of `ids` or `docs` may be specified, and at least one must be specified.

@@ -172,25 +172,33 @@ public class Node implements Closeable {
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
 
+    /**
+     * Constructs a node
+     *
+     * @param environment         the initial environment for this node, which will be added to by plugins
+     */
     public Node(Environment environment) {
         this(NodeConstructor.construct(environment, new NodeServiceProvider(), true));
     }
 
+    /**
+     * Constructs a node using information from {@code constructor}
+     */
     @SuppressWarnings("this-escape")
-    Node(NodeConstructor builder) {
-        injector = builder.injector();
-        environment = builder.environment();
-        nodeEnvironment = builder.nodeEnvironment();
-        pluginsService = builder.pluginsService();
-        client = builder.client();
-        pluginLifecycleComponents = builder.pluginLifecycleComponents();
-        localNodeFactory = builder.localNodeFactory();
-        nodeService = builder.nodeService();
-        terminationHandler = builder.terminationHandler();
-        namedWriteableRegistry = builder.namedWriteableRegistry();
-        namedXContentRegistry = builder.namedXContentRegistry();
+    Node(NodeConstructor constructor) {
+        injector = constructor.injector();
+        environment = constructor.environment();
+        nodeEnvironment = constructor.nodeEnvironment();
+        pluginsService = constructor.pluginsService();
+        client = constructor.client();
+        pluginLifecycleComponents = constructor.pluginLifecycleComponents();
+        localNodeFactory = constructor.localNodeFactory();
+        nodeService = constructor.nodeService();
+        terminationHandler = constructor.terminationHandler();
+        namedWriteableRegistry = constructor.namedWriteableRegistry();
+        namedXContentRegistry = constructor.namedXContentRegistry();
 
-        builder.setNode(this);
+        constructor.setNode(this);
     }
 
     /**

@@ -216,8 +216,19 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.Types.forciblyCast;
 
+/**
+ * Class uses to perform all the operations needed to construct a {@link Node} instance.
+ */
 class NodeConstructor {
 
+    /**
+     * Performs node construction operations
+     *
+     * @param initialEnvironment         the initial environment for this node, which will be added to by plugins
+     * @param serviceProvider            provides various service implementations that could be mocked
+     * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
+     *                                   test framework for tests that rely on being able to set private settings
+     */
     static NodeConstructor construct(
         Environment initialEnvironment,
         NodeServiceProvider serviceProvider,
@@ -225,92 +236,92 @@ class NodeConstructor {
     ) {
         List<Closeable> closeables = new ArrayList<>();
         try {
-            var builder = new NodeConstructor(closeables);
-            builder.checkEnvironment(initialEnvironment);
-            builder.createEnvironment(initialEnvironment, serviceProvider.pluginsServiceCtor(initialEnvironment));
-            builder.createThreadPools();
-            builder.createTracer();
-            builder.createTaskManager();
-            builder.loadAdditionalSettings();
-            builder.createClient();
-            builder.createScriptService(serviceProvider);
-            builder.createAnalysisModule();
+            var constructor = new NodeConstructor(closeables);
+            constructor.checkEnvironment(initialEnvironment);
+            constructor.createEnvironment(initialEnvironment, serviceProvider.pluginsServiceCtor(initialEnvironment));
+            constructor.createThreadPools();
+            constructor.createTracer();
+            constructor.createTaskManager();
+            constructor.loadAdditionalSettings();
+            constructor.createClient();
+            constructor.createScriptService(serviceProvider);
+            constructor.createAnalysisModule();
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
-            builder.createSettingsModule();
+            constructor.createSettingsModule();
             // creating NodeEnvironment breaks the ability to rollback to 7.x on an 8.0 upgrade (upgradeLegacyNodeFolders) so do this
             // after settings validation.
-            builder.createNodeEnvironment();
-            builder.createLocalNodeFactory();
-            builder.createNetworkService();
-            builder.createClusterService();
-            builder.createInferenceServiceRegistry();
-            builder.createIngestService();
-            builder.createClusterInfoService(serviceProvider);
-            builder.createUsageService();
-            builder.createSearchModule();
-            builder.createNamedWriteableRegistry();
-            builder.createXContentRegistry();
-            builder.createSystemIndices();
-            builder.createFsHealthService();
-            builder.createInternalSnapshotsInfoService();
-            builder.createWriteLoadForecaster();
-            builder.createClusterModule();
-            builder.createIndicesModule();
-            builder.createCircuitBreakerService();
-            builder.createGatewayModule();
-            builder.createCompatibilityVersions();
-            builder.createPageCacheRecycler(serviceProvider);
-            builder.createBigArrays(serviceProvider);
-            builder.createMetaStateService();
-            builder.createPersistedClusterStateService();
-            builder.createRerouteService();
-            builder.createIndicesService();
-            builder.createIndexSettingsProviders();
-            builder.createShardLimitValidator();
-            builder.createMetadataCreateIndexService(forbidPrivateIndexSettings);
-            builder.createMetadataCreateDataStreamService();
-            builder.createMetadataDataStreamsService();
-            builder.createMetadataUpdateSettingsService();
-            builder.loadPluginComponents();
-            builder.createTerminationHandler();
-            builder.createActionModule();
-            builder.createNetworkModule();
-            builder.createMetadataUpgrader();
-            builder.createIndexMetadataVerifier();
-            builder.createTransport();
-            builder.createTransportService(serviceProvider);
-            builder.createGatewayMetaState();
-            builder.createResponseCollectorService();
-            builder.createSearchTransportService();
-            builder.createHttpServerTransport(serviceProvider);
-            builder.createIndexingLimits();
-            builder.createRecoverySettings();
-            builder.createRepositoriesService();
-            builder.createSnapshotsService();
-            builder.createSnapshotShardsService();
-            builder.createFileSettingsService();
-            builder.createRestoreService();
-            builder.createDiskThresholdMonitor();
-            builder.createDiscoveryModule();
-            builder.createNodeService();
-            builder.createSearchService(serviceProvider);
-            builder.createPersistentTasksService();
-            builder.createHealthNodeTaskExecutor();
-            builder.createPersistentTasksExecutorRegistry();
-            builder.createPersistentTasksClusterService();
-            builder.createPluginShutdownService();
-            builder.createRecoveryPlannerService();
-            builder.createDesiredNodesSettingsValidator();
-            builder.createMasterHistoryService();
-            builder.createCoordinationDiagnosticsService();
-            builder.createHealthObjects();
-            builder.createInjector(serviceProvider);
-            builder.setExistingShardsAllocator();
-            builder.setPluginLifecycleComponents();
-            builder.initializeClient();
-            builder.initializeHttpHandlers();
-            return builder;
+            constructor.createNodeEnvironment();
+            constructor.createLocalNodeFactory();
+            constructor.createNetworkService();
+            constructor.createClusterService();
+            constructor.createInferenceServiceRegistry();
+            constructor.createIngestService();
+            constructor.createClusterInfoService(serviceProvider);
+            constructor.createUsageService();
+            constructor.createSearchModule();
+            constructor.createNamedWriteableRegistry();
+            constructor.createXContentRegistry();
+            constructor.createSystemIndices();
+            constructor.createFsHealthService();
+            constructor.createInternalSnapshotsInfoService();
+            constructor.createWriteLoadForecaster();
+            constructor.createClusterModule();
+            constructor.createIndicesModule();
+            constructor.createCircuitBreakerService();
+            constructor.createGatewayModule();
+            constructor.createCompatibilityVersions();
+            constructor.createPageCacheRecycler(serviceProvider);
+            constructor.createBigArrays(serviceProvider);
+            constructor.createMetaStateService();
+            constructor.createPersistedClusterStateService();
+            constructor.createRerouteService();
+            constructor.createIndicesService();
+            constructor.createIndexSettingsProviders();
+            constructor.createShardLimitValidator();
+            constructor.createMetadataCreateIndexService(forbidPrivateIndexSettings);
+            constructor.createMetadataCreateDataStreamService();
+            constructor.createMetadataDataStreamsService();
+            constructor.createMetadataUpdateSettingsService();
+            constructor.loadPluginComponents();
+            constructor.createTerminationHandler();
+            constructor.createActionModule();
+            constructor.createNetworkModule();
+            constructor.createMetadataUpgrader();
+            constructor.createIndexMetadataVerifier();
+            constructor.createTransport();
+            constructor.createTransportService(serviceProvider);
+            constructor.createGatewayMetaState();
+            constructor.createResponseCollectorService();
+            constructor.createSearchTransportService();
+            constructor.createHttpServerTransport(serviceProvider);
+            constructor.createIndexingLimits();
+            constructor.createRecoverySettings();
+            constructor.createRepositoriesService();
+            constructor.createSnapshotsService();
+            constructor.createSnapshotShardsService();
+            constructor.createFileSettingsService();
+            constructor.createRestoreService();
+            constructor.createDiskThresholdMonitor();
+            constructor.createDiscoveryModule();
+            constructor.createNodeService();
+            constructor.createSearchService(serviceProvider);
+            constructor.createPersistentTasksService();
+            constructor.createHealthNodeTaskExecutor();
+            constructor.createPersistentTasksExecutorRegistry();
+            constructor.createPersistentTasksClusterService();
+            constructor.createPluginShutdownService();
+            constructor.createRecoveryPlannerService();
+            constructor.createDesiredNodesSettingsValidator();
+            constructor.createMasterHistoryService();
+            constructor.createCoordinationDiagnosticsService();
+            constructor.createHealthObjects();
+            constructor.createInjector(serviceProvider);
+            constructor.setExistingShardsAllocator();
+            constructor.setPluginLifecycleComponents();
+            constructor.initializeClient();
+            constructor.initializeHttpHandlers();
+            return constructor;
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(closeables);
             throw new ElasticsearchException("Failed to bind service", e);

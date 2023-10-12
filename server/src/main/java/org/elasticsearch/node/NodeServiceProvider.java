@@ -44,6 +44,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+/**
+ * Provides various service implementations to {@link NodeConstructor}
+ */
 class NodeServiceProvider {
 
     Function<Settings, PluginsService> pluginsServiceCtor(Environment initialEnvironment) {

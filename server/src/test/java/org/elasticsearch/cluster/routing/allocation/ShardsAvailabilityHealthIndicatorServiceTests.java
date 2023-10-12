@@ -44,12 +44,14 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.stubbing.Answer;
@@ -1532,6 +1534,21 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    public void testShouldBeGreenWhenFrozenIndexIsUnassignedByOriginalIsAvailable() {
+        String originalIndex = "logs-2023.07.11-000024";
+        var clusterState = createClusterStateWith(
+            List.of(
+                frozenIndex("restored-logs-2023.07.11-000024", new ShardAllocation(randomNodeId(), UNAVAILABLE), originalIndex),
+                index(originalIndex, new ShardAllocation(randomNodeId(), AVAILABLE))
+            ),
+            List.of()
+        );
+        var service = createShardsAvailabilityIndicatorService(clusterState);
+
+        HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        assertThat(result.status(), equalTo(GREEN));
+    }
+
     /**
      * Creates the {@link SystemIndices} with one standalone system index and a system data stream
      */
@@ -1788,6 +1805,24 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 .build(),
             primaryState,
             replicaStates
+        );
+    }
+
+    private static IndexRoutingTable frozenIndex(String name, ShardAllocation primaryState, String originalIndex) {
+        return index(
+            IndexMetadata.builder(name)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, originalIndex)
+                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, randomBoolean())
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            primaryState
         );
     }
 

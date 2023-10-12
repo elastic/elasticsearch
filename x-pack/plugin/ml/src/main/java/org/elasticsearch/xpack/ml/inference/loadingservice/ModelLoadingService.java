@@ -750,13 +750,14 @@ public class ModelLoadingService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        // If no changes to ingest pipelines and no model alias changes, nothing to do
-        if (event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) == false
-            && event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME) == false) {
+        final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
+        // If we are not prefetching models and there were no model alias changes, don't bother handling the changes
+        if ((prefetchModels == false)
+            && (event.changedCustomMetadataSet().contains(IngestMetadata.TYPE) == false)
+            && (event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME) == false)) {
             return;
         }
 
-        final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
         ClusterState state = event.state();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)

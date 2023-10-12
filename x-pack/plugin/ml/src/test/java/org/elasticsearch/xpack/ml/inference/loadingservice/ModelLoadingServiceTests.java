@@ -656,26 +656,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertThat(modelLoadingService.getModelId("loaded_model_again"), equalTo(model1));
     }
 
-    public void testEarlyExitOnIrrelevantClusterChangeEvent() {
-        ModelLoadingService modelLoadingService = new ModelLoadingService(
-            trainedModelProvider,
-            auditor,
-            threadPool,
-            clusterService,
-            trainedModelStatsService,
-            Settings.EMPTY,
-            "test-node",
-            circuitBreaker,
-            mock(XPackLicenseState.class)
-        );
-
-        ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.changedCustomMetadataSet()).thenReturn(Set.of());
-        modelLoadingService.clusterChanged(event);
-
-        verify(event, never()).state();
-    }
-
     @SuppressWarnings("unchecked")
     private void withTrainedModel(String modelId, long size) {
         InferenceDefinition definition = mock(InferenceDefinition.class);

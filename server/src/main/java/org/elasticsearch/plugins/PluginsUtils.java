@@ -85,7 +85,7 @@ public class PluginsUtils {
         try {
             currentElasticsearchVersion = SemanticVersion.create(Build.current().version());
             buildSupportsStablePlugins = true;
-        } catch (IllegalArgumentException e ) {
+        } catch (IllegalArgumentException e) {
             buildSupportsStablePlugins = false;
         }
         // stable plugins can run on the exact version they're built with even if it's not semantic

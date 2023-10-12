@@ -60,7 +60,7 @@ public class APMMeterServiceTestsRegistry extends ESTestCase {
     public void testLookupByName() {
         var settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
 
-        var apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel);
+        var apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel).getMeterRegistry();
 
         DoubleCounter registeredCounter = apmMeter.registerDoubleCounter("name", "desc", "unit");
         DoubleCounter lookedUpCounter = apmMeter.getDoubleCounter("name");

@@ -188,7 +188,12 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
 
-            threadPool = new ThreadPool(Settings.builder().put("node.name", "testCustomThreadPool").build(), MeterRegistry.NOOP, scaling, fixed);
+            threadPool = new ThreadPool(
+                Settings.builder().put("node.name", "testCustomThreadPool").build(),
+                MeterRegistry.NOOP,
+                scaling,
+                fixed
+            );
 
             ThreadPoolInfo groups = threadPool.info();
             boolean foundPool1 = false;

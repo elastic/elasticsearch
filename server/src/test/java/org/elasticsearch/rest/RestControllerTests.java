@@ -132,7 +132,14 @@ public class RestControllerTests extends ESTestCase {
 
     public void testApplyProductSpecificResponseHeaders() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, MeterRegistry.NOOP);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            MeterRegistry.NOOP
+        );
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
@@ -148,7 +155,14 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, MeterRegistry.NOOP);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            MeterRegistry.NOOP
+        );
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
@@ -163,7 +177,14 @@ public class RestControllerTests extends ESTestCase {
      */
     public void testDispatchStartsTrace() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, MeterRegistry.NOOP);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            MeterRegistry.NOOP
+        );
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
         final RestController spyRestController = spy(restController);
         when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
@@ -192,7 +213,14 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, MeterRegistry.NOOP);
+        final RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            MeterRegistry.NOOP
+        );
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
@@ -263,7 +291,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, MeterRegistry.NOOP);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            MeterRegistry.NOOP
+        );
 
         RestRequest.Method firstMethod = randomFrom(methodList);
         RestRequest.Method secondMethod = randomFrom(methodList.stream().filter(m -> m != firstMethod).toList());
@@ -895,7 +930,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterWithReservedPath() {
-        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, MeterRegistry.NOOP);
+        final RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            MeterRegistry.NOOP
+        );
         for (String path : RestController.RESERVED_PATHS) {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
                 restController.registerHandler(

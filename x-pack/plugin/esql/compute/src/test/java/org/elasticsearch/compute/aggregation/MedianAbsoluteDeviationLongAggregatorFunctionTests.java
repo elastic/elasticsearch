@@ -26,7 +26,7 @@ public class MedianAbsoluteDeviationLongAggregatorFunctionTests extends Aggregat
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<Long> values = Arrays.asList(12L, 125L, 20L, 20L, 43L, 60L, 90L);
         Randomness.shuffle(values);
-        return new SequenceLongBlockSourceOperator(blockFactory, values);
+        return new SequenceLongBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override

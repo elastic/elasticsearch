@@ -211,7 +211,7 @@ public class QueryRulesIndexService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<QueryRuleCriteria> parseCriteria(List<Map<String, Object>> rawCriteria) {
+    private static List<QueryRuleCriteria> parseCriteria(List<Map<String, Object>> rawCriteria) {
         List<QueryRuleCriteria> criteria = new ArrayList<>(rawCriteria.size());
         for (Map<String, Object> entry : rawCriteria) {
             criteria.add(

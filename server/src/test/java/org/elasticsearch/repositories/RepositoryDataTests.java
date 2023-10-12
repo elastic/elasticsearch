@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
@@ -408,12 +409,12 @@ public class RepositoryDataTests extends ESTestCase {
     }
 
     public void testFailsIfMinVersionNotSatisfied() throws IOException {
-        final IndexVersion futureVersion = IndexVersion.fromId(IndexVersion.current().id() + 1_000_000);
+        final String futureVersion = Version.fromId(IndexVersion.current().id() + 1_000_000).toString();
 
         final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
         builder.startObject();
         {
-            builder.field("min_version", futureVersion.id());
+            builder.field("min_version", futureVersion);
             builder.field("junk", "should not get this far");
         }
         builder.endObject();

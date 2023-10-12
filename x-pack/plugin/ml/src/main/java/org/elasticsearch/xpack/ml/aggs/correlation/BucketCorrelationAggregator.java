@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -45,7 +44,7 @@ public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
             )
             .orElse(null);
         if (bucketPathValue == null) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "unable to find valid bucket values in path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
             );
         }

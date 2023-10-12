@@ -1028,7 +1028,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
             final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =
                 new ListenableFuture<>();
-            writeUpdatedShardMetaDataAndComputeDeletes(writeShardMetaDataAndComputeDeletesStep);
+            writeUpdatedShardMetadataAndComputeDeletes(writeShardMetaDataAndComputeDeletesStep);
             // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
             // 1. Remove the snapshots from the list of existing snapshots
             // 2. Update the index shard generations of all updated shard folders
@@ -1081,7 +1081,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotExecutor.execute(
                             ActionRunnable.wrap(
                                 refs.acquireListener(),
-                                l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
+                                l0 -> writeUpdatedShardMetadataAndComputeDeletes(
                                     l0.delegateFailure((l, shardDeleteResults) -> cleanupUnlinkedShardLevelBlobs(shardDeleteResults, l))
                                 )
                             )
@@ -1123,7 +1123,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Updating the shard-level metadata and accumulating results
 
         // updates the shard state metadata for shards of a snapshot that is to be deleted. Also computes the files to be cleaned up.
-        private void writeUpdatedShardMetaDataAndComputeDeletes(
+        private void writeUpdatedShardMetadataAndComputeDeletes(
             ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
         ) {
 

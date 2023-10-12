@@ -1018,7 +1018,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          *     Shard-level results, see {@link ShardSnapshotMetaDeleteResult}.
          * </p>
          * <p>
-         *     Writes to this list are all synchronized (via {@link #addShardDeleteResult}, and happen-before it is read so the reads need
+         *     Writes to this list are all synchronized (via {@link #addShardDeleteResult}), and happen-before it is read so the reads need
          *     no further synchronization
          * </p>
          */

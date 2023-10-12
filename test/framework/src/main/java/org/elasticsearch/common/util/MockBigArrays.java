@@ -91,7 +91,7 @@ public class MockBigArrays extends BigArrays {
      * Tracking allocations is useful when debugging a leak but shouldn't be enabled by default as this would also be very costly
      * since it creates a new Exception every time a new array is created.
      */
-    private static final boolean TRACK_ALLOCATIONS = false;
+    private static final boolean TRACK_ALLOCATIONS = true;
 
     private static final ConcurrentMap<Object, Object> ACQUIRED_ARRAYS = new ConcurrentHashMap<>();
 

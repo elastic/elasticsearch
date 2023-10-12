@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100762")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97487")
 public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     private static MutableSettingsProvider clusterSettings = new MutableSettingsProvider() {
         {

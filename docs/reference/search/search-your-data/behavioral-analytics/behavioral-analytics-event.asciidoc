@@ -9,7 +9,7 @@
 Refer to <<behavioral-analytics-event-reference>> for a complete list of the fields logged by events.
 ====
 
-Once you've started *tracking events* using the https://github.com/elastic/behavioral-analytics-tracker/tree/main#readme[Behavioral Analytics Tracker^], you can view them in the Kibana UI.
+Once you've started *tracking events* using the https://github.com/elastic/behavioral-analytics-tracker/tree/main#readme[Behavioral Analytics Tracker^], you can view them on a pre-built dashboard in {kib}.
 
 [discrete]
 [[behavioral-analytics-event-send-view-events-overview]]

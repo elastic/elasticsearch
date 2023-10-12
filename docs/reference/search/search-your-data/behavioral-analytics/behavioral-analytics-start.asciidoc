@@ -4,7 +4,7 @@
 <titleabbrev>Get started</titleabbrev>
 ++++
 
-You can manage your analytics in the Search UI in {kib}.
+You can manage your analytics in the {kib} UI.
 Go to *Search > Behavioral Analytics* to get started.
 
 Using behavioral analytics is a three-step process:
@@ -20,14 +20,14 @@ A collection is a logical grouping of your analytics events.
 
 [NOTE]
 ====
-This guide focuses on using the Search UI to create and manage collections.
+This guide focuses on using the Behavioral Analytics UI in {kib} to create and manage collections.
 You can also use the <<behavioral-analytics-apis, Behavioral Analytics APIs>> to create, list, and delete collections, as well as post events to a collection.
 ====
 
 A collection is a set of analytics events.
 
 The first step in setting up behavioral analytics is to create a collection.
-To do this in the Search UI:
+To do this in the {kib} UI:
 
 1. Go to *Search > Behavioral Analytics*.
 2. Select *Create collection*.
@@ -56,7 +56,7 @@ Choose _one_ of the following integration options:
 * <<behavioral-analytics-start-ui-integration-js-embed>>
 * <<behavioral-analytics-start-ui-integration-js-client>>
 
-Once embedded, https://docs.elastic.co/search-ui/getting-started[Search UI^] users can use the following integration for simplified event shipping:
+Once embedded, users of the https://docs.elastic.co/search-ui/getting-started[Search UI^] JavaScript library can use the following integration for simplified event shipping:
 
 * <<behavioral-analytics-start-ui-integration-search-ui>>
 

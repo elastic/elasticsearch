@@ -878,6 +878,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
     }
 
+    /**
+     * This returns the list of pipelines executed on the document for this request. If listExecutedPipelines is false, the response will be
+     * null, even if pipelines were executed. If listExecutedPipelines is true but no pipelines were executed, the list will be empty.
+     * @return
+     */
+    @Nullable
     public List<String> getExecutedPipelines() {
         if (listExecutedPipelines == false) {
             return null;

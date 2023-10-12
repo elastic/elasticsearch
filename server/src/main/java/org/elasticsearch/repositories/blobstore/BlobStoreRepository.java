@@ -2018,7 +2018,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Method used to set the current repository generation in the cluster state's {@link RepositoryMetadata} to the latest generation that
      * can be physically found in the repository before passing the latest {@link RepositoryData} to the given listener.
-     * This ensures that operations using {@link SnapshotsService#executeConsistentStateUpdate} right after mounting a fresh repository will
+     * This ensures that operations using {@code SnapshotsService#executeConsistentStateUpdate} right after mounting a fresh repository will
      * have a consistent view of the {@link RepositoryData} before any data has been written to the repository.
      *
      * @param listener listener to resolve with new repository data

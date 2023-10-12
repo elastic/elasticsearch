@@ -338,7 +338,6 @@ class NodeConstructor {
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Node.class);
 
     private final List<Closeable> resourcesToClose;
-    private final SetOnce<Node> node = new SetOnce<>();
     /*
      * References for storing in a Node
      */
@@ -434,13 +433,6 @@ class NodeConstructor {
 
     private NodeConstructor(List<Closeable> resourcesToClose) {
         this.resourcesToClose = resourcesToClose;
-    }
-
-    /**
-     * Used to bind the Node instance to Node.class after the injector has been created
-     */
-    void setNode(Node node) {
-        this.node.set(node);
     }
 
     Injector injector() {
@@ -1475,7 +1467,6 @@ class NodeConstructor {
 
     private void createInjector(NodeServiceProvider provider) {
         modules.add(b -> {
-            b.bind(Node.class).toProvider(node::get);
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
             b.bind(PluginsService.class).toInstance(pluginsService);

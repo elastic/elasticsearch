@@ -184,7 +184,6 @@ public class Node implements Closeable {
     /**
      * Constructs a node using information from {@code constructor}
      */
-    @SuppressWarnings("this-escape")
     Node(NodeConstructor constructor) {
         injector = constructor.injector();
         environment = constructor.environment();
@@ -197,8 +196,6 @@ public class Node implements Closeable {
         terminationHandler = constructor.terminationHandler();
         namedWriteableRegistry = constructor.namedWriteableRegistry();
         namedXContentRegistry = constructor.namedXContentRegistry();
-
-        constructor.setNode(this);
     }
 
     /**

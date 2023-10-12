@@ -55,9 +55,9 @@ public interface BlockLoader {
 
         Builder nulls(int expectedCount);
 
-        SingletonOrdinalBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int expectedCount);
+        SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
 
-        OrdinalsBuilder ordinalsBuilder(SortedSetDocValues ordinals, int expectedCount);
+        // TODO support non-singleton ords
     }
 
     interface Builder {
@@ -103,7 +103,7 @@ public interface BlockLoader {
         LongBuilder appendLong(long value);
     }
 
-    interface SingletonOrdinalBuilder extends IntBuilder {}
+    interface SingletonOrdinalsBuilder extends IntBuilder {}
 
     interface OrdinalsBuilder extends LongBuilder {}
 }

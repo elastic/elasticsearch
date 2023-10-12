@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Docs;
 import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
-import org.elasticsearch.index.mapper.BlockLoader.SingletonOrdinalBuilder;
+import org.elasticsearch.index.mapper.BlockLoader.SingletonOrdinalsBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
 
@@ -112,7 +112,7 @@ public abstract class BlockDocValuesReader {
             public BlockDocValuesReader reader(LeafReaderContext context) throws IOException {
                 SortedSetDocValues docValues = ordinals(context);
                 SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
-                if (singleton == null) {
+                if (singleton != null) {
                     return new BytesValuesOrdinalsSingletonReader(singleton);
                 }
                 return new BytesValuesOrdinalsReader(docValues);
@@ -685,20 +685,19 @@ public abstract class BlockDocValuesReader {
 
     private static class BytesValuesOrdinalsSingletonReader extends BlockDocValuesReader {
         private final SortedDocValues ordinals;
-        private BytesRef[] refs;
 
         BytesValuesOrdinalsSingletonReader(SortedDocValues ordinals) {
             this.ordinals = ordinals;
         }
 
         @Override
-        public SingletonOrdinalBuilder builder(BuilderFactory factory, int expectedCount) {
-            return factory.singletonOrdinalsBuilder(ordinals, expectedCount);
+        public BytesRefBuilder builder(BuilderFactory factory, int expectedCount) {
+            return factory.bytesRefsFromDocValues(expectedCount);
         }
 
         @Override
-        public SingletonOrdinalBuilder readValues(BuilderFactory factory, Docs docs) throws IOException {
-            SingletonOrdinalBuilder builder = builder(factory, docs.count());
+        public SingletonOrdinalsBuilder readValues(BuilderFactory factory, Docs docs) throws IOException {
+            SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(ordinals, docs.count());
 
             for (int i = 0; i < docs.count(); i++) {
                 int doc = docs.get(i);
@@ -706,9 +705,9 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (ordinals.advanceExact(doc)) {
-                    builder.appendNull();
-                } else {
                     builder.appendInt(ordinals.ordValue());
+                } else {
+                    builder.appendNull();
                 }
             }
             return builder;
@@ -716,11 +715,11 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public void readValuesFromSingleDoc(int doc, Builder builder) throws IOException {
-            if (false == ordinals.advanceExact(doc)) {
+            if (ordinals.advanceExact(doc)) {
+                ((BytesRefBuilder) builder).appendBytesRef(ordinals.lookupOrd(ordinals.ordValue()));
+            } else {
                 builder.appendNull();
-                return;
             }
-            ((IntBuilder) builder).appendInt(ordinals.ordValue());
         }
 
         @Override
@@ -742,13 +741,13 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public OrdinalsBuilder builder(BuilderFactory factory, int expectedCount) {
-            return factory.ordinalsBuilder(ordinals, expectedCount);
+        public BytesRefBuilder builder(BuilderFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
         }
 
         @Override
-        public OrdinalsBuilder readValues(BuilderFactory factory, Docs docs) throws IOException {
-            OrdinalsBuilder builder = builder(factory, docs.count());
+        public BytesRefBuilder readValues(BuilderFactory factory, Docs docs) throws IOException {
+            BytesRefBuilder builder = builder(factory, docs.count());
 
             for (int i = 0; i < docs.count(); i++) {
                 int doc = docs.get(i);
@@ -762,22 +761,22 @@ public abstract class BlockDocValuesReader {
 
         @Override
         public void readValuesFromSingleDoc(int doc, Builder builder) throws IOException {
-            read(doc, (LongBuilder) builder);
+            read(doc, (BytesRefBuilder) builder);
         }
 
-        private void read(int doc, LongBuilder builder) throws IOException {
+        private void read(int doc, BytesRefBuilder builder) throws IOException {
             if (false == ordinals.advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
             int count = ordinals.docValueCount();
             if (count == 1) {
-                builder.appendLong(ordinals.nextOrd());
+                builder.appendBytesRef(ordinals.lookupOrd(ordinals.nextOrd()));
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                builder.appendLong(ordinals.nextOrd());
+                builder.appendBytesRef(ordinals.lookupOrd(ordinals.nextOrd()));
             }
             builder.endPositionEntry();
         }

@@ -154,7 +154,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 client().performRequest(indexDoc);
             }
             refresh("test-enrich");
-            for (String user : List.of("user4")) {
+            for (String user : List.of("user2", "user4")) {
                 Response resp = runESQLCommand(
                     user,
                     "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
@@ -165,7 +165,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     equalTo(List.of(List.of(2.75, "Disturbed"), List.of(10.5, "Eagles"), List.of(8.25, "Linkin Park")))
                 );
             }
-            for (String user : List.of("user1", "user2", "user3", "user5")) {
+            for (String user : List.of("user1", "user3", "user5")) {
                 ResponseException resp = expectThrows(
                     ResponseException.class,
                     () -> runESQLCommand(

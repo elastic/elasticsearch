@@ -233,7 +233,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
+                nodeVersions.add(parseLegacyVersion(nodeInfo.get("version").toString()));
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
@@ -275,6 +275,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert clusterHosts != null;
         assert availableFeatures != null;
         assert nodeVersions != null;
+    }
+
+    // TODO[lor]: this needs to be replaced with (historical) feature checks once https://github.com/elastic/elasticsearch/pull/100330
+    // is merged
+    @Deprecated(forRemoval = true)
+    private static Version parseLegacyVersion(String versionString) {
+        try {
+            return Version.fromString(versionString.replace("-SNAPSHOT", ""));
+        } catch (IllegalArgumentException ignored) {
+            // placeholder version: new enough to be compatible with all checks in this class, old enough to represent all
+            // non-semantic versions
+            return Version.V_8_8_0;
+        }
     }
 
     protected static boolean has(ProductFeature feature) {

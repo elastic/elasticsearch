@@ -829,14 +829,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return getRepositoryData(genToLoad);
     }
 
+    /**
+     * Some repositories (i.e. S3) run at extra risk of corruption when using the pre-7.6.0 repository format, against which we try and
+     * protect by adding some delays in between operations so that things have a chance to settle down. This method is the hook that allows
+     * the delete process to add this protection when necessary.
+     */
+    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener snapshotDeleteListener) {
+        return snapshotDeleteListener;
+    }
+
     @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
+        IndexVersion minimumNodeVersion,
         SnapshotDeleteListener listener
     ) {
-        createSnapshotsDeletion(snapshotIds, repositoryDataGeneration, repositoryFormatIndexVersion, new ActionListener<>() {
+        createSnapshotsDeletion(snapshotIds, repositoryDataGeneration, minimumNodeVersion, new ActionListener<>() {
             @Override
             public void onResponse(SnapshotsDeletion snapshotsDeletion) {
                 snapshotsDeletion.runDelete(listener);
@@ -879,7 +888,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void createSnapshotsDeletion(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
+        IndexVersion minimumNodeVersion,
         ActionListener<SnapshotsDeletion> listener
     ) {
         if (isReadOnly()) {
@@ -887,13 +896,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {
                 final var originalRootBlobs = blobContainer().listBlobs(OperationPurpose.SNAPSHOT);
+
+                // One final best-effort check for other clusters concurrently writing to the repository:
+                final var originalRepositoryData = safeRepositoryData(repositoryDataGeneration, originalRootBlobs);
+
                 return new SnapshotsDeletion(
                     snapshotIds,
                     repositoryDataGeneration,
-                    repositoryFormatIndexVersion,
+                    SnapshotsService.minCompatibleVersion(minimumNodeVersion, originalRepositoryData, snapshotIds),
                     originalRootBlobs,
                     blobStore().blobContainer(indicesPath()).children(OperationPurpose.SNAPSHOT),
-                    safeRepositoryData(repositoryDataGeneration, originalRootBlobs)
+                    originalRepositoryData
                 );
             }));
         }
@@ -1005,69 +1018,77 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         void runDelete(SnapshotDeleteListener listener) {
             if (useShardGenerations) {
-                // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
-                final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =
-                    new ListenableFuture<>();
-                writeUpdatedShardMetaDataAndComputeDeletes(writeShardMetaDataAndComputeDeletesStep);
-                // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
-                // 1. Remove the snapshots from the list of existing snapshots
-                // 2. Update the index shard generations of all updated shard folders
-                //
-                // Note: If we fail updating any of the individual shard paths, none of them are changed since the newly created
-                // index-${gen_uuid} will not be referenced by the existing RepositoryData and new RepositoryData is only
-                // written if all shard paths have been successfully updated.
-                final ListenableFuture<RepositoryData> writeUpdatedRepoDataStep = new ListenableFuture<>();
-                writeShardMetaDataAndComputeDeletesStep.addListener(ActionListener.wrap(shardDeleteResults -> {
-                    final ShardGenerations.Builder builder = ShardGenerations.builder();
-                    for (ShardSnapshotMetaDeleteResult newGen : shardDeleteResults) {
-                        builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
-                    }
-                    final RepositoryData newRepositoryData = originalRepositoryData.removeSnapshots(snapshotIds, builder.build());
-                    writeIndexGen(
-                        newRepositoryData,
-                        originalRepositoryDataGeneration,
-                        repositoryFormatIndexVersion,
-                        Function.identity(),
-                        ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
-                    );
-                }, listener::onFailure));
-                // Once we have updated the repository, run the clean-ups
-                writeUpdatedRepoDataStep.addListener(ActionListener.wrap(newRepositoryData -> {
-                    listener.onRepositoryDataWritten(newRepositoryData);
-                    // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                    try (var refs = new RefCountingRunnable(listener::onDone)) {
-                        cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
-                        cleanupUnlinkedShardLevelBlobs(writeShardMetaDataAndComputeDeletesStep.result(), refs.acquireListener());
-                    }
-                }, listener::onFailure));
+                runWithUniqueShardMetadataNaming(listener);
             } else {
-                // Write the new repository data first (with the removed snapshot), using no shard generations
+                runWithLegacyNumericShardMetadataNaming(wrapWithWeakConsistencyProtection(listener));
+            }
+        }
+
+        private void runWithUniqueShardMetadataNaming(SnapshotDeleteListener listener) {
+            // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
+            final ListenableFuture<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep =
+                new ListenableFuture<>();
+            writeUpdatedShardMetaDataAndComputeDeletes(writeShardMetaDataAndComputeDeletesStep);
+            // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
+            // 1. Remove the snapshots from the list of existing snapshots
+            // 2. Update the index shard generations of all updated shard folders
+            //
+            // Note: If we fail updating any of the individual shard paths, none of them are changed since the newly created
+            // index-${gen_uuid} will not be referenced by the existing RepositoryData and new RepositoryData is only
+            // written if all shard paths have been successfully updated.
+            final ListenableFuture<RepositoryData> writeUpdatedRepoDataStep = new ListenableFuture<>();
+            writeShardMetaDataAndComputeDeletesStep.addListener(ActionListener.wrap(shardDeleteResults -> {
+                final ShardGenerations.Builder builder = ShardGenerations.builder();
+                for (ShardSnapshotMetaDeleteResult newGen : shardDeleteResults) {
+                    builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
+                }
+                final RepositoryData newRepositoryData = originalRepositoryData.removeSnapshots(snapshotIds, builder.build());
                 writeIndexGen(
-                    originalRepositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY),
+                    newRepositoryData,
                     originalRepositoryDataGeneration,
                     repositoryFormatIndexVersion,
                     Function.identity(),
-                    ActionListener.wrap(newRepositoryData -> {
-                        try (var refs = new RefCountingRunnable(() -> {
-                            listener.onRepositoryDataWritten(newRepositoryData);
-                            listener.onDone();
-                        })) {
-                            // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                            cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
-
-                            // writeIndexGen finishes on master-service thread so must fork here.
-                            snapshotExecutor.execute(
-                                ActionRunnable.wrap(
-                                    refs.acquireListener(),
-                                    l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
-                                        l0.delegateFailure((l, shardDeleteResults) -> cleanupUnlinkedShardLevelBlobs(shardDeleteResults, l))
-                                    )
-                                )
-                            );
-                        }
-                    }, listener::onFailure)
+                    ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
                 );
-            }
+            }, listener::onFailure));
+            // Once we have updated the repository, run the clean-ups
+            writeUpdatedRepoDataStep.addListener(ActionListener.wrap(newRepositoryData -> {
+                listener.onRepositoryDataWritten(newRepositoryData);
+                // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
+                try (var refs = new RefCountingRunnable(listener::onDone)) {
+                    cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
+                    cleanupUnlinkedShardLevelBlobs(writeShardMetaDataAndComputeDeletesStep.result(), refs.acquireListener());
+                }
+            }, listener::onFailure));
+        }
+
+        private void runWithLegacyNumericShardMetadataNaming(SnapshotDeleteListener listener) {
+            // Write the new repository data first (with the removed snapshot), using no shard generations
+            writeIndexGen(
+                originalRepositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY),
+                originalRepositoryDataGeneration,
+                repositoryFormatIndexVersion,
+                Function.identity(),
+                ActionListener.wrap(newRepositoryData -> {
+                    try (var refs = new RefCountingRunnable(() -> {
+                        listener.onRepositoryDataWritten(newRepositoryData);
+                        listener.onDone();
+                    })) {
+                        // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
+                        cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener().map(ignored -> null));
+
+                        // writeIndexGen finishes on master-service thread so must fork here.
+                        snapshotExecutor.execute(
+                            ActionRunnable.wrap(
+                                refs.acquireListener(),
+                                l0 -> writeUpdatedShardMetaDataAndComputeDeletes(
+                                    l0.delegateFailure((l, shardDeleteResults) -> cleanupUnlinkedShardLevelBlobs(shardDeleteResults, l))
+                                )
+                            )
+                        );
+                    }
+                }, listener::onFailure)
+            );
         }
 
         void runCleanup(ActionListener<RepositoryCleanupResult> listener) {

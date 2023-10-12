@@ -1141,7 +1141,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
 
             for (IndexId indexId : indices) {
-                new IndexSnapshotsDeletion(indexId).writeUpdatedShardMetaDataAndComputeDeletes(deleteIndexMetadataListener);
+                new IndexSnapshotsDeletion(indexId).run(deleteIndexMetadataListener);
             }
         }
 
@@ -1156,9 +1156,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 this.snapshotsWithIndex = Set.copyOf(originalRepositoryData.getSnapshots(indexId));
             }
 
-            void writeUpdatedShardMetaDataAndComputeDeletes(
-                ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetadataListener
-            ) {
+            void run(ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetadataListener) {
                 final Collection<String> indexMetaGenerations = snapshotIds.stream()
                     .filter(snapshotsWithIndex::contains)
                     .map(id -> originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(id, indexId))

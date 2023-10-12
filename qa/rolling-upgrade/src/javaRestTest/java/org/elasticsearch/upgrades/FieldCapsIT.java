@@ -272,18 +272,20 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     @SuppressWarnings("unchecked")
     // Returns a client connected to one of the upgraded nodes.
     private RestClient getUpgradedNodeClient() throws IOException {
+        // TODO[lor]: review this after we moved NodeInfo to qualified ids (Build.current().version())
+        var currentVersion = Build.current().version().replace("-SNAPSHOT", "");
         for (HttpHost host : getClusterHosts()) {
             RestClient client = RestClient.builder(host).build();
             Request nodesRequest = new Request("GET", "_nodes/_local/_none");
             Map<String, ?> nodeMap = (Map<String, ?>) entityAsMap(client.performRequest(nodesRequest)).get("nodes");
             Map<String, ?> nameMap = (Map<String, ?>) nodeMap.values().iterator().next();
             String version = (String) nameMap.get("version");
-            if (version.equals(Build.current().version())) {
+            if (version.replace("-SNAPSHOT", "").equals(currentVersion)) {
                 return client;
             }
             client.close();
         }
-        throw new IllegalStateException("Couldn't find node on version " + Build.current().version());
+        throw new IllegalStateException("Couldn't find node on version " + currentVersion);
     }
 
     // Test field type filtering on mixed cluster

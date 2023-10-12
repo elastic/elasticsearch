@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class InstrumentsConcurrencyTests extends ESTestCase {
+public class MeterRegistryRegistrarConcurrencyTests extends ESTestCase {
     private final String name = "name";
     private final String description = "desc";
     private final String unit = "kg";
@@ -91,26 +91,26 @@ public class InstrumentsConcurrencyTests extends ESTestCase {
     }
 
     public void testLockingWhenRegistering() throws Exception {
-        Instruments instruments = new Instruments(lockingMeter);
+        APMMeterRegistry meterRegistrar = new APMMeterRegistry(lockingMeter);
 
-        var registerThread = new Thread(() -> instruments.registerLongCounter(name, description, unit));
+        var registerThread = new Thread(() -> meterRegistrar.registerLongCounter(name, description, unit));
         // registerThread has a countDown latch that is simulating a long-running registration
         registerThread.start();
         buildLatch.await(); // wait for registerThread to hold the lock
 
-        var setProviderThread = new Thread(() -> instruments.setProvider(noopMeter));
+        var setProviderThread = new Thread(() -> meterRegistrar.setProvider(noopMeter));
         // a setProviderThread will attempt to override a meter, but will wait to acquireLock
         setProviderThread.start();
 
         // assert that a thread is waiting for a lock during long-running registration
         assertBusy(() -> assertThat(setProviderThread.getState(), equalTo(Thread.State.WAITING)));
         // assert that the old lockingMeter is still in place
-        assertBusy(() -> assertThat(instruments.getMeter(), sameInstance(lockingMeter)));
+        assertBusy(() -> assertThat(meterRegistrar.getMeter(), sameInstance(lockingMeter)));
 
         // finish long-running registration
         registerLatch.countDown();
         // assert that a meter was overriden
-        assertBusy(() -> assertThat(instruments.getMeter(), sameInstance(lockingMeter)));
+        assertBusy(() -> assertThat(meterRegistrar.getMeter(), sameInstance(lockingMeter)));
 
     }
 }

@@ -11,7 +11,7 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -29,7 +29,7 @@ public class TestThreadPool extends ThreadPool {
     }
 
     public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
-        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), Meter.NOOP, customBuilders);
+        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), MeterRegistry.NOOP, customBuilders);
     }
 
     @Override

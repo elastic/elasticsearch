@@ -18,7 +18,7 @@ import java.util.function.Supplier;
  * only be registered once.
  * TODO(stu): describe name, unit and description
  */
-public interface Meter {
+public interface MeterRegistry {
     /**
      * Register a {@link DoubleCounter}.  The returned object may be reused.
      * @param name name of the counter
@@ -178,7 +178,7 @@ public interface Meter {
     /**
      * Noop implementation for tests
      */
-    Meter NOOP = new Meter() {
+    MeterRegistry NOOP = new MeterRegistry() {
         @Override
         public DoubleCounter registerDoubleCounter(String name, String description, String unit) {
             return DoubleCounter.NOOP;

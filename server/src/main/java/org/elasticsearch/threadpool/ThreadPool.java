@@ -28,7 +28,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -180,7 +180,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     );
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public ThreadPool(final Settings settings, Meter meter, final ExecutorBuilder<?>... customBuilders) {
+    public ThreadPool(final Settings settings, MeterRegistry meter, final ExecutorBuilder<?>... customBuilders) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
@@ -323,7 +323,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         this.cachedTimeThread.start();
     }
 
-    private static void setupMetrics(Meter meter, String name, ExecutorHolder holder) {
+    private static void setupMetrics(MeterRegistry meter, String name, ExecutorHolder holder) {
         // TODO(stu): do we want to save the gauge refs to close them?
         logger.warn("STU, trying to add metric for [" + name + "]");
         Map<String, Object> at = Map.of("author", "stu");

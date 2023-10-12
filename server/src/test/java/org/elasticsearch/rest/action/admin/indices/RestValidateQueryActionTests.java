@@ -27,7 +27,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -61,7 +61,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         new NoneCircuitBreakerService(),
         usageService,
         Tracer.NOOP,
-        Meter.NOOP
+        MeterRegistry.NOOP
     );
     private RestValidateQueryAction action = new RestValidateQueryAction();
 

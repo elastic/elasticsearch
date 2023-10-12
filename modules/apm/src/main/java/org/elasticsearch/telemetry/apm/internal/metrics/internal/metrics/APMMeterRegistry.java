@@ -24,6 +24,7 @@ import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongGaugeObserver;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.List;
 import java.util.Map;
@@ -33,11 +34,11 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
- * Container for registering and fetching instruments by type and name.
+ * Container for registering and fetching meterRegistrar by type and name.
  * Instrument names must be unique for a given type on registration.
- * {@link #setProvider(Meter)} is used to change the provider for all existing instruments.
+ * {@link #setProvider(Meter)} is used to change the provider for all existing meterRegistrar.
  */
-public class Instruments {
+public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
     private final Registrar<DoubleUpDownCounterAdapter> doubleUpDownCounters = new Registrar<>();
     private final Registrar<DoubleGaugeAdapter> doubleGauges = new Registrar<>();
@@ -51,7 +52,7 @@ public class Instruments {
 
     private final Meter meter;
 
-    public Instruments(Meter meter) {
+    public APMMeterRegistry(Meter meter) {
         this.meter = meter;
     }
 

@@ -451,7 +451,7 @@ public class Node implements Closeable {
 
             final ThreadPool threadPool = new ThreadPool(
                 settings,
-                telemetryProvider.getMeter(),
+                telemetryProvider.getMeterRegistry(),
                 executorBuilders.toArray(new ExecutorBuilder<?>[0])
             );
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
@@ -834,7 +834,7 @@ public class Node implements Closeable {
                 clusterService,
                 reservedStateHandlers,
                 pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
-                telemetryProvider.getMeter()
+                telemetryProvider.getMeterRegistry()
             );
             modules.add(actionModule);
 

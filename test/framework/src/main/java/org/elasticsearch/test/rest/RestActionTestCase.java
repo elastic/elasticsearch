@@ -17,7 +17,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -47,7 +47,7 @@ public abstract class RestActionTestCase extends ESTestCase {
             new NoneCircuitBreakerService(),
             new UsageService(),
             Tracer.NOOP,
-            Meter.NOOP
+            MeterRegistry.NOOP
         );
     }
 

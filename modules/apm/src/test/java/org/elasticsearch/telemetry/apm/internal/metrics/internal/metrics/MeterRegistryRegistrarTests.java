@@ -16,7 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class InstrumentsTests extends ESTestCase {
+public class MeterRegistryRegistrarTests extends ESTestCase {
     Meter noopMeter = OpenTelemetry.noop().getMeter("noop");
     Meter someOtherMeter = OpenTelemetry.noop().getMeter("xyz");
     String name = "name";
@@ -24,54 +24,54 @@ public class InstrumentsTests extends ESTestCase {
     String unit = "kg";
 
     public void testRegistrationAndLookup() {
-        Instruments instruments = new Instruments(noopMeter);
+        APMMeterRegistry meterRegistrar = new APMMeterRegistry(noopMeter);
         {
-            var registered = instruments.registerDoubleCounter(name, description, unit);
-            var lookedUp = instruments.getDoubleCounter(name);
+            var registered = meterRegistrar.registerDoubleCounter(name, description, unit);
+            var lookedUp = meterRegistrar.getDoubleCounter(name);
             assertThat(registered, sameInstance(lookedUp));
         }
         {
-            var registered = instruments.registerDoubleUpDownCounter(name, description, unit);
-            var lookedUp = instruments.getDoubleUpDownCounter(name);
+            var registered = meterRegistrar.registerDoubleUpDownCounter(name, description, unit);
+            var lookedUp = meterRegistrar.getDoubleUpDownCounter(name);
             assertThat(registered, sameInstance(lookedUp));
         }
         {
-            var registered = instruments.registerDoubleGauge(name, description, unit);
-            var lookedUp = instruments.getDoubleGauge(name);
+            var registered = meterRegistrar.registerDoubleGauge(name, description, unit);
+            var lookedUp = meterRegistrar.getDoubleGauge(name);
             assertThat(registered, sameInstance(lookedUp));
         }
         {
-            var registered = instruments.registerDoubleHistogram(name, description, unit);
-            var lookedUp = instruments.getDoubleHistogram(name);
+            var registered = meterRegistrar.registerDoubleHistogram(name, description, unit);
+            var lookedUp = meterRegistrar.getDoubleHistogram(name);
             assertThat(registered, sameInstance(lookedUp));
         }
         {
-            var registered = instruments.registerLongCounter(name, description, unit);
-            var lookedUp = instruments.getLongCounter(name);
+            var registered = meterRegistrar.registerLongCounter(name, description, unit);
+            var lookedUp = meterRegistrar.getLongCounter(name);
             assertThat(registered, sameInstance(lookedUp));
         }
         {
-            var registered = instruments.registerLongUpDownCounter(name, description, unit);
-            var lookedUp = instruments.getLongUpDownCounter(name);
+            var registered = meterRegistrar.registerLongUpDownCounter(name, description, unit);
+            var lookedUp = meterRegistrar.getLongUpDownCounter(name);
             assertThat(registered, sameInstance(lookedUp));
         }
         {
-            var registered = instruments.registerLongGauge(name, description, unit);
-            var lookedUp = instruments.getLongGauge(name);
+            var registered = meterRegistrar.registerLongGauge(name, description, unit);
+            var lookedUp = meterRegistrar.getLongGauge(name);
             assertThat(registered, sameInstance(lookedUp));
         }
         {
-            var registered = instruments.registerLongHistogram(name, description, unit);
-            var lookedUp = instruments.getLongHistogram(name);
+            var registered = meterRegistrar.registerLongHistogram(name, description, unit);
+            var lookedUp = meterRegistrar.getLongHistogram(name);
             assertThat(registered, sameInstance(lookedUp));
         }
     }
 
     public void testNameValidation() {
-        Instruments instruments = new Instruments(noopMeter);
+        APMMeterRegistry meterRegistrar = new APMMeterRegistry(noopMeter);
 
-        instruments.registerLongHistogram(name, description, unit);
-        var e = expectThrows(IllegalStateException.class, () -> instruments.registerLongHistogram(name, description, unit));
+        meterRegistrar.registerLongHistogram(name, description, unit);
+        var e = expectThrows(IllegalStateException.class, () -> meterRegistrar.registerLongHistogram(name, description, unit));
         assertThat(e.getMessage(), equalTo("LongHistogramAdapter[name] already registered"));
     }
 }

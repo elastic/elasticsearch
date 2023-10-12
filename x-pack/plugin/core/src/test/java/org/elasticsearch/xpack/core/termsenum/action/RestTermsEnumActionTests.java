@@ -22,7 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -59,7 +59,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
         new NoneCircuitBreakerService(),
         usageService,
         Tracer.NOOP,
-        Meter.NOOP
+        MeterRegistry.NOOP
     );
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 

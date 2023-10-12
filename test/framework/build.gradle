@@ -10,6 +10,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
+def otelVersion = '1.17.0'
+
 dependencies {
   api project(":client:rest")
   api project(':modules:transport-netty4')
@@ -32,6 +34,11 @@ dependencies {
   api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+
+  implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
+  implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
+  implementation "io.opentelemetry:opentelemetry-semconv:${otelVersion}-alpha"
+  runtimeOnly    "co.elastic.apm:elastic-apm-agent:1.43.0"
 }
 
 sourceSets {

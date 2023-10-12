@@ -460,7 +460,7 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
@@ -529,7 +529,7 @@ public class ActionModule extends AbstractModule {
         ClusterService clusterService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
         RestExtension restExtension,
-        Meter meter
+        MeterRegistry meter
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

@@ -2019,7 +2019,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Version minVersion = null;
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
+            Version nodeVersion = parseLegacyVersion((String) ((Map<String, Object>) node.getValue()).get("version"));
             if (minVersion == null || minVersion.after(nodeVersion)) {
                 minVersion = nodeVersion;
             }
@@ -2045,7 +2045,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
                 ? IndexVersion.fromId(Integer.parseInt(versionStr))
-                : IndexVersion.fromId(Version.fromString((String) nodeData.get("version")).id);
+                : IndexVersion.fromId(parseLegacyVersion((String) nodeData.get("version")).id);
             if (minVersion == null || minVersion.after(indexVersion)) {
                 minVersion = indexVersion;
             }

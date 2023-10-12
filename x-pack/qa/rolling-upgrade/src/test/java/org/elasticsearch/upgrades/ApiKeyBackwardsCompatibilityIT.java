@@ -54,7 +54,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testCreatingAndUpdatingApiKeys() throws Exception {
         assumeTrue(
             "The remote_indices for API Keys are not supported before version " + API_KEY_SUPPORT_REMOTE_INDICES_VERSION,
-            UPGRADE_FROM_VERSION.before(API_KEY_SUPPORT_REMOTE_INDICES_VERSION)
+            isOriginalClusterVersionAtLeast(API_KEY_SUPPORT_REMOTE_INDICES_VERSION) == false
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -183,7 +183,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "role_descriptors": %s
             }""", name, roles);
         // Grant API did not exist before 7.7.0
-        final boolean grantApiKey = randomBoolean() && UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_7_0);
+        final boolean grantApiKey = randomBoolean() && isOriginalClusterVersionAtLeast(Version.V_7_7_0);
         if (grantApiKey) {
             createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
             createApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
@@ -220,16 +220,16 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private boolean isUpdateApiSupported(RestClient client) {
         return switch (CLUSTER_TYPE) {
-            case OLD -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0); // Update API was introduced in 8.4.0.
-            case MIXED -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0) || client == newVersionClient;
+            case OLD -> isOriginalClusterVersionAtLeast(Version.V_8_4_0); // Update API was introduced in 8.4.0.
+            case MIXED -> isOriginalClusterVersionAtLeast(Version.V_8_4_0) || client == newVersionClient;
             case UPGRADED -> true;
         };
     }
 
     private boolean isBulkUpdateApiSupported(RestClient client) {
         return switch (CLUSTER_TYPE) {
-            case OLD -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_5_0); // Bulk update API was introduced in 8.5.0.
-            case MIXED -> UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_5_0) || client == newVersionClient;
+            case OLD -> isOriginalClusterVersionAtLeast(Version.V_8_5_0); // Bulk update API was introduced in 8.5.0.
+            case MIXED -> isOriginalClusterVersionAtLeast(Version.V_8_5_0) || client == newVersionClient;
             case UPGRADED -> true;
         };
     }

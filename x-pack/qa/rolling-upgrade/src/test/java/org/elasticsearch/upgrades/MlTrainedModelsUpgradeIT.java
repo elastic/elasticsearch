@@ -57,7 +57,10 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelInference() throws Exception {
-        assumeTrue("We should only test if old cluster is after trained models we GA", UPGRADE_FROM_VERSION.after(Version.V_7_13_0));
+        assumeTrue(
+            "We should only test if old cluster is after trained models went GA",
+            isOriginalClusterVersionAtLeast(Version.V_7_13_1)
+        );
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 createIndexWithName(INDEX_NAME);

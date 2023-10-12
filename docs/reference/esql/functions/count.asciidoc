@@ -1,3 +1,4 @@
+[discrete]
 [[esql-agg-count]]
 === `COUNT`
 Counts field values.

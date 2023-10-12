@@ -1,3 +1,4 @@
+[discrete]
 [[esql-date_parse]]
 === `DATE_PARSE`
 Converts a string to a date, in the provided format. If no format

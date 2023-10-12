@@ -1,7 +1,7 @@
 [[behavioral-analytics-api]]
-=== Behavioral Analytics APIs
+=== Behavioral Analytics API overview
 ++++
-<titleabbrev>APIs</titleabbrev>
+<titleabbrev>API overview</titleabbrev>
 ++++
 
 This page outlines all the APIs available for behavioral analytics and links to their documentation.

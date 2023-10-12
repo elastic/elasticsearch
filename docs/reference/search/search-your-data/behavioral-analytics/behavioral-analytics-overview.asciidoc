@@ -1,5 +1,5 @@
 [[behavioral-analytics-overview]]
-== Behavioral Analytics
+== Search Analytics
 
 Behavioral Analytics is an analytics event collection platform introduced to Elastic in version *8.7.0*.
 Use these tools to analyze your users' searching and clicking behavior.
@@ -30,7 +30,7 @@ Analytics are available to all Elastic Cloud users.
 Analytics are also available to *self-managed* deployments that satisfy subscription requirements.
 View the requirements for this feature under the *Elastic Search* section of the https://www.elastic.co/subscriptions[Elastic Stack subscriptions^] page.
 
-Your Elastic deployment must include the {es}, {kib}, and Enterprise Search services.
+Your Elastic deployment must include the {es} and {kib}services.
 
 [discrete]
 [[behavioral-analytics-overview-docs]]
@@ -39,7 +39,7 @@ Your Elastic deployment must include the {es}, {kib}, and Enterprise Search serv
 The following documentation is available in the {es} docs:
 
 * <<behavioral-analytics-start>>
-* <<behavioral-analytics-apis>>
+* <<behavioral-analytics-api>>
 * <<behavioral-analytics-cors>>
 * <<behavioral-analytics-event>>
 * <<behavioral-analytics-event-reference>>

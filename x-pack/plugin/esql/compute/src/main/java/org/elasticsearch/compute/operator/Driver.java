@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
@@ -252,9 +253,15 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    public static void start(Executor executor, Driver driver, int maxIterations, ActionListener<Void> listener) {
+    public static void start(
+        ThreadContext threadContext,
+        Executor executor,
+        Driver driver,
+        int maxIterations,
+        ActionListener<Void> listener
+    ) {
         driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
-        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
+        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, new StoredThreadContext(threadContext), executor, driver, listener);
     }
 
     // Drains all active operators and closes them.
@@ -274,17 +281,27 @@ public class Driver implements Releasable, Describable {
         Releasables.closeWhileHandlingException(releasable);
     }
 
-    private static void schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver, ActionListener<Void> listener) {
+    private static void schedule(
+        TimeValue maxTime,
+        int maxIterations,
+        StoredThreadContext threadContext,
+        Executor executor,
+        Driver driver,
+        ActionListener<Void> listener
+    ) {
         executor.execute(new AbstractRunnable() {
+
             @Override
             protected void doRun() {
+                threadContext.restoreContext();
                 if (driver.isFinished()) {
                     listener.onResponse(null);
                     return;
                 }
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
+                threadContext.saveContext();
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, executor, driver, listener);
+                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {
                     synchronized (driver) {
                         if (driver.isCancelled() == false) {
@@ -292,13 +309,17 @@ public class Driver implements Releasable, Describable {
                         }
                     }
                     fut.addListener(
-                        ActionListener.wrap(ignored -> schedule(maxTime, maxIterations, executor, driver, listener), this::onFailure)
+                        ActionListener.wrap(
+                            ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener),
+                            this::onFailure
+                        )
                     );
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
+                threadContext.restoreContext();
                 driver.drainAndCloseOperators(e);
                 listener.onFailure(e);
             }
@@ -353,5 +374,23 @@ public class Driver implements Releasable, Describable {
             status,
             activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
         );
+    }
+
+    private static class StoredThreadContext {
+        private final ThreadContext threadContext;
+        private ThreadContext.StoredContext storedContext;
+
+        StoredThreadContext(ThreadContext threadContext) {
+            this.threadContext = threadContext;
+            saveContext();
+        }
+
+        void restoreContext() {
+            storedContext.restore();
+        }
+
+        void saveContext() {
+            storedContext = threadContext.newStoredContext();
+        }
     }
 }

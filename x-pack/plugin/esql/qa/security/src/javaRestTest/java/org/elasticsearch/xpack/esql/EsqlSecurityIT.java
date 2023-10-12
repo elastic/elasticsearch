@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlSecurityIT extends ESRestTestCase {
@@ -153,7 +154,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 client().performRequest(indexDoc);
             }
             refresh("test-enrich");
-            for (String user : List.of("user1", "user4")) {
+            for (String user : List.of("user4")) {
                 Response resp = runESQLCommand(
                     user,
                     "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
@@ -164,15 +165,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     equalTo(List.of(List.of(2.75, "Disturbed"), List.of(10.5, "Eagles"), List.of(8.25, "Linkin Park")))
                 );
             }
-
-            ResponseException resp = expectThrows(
-                ResponseException.class,
-                () -> runESQLCommand(
-                    "user5",
-                    "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
-                )
-            );
-            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            for (String user : List.of("user1", "user2", "user3", "user5")) {
+                ResponseException resp = expectThrows(
+                    ResponseException.class,
+                    () -> runESQLCommand(
+                        user,
+                        "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
+                    )
+                );
+                // ESQL verifier treats forbidden indices as unknown indices
+                assertThat(
+                    resp.getResponse().getStatusLine().getStatusCode(),
+                    either(equalTo(HttpStatus.SC_FORBIDDEN)).or(equalTo(HttpStatus.SC_BAD_REQUEST))
+                );
+            }
         } finally {
             removeEnrichPolicy();
         }

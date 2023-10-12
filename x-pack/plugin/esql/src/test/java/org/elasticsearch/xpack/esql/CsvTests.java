@@ -381,7 +381,13 @@ public class CsvTests extends ESTestCase {
             DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
+                    Driver.start(
+                        threadPool.getThreadContext(),
+                        threadPool.executor(ESQL_THREAD_POOL_NAME),
+                        driver,
+                        between(1, 1000),
+                        driverListener
+                    );
                 }
             };
             PlainActionFuture<ActualResults> future = new PlainActionFuture<>();

@@ -183,7 +183,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
             this.listExecutedPipelines = in.readBoolean();
             if (listExecutedPipelines) {
-                this.executedPipelines = new ArrayList<>(in.readCollectionAsList(StreamInput::readString));
+                List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
+                this.executedPipelines = possiblyImmutableExecutedPipelines == null
+                    ? null
+                    : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
         }
     }
@@ -749,7 +752,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
             out.writeBoolean(listExecutedPipelines);
             if (listExecutedPipelines) {
-                out.writeCollection(executedPipelines, StreamOutput::writeString);
+                out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
             }
         }
     }

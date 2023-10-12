@@ -237,6 +237,12 @@ teardown:
               _index: test_index
               _id:    test_id2
           - f1: v2
+          - index:
+              _index: test_index
+              _id:    test_id2
+              pipeline: fake_pipeline
+          - f1: v2
 
   - match: { items.0.index.executed_pipelines: ["pipeline1"] }
   - match: { items.1.index.executed_pipelines: [] }
+  - match: { items.2.index.executed_pipelines: null }

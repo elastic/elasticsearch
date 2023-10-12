@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
@@ -29,6 +30,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -76,7 +78,14 @@ public class ShardSizeStatsReader {
      */
     @Nullable
     public ShardSize getShardSize(ShardId shardId, TimeValue boostWindowInterval) {
-        return getShardSize(indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id()), boostWindowInterval);
+        var indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService != null) {
+            var indexShard = indexService.getShardOrNull(shardId.id());
+            if (indexShard != null) {
+                return getShardSize(indexShard, boostWindowInterval);
+            }
+        }
+        return null;
     }
 
     @Nullable
@@ -101,14 +110,16 @@ public class ShardSizeStatsReader {
                     }
                 }
                 long primaryTerm = indexShard.getOperationPrimaryTerm();
-                long generation = indexShard.getEngineOrNull() != null
-                    ? indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
-                    : 0L;
+                final var engine = indexShard.getEngineOrNull();
+                long generation = engine != null ? engine.getLastCommittedSegmentInfos().getGeneration() : 0L;
                 return new ShardSize(interactiveSize, nonInteractiveSize, new PrimaryTermAndGeneration(primaryTerm, generation));
             } catch (IOException e) {
                 logger.warn("Failed to read shard size stats for {}", indexShard.shardId(), e);
                 return null;
             }
+        } catch (AlreadyClosedException | IllegalIndexShardStateException e) {
+            logger.debug("{} failed to acquire searcher for shard size stats (shard is closing)", indexShard.shardId(), e);
+            return null;
         } catch (Exception e) {
             logger.warn("Failed to acquire searcher for {}", indexShard.shardId(), e);
             return null;

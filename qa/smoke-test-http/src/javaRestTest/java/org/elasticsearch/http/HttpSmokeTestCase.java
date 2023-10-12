@@ -18,8 +18,7 @@ import org.elasticsearch.transport.netty4.Netty4Plugin;
 import java.util.Collection;
 import java.util.List;
 
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.oneOf;
 
 public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
@@ -48,6 +47,6 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     }
 
     public static void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), oneOf(200, 201);
+        assertThat(response.getStatusLine().getStatusCode(), oneOf(200, 201));
     }
 }

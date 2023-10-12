@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Arrays;
 import java.util.List;
@@ -167,6 +168,6 @@ public class ReindexValidator {
         // after evaluation date-math `expression` should not contain ':' symbol
         // otherwise if `expression` is legit remote name, ':' symbol remains
         return IndexNameExpressionResolver.resolveDateMathExpression(expression)
-            .contains(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
+            .contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
     }
 }

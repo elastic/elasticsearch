@@ -48,6 +48,6 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     }
 
     public static void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+        assertThat(response.getStatusLine().getStatusCode(), oneOf(200, 201);
     }
 }

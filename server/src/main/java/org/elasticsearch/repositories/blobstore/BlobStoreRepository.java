@@ -1217,6 +1217,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 private final int shardId;
                 private final Set<SnapshotId> survivingSnapshots;
                 private final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener;
+
+                // Computed at the start of doRun(), after forking, rather than in the constructor. TODO make these local variables perhaps?
                 private BlobContainer shardContainer;
                 private Set<String> originalShardBlobs;
 

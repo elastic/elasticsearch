@@ -129,17 +129,17 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         BlockFactory blockFactory = BlockFactory.getInstance(cranky.getBreaker(CircuitBreaker.REQUEST), bigArrays);
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
 
-        boolean[] driverStarted = new boolean[1];
+        boolean driverStarted = false;
         try {
             Operator operator = simple(bigArrays).get(driverContext);
-            driverStarted[0] = true;
-            List<Page> result = drive(operator, input.iterator(), driverContext);
+            driverStarted = true;
+            drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
-        if (driverStarted[0] == false) {
+        if (driverStarted == false) {
             // if drive hasn't even started then we need to release the input pages
             Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
         }

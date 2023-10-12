@@ -64,6 +64,10 @@ fragment EXPONENT
     : [Ee] [+-]? DIGIT+
     ;
 
+fragment UNDERSCORE
+    : '_'
+    ;
+
 STRING
     : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
     | '"""' (~[\r\n])*? '"""' '"'? '"'?
@@ -127,12 +131,15 @@ PERCENT : '%';
 OPENING_BRACKET : '[' -> pushMode(EXPRESSION), pushMode(EXPRESSION);
 CLOSING_BRACKET : ']' -> popMode, popMode;
 
+fragment UNQUOTED_ID_BODY
+    : (LETTER | DIGIT | DOT | UNDERSCORE)
+    ;
 
 UNQUOTED_IDENTIFIER
-    : LETTER (LETTER | DIGIT | '_')*
+    : LETTER UNQUOTED_ID_BODY*
     // only allow @ at beginning of identifier to keep the option to allow @ as infix operator in the future
     // also, single `_` and `@` characters are not valid identifiers
-    | ('_' | '@') (LETTER | DIGIT | '_')+
+    | (UNDERSCORE | '@') UNQUOTED_ID_BODY+
     ;
 
 QUOTED_IDENTIFIER

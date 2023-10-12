@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -729,6 +730,14 @@ public class StatementParserTests extends ESTestCase {
 
     public void testMissingInputParams() {
         expectError("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1)), "Not enough actual parameters 1");
+    }
+
+    public void testFieldContainingDotsAndNumbers() {
+        LogicalPlan where = processingCommand("where a.b.1m.4321 ");
+        assertThat(where, instanceOf(Filter.class));
+        Filter w = (Filter) where;
+        assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));
+        assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

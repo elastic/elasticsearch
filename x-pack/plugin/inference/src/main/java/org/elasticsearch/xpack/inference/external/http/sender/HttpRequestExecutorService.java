@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
@@ -54,17 +56,25 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final HttpClientContext httpContext;
     private final HttpClient httpClient;
+    private final ThreadPool threadPool;
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, HttpClient httpClient) {
-        this(contextHolder, serviceName, httpClient, null);
+    HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, HttpClient httpClient, ThreadPool threadPool) {
+        this(contextHolder, serviceName, httpClient, threadPool, null);
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, HttpClient httpClient, @Nullable Integer capacity) {
+    HttpRequestExecutorService(
+        ThreadContext contextHolder,
+        String serviceName,
+        HttpClient httpClient,
+        ThreadPool threadPool,
+        @Nullable Integer capacity
+    ) {
         this.contextHolder = Objects.requireNonNull(contextHolder);
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.httpContext = HttpClientContext.create();
 
         if (capacity == null) {
@@ -91,6 +101,7 @@ class HttpRequestExecutorService extends AbstractExecutorService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
+            notifyRequestsOfShutdown();
             terminationLatch.countDown();
         }
     }
@@ -102,6 +113,31 @@ class HttpRequestExecutorService extends AbstractExecutorService {
             logger.error(format("Http executor service [%s] failed to execute request [%s]", serviceName, task), e);
         }
         EsExecutors.rethrowErrors(ThreadContext.unwrap(task));
+    }
+
+    private void notifyRequestsOfShutdown() {
+        try {
+            List<HttpTask> notExecuted = new ArrayList<>();
+            queue.drainTo(notExecuted);
+
+            for (HttpTask task : notExecuted) {
+                rejectTask(task);
+            }
+        } catch (Exception e) {
+            logger.warn(format("Failed to notify tasks of queuing service [%s] shutdown", serviceName));
+        }
+    }
+
+    private void rejectTask(HttpTask task) {
+        try {
+            task.onRejection(
+                new EsRejectedExecutionException(format("Failed to send request, queue service [%s] has shutdown", serviceName), true)
+            );
+        } catch (Exception e) {
+            logger.warn(
+                format("Failed to notify request [%s] for service [%s] of rejection after queuing service shutdown", task, serviceName)
+            );
+        }
     }
 
     public int queueSize() {
@@ -140,10 +176,13 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     /**
      * Send the request at some point in the future.
      * @param request the http request to send
+     * @param timeout the maximum time to wait for this request to complete (failing or successfully). Once the time elapses, the
+     *                listener::onFailure is called with a {@link java.util.concurrent.TimeoutException}. If null, then the request will
+     *                wait forever
      * @param listener an {@link ActionListener<HttpResult>} for the response or failure
      */
-    public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
-        RequestTask task = new RequestTask(request, httpClient, httpContext, listener);
+    public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+        RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(

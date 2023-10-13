@@ -272,9 +272,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /**
      * Initiates a shard recovery and verifies that it's running.
      *
-     * @param INDEX_NAME name of the index
      * @param sourceNode node holding the shard
-     * @param targetNode node recovering the shard
+     * @param targetNode node that will recover the shard
      * @throws Exception
      */
     public void startShardRecovery(String sourceNode, String targetNode) throws Exception {
@@ -739,7 +738,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         // --- Shard recovery.
 
-        startShardRecovery(INDEX_NAME, nodeA, nodeB);
+        startShardRecovery(nodeA, nodeB);
 
         logger.info("--> checking throttling increases on Node A (source node), while Node B (target node) reports no throttling");
         assertBusy(() -> {
@@ -801,7 +800,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         // --- Shard recovery.
 
-        startShardRecovery(INDEX_NAME, nodeA, nodeB);
+        startShardRecovery(nodeA, nodeB);
 
         logger.info("--> checking throttling increases on Node B (target node), while Node A (source node) reports no throttling");
         assertBusy(() -> {

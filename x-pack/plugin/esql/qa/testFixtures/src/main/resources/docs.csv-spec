@@ -450,3 +450,22 @@ emp_no:integer | languages:integer| type:keyword
 10005          | 1                |monolingual    
 // end::case-result[]
 ;
+
+docsCountAll
+// tag::countAll[]
+FROM employees 
+| STATS count = COUNT(*) BY languages 
+| SORT languages DESC
+// end::countAll[]
+;
+
+// tag::countAll-result[]
+count:long | languages:integer
+10         |null
+21         |5 
+18         |4
+17         |3
+19         |2
+15         |1
+// end::countAll-result[]
+;

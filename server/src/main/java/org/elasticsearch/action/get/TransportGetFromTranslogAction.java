@@ -10,6 +10,7 @@ package org.elasticsearch.action.get;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,7 +83,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 }
                 segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
             }
-            return new Response(result, segmentGeneration);
+            return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });
     }
 
@@ -140,23 +142,29 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
     public static class Response extends ActionResponse {
         @Nullable
         private final GetResult getResult;
+        private final long shardPrimaryTerm;
         private final long segmentGeneration;
 
-        public Response(GetResult getResult, long segmentGeneration) {
+        public Response(GetResult getResult, long shardPrimaryTerm, long segmentGeneration) {
             this.getResult = getResult;
             this.segmentGeneration = segmentGeneration;
+            this.shardPrimaryTerm = shardPrimaryTerm;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             segmentGeneration = in.readZLong();
             getResult = in.readOptionalWriteable(GetResult::new);
+            shardPrimaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED) ? in.readVLong() : 0L;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
             out.writeOptionalWriteable(getResult);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED)) {
+                out.writeVLong(shardPrimaryTerm);
+            }
         }
 
         @Nullable
@@ -173,22 +181,33 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             return segmentGeneration;
         }
 
+        public long getShardPrimaryTerm() {
+            return shardPrimaryTerm;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o instanceof Response == false) return false;
-            Response other = (Response) o;
-            return segmentGeneration == other.segmentGeneration && Objects.equals(getResult, other.getResult);
+            Response response = (Response) o;
+            return segmentGeneration == response.segmentGeneration
+                && Objects.equals(getResult, response.getResult)
+                && shardPrimaryTerm == response.shardPrimaryTerm;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(segmentGeneration, getResult);
+            return Objects.hash(segmentGeneration, getResult, shardPrimaryTerm);
         }
 
         @Override
         public String toString() {
-            return "Response{" + "getResult=" + getResult + ", segmentGeneration=" + segmentGeneration + "}";
+            return Strings.format(
+                "Response{getResult=%s, shardPrimaryTerm=%d, segmentGeneration=%d}",
+                getResult,
+                shardPrimaryTerm,
+                segmentGeneration
+            );
         }
     }
 }

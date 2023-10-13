@@ -214,6 +214,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                         } else {
                             assert r.segmentGeneration() > -1L;
                             indexShard.waitForSegmentGeneration(
+                                r.getShardPrimaryTerm(),
                                 r.segmentGeneration(),
                                 listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
                             );

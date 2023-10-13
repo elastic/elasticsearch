@@ -103,7 +103,7 @@ public class TransportWriteActionTests extends ESTestCase {
         indexShard = mock(IndexShard.class);
         location = mock(Translog.Location.class);
         clusterService = createClusterService(threadPool);
-        when(indexShard.refresh(any())).thenReturn(new Engine.RefreshResult(true, 1));
+        when(indexShard.refresh(any())).thenReturn(new Engine.RefreshResult(true, 1, 1));
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(indexShard.getReplicationGroup()).thenReturn(replicationGroup);
         when(replicationGroup.getReplicationTargets()).thenReturn(Collections.emptyList());
@@ -199,7 +199,7 @@ public class TransportWriteActionTests extends ESTestCase {
         verify(indexShard).externalRefresh(eq(PostWriteRefresh.FORCED_REFRESH_AFTER_INDEX), refreshListener.capture());
         verify(indexShard, never()).addRefreshListener(any(), any());
         // Fire the listener manually
-        refreshListener.getValue().onResponse(new Engine.RefreshResult(randomBoolean(), randomNonNegativeLong()));
+        refreshListener.getValue().onResponse(new Engine.RefreshResult(randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong()));
         assertNotNull(listener.response);
         assertNull(listener.failure);
     }

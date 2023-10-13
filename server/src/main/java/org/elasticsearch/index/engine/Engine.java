@@ -2115,7 +2115,7 @@ public abstract class Engine implements Closeable {
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
      */
-    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+    public void addSegmentGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
         throw new UnsupportedOperationException();
     }
 
@@ -2129,13 +2129,14 @@ public abstract class Engine implements Closeable {
      * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
      * contains the generation of the index commit that the reader has opened upon refresh.
      */
-    public record RefreshResult(boolean refreshed, long generation) {
+    public record RefreshResult(boolean refreshed, long primaryTerm, long generation) {
 
         public static final long UNKNOWN_GENERATION = -1L;
+        public static final long UNKNOWN_PRIMARY_TERM = -1L;
         public static final RefreshResult NO_REFRESH = new RefreshResult(false);
 
         public RefreshResult(boolean refreshed) {
-            this(refreshed, UNKNOWN_GENERATION);
+            this(refreshed, UNKNOWN_PRIMARY_TERM, UNKNOWN_GENERATION);
         }
     }
 

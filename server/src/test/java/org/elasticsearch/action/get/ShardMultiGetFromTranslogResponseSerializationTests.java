@@ -28,24 +28,37 @@ public class ShardMultiGetFromTranslogResponseSerializationTests extends Abstrac
 
     @Override
     protected Response createTestInstance() {
-        return new Response(randomMultiGetShardResponse(), randomSegmentGeneration());
+        return new Response(randomMultiGetShardResponse(), randomPrimaryTerm(), randomSegmentGeneration());
     }
 
     @Override
     protected Response mutateInstance(Response instance) throws IOException {
-        return randomBoolean()
-            ? new Response(
+        return switch (randomInt(2)) {
+            case 0 -> new Response(
                 instance.multiGetShardResponse(),
+                instance.shardPrimaryTerm(),
                 randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
-            )
-            : new Response(
+            );
+            case 1 -> new Response(
                 randomValueOtherThan(instance.multiGetShardResponse(), this::randomMultiGetShardResponse),
+                instance.shardPrimaryTerm(),
                 instance.segmentGeneration()
             );
+            case 2 -> new Response(
+                instance.multiGetShardResponse(),
+                randomValueOtherThan(instance.shardPrimaryTerm(), this::randomPrimaryTerm),
+                instance.segmentGeneration()
+            );
+            default -> randomValueOtherThan(instance, this::createTestInstance);
+        };
     }
 
     private long randomSegmentGeneration() {
         return randomBoolean() ? -1L : randomNonNegativeLong();
+    }
+
+    private long randomPrimaryTerm() {
+        return randomNonNegativeLong();
     }
 
     private GetResponse randomGetResponse() {

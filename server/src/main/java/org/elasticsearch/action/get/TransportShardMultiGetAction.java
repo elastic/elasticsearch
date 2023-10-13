@@ -204,6 +204,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                         } else {
                             assert r.segmentGeneration() > -1L;
                             indexShard.waitForSegmentGeneration(
+                                r.shardPrimaryTerm(),
                                 r.segmentGeneration(),
                                 listener.delegateFailureAndWrap(
                                     (ll, aLong) -> getExecutor(request, shardId).execute(

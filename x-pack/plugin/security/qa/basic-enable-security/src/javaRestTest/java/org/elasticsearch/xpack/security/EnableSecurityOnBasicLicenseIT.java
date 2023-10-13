@@ -10,7 +10,6 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -36,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97487")
 public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     private static MutableSettingsProvider clusterSettings = new MutableSettingsProvider() {
         {
@@ -171,7 +170,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void checkSecurityStatus(boolean expectEnabled) throws IOException {

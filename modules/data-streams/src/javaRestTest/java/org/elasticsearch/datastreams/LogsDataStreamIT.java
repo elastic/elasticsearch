@@ -636,7 +636,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     static void waitForLogs(RestClient client) throws Exception {
         assertBusy(() -> {
             try {
-                Request request = new Request("GET", "_index_template/logs");
+                Request request = new Request("GET", "_index_template/logs@template");
                 assertOK(client.performRequest(request));
             } catch (ResponseException e) {
                 fail(e.getMessage());

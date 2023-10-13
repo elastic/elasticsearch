@@ -44,7 +44,7 @@ public class GeoTileBoundedPredicate {
             final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
             // touching tiles are excluded, they need to share at least one interior point
             this.rightX = maxTile.getMinX() == bbox.right() ? maxX : maxX + 1;
-            this.maxY = quantizeLat(maxTile.getMaxY()) ==  quantizeLat(bbox.bottom()) ? maxY : maxY + 1;
+            this.maxY = quantizeLat(maxTile.getMaxY()) == quantizeLat(bbox.bottom()) ? maxY : maxY + 1;
             if (crossesDateline) {
                 this.maxTiles = ((long) tiles + this.rightX - this.leftX) * (this.maxY - this.minY);
             } else {

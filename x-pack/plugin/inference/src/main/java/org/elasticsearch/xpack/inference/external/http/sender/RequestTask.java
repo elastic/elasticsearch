@@ -96,7 +96,7 @@ class RequestTask extends HttpTask {
         try {
             httpClient.send(request, context, notificationListener);
         } catch (IOException e) {
-            logger.error(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);
+            logger.warn(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);
             listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
         }
     }

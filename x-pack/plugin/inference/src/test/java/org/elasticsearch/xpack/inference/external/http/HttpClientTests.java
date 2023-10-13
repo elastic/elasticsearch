@@ -22,8 +22,6 @@ import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -41,13 +39,13 @@ import org.junit.Before;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -246,12 +244,12 @@ public class HttpClientTests extends ESTestCase {
         return new HttpSettings(settings, mockClusterService(settings));
     }
 
-    private static ClusterService mockClusterService(Settings settings) {
-        var clusterService = mock(ClusterService.class);
-
-        var cSettings = new ClusterSettings(settings, new HashSet<>(HttpSettings.getSettings()));
-        when(clusterService.getClusterSettings()).thenReturn(cSettings);
-
-        return clusterService;
-    }
+    // private static ClusterService mockClusterService(Settings settings) {
+    // var clusterService = mock(ClusterService.class);
+    //
+    // var cSettings = new ClusterSettings(settings, new HashSet<>(HttpSettings.getSettings()));
+    // when(clusterService.getClusterSettings()).thenReturn(cSettings);
+    //
+    // return clusterService;
+    // }
 }

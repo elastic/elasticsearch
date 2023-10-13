@@ -68,7 +68,7 @@ public class RequestTaskTests extends ESTestCase {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            var requestTask = new RequestTask(httpPost, httpClient, HttpClientContext.create(), listener);
+            var requestTask = new RequestTask(httpPost, httpClient, HttpClientContext.create(), null, threadPool, listener);
             requestTask.doRun();
             var result = listener.actionGet(TIMEOUT);
 
@@ -90,7 +90,7 @@ public class RequestTaskTests extends ESTestCase {
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-        var requestTask = new RequestTask(httpPost, httpClient, HttpClientContext.create(), listener);
+        var requestTask = new RequestTask(httpPost, httpClient, HttpClientContext.create(), null, threadPool, listener);
         requestTask.doRun();
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

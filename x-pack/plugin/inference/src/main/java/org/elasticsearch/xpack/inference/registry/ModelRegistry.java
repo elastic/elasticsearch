@@ -90,7 +90,7 @@ public class ModelRegistry {
                 return InferenceSecretsIndex.INDEX_NAME;
             }
 
-            logger.error(format("Found invalid index for model [%s] at index [%s]", modelId, hit.getIndex()));
+            logger.warn(format("Found invalid index for model [%s] at index [%s]", modelId, hit.getIndex()));
             throw new IllegalArgumentException(
                 format(
                     "Invalid result while loading model [%s] index: [%s]. Try deleting and reinitializing the service",
@@ -103,7 +103,7 @@ public class ModelRegistry {
         if (mappedHits.containsKey(InferenceIndex.INDEX_NAME) == false
             || mappedHits.containsKey(InferenceSecretsIndex.INDEX_NAME) == false
             || mappedHits.size() > 2) {
-            logger.error(format("Failed to load model [%s], found model parts from index prefixes: [%s]", modelId, mappedHits.keySet()));
+            logger.warn(format("Failed to load model [%s], found model parts from index prefixes: [%s]", modelId, mappedHits.keySet()));
             throw new IllegalStateException(
                 format("Failed to load model, model [%s] is in an invalid state. Try deleting and reinitializing the service", modelId)
             );
@@ -144,7 +144,7 @@ public class ModelRegistry {
             var modelId = model.getConfigurations().getModelId();
 
             if (bulkItemResponses.getItems().length == 0) {
-                logger.error(format("Storing model [%s] failed, no items were received from the bulk response", modelId));
+                logger.warn(format("Storing model [%s] failed, no items were received from the bulk response", modelId));
 
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -181,7 +181,7 @@ public class ModelRegistry {
             );
         }, e -> {
             String errorMessage = format("Failed to store inference model [%s]", model.getConfigurations().getModelId());
-            logger.error(errorMessage, e);
+            logger.warn(errorMessage, e);
             listener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
         });
     }
@@ -189,7 +189,7 @@ public class ModelRegistry {
     private static void logBulkFailures(String modelId, BulkResponse bulkResponse) {
         for (BulkItemResponse item : bulkResponse.getItems()) {
             if (item.isFailed()) {
-                logger.error(
+                logger.warn(
                     format(
                         "Failed to store inference model [%s] index: [%s] bulk failure message [%s]",
                         modelId,

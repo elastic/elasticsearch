@@ -110,7 +110,7 @@ class HttpRequestExecutorService extends AbstractExecutorService {
         try {
             contextHolder.preserveContext(task).run();
         } catch (Exception e) {
-            logger.error(format("Http executor service [%s] failed to execute request [%s]", serviceName, task), e);
+            logger.warn(format("Http executor service [%s] failed to execute request [%s]", serviceName, task), e);
         }
         EsExecutors.rethrowErrors(ThreadContext.unwrap(task));
     }

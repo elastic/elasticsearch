@@ -10,25 +10,33 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class HttpRequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -45,20 +53,20 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testQueueSize_IsEmpty() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class), threadPool);
 
         assertThat(service.queueSize(), is(0));
     }
 
     public void testQueueSize_IsOne() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
-        service.send(mock(HttpRequestBase.class), new PlainActionFuture<>());
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class), threadPool);
+        service.send(mock(HttpRequestBase.class), null, new PlainActionFuture<>());
 
         assertThat(service.queueSize(), is(1));
     }
 
     public void testExecute_ThrowsUnsupported() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class), threadPool);
         var noopTask = mock(RequestTask.class);
 
         var thrownException = expectThrows(UnsupportedOperationException.class, () -> service.execute(noopTask));
@@ -66,13 +74,13 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testIsTerminated_IsFalse() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class), threadPool);
 
         assertFalse(service.isTerminated());
     }
 
     public void testIsTerminated_IsTrue() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class), threadPool);
 
         service.shutdown();
         service.start();
@@ -89,7 +97,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(mockHttpClient).send(any(), any(), any());
 
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mockHttpClient);
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mockHttpClient, threadPool);
 
         Future<?> executorTermination = threadPool.generic().submit(() -> {
             try {
@@ -103,7 +111,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         });
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-        service.send(mock(HttpRequestBase.class), listener);
+        service.send(mock(HttpRequestBase.class), null, listener);
 
         service.start();
 
@@ -118,12 +126,12 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testExecute_AfterShutdown_Throws() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class), threadPool);
 
         service.shutdown();
 
         var listener = new PlainActionFuture<HttpResult>();
-        service.send(mock(HttpRequestBase.class), listener);
+        service.send(mock(HttpRequestBase.class), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -134,11 +142,11 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testExecute_Throws_WhenQueueIsFull() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class), 1);
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class), threadPool, 1);
 
-        service.send(mock(HttpRequestBase.class), new PlainActionFuture<>());
+        service.send(mock(HttpRequestBase.class), null, new PlainActionFuture<>());
         var listener = new PlainActionFuture<HttpResult>();
-        service.send(mock(HttpRequestBase.class), listener);
+        service.send(mock(HttpRequestBase.class), null, listener);
 
         var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -151,7 +159,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     public void testTaskThrowsError_CallsOnFailure() throws Exception {
         var httpClient = mock(HttpClient.class);
 
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), httpClient);
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), httpClient, threadPool);
 
         doAnswer(invocation -> {
             service.shutdown();
@@ -160,7 +168,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
 
-        service.send(mock(HttpRequestBase.class), listener);
+        service.send(mock(HttpRequestBase.class), null, listener);
         service.start();
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -169,7 +177,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testShutdown_AllowsMultipleCalls() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class), threadPool);
 
         service.shutdown();
         service.shutdown();
@@ -178,5 +186,21 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
 
         assertTrue(service.isTerminated());
         assertTrue(service.isShutdown());
+    }
+
+    private static ClusterService mockClusterServiceEmpty() {
+        return mockClusterService(Settings.EMPTY);
+    }
+
+    private static ClusterService mockClusterService(Settings settings) {
+        var clusterService = mock(ClusterService.class);
+
+        var registeredSettings = Stream.concat(HttpClientManager.getSettings().stream(), HttpSettings.getSettings().stream())
+            .collect(Collectors.toSet());
+
+        var cSettings = new ClusterSettings(settings, registeredSettings);
+        when(clusterService.getClusterSettings()).thenReturn(cSettings);
+
+        return clusterService;
     }
 }

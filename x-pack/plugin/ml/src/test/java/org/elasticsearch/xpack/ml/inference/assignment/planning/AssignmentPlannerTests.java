@@ -255,10 +255,10 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testMultipleModelsAndNodesWithSingleSolution() {
-        Node node1 = new Node("n_1", 2*scaleNodeSize(50), 7);
-        Node node2 = new Node("n_2", 2*scaleNodeSize(50), 7);
-        Node node3 = new Node("n_3", 2*scaleNodeSize(50), 2);
-        Node node4 = new Node("n_4", 2*scaleNodeSize(50), 2);
+        Node node1 = new Node("n_1", 2 * scaleNodeSize(50), 7);
+        Node node2 = new Node("n_2", 2 * scaleNodeSize(50), 7);
+        Node node3 = new Node("n_3", 2 * scaleNodeSize(50), 2);
+        Node node4 = new Node("n_4", 2 * scaleNodeSize(50), 2);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 4, Map.of(), 0, 0, 0);
         Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 2, 3, Map.of(), 0, 0, 0);
         Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, 0, 0);
@@ -952,9 +952,36 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Ensure that plan is removing previously allocated models if not enough memory is available
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(700).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 2);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 2, 1, Map.of(), 0, ByteSizeValue.ofMb(400).getBytes(), ByteSizeValue.ofMb(100).getBytes());
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(100).getBytes(), 1, 1, Map.of(), 0, ByteSizeValue.ofMb(400).getBytes(), ByteSizeValue.ofMb(150).getBytes());
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 1, Map.of(), 0, ByteSizeValue.ofMb(250).getBytes(), ByteSizeValue.ofMb(50).getBytes());
+        Deployment deployment1 = new Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            2,
+            1,
+            Map.of(),
+            0,
+            ByteSizeValue.ofMb(400).getBytes(),
+            ByteSizeValue.ofMb(100).getBytes()
+        );
+        Deployment deployment2 = new Deployment(
+            "m_2",
+            ByteSizeValue.ofMb(100).getBytes(),
+            1,
+            1,
+            Map.of(),
+            0,
+            ByteSizeValue.ofMb(400).getBytes(),
+            ByteSizeValue.ofMb(150).getBytes()
+        );
+        Deployment deployment3 = new Deployment(
+            "m_3",
+            ByteSizeValue.ofMb(50).getBytes(),
+            1,
+            1,
+            Map.of(),
+            0,
+            ByteSizeValue.ofMb(250).getBytes(),
+            ByteSizeValue.ofMb(50).getBytes()
+        );
 
         // Create a plan where all deployments are assigned at least once
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))

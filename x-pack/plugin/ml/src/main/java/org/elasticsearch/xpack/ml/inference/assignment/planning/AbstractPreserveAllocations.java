@@ -42,8 +42,7 @@ abstract class AbstractPreserveAllocations {
         }
 
         if (n.availableMemoryBytes() < bytesUsed) {
-            throw new IllegalArgumentException("Node " + n.id()
-            + " has less available memory than required to preserve allocations");
+            throw new IllegalArgumentException("Node " + n.id() + " has less available memory than required to preserve allocations");
         }
 
         return new Node(n.id(), n.availableMemoryBytes() - bytesUsed, n.cores() - coresUsed);
@@ -95,8 +94,7 @@ abstract class AbstractPreserveAllocations {
                         // As the node has all its available memory we need to manually account memory of models with
                         // current allocations.
                         mergedPlanBuilder.accountMemory(m, n, preservedAllocations);
-                    }
-                    else {
+                    } else {
                         preservedAllocations = 0;
                     }
                 }

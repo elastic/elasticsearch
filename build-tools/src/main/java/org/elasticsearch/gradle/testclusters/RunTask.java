@@ -193,8 +193,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 if (apmServerEnabled) {
                     ApmServerBuildService apmServerBuildService = getMockApmServer().get();
                     node.setting("telemetry.metrics.enabled", "true");
-                    node.setting("tracing.apm.enabled", "true");
-                    node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:9999");
+                    node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:"+apmServerBuildService.getPort());
                 }
 
             }

@@ -52,4 +52,8 @@ public abstract class ApmServerBuildService
         logger.info("shutting down apm server");
         mockServer.stop();
     }
+
+    public int getPort() {
+        return mockServer.getPort();
+    }
 }

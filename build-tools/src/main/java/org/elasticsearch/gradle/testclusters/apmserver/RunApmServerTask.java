@@ -44,26 +44,26 @@ public class RunApmServerTask extends DefaultTask implements TestClustersAware {
 
         Runtime.getRuntime().addShutdownHook(new Thread(()->{
             System.out.println("shutdown hook");
-            mockServer.stop();
+//            mockServer.stop();
         } ));
     }
     @TaskAction
-    public void runAndWait()  {
-        try {
+    public void runAndWait() throws IOException {
+//        try {
             mockServer.start();
             //wait here
-            synchronized (this){
-                this.wait();
-            }
-        } catch (IOException e) {
-            System.out.println("io");
-        } catch (InterruptedException e) {
-            System.out.println("interrupted");
-        } finally {
-            System.out.println("stopping");
-
-            mockServer.stop();
-        }
+//            synchronized (this){
+//                this.wait();
+//            }
+//        } catch (IOException e) {
+//            System.out.println("io");
+//        } catch (InterruptedException e) {
+//            System.out.println("interrupted");
+//        } finally {
+//            System.out.println("stopping");
+//
+//            mockServer.stop();
+//        }
     }
 
 

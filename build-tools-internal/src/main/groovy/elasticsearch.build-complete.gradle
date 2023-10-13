@@ -71,6 +71,14 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
         new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath)
           .start()
           .waitFor()
+
+        def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i").start()
+          process.waitFor()
+          println("Output: " + process.text)
+          def artifactUuid = (process.text ?: "").trim()
+          if (artifactUuid) {
+            buildScan.link 'Artifact Upload', "https://buildkite.com/organizations/elastic/pipelines/${System.getenv('BUILDKITE_PIPELINE_SLUG')}/builds/${buildNumber}/jobs/${System.getenv('BUILDKITE_JOB_ID')}/artifacts/${artifactUuid}"
+          }
       } catch (Exception e) {
         logger.lifecycle("Failed to upload buildkite artifact", e)
       }

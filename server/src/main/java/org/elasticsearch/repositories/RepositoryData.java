@@ -769,7 +769,7 @@ public final class RepositoryData {
                     numericIndexVersionMarkerPlaceholdersUsed += 1;
                     lastSnapshotWithNumericIndexVersionPlaceholder = snapshot;
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
-                } else if (version.onOrAfter(IndexVersion.V_8_500_000)) {
+                } else if (version.onOrAfter(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
                     builder.field(INDEX_VERSION, version.id());
                 } else {

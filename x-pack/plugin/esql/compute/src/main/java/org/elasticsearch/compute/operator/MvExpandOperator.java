@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,6 +35,7 @@ import java.util.Objects;
  * </pre>
  */
 public class MvExpandOperator implements Operator {
+    private static final Logger logger = LogManager.getLogger(MvExpandOperator.class);
 
     public record Factory(int channel, int blockSize) implements OperatorFactory {
         @Override
@@ -53,7 +56,7 @@ public class MvExpandOperator implements Operator {
     private int noops;
 
     private Page prev;
-    private boolean prevCompleted = false;
+    private boolean prevCompleted;
     private boolean finished = false;
 
     private Block expandingBlock;
@@ -81,48 +84,86 @@ public class MvExpandOperator implements Operator {
             return null;
         }
         pagesOut++;
-        if (prev.getPositionCount() == 0 || expandingBlock.mayHaveMultivaluedFields() == false) {
-            noops++;
-            Page result = prev;
-            prev = null;
-            return result;
-        }
 
-        try {
-            return process();
-        } finally {
-            if (prevCompleted && prev != null) {
+        if (expandedBlock == null) {
+            /*
+             * If we're emitting the first block from this page
+             * then we have to expand it.
+             */
+            logger.trace("starting {}", prev);
+            expandingBlock = prev.getBlock(channel);
+            if (expandingBlock.mayHaveMultivaluedFields() == false) {
+                logger.trace("can't have multivalued fields");
+                noops++;
+                Page result = prev;
+                prev = null;
+                expandingBlock = null;
+                return result;
+            }
+            expandedBlock = expandingBlock.expand();
+            if (expandedBlock == expandingBlock) {
+                // The expand was a noop - just return the previous page and clear state.
+                logger.trace("expanded to same");
+                noops++;
+                Page result = prev;
+                prev = null;
+                expandingBlock = null;
+                expandedBlock = null;
+                return result;
+            }
+            if (prev.getBlockCount() == 1) {
+                /*
+                 * The expand wasn't a noop, but there's only a single block in the result
+                 * so the expansion didn't really make it take more memory. It should be safe
+                 * to return it directly.
+                 */
+                logger.trace("single block output");
+                assert channel == 0;
                 prev.releaseBlocks();
                 prev = null;
+                expandingBlock = null;
+                Page result = new Page(expandedBlock);
+                expandedBlock = null;
+                return result;
             }
         }
+        logger.trace("slicing");
+        return sliceExpandedIntoPages();
     }
 
-    protected Page process() {
-        if (expandedBlock == expandingBlock) {
-            noops++;
-            prevCompleted = true;
-            return prev;
-        }
-        if (prev.getBlockCount() == 1) {
-            assert channel == 0;
-            prevCompleted = true;
-            return new Page(expandedBlock);
-        }
-
+    private Page sliceExpandedIntoPages() {
+        prevCompleted = false;
         int[] duplicateFilter = nextDuplicateExpandingFilter();
 
         Block[] result = new Block[prev.getBlockCount()];
-        int[] expandedMask = new int[duplicateFilter.length];
-        for (int i = 0; i < expandedMask.length; i++) {
-            expandedMask[i] = i + nextItemOnExpanded;
-        }
-        nextItemOnExpanded += expandedMask.length;
-        for (int b = 0; b < result.length; b++) {
-            result[b] = b == channel ? expandedBlock.filter(expandedMask) : prev.getBlock(b).filter(duplicateFilter);
+        boolean success = false;
+        try {
+            int[] expandedMask = new int[duplicateFilter.length];
+            for (int i = 0; i < expandedMask.length; i++) {
+                expandedMask[i] = i + nextItemOnExpanded;
+            }
+            nextItemOnExpanded += expandedMask.length;
+            for (int b = 0; b < result.length; b++) {
+                result[b] = b == channel ? expandedBlock.filter(expandedMask) : prev.getBlock(b).filter(duplicateFilter);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(result);
+            }
         }
         if (nextItemOnExpanded == expandedBlock.getPositionCount()) {
             nextItemOnExpanded = 0;
+        }
+        if (prevCompleted) {
+            Releasables.closeExpectNoException(() -> {
+                if (prev != null) {
+                    prev.releaseBlocks();
+                    prev = null;
+                }
+            }, expandedBlock);
+            expandingBlock = null;
+            expandedBlock = null;
         }
         return new Page(result);
     }
@@ -175,9 +216,7 @@ public class MvExpandOperator implements Operator {
         assert prev == null : "has pending input page";
         prev = page;
         this.expandingBlock = prev.getBlock(channel);
-        this.expandedBlock = expandingBlock.expand();
         pagesIn++;
-        prevCompleted = false;
     }
 
     @Override
@@ -197,9 +236,11 @@ public class MvExpandOperator implements Operator {
 
     @Override
     public void close() {
-        if (prev != null) {
-            Releasables.closeExpectNoException(() -> prev.releaseBlocks());
-        }
+        Releasables.closeExpectNoException(() -> {
+            if (prev != null) {
+                prev.releaseBlocks();
+            }
+        }, expandedBlock);
     }
 
     @Override

@@ -37,6 +37,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParser;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -108,6 +110,13 @@ public interface SearchPlugin {
      * The new {@link Suggester}s defined by this plugin.
      */
     default List<SuggesterSpec<?>> getSuggesters() {
+        return emptyList();
+    }
+
+    /**
+     * The new {@link RetrieverBuilder}s defined by this plugin.
+     */
+    default List<RetrieverSpec<?>> getRetrievers() {
         return emptyList();
     }
 
@@ -253,6 +262,38 @@ public interface SearchPlugin {
         @SuppressWarnings("rawtypes")
         public Writeable.Reader<? extends Suggest.Suggestion> getSuggestionReader() {
             return this.suggestionReader;
+        }
+    }
+
+    /**
+     * Specification of custom {@link RetrieverBuilder}.
+     */
+    class RetrieverSpec<RB extends RetrieverBuilder<RB>> extends SearchExtensionSpec<RB, RetrieverParser<RB>> {
+        /**
+         * Specification of custom {@link RetrieverBuilder}.
+         *
+         * @param name holds the names by which this retriever might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the retriever should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this retriever's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the retriever builder from xcontent
+         */
+        public RetrieverSpec(ParseField name, Writeable.Reader<RB> reader, RetrieverParser<RB> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link RetrieverBuilder}.
+         *
+         * @param name the name by which this retriever might be parsed or deserialized. Make sure that the retriever builder returns
+         *             this name for {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this retriever's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the retriever builder from xcontent
+         */
+        public RetrieverSpec(String name, Writeable.Reader<RB> reader, RetrieverParser<RB> parser) {
+            super(name, reader, parser);
         }
     }
 

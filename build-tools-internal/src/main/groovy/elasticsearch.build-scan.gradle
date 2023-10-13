@@ -94,14 +94,13 @@ buildScan {
     } else if (buildKiteUrl) { //Buildkite-specific build scan metadata
       // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
       uploadInBackground = false
-      def buildNumber = System.getenv('BUILDKITE_BUILD_NUMBER')
 
       def branch = System.getenv('BUILDKITE_BRANCH')
       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
       tag 'CI'
       link 'CI Build', buildKiteUrl
-      value 'Job Number', buildNumber
+      value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
       value 'Pipeline', System.getenv('BUILDKITE_PIPELINE_SLUG')
       value 'Job Name', System.getenv('BUILDKITE_LABEL')
 

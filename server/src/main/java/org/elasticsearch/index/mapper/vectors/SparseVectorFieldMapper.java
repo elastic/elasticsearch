@@ -46,8 +46,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported from 8.0 to 8.10 versions.";
     static final IndexVersion PREVIOUS_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_0_0;
 
-    static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_500_001;
-    static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersion.V_8_500_002;
+    static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.NEW_SPARSE_VECTOR;
+    static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersion.SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT;
 
     public static class Builder extends FieldMapper.Builder {
 

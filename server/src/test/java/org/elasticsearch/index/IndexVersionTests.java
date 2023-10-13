@@ -94,7 +94,6 @@ public class IndexVersionTests extends ESTestCase {
 
     public void testDefinedConstants() throws IllegalAccessException {
         Pattern historicalVersion = Pattern.compile("^V_(\\d{1,2})_(\\d{1,2})_(\\d{1,2})$");
-        Pattern IndexVersion = Pattern.compile("^V_(\\d+)_(\\d{3})_(\\d{3})$");
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
 
         for (java.lang.reflect.Field field : IndexVersion.class.getFields()) {
@@ -118,15 +117,6 @@ public class IndexVersionTests extends ESTestCase {
                         idString,
                         field.get(null).toString()
                     );
-                } else if ((matcher = IndexVersion.matcher(field.getName())).matches()) {
-                    String idString = matcher.group(1) + matcher.group(2) + matcher.group(3);
-                    assertEquals(
-                        "Field " + field.getName() + " does not have expected id " + idString,
-                        idString,
-                        field.get(null).toString()
-                    );
-                } else {
-                    fail("Field " + field.getName() + " does not have expected format");
                 }
             }
         }

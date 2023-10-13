@@ -46,7 +46,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
         requestedMetrics.addAll(in.readStringCollectionAsList());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NEED_SHARDS_STATS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_SHARDS_STATS_ADDED)) {
             includeShardsStats = in.readBoolean();
         } else {
             includeShardsStats = true;
@@ -189,7 +189,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         super.writeTo(out);
         indices.writeTo(out);
         out.writeStringCollection(requestedMetrics);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NEED_SHARDS_STATS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_SHARDS_STATS_ADDED)) {
             out.writeBoolean(includeShardsStats);
         }
     }

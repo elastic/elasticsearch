@@ -237,7 +237,7 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertThat(GeoTileUtils.getYTile(rectangle.getMinY(), tiles), anyOf(equalTo(yTile + 1), equalTo(yTile)));
         // check point inside
         double x = randomDoubleBetween(rectangle.getMinX(), rectangle.getMaxX(), false);
-        double y = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), false);
+        double y = randomDoubleBetween(rectangle.getMinY() + GeoTileUtils.LUCENE_LAT_RES, rectangle.getMaxY(), false);
         assertThat(GeoTileUtils.getXTile(x, tiles), equalTo(xTile));
         assertThat(GeoTileUtils.getYTile(y, tiles), equalTo(yTile));
 

@@ -45,7 +45,7 @@ public final class GeoTileUtils {
     private static final int MAX_TILES_FULL_PRECISION = 1 << 20;
 
     // lucene latitude resolution
-    private static final double LUCENE_LAT_RES = 180.0D / (0x1L << 32);
+    static final double LUCENE_LAT_RES = 180.0D / (0x1L << 32);
 
     /**
      * Largest number of tiles (precision) to use.

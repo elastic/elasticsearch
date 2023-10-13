@@ -32,7 +32,7 @@ public final class TestNodes extends HashMap<String, TestNode> {
         return values().stream().filter(n -> n.version().equals(bwcVersion)).collect(Collectors.toList());
     }
 
-    public Version getBWCVersion() {
+    private Version getBWCVersion() {
         if (isEmpty()) {
             throw new IllegalStateException("no nodes available");
         }

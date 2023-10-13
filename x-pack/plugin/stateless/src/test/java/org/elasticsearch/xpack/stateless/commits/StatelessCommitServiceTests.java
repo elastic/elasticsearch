@@ -42,6 +42,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -316,25 +317,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
         AtomicReference<String> firstCommitFile = new AtomicReference<>();
         AtomicReference<String> secondCommitFile = new AtomicReference<>();
 
-        CountDownLatch startingUpload = new CountDownLatch(1);
         CountDownLatch blocking = new CountDownLatch(1);
 
-        CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> compoundCommitFileCapture = fileCapture(uploadedBlobs);
-        try (var testHarness = createNode(fileCapture(uploadedBlobs), (compoundCommitFile, runnable) -> {
-            if (compoundCommitFile.equals(firstCommitFile.get())) {
-                try {
-                    startingUpload.countDown();
-                    blocking.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                assertFalse(uploadedBlobs.contains(secondCommitFile.get()));
-            } else {
-                assertEquals(compoundCommitFile, secondCommitFile.get());
-                assertTrue(uploadedBlobs.contains(firstCommitFile.get()));
-            }
-            compoundCommitFileCapture.accept(compoundCommitFile, runnable);
-        })) {
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {
 
             List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, 3);
             StatelessCommitRef firstCommit = commitRefs.get(0);
@@ -354,7 +339,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
             secondCommitFile.set(compoundCommitFiles.get(1));
 
             testHarness.commitService.onCommitCreation(firstCommit);
-            startingUpload.await();
             assertThat(uploadedBlobs, not(hasItems(commitFileToBlock.get())));
             assertThat(uploadedBlobs, not(hasItems(firstCommitFile.get())));
 
@@ -365,17 +349,26 @@ public class StatelessCommitServiceTests extends ESTestCase {
             PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
             ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
 
-            if (randomBoolean()) {
-                relocationListener.onResponse(null);
-            }
-
             testHarness.commitService.onCommitCreation(thirdCommit);
+            PlainActionFuture<Void> thirdCommitListener = PlainActionFuture.newFuture();
+            testHarness.commitService.addListenerForUploadedGeneration(
+                testHarness.shardId,
+                thirdCommit.getGeneration(),
+                thirdCommitListener
+            );
+
+            assertFalse(thirdCommitListener.isDone());
 
             assertFalse(listener.isDone());
 
             blocking.countDown();
-
             listener.actionGet();
+
+            relocationListener.onResponse(null);
+
+            assertTrue(thirdCommitListener.isDone());
+
+            expectThrows(UnavailableShardsException.class, thirdCommitListener::actionGet);
 
             ArrayList<String> uploadedFiles = new ArrayList<>(uploadedBlobs);
 

@@ -22,15 +22,15 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -61,13 +61,6 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockRepository.Plugin.class);
-    }
-
-    @Override
-    protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(64L))
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4L));
     }
 
     public void testMergeWhileRelocationCausesCorruption() throws Exception {
@@ -200,7 +193,11 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         safeAwait(pauseHandoff);
 
         logger.info("--> now forcing a new merge on the source shard");
-        client(indexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+        ActionFuture<ForceMergeResponse> mergeFuture = client(indexNode).admin()
+            .indices()
+            .prepareForceMerge(indexName)
+            .setMaxNumSegments(1)
+            .execute();
 
         // Pause to let merge potentially succeed
         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(300));
@@ -218,6 +215,10 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         assertBusy(() -> assertThat(receivedNotifications.get(), equalTo(1)));
 
         assertTrue(blobContainer.blobExists(operationPurpose, finalCommitBlobName));
+
+        ForceMergeResponse mergeResponse = mergeFuture.actionGet();
+        assertEquals("Force-merge failed on indexing shard", 1, mergeResponse.getSuccessfulShards());
+        assertEquals(2, mergeResponse.getTotalShards());
     }
 
     public void testRelocationHandoffFailure() throws Exception {

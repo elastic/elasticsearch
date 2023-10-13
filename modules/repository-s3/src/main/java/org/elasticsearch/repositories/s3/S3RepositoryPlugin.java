@@ -69,7 +69,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
-    protected final SetOnce<Meter> meter = new SetOnce<>();
+    private final SetOnce<Meter> meter = new SetOnce<>();
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -166,5 +166,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     @Override
     public void close() throws IOException {
         getService().close();
+    }
+
+    protected Meter getMeter() {
+        return meter.get();
     }
 }

@@ -124,22 +124,9 @@ class S3BlobStore implements BlobStore {
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
         var collector = statsCollectors.getMetricCollector(operation, purpose);
         return new RequestMetricCollector() {
-
-            private final Map<String, Object> attributes = Map.of(
-                "repo_type",
-                S3Repository.TYPE,
-                "repo_name",
-                repositoryMetadata.name(),
-                "operation",
-                operation.getKey(),
-                "purpose",
-                purpose.getKey()
-            );
-
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
                 s3RequestRetryStats.addRequest(request);
-                requestCounter.incrementBy(getRequestCount(request), attributes);
                 collector.collectMetrics(request, response);
             }
         };
@@ -155,13 +142,24 @@ class S3BlobStore implements BlobStore {
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
     // issue
-    static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+    class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
 
         final LongAdder counter = new LongAdder();
         private final Operation operation;
+        private final Map<String, Object> attributes;
 
-        private IgnoreNoResponseMetricsCollector(Operation operation) {
+        private IgnoreNoResponseMetricsCollector(Operation operation, OperationPurpose purpose) {
             this.operation = operation;
+            this.attributes = Map.of(
+                "repo_type",
+                S3Repository.TYPE,
+                "repo_name",
+                repositoryMetadata.name(),
+                "operation",
+                operation.getKey(),
+                "purpose",
+                purpose.getKey()
+            );
         }
 
         @Override
@@ -169,6 +167,7 @@ class S3BlobStore implements BlobStore {
             if (response != null) {
                 assert assertConsistencyBetweenHttpRequestAndOperation(request, operation);
                 counter.add(getRequestCount(request));
+                requestCounter.incrementBy(getRequestCount(request), attributes);
             }
         }
 
@@ -392,11 +391,11 @@ class S3BlobStore implements BlobStore {
 
     record StatsKey(Operation operation, OperationPurpose purpose) {}
 
-    static class StatsCollectors {
+    class StatsCollectors {
         final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
 
         RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-            return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation()));
+            return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
         }
 
         Map<String, Long> statsMap() {
@@ -405,8 +404,8 @@ class S3BlobStore implements BlobStore {
             return Map.copyOf(m);
         }
 
-        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation) {
-            return new IgnoreNoResponseMetricsCollector(operation);
+        IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
+            return new IgnoreNoResponseMetricsCollector(operation, purpose);
         }
     }
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -68,6 +69,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -86,6 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -98,7 +101,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
-    private static final Map<Map<String, Object>, AtomicLong> METRICS = ConcurrentCollections.newConcurrentMap();
 
     private String region;
     private String signerOverride;
@@ -115,7 +117,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             signerOverride = "AWS3SignerType";
         }
         shouldFailCompleteMultipartUploadRequest.set(false);
-        METRICS.clear();
         super.setUp();
     }
 
@@ -249,45 +250,43 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
         assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
 
-        // Get all the s3 blobstore instances
-        final List<S3BlobStore> s3BlobStores = StreamSupport.stream(
-            internalCluster().getInstances(RepositoriesService.class).spliterator(),
-            false
-        ).map(repositoriesService -> {
+        final Map<String, Long> aggregatedMetrics = new HashMap<>();
+        // Compare collected stats and metrics for each node and they should be the same
+        for (var nodeName : internalCluster().getNodeNames()) {
+            final BlobStoreRepository blobStoreRepository;
             try {
-                return (BlobStoreRepository) repositoriesService.repository(repository);
+                blobStoreRepository = (BlobStoreRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
+                    .repository(repository);
             } catch (RepositoryMissingException e) {
-                return null;
+                continue;
             }
-        }).filter(Objects::nonNull).map(blobStoreRepository -> {
+
             final BlobStore blobStore = blobStoreRepository.blobStore();
             final BlobStore delegateBlobStore = ((BlobStoreWrapper) blobStore).delegate();
-            return (S3BlobStore) delegateBlobStore;
-        }).toList();
+            final S3BlobStore s3BlobStore = (S3BlobStore) delegateBlobStore;
+            final Map<S3BlobStore.StatsKey, S3BlobStore.IgnoreNoResponseMetricsCollector> statsCollectors = s3BlobStore
+                .getStatsCollectors().collectors;
 
-        // aggregate stats over all s3 blobstore instances
-        final Map<S3BlobStore.StatsKey, Long> collectorStats = s3BlobStores.stream()
-            .flatMap(s3BlobStore -> s3BlobStore.getStatsCollectors().collectors.entrySet().stream())
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().counter.sum(), Long::sum));
+            final var plugins = internalCluster().getInstance(PluginsService.class, nodeName).filterPlugins(TestTelemetryPlugin.class);
+            assertThat(plugins, hasSize(1));
+            final Map<Map<String, Object>, AtomicLong> metrics = plugins.get(0).metrics;
 
-        // Compare numbers between the internal stats collection and Metrics. They should be the same.
-        assertThat(METRICS.size(), equalTo(collectorStats.size()));
-        METRICS.forEach((attributes, counter) -> {
-            final S3BlobStore.StatsKey statsKey = new S3BlobStore.StatsKey(
-                S3BlobStore.Operation.parse((String) attributes.get("operation")),
-                OperationPurpose.parse((String) attributes.get("purpose"))
-            );
-            assertThat(collectorStats, hasKey(statsKey));
-            assertThat(counter.get(), equalTo(collectorStats.get(statsKey)));
-        });
+            assertThat(statsCollectors.size(), equalTo(metrics.size()));
+            metrics.forEach((attributes, counter) -> {
+                final S3BlobStore.Operation operation = S3BlobStore.Operation.parse((String) attributes.get("operation"));
+                final S3BlobStore.StatsKey statsKey = new S3BlobStore.StatsKey(
+                    operation,
+                    OperationPurpose.parse((String) attributes.get("purpose"))
+                );
+                assertThat(statsCollectors, hasKey(statsKey));
+                assertThat(counter.get(), equalTo(statsCollectors.get(statsKey).counter.sum()));
+
+                aggregatedMetrics.compute(operation.getKey(), (k, v) -> v == null ? counter.get() : v + counter.get());
+            });
+        }
 
         // Metrics number should be consistent with server side request count as well.
-        assertThat(
-            METRICS.entrySet()
-                .stream()
-                .collect(Collectors.toMap(e -> (String) e.getKey().get("operation"), e -> e.getValue().get(), Long::sum)),
-            equalTo(getMockRequestCounts())
-        );
+        assertThat(aggregatedMetrics, equalTo(getMockRequestCounts()));
     }
 
     public void testRequestStatsWithOperationPurposes() throws IOException {
@@ -434,7 +433,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, meter.get()) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, getMeter()) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -556,7 +555,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     public static class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
-        private static final LongCounter LONG_COUNTER = new LongCounter() {
+
+        private final Map<Map<String, Object>, AtomicLong> metrics = ConcurrentCollections.newConcurrentMap();
+
+        private final LongCounter longCounter = new LongCounter() {
             @Override
             public void increment() {
                 throw new UnsupportedOperationException();
@@ -573,7 +575,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     attributes,
                     allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("repo_name"), hasKey("operation"), hasKey("purpose"))
                 );
-                METRICS.computeIfAbsent(attributes, k -> new AtomicLong()).addAndGet(inc);
+                metrics.computeIfAbsent(attributes, k -> new AtomicLong()).addAndGet(inc);
             }
 
             @Override
@@ -582,17 +584,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             }
         };
 
-        private static final Meter METER = new DelegatingMeter(Meter.NOOP) {
+        private final Meter meter = new DelegatingMeter(Meter.NOOP) {
             @Override
             public LongCounter registerLongCounter(String name, String description, String unit) {
                 assertThat(name, equalTo(METRIC_REQUESTS_COUNT));
-                return LONG_COUNTER;
+                return longCounter;
             }
 
             @Override
             public LongCounter getLongCounter(String name) {
                 assertThat(name, equalTo(METRIC_REQUESTS_COUNT));
-                return LONG_COUNTER;
+                return longCounter;
             }
         };
 
@@ -606,7 +608,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
                 @Override
                 public Meter getMeter() {
-                    return METER;
+                    return meter;
                 }
             };
         }

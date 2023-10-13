@@ -456,10 +456,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      */
     RestoreSnapshotRequestBuilder prepareRestoreSnapshot(String repository, String snapshot);
 
-    // void snapshotGlobalState(SnapshotGlobalStateRequest request, ActionListener<SnapshotGlobalStateResponse> listener);
-
-    // SnapshotGlobalStateRequestBuilder prepareGlobalStateSnapshot(String repository, String snapshot);
-
     /**
      * Returns a list of the pending cluster tasks, that are scheduled to be executed. This includes operations
      * that update the cluster state (for example, a create index operation)

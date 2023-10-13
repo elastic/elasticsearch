@@ -121,9 +121,15 @@ buildScan {
 
       def uploadFilePath = "build/${buildNumber}.tar.bz2"
       File uploadFile = file(uploadFilePath)
+
+      println(uploadFile)
+
       if (uploadFile.exists()) {
+        println("exists, searching " + ["buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%u"].join(" "))
+
         def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%u").start()
         process.waitFor()
+        println("Output: " + process.text)
         def artifactUrl = (process.text ?: "").trim()
         if (artifactUrl) {
           link 'Artifact Upload', artifactUrl

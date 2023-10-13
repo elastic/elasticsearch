@@ -9,11 +9,9 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.gradle.api.logging.Logger
 import org.gradle.initialization.BuildRequestMetaData
 
 buildScan {
-  def logger = project.logger
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
   String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL') ? System.getenv('BUILDKITE_BUILD_URL') : null
 
@@ -124,17 +122,19 @@ buildScan {
       def uploadFilePath = "build/${buildNumber}.tar.bz2"
       File uploadFile = file(uploadFilePath)
 
-      logger.info(uploadFilePath)
+      buildFinished {
+        println(uploadFilePath)
 
-      if (uploadFile.exists()) {
-        logger.info("exists, searching " + ["buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i"].join(" "))
+        if (uploadFile.exists()) {
+          println("exists, searching " + ["buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i"].join(" "))
 
-        def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i").start()
-        process.waitFor()
-        logger.info("Output: " + process.text)
-        def artifactUuid = (process.text ?: "").trim()
-        if (artifactUuid) {
-          link 'Artifact Upload', "https://buildkite.com/organizations/elastic/pipelines/${System.getenv('BUILDKITE_PIPELINE_SLUG')}/builds/${buildNumber}/jobs/${System.getenv('BUILDKITE_JOB_ID')}/artifacts/${artifactUuid}"
+          def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i").start()
+          process.waitFor()
+          println("Output: " + process.text)
+          def artifactUuid = (process.text ?: "").trim()
+          if (artifactUuid) {
+            link 'Artifact Upload', "https://buildkite.com/organizations/elastic/pipelines/${System.getenv('BUILDKITE_PIPELINE_SLUG')}/builds/${buildNumber}/jobs/${System.getenv('BUILDKITE_JOB_ID')}/artifacts/${artifactUuid}"
+          }
         }
       }
 

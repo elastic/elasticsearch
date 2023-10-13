@@ -266,13 +266,11 @@ public final class GeoTileUtils {
      */
     public static double tileToLat(int yTile, int tiles) {
         final double lat = tileToLat((double) yTile, tiles);
-        // need to quantize to keep it consistent with the adjusted values
-        final double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
         if (tiles < MAX_TILES_FULL_PRECISION || yTile == 0 || yTile == tiles) {
-            return qLat; // precise case, don't need to do more work
+            return lat; // precise case, don't need to do more work
         }
         // Maybe adjust latitude due to numerical errors
-
+        final double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
         final int computedYTile = getYTile(qLat, tiles);
         // the idea here is that the latitude returned belongs to the tile and the next latitude up belongs to the next tile
         // therefore we can be in the current tile and we need to find the point up just before the next tile,

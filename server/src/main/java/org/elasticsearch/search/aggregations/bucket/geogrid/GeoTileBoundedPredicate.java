@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
 
@@ -36,20 +37,24 @@ public class GeoTileBoundedPredicate {
             final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
             // touching tiles are excluded, they need to share at least one interior point
             this.leftX = minTile.getMaxX() == bbox.left() ? minX + 1 : minX;
-            this.minY = minTile.getMinY() == bbox.top() ? minY + 1 : minY;
+            this.minY = quantizeLat(minTile.getMinY()) == quantizeLat(bbox.top()) ? minY + 1 : minY;
             // compute maxX, maxY
             final int maxX = GeoTileUtils.getXTile(bbox.right(), tiles);
             final int maxY = GeoTileUtils.getYTile(bbox.bottom(), tiles);
             final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
             // touching tiles are excluded, they need to share at least one interior point
             this.rightX = maxTile.getMinX() == bbox.right() ? maxX : maxX + 1;
-            this.maxY = maxTile.getMaxY() == bbox.bottom() ? maxY : maxY + 1;
+            this.maxY = quantizeLat(maxTile.getMaxY()) ==  quantizeLat(bbox.bottom()) ? maxY : maxY + 1;
             if (crossesDateline) {
                 this.maxTiles = ((long) tiles + this.rightX - this.leftX) * (this.maxY - this.minY);
             } else {
                 this.maxTiles = (long) (this.rightX - this.leftX) * (this.maxY - this.minY);
             }
         }
+    }
+
+    private static double quantizeLat(double lat) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
     }
 
     /** Does the provided bounds crosses the dateline */

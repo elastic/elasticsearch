@@ -20,6 +20,7 @@ import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.keyToGeoPoint;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -232,8 +233,8 @@ public class GeoTileUtilsTests extends ESTestCase {
         // check corners
         assertThat(GeoTileUtils.getXTile(rectangle.getMinX(), tiles), equalTo(xTile));
         assertThat(GeoTileUtils.getXTile(rectangle.getMaxX(), tiles), equalTo(Math.min(tiles - 1, xTile + 1)));
-        assertThat(GeoTileUtils.getYTile(rectangle.getMaxY(), tiles), equalTo(yTile));
-        assertThat(GeoTileUtils.getYTile(rectangle.getMinY(), tiles), equalTo(Math.min(tiles - 1, yTile + 1)));
+        assertThat(GeoTileUtils.getYTile(rectangle.getMaxY(), tiles), anyOf(equalTo(yTile - 1), equalTo(yTile)));
+        assertThat(GeoTileUtils.getYTile(rectangle.getMinY(), tiles), anyOf(equalTo(yTile + 1), equalTo(yTile)));
         // check point inside
         double x = randomDoubleBetween(rectangle.getMinX(), rectangle.getMaxX(), false);
         double y = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), false);

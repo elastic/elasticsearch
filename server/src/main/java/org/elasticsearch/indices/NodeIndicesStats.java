@@ -214,11 +214,6 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         return stats.getDenseVectorStats();
     }
 
-    // for testing
-    Map<Index, List<IndexShardStats>> getStatsByShard() {
-        return statsByShard;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);

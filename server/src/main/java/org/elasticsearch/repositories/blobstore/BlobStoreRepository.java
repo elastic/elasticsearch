@@ -100,7 +100,6 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryData.SnapshotDetails;
 import org.elasticsearch.repositories.RepositoryException;
@@ -872,11 +871,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param repositoryFormatIndexVersion     Repository format version
      * @param listener                         Listener to complete when done
      */
-    public void cleanup(
-        long repositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
-        ActionListener<RepositoryCleanupResult> listener
-    ) {
+    public void cleanup(long repositoryDataGeneration, IndexVersion repositoryFormatIndexVersion, ActionListener<DeleteResult> listener) {
         createSnapshotsDeletion(
             List.of(),
             repositoryDataGeneration,
@@ -980,6 +975,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * Executor to use for all repository interactions.
          */
         private final Executor snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+        /**
+         * Accumulates the number of blobs deleted by this operation.
+         */
+        // NB only counts stale root blobs today, not shard-level blobs
+        private final AtomicLong blobsDeleted = new AtomicLong();
+
+        /**
+         * Accumulates the total size of the blobs deleted by this operation.
+         */
+        // NB only counts stale root blobs today, not shard-level blobs
+        private final AtomicLong bytesDeleted = new AtomicLong();
 
         SnapshotsDeletion(
             Collection<SnapshotId> snapshotIds,
@@ -1105,7 +1112,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
         }
 
-        void runCleanup(ActionListener<RepositoryCleanupResult> listener) {
+        void runCleanup(ActionListener<DeleteResult> listener) {
             final Set<String> survivingIndexIds = originalRepositoryData.getIndices()
                 .values()
                 .stream()
@@ -1114,7 +1121,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<String> staleRootBlobs = staleRootBlobs(originalRepositoryData, originalRootBlobs.keySet());
             if (survivingIndexIds.equals(originalIndexContainers.keySet()) && staleRootBlobs.isEmpty()) {
                 // Nothing to clean up we return
-                listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
+                listener.onResponse(DeleteResult.ZERO);
             } else {
                 // write new index-N blob to ensure concurrent operations will fail
                 writeIndexGen(
@@ -1126,7 +1133,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // TODO should we pass newRepositoryData to cleanupStaleBlobs()?
                         (l, newRepositoryData) -> cleanupUnlinkedRootAndIndicesBlobs(
                             originalRepositoryData,
-                            l.map(RepositoryCleanupResult::new)
+                            l.map(ignored -> DeleteResult.of(blobsDeleted.get(), bytesDeleted.get()))
                         )
                     )
                 );
@@ -1396,15 +1403,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * snapshots. This method is only to be called directly after a new {@link RepositoryData} was written to the repository.
          *
          * @param newRepositoryData       new repository data that was just written
-         * @param listener                listener to invoke with the combined {@link DeleteResult} of all blobs removed in this operation
+         * @param listener                listener to invoke when the deletion is complete
          */
-        private void cleanupUnlinkedRootAndIndicesBlobs(RepositoryData newRepositoryData, ActionListener<DeleteResult> listener) {
-            final var blobsDeleted = new AtomicLong();
-            final var bytesDeleted = new AtomicLong();
-            try (
-                var listeners = new RefCountingListener(listener.map(ignored -> DeleteResult.of(blobsDeleted.get(), bytesDeleted.get())))
-            ) {
-
+        private void cleanupUnlinkedRootAndIndicesBlobs(RepositoryData newRepositoryData, ActionListener<Void> listener) {
+            try (var listeners = new RefCountingListener(listener)) {
                 final List<String> staleRootBlobs = staleRootBlobs(newRepositoryData, originalRootBlobs.keySet());
                 if (staleRootBlobs.isEmpty() == false) {
                     staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {

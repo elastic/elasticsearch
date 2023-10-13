@@ -118,11 +118,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         Tracer tracer,
-        TelemetryProvider telemetryProvider) {
+        TelemetryProvider telemetryProvider
+    ) {
         this.usageService = usageService;
         this.tracer = telemetryProvider.getTracer();
-        this.gauge = telemetryProvider.getMeter().registerDoubleGauge("przemekgauge","descv","sth");
-        this.counter = telemetryProvider.getMeter().registerDoubleCounter("przemekcounter","descv","sth");
+        this.gauge = telemetryProvider.getMeter().registerDoubleGauge("przemekgauge", "descv", "sth");
+        this.counter = telemetryProvider.getMeter().registerDoubleCounter("przemekcounter", "descv", "sth");
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }

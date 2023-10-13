@@ -1156,7 +1156,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             mock(ClusterService.class),
             List.of(),
             RestExtension.allowAll(),
-                TelemetryProvider.NOOP);
+            TelemetryProvider.NOOP
+        );
     }
 
     private class TestHttpServerTransport extends AbstractHttpServerTransport {

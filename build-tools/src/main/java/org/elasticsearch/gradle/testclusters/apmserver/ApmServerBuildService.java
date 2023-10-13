@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.testclusters.apmserver;
 
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.tooling.events.FinishEvent;
@@ -15,11 +17,17 @@ import org.gradle.tooling.events.OperationCompletionListener;
 
 import java.io.IOException;
 
-public abstract class ApmServerBuildService implements BuildService<BuildServiceParameters.None>, OperationCompletionListener, AutoCloseable{
+public abstract class ApmServerBuildService
+    implements
+        BuildService<BuildServiceParameters.None>,
+        OperationCompletionListener,
+        AutoCloseable {
+    private final Logger logger = Logging.getLogger(getClass());
+
     private MockApmServer mockServer;
 
     public ApmServerBuildService() {
-        System.out.println("starting ");
+        logger.info("starting up apm server");
         mockServer = new MockApmServer();
         try {
             mockServer.start();
@@ -27,21 +35,21 @@ public abstract class ApmServerBuildService implements BuildService<BuildService
             throw new RuntimeException(e);
         }
 
-        Runtime.getRuntime().addShutdownHook(new Thread(()->{
-            System.out.println("shutdown hook");
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            logger.info("shutting down apm server");
             mockServer.stop();
         }));
     }
 
     @Override
     public void close() throws Exception {
-        System.out.println("close");
+        logger.info("shutting down apm server");
         mockServer.stop();
     }
 
     @Override
     public void onFinish(FinishEvent finishEvent) {
-        System.out.println("onfinish");
+        logger.info("shutting down apm server");
         mockServer.stop();
     }
 }

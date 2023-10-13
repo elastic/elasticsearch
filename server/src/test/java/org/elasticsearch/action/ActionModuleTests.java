@@ -127,7 +127,8 @@ public class ActionModuleTests extends ESTestCase {
             mock(ClusterService.class),
             List.of(),
             RestExtension.allowAll(),
-            TelemetryProvider.NOOP);
+            TelemetryProvider.NOOP
+        );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(
@@ -187,7 +188,8 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 List.of(),
                 RestExtension.allowAll(),
-                TelemetryProvider.NOOP);
+                TelemetryProvider.NOOP
+            );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
         } finally {
@@ -240,7 +242,8 @@ public class ActionModuleTests extends ESTestCase {
                 mock(ClusterService.class),
                 List.of(),
                 RestExtension.allowAll(),
-                TelemetryProvider.NOOP);
+                TelemetryProvider.NOOP
+            );
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(
@@ -288,7 +291,8 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     List.of(),
                     RestExtension.allowAll(),
-                    TelemetryProvider.NOOP)
+                    TelemetryProvider.NOOP
+                )
             );
             assertThat(
                 e.getMessage(),
@@ -327,7 +331,8 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     List.of(),
                     RestExtension.allowAll(),
-                    TelemetryProvider.NOOP)
+                    TelemetryProvider.NOOP
+                )
             );
             assertThat(
                 e.getMessage(),

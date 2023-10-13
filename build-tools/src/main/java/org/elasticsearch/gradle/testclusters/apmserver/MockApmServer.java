@@ -8,13 +8,15 @@
 
 package org.elasticsearch.gradle.testclusters.apmserver;
 
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,6 +38,8 @@ import java.util.concurrent.TimeoutException;
  * The HTTP server used is the JDK embedded com.sun.net.httpserver
  */
 public class MockApmServer {
+    private static final Logger logger = Logging.getLogger(MockApmServer.class);
+
     /**
      * Simple main that starts a mock APM server, prints the port it is
      * running on, and exits after 2_000 seconds. This is not needed
@@ -44,7 +48,7 @@ public class MockApmServer {
      */
     public static void main(String[] args) throws IOException, InterruptedException {
         MockApmServer server = new MockApmServer();
-        System.out.println(server.start());
+        logger.lifecycle("Apm server started on port:" + server.start());
         server.blockUntilReady();
         Thread.sleep(2_000_000L);
         server.stop();
@@ -79,8 +83,8 @@ public class MockApmServer {
      *                         exists at index i by timeout
      */
     public JsonNode getAndRemoveTransaction(int i, long timeOutInMillis) throws TimeoutException {
-        //because the agent writes to the server asynchronously,
-        //any transaction created in a client is not here immediately
+        // because the agent writes to the server asynchronously,
+        // any transaction created in a client is not here immediately
         long start = System.currentTimeMillis();
         long elapsedTime = 0;
         while (elapsedTime < timeOutInMillis) {
@@ -88,7 +92,7 @@ public class MockApmServer {
                 if (transactions.size() > i) {
                     break;
                 }
-                if (timeOutInMillis-elapsedTime > 0) {
+                if (timeOutInMillis - elapsedTime > 0) {
                     try {
                         transactions.wait(timeOutInMillis - elapsedTime);
                     } catch (InterruptedException e) {
@@ -109,8 +113,8 @@ public class MockApmServer {
     }
 
     public JsonNode popMetricset(long timeOutInMillis) throws TimeoutException {
-        //because the agent writes to the server asynchronously,
-        //any metricset created in a client is not here immediately
+        // because the agent writes to the server asynchronously,
+        // any metricset created in a client is not here immediately
         long start = System.currentTimeMillis();
         long elapsedTime = 0;
         while (elapsedTime < timeOutInMillis) {
@@ -118,7 +122,7 @@ public class MockApmServer {
                 if (metricsets.size() > 0) {
                     break;
                 }
-                if (timeOutInMillis-elapsedTime > 0) {
+                if (timeOutInMillis - elapsedTime > 0) {
                     try {
                         metricsets.wait(timeOutInMillis - elapsedTime);
                     } catch (InterruptedException e) {
@@ -128,7 +132,7 @@ public class MockApmServer {
                 elapsedTime = System.currentTimeMillis() - start;
             }
         }
-        if (timeOutInMillis-elapsedTime <= 0) {
+        if (timeOutInMillis - elapsedTime <= 0) {
             return null;
         }
         synchronized (metricsets) {
@@ -152,11 +156,11 @@ public class MockApmServer {
 
         server.start();
         TheServerInstance = server;
-        System.out.println("MockApmServer started on port "+server.getAddress().getPort());
+        logger.lifecycle("MockApmServer started on port " + server.getAddress().getPort());
         return server.getAddress().getPort();
     }
 
-    public int getPort(){
+    public int getPort() {
         return TheServerInstance.getAddress().getPort();
     }
 
@@ -164,7 +168,7 @@ public class MockApmServer {
      * Stop the server gracefully if possible
      */
     public synchronized void stop() {
-        System.out.println("stopping!");
+        logger.lifecycle("stopping apm server");
         TheServerInstance.stop(1);
         TheServerInstance = null;
     }
@@ -174,9 +178,9 @@ public class MockApmServer {
             try {
                 InputStream body = t.getRequestBody();
                 ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                byte[] buffer = new byte[8*1024];
+                byte[] buffer = new byte[8 * 1024];
                 int lengthRead;
-                while((lengthRead = body.read(buffer)) > 0) {
+                while ((lengthRead = body.read(buffer)) > 0) {
                     bytes.write(buffer, 0, lengthRead);
                 }
                 reportTransactionsAndMetrics(bytes.toString());
@@ -192,12 +196,13 @@ public class MockApmServer {
 
         private void reportTransactionsAndMetrics(String json) {
             String[] lines = json.split("[\r\n]");
-            for (String line: lines) {
+            for (String line : lines) {
                 reportTransactionOrMetric(line);
             }
         }
+
         private void reportTransactionOrMetric(String line) {
-            System.out.println("MockApmServer reading JSON objects: "+ line);
+            logger.lifecycle(("MockApmServer reading JSON objects: " + line));
             ObjectMapper objectMapper = new ObjectMapper();
             JsonNode messageRootNode = null;
             try {
@@ -217,7 +222,7 @@ public class MockApmServer {
                     }
                 }
             } catch (JsonProcessingException e) {
-                System.out.println("Not JSON: "+line);
+                logger.lifecycle("Not JSON: " + line);
                 e.printStackTrace();
             }
         }

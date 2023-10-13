@@ -829,7 +829,8 @@ public class Node implements Closeable {
                 clusterService,
                 reservedStateHandlers,
                 pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
-                    telemetryProvider);
+                telemetryProvider
+            );
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();

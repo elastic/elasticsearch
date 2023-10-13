@@ -529,7 +529,8 @@ public class ActionModule extends AbstractModule {
         ClusterService clusterService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
         RestExtension restExtension,
-        TelemetryProvider telemetryProvider) {
+        TelemetryProvider telemetryProvider
+    ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -571,7 +572,14 @@ public class ActionModule extends AbstractModule {
         if (customController != null) {
             restController = customController;
         } else {
-            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer, telemetryProvider);
+            restController = new RestController(
+                restInterceptor,
+                nodeClient,
+                circuitBreakerService,
+                usageService,
+                tracer,
+                telemetryProvider
+            );
         }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
         this.restExtension = restExtension;

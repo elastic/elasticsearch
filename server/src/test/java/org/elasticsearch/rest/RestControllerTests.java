@@ -132,7 +132,14 @@ public class RestControllerTests extends ESTestCase {
 
     public void testApplyProductSpecificResponseHeaders() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
@@ -148,7 +155,14 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
@@ -163,7 +177,14 @@ public class RestControllerTests extends ESTestCase {
      */
     public void testDispatchStartsTrace() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
         final RestController spyRestController = spy(restController);
         when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
@@ -192,7 +213,14 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        final RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
@@ -263,7 +291,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
 
         RestRequest.Method firstMethod = randomFrom(methodList);
         RestRequest.Method secondMethod = randomFrom(methodList.stream().filter(m -> m != firstMethod).toList());
@@ -764,7 +799,14 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchCompatibleHandler() {
 
-        RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
 
         final RestApiVersion version = RestApiVersion.minimumSupported();
 
@@ -788,7 +830,14 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchCompatibleRequestToNewlyAddedHandler() {
 
-        RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
 
         final RestApiVersion version = RestApiVersion.minimumSupported();
 
@@ -823,7 +872,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCurrentVersionVNDMediaTypeIsNotUsingCompatibility() {
-        RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
 
         final RestApiVersion version = RestApiVersion.current();
 
@@ -848,7 +904,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCustomMediaTypeValidation() {
-        RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
 
         final String mediaType = "application/x-protobuf";
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -874,7 +937,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testBrowserSafelistedContentTypesAreRejected() {
-        RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
 
         final String mediaType = randomFrom(RestController.SAFELISTED_MEDIA_TYPES);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -895,7 +965,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterWithReservedPath() {
-        final RestController restController = new RestController(null, client, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+        final RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer,
+            TelemetryProvider.NOOP
+        );
         for (String path : RestController.RESERVED_PATHS) {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
                 restController.registerHandler(
@@ -913,7 +990,14 @@ public class RestControllerTests extends ESTestCase {
      * Test that when serverless is disabled, all endpoints are available regardless of ServerlessScope annotations.
      */
     public void testApiProtectionWithServerlessDisabled() {
-        final RestController restController = new RestController(null, client, circuitBreakerService, new UsageService(), tracer, TelemetryProvider.NOOP);
+        final RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            new UsageService(),
+            tracer,
+            TelemetryProvider.NOOP
+        );
         restController.registerHandler(new PublicRestHandler());
         restController.registerHandler(new InternalRestHandler());
         restController.registerHandler(new HiddenRestHandler());
@@ -929,7 +1013,14 @@ public class RestControllerTests extends ESTestCase {
      * Test that when serverless is enabled, a normal user can not access endpoints without a ServerlessScope annotation.
      */
     public void testApiProtectionWithServerlessEnabledAsEndUser() {
-        final RestController restController = new RestController(null, client, circuitBreakerService, new UsageService(), tracer, TelemetryProvider.NOOP);
+        final RestController restController = new RestController(
+            null,
+            client,
+            circuitBreakerService,
+            new UsageService(),
+            tracer,
+            TelemetryProvider.NOOP
+        );
         restController.registerHandler(new PublicRestHandler());
         restController.registerHandler(new InternalRestHandler());
         restController.registerHandler(new HiddenRestHandler());

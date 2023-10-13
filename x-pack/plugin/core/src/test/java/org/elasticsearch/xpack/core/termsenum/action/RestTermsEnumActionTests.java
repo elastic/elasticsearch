@@ -53,7 +53,14 @@ public class RestTermsEnumActionTests extends ESTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(null, client, new NoneCircuitBreakerService(), usageService, Tracer.NOOP, TelemetryProvider.NOOP);
+    private static RestController controller = new RestController(
+        null,
+        client,
+        new NoneCircuitBreakerService(),
+        usageService,
+        Tracer.NOOP,
+        TelemetryProvider.NOOP
+    );
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 
     /**

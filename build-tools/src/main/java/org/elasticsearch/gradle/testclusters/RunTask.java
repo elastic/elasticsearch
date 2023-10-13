@@ -43,6 +43,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
     private static final String transportCertificate = "private-cert2.p12";
 
     private Boolean debug = false;
+    private Boolean apmServerEnabled = false;
 
     private Boolean preserveData = false;
 
@@ -59,8 +60,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
     );
 
     @Internal
-    public abstract Property<ApmServerBuildService> getMockApmServer() ;
-
+    public abstract Property<ApmServerBuildService> getMockApmServer();
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -70,6 +70,16 @@ public abstract class RunTask extends DefaultTestClustersTask {
     @Input
     public Boolean getDebug() {
         return debug;
+    }
+
+    @Input
+    public Boolean getApmServerEnabled() {
+        return apmServerEnabled;
+    }
+
+    @Option(option = "with-apm-server", description = "Run simple logging http server to accept apm requests")
+    public void setApmServerEnabled(Boolean apmServerEnabled) {
+        this.apmServerEnabled = apmServerEnabled;
     }
 
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
@@ -180,14 +190,13 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
 
-//                if(apmServerEnabled){
-//
-//                }
-                ApmServerBuildService apmServerBuildService = getMockApmServer().get();
-//flag based on presens of apm service?
-                node.setting("telemetry.metrics.enabled", "true");
-                node.setting("tracing.apm.enabled", "true");
-                node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:9999");
+                if (apmServerEnabled) {
+                    ApmServerBuildService apmServerBuildService = getMockApmServer().get();
+                    node.setting("telemetry.metrics.enabled", "true");
+                    node.setting("tracing.apm.enabled", "true");
+                    node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:9999");
+                }
+
             }
         }
         if (debug) {

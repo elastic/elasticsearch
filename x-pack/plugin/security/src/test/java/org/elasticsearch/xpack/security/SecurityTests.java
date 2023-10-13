@@ -779,7 +779,8 @@ public class SecurityTests extends ESTestCase {
                 mock(ClusterService.class),
                 List.of(),
                 RestExtension.allowAll(),
-                    TelemetryProvider.NOOP);
+                TelemetryProvider.NOOP
+            );
             actionModule.initRestHandlers(null);
 
             appender.assertAllExpectationsMatched();

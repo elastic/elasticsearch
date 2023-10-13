@@ -142,7 +142,7 @@ can see an index named `test-data` with 182469 documents.
 [[reindexing-data-elser]]
 ==== Ingest the data through the {infer} ingest pipeline
 
-Create the tokens from the text by reindexing the data throught the {infer} 
+Create the tokens from the text by reindexing the data through the {infer} 
 pipeline that uses ELSER as the inference model.
 
 [source,console]

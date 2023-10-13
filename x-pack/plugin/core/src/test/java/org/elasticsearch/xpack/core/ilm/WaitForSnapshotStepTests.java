@@ -19,7 +19,10 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapshotStep> {
 
@@ -91,6 +94,38 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         ClusterStateWaitStep.Result result = instance.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertFalse(result.isComplete());
         assertTrue(getMessage(result).contains("to be executed"));
+    }
+
+    public void testSlmPolicyDoesNotApplyToIndex() {
+        long phaseTime = randomLongBetween(100, 100000);
+        long actionTime = phaseTime + randomLongBetween(100, 100000);
+        String indexName = randomAlphaOfLength(10);
+        WaitForSnapshotStep instance = createRandomInstance();
+        SnapshotLifecyclePolicyMetadata slmPolicy = SnapshotLifecyclePolicyMetadata.builder()
+            .setModifiedDate(randomLong())
+            .setPolicy(new SnapshotLifecyclePolicy("", "", "", "", Map.of("indices", List.of("-*")), null))
+            .setLastSuccess(new SnapshotInvocationRecord("", actionTime + 10, actionTime + 100, ""))
+            .build();
+        SnapshotLifecycleMetadata smlMetadata = new SnapshotLifecycleMetadata(
+            Map.of(instance.getPolicy(), slmPolicy),
+            OperationMode.RUNNING,
+            null
+        );
+
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, Map.of("action_time", Long.toString(actionTime)))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        Map<String, IndexMetadata> indices = Map.of(indexMetadata.getIndex().getName(), indexMetadata);
+        Metadata.Builder meta = Metadata.builder().indices(indices).putCustom(SnapshotLifecycleMetadata.TYPE, smlMetadata);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(meta).build();
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> instance.isConditionMet(indexMetadata.getIndex(), clusterState)
+        );
+        assertThat(e.getMessage(), containsString("does not apply to index"));
     }
 
     public void testSlmPolicyExecutedBeforeStep() throws IOException {

@@ -8,16 +8,20 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /***
  * A step that waits for snapshot to be taken by SLM to ensure we have backup before we delete the index.
@@ -32,6 +36,8 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     private static final String MESSAGE_FIELD = "message";
     private static final String POLICY_NOT_EXECUTED_MESSAGE = "waiting for policy '%s' to be executed since %s";
     private static final String POLICY_NOT_FOUND_MESSAGE = "configured policy '%s' not found";
+    private static final String POLICY_NOT_APPLY_TO_INDEX_MESSAGE =
+        "configured policy '%s' does not apply to index '%s'; patterns are [%s]";
     private static final String NO_INDEX_METADATA_MESSAGE = "no index metadata found for index '%s'";
     private static final String NO_ACTION_TIME_MESSAGE = "no information about ILM action start in index metadata for index '%s'";
 
@@ -42,6 +48,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
         this.policy = policy;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
@@ -60,19 +67,39 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             throw error(POLICY_NOT_FOUND_MESSAGE, policy);
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
+
+        if (snapPolicyMeta.getPolicy().getConfig() != null) {
+            Object indices = snapPolicyMeta.getPolicy().getConfig().get("indices");
+            List<String> patterns = null;
+            if (indices != null) {
+                if (indices instanceof List<?>) {
+                    patterns = (List<String>) indices;
+                } else if (indices instanceof String pattern) {
+                    patterns = List.of(pattern);
+                } else {
+                    logger.warn("Invalid indices configuration in SLM policy '{}': {}", policy, indices);
+                }
+            }
+            if (patterns != null && patterns.isEmpty() == false) {
+                final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, index.getName());
+                if (patterns.stream().noneMatch(patternMatchPredicate)) {
+                    throw error(POLICY_NOT_APPLY_TO_INDEX_MESSAGE, policy, index.getName(), Strings.join(patterns, ','));
+                }
+            }
+        }
         if (snapPolicyMeta.getLastSuccess() == null
             || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null
             || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < actionTime) {
             if (snapPolicyMeta.getLastSuccess() == null) {
-                logger.debug("skipping ILM policy execution because there is no last snapshot success, action time: {}", actionTime);
+                logger.info("skipping ILM policy execution because there is no last snapshot success, action time: {}", actionTime);
             } else if (snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null) {
                 /*
                  * This is because we are running in mixed cluster mode, and the snapshot was taken on an older master, which then went
                  * down before this check could happen. We'll wait until a snapshot is taken on this newer master before passing this check.
                  */
-                logger.debug("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
+                logger.info("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
             } else {
-                logger.debug(
+                logger.info(
                     "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp " + "is {}",
                     snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
                     actionTime,

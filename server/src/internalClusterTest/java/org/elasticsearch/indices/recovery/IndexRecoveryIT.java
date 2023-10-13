@@ -302,19 +302,15 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
             .get();
-        long nodeAThrottling = Long.MAX_VALUE;
-        long nodeBThrottling = Long.MAX_VALUE;
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             if (nodeStats.getNode().getName().equals(sourceNode)) {
                 assertThat(sourceNode + "  should have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(1));
                 assertThat(sourceNode + " should not have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(0));
-                nodeAThrottling = recoveryStats.throttleTime().millis();
             }
             if (nodeStats.getNode().getName().equals(targetNode)) {
                 assertThat(targetNode + " should not have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(0));
                 assertThat(targetNode + " should have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(1));
-                nodeBThrottling = recoveryStats.throttleTime().millis();
             }
         }
     }
@@ -555,10 +551,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         logger.info(
-            "--> restarting node A with recovery throttling settings. Index shard size (MB) is `{}`. Throttling down to a "
-                + "chunk of size `{}` (MB) per second. This will slow recovery of the shard to 10 seconds.",
-            shardSize.getMb(),
-            chunkSize / 1024.0 / 1024.0 /* converting bytes to megabytes */
+            "--> restarting node A with recovery throttling settings. Index shard size is `{}`. Throttling down to a "
+                + "chunk of size `{}` per second. This will slow recovery of the shard to 10 seconds.",
+            shardSize,
+            ByteSizeValue.ofBytes(chunkSize)
         );
         internalCluster().restartNode(nodeA, new InternalTestCluster.RestartCallback() {
             // This callback returns node Settings that are ultimately passed into the restarted node.
@@ -623,10 +619,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         logger.info(
-            "--> starting node B with recovery throttling settings. Index shard size (MB) is `{}`. Throttling down to a "
-                + "chunk of size `{}` (MB) per second. This will slow recovery of the existing shard to 10 seconds.",
-            shardSize.getMb(),
-            chunkSize / 1024.0 / 1024.0 /* converting bytes to megabytes */
+            "--> starting node B with recovery throttling settings. Index shard size is `{}`. Throttling down to a "
+                + "chunk of size `{}` per second. This will slow recovery of the existing shard to 10 seconds.",
+            shardSize,
+            ByteSizeValue.ofBytes(chunkSize)
         );
         final String nodeB = internalCluster().startNode(createRecoverySettingsChunkPerSecond(chunkSize));
 

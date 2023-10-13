@@ -424,6 +424,9 @@ nested fields:
 
 ---
 "Synthetic source":
+  - skip:
+      version: " - 8.9.99"
+      reason: "Synthetic source shows up in the mapping in 8.10"
   - do:
       indices.create:
         index: tsdb-synthetic

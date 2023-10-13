@@ -35,7 +35,8 @@ abstract class AbstractPreserveAllocations {
         int coresUsed = 0;
         for (Deployment m : deployments) {
             if (m.currentAllocationsByNodeId().containsKey(n.id())) {
-                bytesUsed += m.memoryBytes();
+                int allocations = m.currentAllocationsByNodeId().get(n.id());
+                bytesUsed += m.estimateMemoryUsageBytes(allocations);
                 coresUsed += calculateUsedCores(n, m);
             }
         }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
@@ -36,34 +37,34 @@ public class PreserveOneAllocationTests extends ESTestCase {
     }
 
     public void testGivenPreviousAssignments() {
-        Node node1 = new Node("n_1", 100, 8);
-        Node node2 = new Node("n_2", 100, 8);
-        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment("m_1", 30, 2, 1, Map.of("n_1", 1), 1, 0, 0);
-        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", 50, 6, 4, Map.of("n_1", 1, "n_2", 2), 3, 0, 0);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(640).getBytes(), 8);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(640).getBytes(), 8);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of("n_1", 1), 1, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 6, 4, Map.of("n_1", 1, "n_2", 2), 3, 0, 0);
         PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node1, node2), List.of(deployment1, deployment2));
 
         List<Node> nodesPreservingAllocations = preserveOneAllocation.nodesPreservingAllocations();
         assertThat(nodesPreservingAllocations, hasSize(2));
 
         assertThat(nodesPreservingAllocations.get(0).id(), equalTo("n_1"));
-        assertThat(nodesPreservingAllocations.get(0).availableMemoryBytes(), equalTo(20L));
+        assertThat(nodesPreservingAllocations.get(0).availableMemoryBytes(), equalTo(0L));
         assertThat(nodesPreservingAllocations.get(0).cores(), equalTo(3));
 
         assertThat(nodesPreservingAllocations.get(1).id(), equalTo("n_2"));
-        assertThat(nodesPreservingAllocations.get(1).availableMemoryBytes(), equalTo(50L));
+        assertThat(nodesPreservingAllocations.get(1).availableMemoryBytes(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
         assertThat(nodesPreservingAllocations.get(1).cores(), equalTo(4));
 
         List<AssignmentPlan.Deployment> modelsPreservingAllocations = preserveOneAllocation.modelsPreservingAllocations();
         assertThat(modelsPreservingAllocations, hasSize(2));
 
         assertThat(modelsPreservingAllocations.get(0).id(), equalTo("m_1"));
-        assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(30L));
+        assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(ByteSizeValue.ofMb(30).getBytes()));
         assertThat(modelsPreservingAllocations.get(0).allocations(), equalTo(1));
         assertThat(modelsPreservingAllocations.get(0).threadsPerAllocation(), equalTo(1));
         assertThat(modelsPreservingAllocations.get(0).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0)));
 
         assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
-        assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(50L));
+        assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
         assertThat(modelsPreservingAllocations.get(1).allocations(), equalTo(4));
         assertThat(modelsPreservingAllocations.get(1).threadsPerAllocation(), equalTo(4));
         assertThat(modelsPreservingAllocations.get(1).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0, "n_2", 1)));
@@ -79,15 +80,15 @@ public class PreserveOneAllocationTests extends ESTestCase {
 
         assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 3)));
         assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node1, 1, node2, 2)));
-        assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(20L));
+        assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(0L));
         assertThat(plan.getRemainingNodeCores("n_1"), equalTo(1));
-        assertThat(plan.getRemainingNodeMemory("n_2"), equalTo(50L));
+        assertThat(plan.getRemainingNodeMemory("n_2"), equalTo(ByteSizeValue.ofMb(300).getBytes()));
         assertThat(plan.getRemainingNodeCores("n_2"), equalTo(0));
     }
 
     public void testGivenModelWithPreviousAssignments_AndPlanToMergeHasNoAssignments() {
-        Node node = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment deployment = new Deployment("m_1", 30, 2, 2, Map.of("n_1", 2), 2, 0, 0);
+        Node node = new Node("n_1", ByteSizeValue.ofMb(400).getBytes(), 4);
+        AssignmentPlan.Deployment deployment = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 2, Map.of("n_1", 2), 2, 0, 0);
         PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node), List.of(deployment));
 
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node), List.of(deployment)).build();
@@ -96,7 +97,7 @@ public class PreserveOneAllocationTests extends ESTestCase {
         plan = preserveOneAllocation.mergePreservedAllocations(plan);
         assertThat(plan.assignments(deployment).isPresent(), is(true));
         assertThat(plan.assignments(deployment).get(), equalTo(Map.of(node, 1)));
-        assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(70L));
+        assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(ByteSizeValue.ofMb(100).getBytes()));
         assertThat(plan.getRemainingNodeCores("n_1"), equalTo(2));
     }
 }

@@ -102,8 +102,17 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             // information when creating the model
             MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(ActionListener.wrap(architectures -> {
                 if (architectures.isEmpty() && clusterIsInElasticCloud(clusterService.getClusterSettings())) {
-                    // In Elastic cloud ml nodes run on Linux x86
-                    architectures = Set.of("linux-x86_64");
+                    parseAndStoreModel(
+                        service.get(),
+                        request.getModelId(),
+                        request.getTaskType(),
+                        requestAsMap,
+                        // In Elastic cloud ml nodes run on Linux x86
+                        Set.of("linux-x86_64"),
+                        listener
+                    );
+                } else {
+                    // The architecture field could be an empty set, the individual services will need to handle that
                     parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, architectures, listener);
                 }
             }, listener::onFailure), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
@@ -118,10 +127,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         String modelId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platfromArchitectures,
+        Set<String> platformArchitectures,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
-        var model = service.parseRequestConfig(modelId, taskType, config, platfromArchitectures);
+        var model = service.parseRequestConfig(modelId, taskType, config, platformArchitectures);
         // model is valid good to persist then start
         this.modelRegistry.storeModel(model, ActionListener.wrap(r -> { startModel(service, model, listener); }, listener::onFailure));
     }

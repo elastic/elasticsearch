@@ -200,7 +200,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static EnumSet<ProductFeature> availableFeatures;
-    private static TreeSet<Version> nodeVersions;
+    private static TreeSet<String> nodeVersions;
+    private static TreeSet<NodeFeatures> nodeFeatures;
+
+    interface NodeFeatures {
+        boolean supportsSearchableSnapshotsIndices();
+        boolean supportsComposableIndexTemplates();
+        boolean supportsBulkDeleteOnTemplates();
+        boolean isSoftDeletesDisabledDeprecated();
+    }
 
     @Before
     public void initClient() throws IOException {
@@ -209,6 +217,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodeVersions == null;
+            assert nodeFeatures == null;
             String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
             List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
@@ -228,12 +237,14 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             nodeVersions = new TreeSet<>();
+            nodeFeatures = new TreeSet<>();
             boolean serverless = false;
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
+                nodeFeatures.add(createNodeFeaturesFromNodeInfo(nodeInfo));
+                nodeVersions.add(nodeInfo.get("version").toString());
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
                     final String moduleName = moduleInfo.get("name").toString();
@@ -275,6 +286,33 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert clusterHosts != null;
         assert availableFeatures != null;
         assert nodeVersions != null;
+        assert nodeFeatures != null;
+    }
+
+    private NodeFeatures createNodeFeaturesFromNodeInfo(Map<?,?> nodeInfo) {
+        // TODO[lor]: this needs to be replaced with (historical) feature checks once https://github.com/elastic/elasticsearch/pull/100330
+        Version version = Version.fromString(nodeInfo.get("version").toString().replace("-SNAPSHOT", ""));
+        return new NodeFeatures() {
+            @Override
+            public boolean supportsSearchableSnapshotsIndices() {
+                return version.onOrAfter(Version.V_7_8_0);
+            }
+
+            @Override
+            public boolean supportsComposableIndexTemplates() {
+                return version.onOrAfter(Version.V_7_7_0);
+            }
+
+            @Override
+            public boolean supportsBulkDeleteOnTemplates() {
+                return version.onOrAfter(Version.V_7_13_0);
+            }
+
+            @Override
+            public boolean isSoftDeletesDisabledDeprecated() {
+                return version.onOrAfter(Version.V_7_6_0);
+            }
+        };
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -363,9 +401,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
-        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(
-            nodeVersions.stream().map(Version::toString).collect(Collectors.toSet())
-        );
+        VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(Set.copyOf(nodeVersions));
         expectationsSetter.accept(warningsHandler);
         builder.setWarningsHandler(warningsHandler);
         return builder.build();
@@ -435,6 +471,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = null;
             availableFeatures = null;
             nodeVersions = null;
+            nodeFeatures = null;
         }
     }
 
@@ -690,6 +727,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+
+
     private void wipeCluster() throws Exception {
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
@@ -706,8 +745,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (has(ProductFeature.XPACK)
-            && nodeVersions.first().onOrAfter(Version.V_7_8_0)
+        if (nodeFeatures.stream().allMatch(NodeFeatures::supportsSearchableSnapshotsIndices)
+            && has(ProductFeature.XPACK)
             && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
             wipeSearchableSnapshotsIndices();
         }
@@ -740,7 +779,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                  */
                 // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
                 // index templates, because these were introduced in 7.7.0:
-                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+                if (nodeFeatures.stream().allMatch(NodeFeatures::supportsComposableIndexTemplates)) {
                     try {
                         Request getTemplatesRequest = new Request("GET", "_index_template");
                         Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
@@ -755,7 +794,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if (names.isEmpty() == false) {
                             // Ideally we would want to check the version of the elected master node and
                             // send the delete request directly to that node.
-                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
+                            if (nodeFeatures.stream().allMatch(NodeFeatures::supportsBulkDeleteOnTemplates)) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
@@ -786,7 +825,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if (names.isEmpty() == false) {
                             // Ideally we would want to check the version of the elected master node and
                             // send the delete request directly to that node.
-                            if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_13_0))) {
+                            if (nodeFeatures.stream().allMatch(NodeFeatures::supportsBulkDeleteOnTemplates)) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
@@ -905,7 +944,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             if (has(ProductFeature.XPACK)) {
                 // In case of bwc testing, if all nodes are before 7.8.0 then no need to attempt to delete component and composable
                 // index templates, because these were introduced in 7.8.0:
-                if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_8_0))) {
+                if (nodeFeatures.stream().allMatch(NodeFeatures::supportsComposableIndexTemplates)) {
                     Request getTemplatesRequest = new Request("GET", "_index_template");
                     Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
@@ -1652,11 +1691,11 @@ public abstract class ESRestTestCase extends ESTestCase {
                 + indexName
                 + "]."
         );
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+        if (nodeFeatures.stream().allMatch(NodeFeatures::isSoftDeletesDisabledDeprecated)) {
             request.setOptions(
                 RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false)
             );
-        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+        } else if (nodeFeatures.stream().anyMatch(NodeFeatures::isSoftDeletesDisabledDeprecated)) {
             request.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false)
@@ -2006,7 +2045,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Version minVersion = null;
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             @SuppressWarnings("unchecked")
-            Version nodeVersion = Version.fromString((String) ((Map<String, Object>) node.getValue()).get("version"));
+            Version nodeVersion = parseLegacyVersion((String) ((Map<String, Object>) node.getValue()).get("version"));
             if (minVersion == null || minVersion.after(nodeVersion)) {
                 minVersion = nodeVersion;
             }
@@ -2032,7 +2071,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
                 ? IndexVersion.fromId(Integer.parseInt(versionStr))
-                : IndexVersion.fromId(Version.fromString((String) nodeData.get("version")).id);
+                : IndexVersion.fromId(parseLegacyVersion((String) nodeData.get("version")).id);
             if (minVersion == null || minVersion.after(indexVersion)) {
                 minVersion = indexVersion;
             }

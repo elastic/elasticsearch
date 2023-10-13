@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -287,9 +286,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 return repository.getSnapshotGlobalMetadata(snapshotId);
                             }
                         }
-                        throw new ResourceNotFoundException(
-                            String.format("snapshot [%s] in repository [%s] not found", snapshotName, repositoryName)
-                        );
+                        throw new SnapshotMissingException(repositoryName, snapshotName);
                     }))
             )
         );

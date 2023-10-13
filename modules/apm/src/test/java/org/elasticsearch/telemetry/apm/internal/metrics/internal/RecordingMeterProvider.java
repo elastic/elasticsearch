@@ -56,7 +56,7 @@ public class RecordingMeterProvider implements Meter {
     }
 
     @Override
-    public LongUpDownCounterBuilder upDownCounterBuilder(String yname) {
+    public LongUpDownCounterBuilder upDownCounterBuilder(String name) {
         return new RecordingLongUpDownBuilder(name);
     }
 

@@ -89,7 +89,8 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
         }
         if (snapPolicyMeta.getLastSuccess() == null
             || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null
-            || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < actionTime) {
+            || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < actionTime
+            || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < snapPolicyMeta.getModifiedDate()) {
             if (snapPolicyMeta.getLastSuccess() == null) {
                 logger.info("skipping ILM policy execution because there is no last snapshot success, action time: {}", actionTime);
             } else if (snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null) {
@@ -97,9 +98,22 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
                  * This is because we are running in mixed cluster mode, and the snapshot was taken on an older master, which then went
                  * down before this check could happen. We'll wait until a snapshot is taken on this newer master before passing this check.
                  */
-                logger.info("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
+                logger.debug("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
+            } else if (snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < snapPolicyMeta.getModifiedDate()) {
+                /**
+                 * Skipping because the SLM policy has been updated we cannot be sure that the index patterns haven't been changed
+                 */
+                logger.debug(
+                    "skipping ILM policy execution because snapshot start time {} is before the latest SLM policy modification time {},"
+                        + " snapshot timestamp "
+                        + "is {}",
+                    snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
+                    snapPolicyMeta.getModifiedDate(),
+                    snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp()
+                );
+                return new Result(false, notExecutedMessage(snapPolicyMeta.getModifiedDate()));
             } else {
-                logger.info(
+                logger.debug(
                     "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp " + "is {}",
                     snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
                     actionTime,

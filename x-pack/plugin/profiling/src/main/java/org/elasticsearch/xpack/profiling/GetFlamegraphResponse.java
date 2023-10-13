@@ -119,6 +119,46 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return countExclusive;
     }
 
+    public List<Map<String, Integer>> getEdges() {
+        return edges;
+    }
+
+    public List<String> getFileIds() {
+        return fileIds;
+    }
+
+    public List<Integer> getFrameTypes() {
+        return frameTypes;
+    }
+
+    public List<Boolean> getInlineFrames() {
+        return inlineFrames;
+    }
+
+    public List<String> getFileNames() {
+        return fileNames;
+    }
+
+    public List<Integer> getAddressOrLines() {
+        return addressOrLines;
+    }
+
+    public List<String> getFunctionNames() {
+        return functionNames;
+    }
+
+    public List<Integer> getFunctionOffsets() {
+        return functionOffsets;
+    }
+
+    public List<String> getSourceFileNames() {
+        return sourceFileNames;
+    }
+
+    public List<Integer> getSourceLines() {
+        return sourceLines;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(

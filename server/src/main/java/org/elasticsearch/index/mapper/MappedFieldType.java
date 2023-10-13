@@ -79,7 +79,9 @@ public abstract class MappedFieldType {
         this.isStored = isStored;
         this.docValues = hasDocValues;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
-        this.meta = Objects.requireNonNull(meta);
+        // meta should be sorted but for the one item or empty case we can fall back to immutable maps to save some memory since order is
+        // irrelevant
+        this.meta = meta.size() <= 1 ? Map.copyOf(meta) : meta;
     }
 
     /**

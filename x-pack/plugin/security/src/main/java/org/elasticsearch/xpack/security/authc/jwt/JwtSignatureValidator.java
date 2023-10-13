@@ -17,7 +17,6 @@ import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
@@ -40,8 +39,9 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.security.authc.jwt.JwtUtil.toStringRedactSignature;
 
 public interface JwtSignatureValidator extends Releasable {
 
@@ -361,7 +361,7 @@ public interface JwtSignatureValidator extends Releasable {
             final String id = jwt.getHeader().getKeyID();
             final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
 
-            tracer.append("Filtering [{}] possible JWKs to verifying signature for JWT [{}].", jwks.size(), getSafePrintableJWT(jwt));
+            tracer.append("Filtering [{}] possible JWKs to verifying signature for JWT [{}].", jwks.size(), toStringRedactSignature(jwt));
 
             // If JWT has optional kid header, and realm JWKs have optional kid attribute, any mismatches JWT.kid vs JWK.kid can be ignored.
             // Keep any JWKs if JWK optional kid attribute is missing. Keep all JWKs if JWT optional kid header is missing.
@@ -399,7 +399,11 @@ public interface JwtSignatureValidator extends Releasable {
 
             int attempt = 0;
             int maxAttempts = jwksConfigured.size();
-            tracer.append("Attempting to verify signature for JWT [{}] against [{}] possible JWKs.", getSafePrintableJWT(jwt), maxAttempts);
+            tracer.append(
+                "Attempting to verify signature for JWT [{}] against [{}] possible JWKs.",
+                toStringRedactSignature(jwt),
+                maxAttempts
+            );
             for (final JWK jwk : jwksConfigured) {
                 attempt++;
                 if (jwt.verify(createJwsVerifier(jwk))) {
@@ -429,7 +433,7 @@ public interface JwtSignatureValidator extends Releasable {
                     );
                 }
             }
-            throw new ElasticsearchException("JWT [" + getSafePrintableJWT(jwt).get() + "] signature verification failed.");
+            throw new ElasticsearchException("JWT [" + toStringRedactSignature(jwt).get() + "] signature verification failed.");
         }
     }
 
@@ -456,17 +460,6 @@ public interface JwtSignatureValidator extends Releasable {
 
     interface PkcJwkSetReloadNotifier {
         void reloaded();
-    }
-
-    /**
-     * @param jwt The signed JWT
-     * @return A print safe supplier to describe a JWT that redacts the signature. While the signature is not generally sensitive,
-     * we don't want to leak the entire JWT to the log to avoid a possible replay.
-     */
-    private Supplier<String> getSafePrintableJWT(SignedJWT jwt) {
-        Base64URL[] parts = jwt.getParsedParts();
-        assert parts.length == 3;
-        return () -> parts[0].toString() + "." + parts[1].toString() + ".<redacted>";
     }
 
 }

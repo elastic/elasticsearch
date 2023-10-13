@@ -35,50 +35,54 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+      }
+      IntBlock valBlock = (IntBlock) valRef.block();
+      try (Block.Ref decimalsRef = decimals.eval(page)) {
+        if (decimalsRef.block().areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        }
+        LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
+        IntVector valVector = valBlock.asVector();
+        if (valVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+        }
+        LongVector decimalsVector = decimalsBlock.asVector();
+        if (decimalsVector == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valBlock, decimalsBlock));
+        }
+        return Block.Ref.floating(eval(page.getPositionCount(), valVector, decimalsVector).asBlock());
+      }
     }
-    IntBlock valBlock = (IntBlock) valUncastBlock;
-    Block decimalsUncastBlock = decimals.eval(page);
-    if (decimalsUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
-    }
-    LongBlock decimalsBlock = (LongBlock) decimalsUncastBlock;
-    IntVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock, decimalsBlock);
-    }
-    LongVector decimalsVector = decimalsBlock.asVector();
-    if (decimalsVector == null) {
-      return eval(page.getPositionCount(), valBlock, decimalsBlock);
-    }
-    return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
   }
 
   public IntBlock eval(int positionCount, IntBlock valBlock, LongBlock decimalsBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendInt(Round.process(valBlock.getInt(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
       }
-      if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      result.appendInt(Round.process(valBlock.getInt(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public IntVector eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendInt(Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendInt(Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

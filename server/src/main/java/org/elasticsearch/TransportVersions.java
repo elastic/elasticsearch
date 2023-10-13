@@ -85,25 +85,6 @@ public class TransportVersions {
      * Detached transport versions added below here.
      */
     public static final TransportVersion V_8_500_020 = def(8_500_020);
-    public static final TransportVersion V_8_500_021 = def(8_500_021);
-    public static final TransportVersion V_8_500_022 = def(8_500_022);
-    public static final TransportVersion V_8_500_023 = def(8_500_023);
-    public static final TransportVersion V_8_500_024 = def(8_500_024);
-    public static final TransportVersion V_8_500_025 = def(8_500_025);
-    public static final TransportVersion V_8_500_026 = def(8_500_026);
-    public static final TransportVersion V_8_500_027 = def(8_500_027);
-    public static final TransportVersion V_8_500_028 = def(8_500_028);
-    public static final TransportVersion V_8_500_029 = def(8_500_029);
-    public static final TransportVersion V_8_500_030 = def(8_500_030);
-    public static final TransportVersion V_8_500_031 = def(8_500_031);
-    public static final TransportVersion V_8_500_032 = def(8_500_032);
-    public static final TransportVersion V_8_500_033 = def(8_500_033);
-    public static final TransportVersion V_8_500_034 = def(8_500_034);
-    public static final TransportVersion V_8_500_035 = def(8_500_035);
-    public static final TransportVersion V_8_500_036 = def(8_500_036);
-    public static final TransportVersion V_8_500_037 = def(8_500_037);
-    public static final TransportVersion V_8_500_038 = def(8_500_038);
-    public static final TransportVersion V_8_500_039 = def(8_500_039);
     public static final TransportVersion V_8_500_040 = def(8_500_040);
     public static final TransportVersion V_8_500_041 = def(8_500_041);
     public static final TransportVersion V_8_500_042 = def(8_500_042);
@@ -145,6 +126,20 @@ public class TransportVersions {
     public static final TransportVersion WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED = def(8_502_00_0);
     public static final TransportVersion RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED = def(8_503_00_0);
     public static final TransportVersion NODE_INFO_COMPONENT_VERSIONS_ADDED = def(8_504_00_0);
+    public static final TransportVersion COMPACT_FIELD_CAPS_ADDED = def(8_505_00_0);
+    public static final TransportVersion DATA_STREAM_RESPONSE_INDEX_PROPERTIES = def(8_506_00_0);
+    public static final TransportVersion ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED = def(8_507_00_0);
+    public static final TransportVersion LONG_COUNT_IN_HISTOGRAM_ADDED = def(8_508_00_0);
+    public static final TransportVersion INFERENCE_MODEL_SECRETS_ADDED = def(8_509_00_0);
+    public static final TransportVersion NODE_INFO_REQUEST_SIMPLIFIED = def(8_510_00_0);
+    public static final TransportVersion NESTED_KNN_VECTOR_QUERY_V = def(8_511_00_0);
+    public static final TransportVersion ML_PACKAGE_LOADER_PLATFORM_ADDED = def(8_512_00_0);
+    public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED_PATCH = def(8_512_00_1);
+    public static final TransportVersion PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME = def(8_513_00_0);
+    public static final TransportVersion UNIVERSAL_PROFILING_LICENSE_ADDED = def(8_514_00_0);
+    public static final TransportVersion ELSER_SERVICE_MODEL_VERSION_ADDED = def(8_515_00_0);
+    public static final TransportVersion NODE_STATS_HTTP_ROUTE_STATS_ADDED = def(8_516_00_0);
+    public static final TransportVersion INCLUDE_SHARDS_STATS_ADDED = def(8_517_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -206,7 +201,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_500_061;
+    public static final TransportVersion MINIMUM_CCS_VERSION = ML_PACKAGE_LOADER_PLATFORM_ADDED;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -63,7 +64,7 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
             ClearVotingConfigExclusionsRequest::new,
             indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.reconfigurator = reconfigurator;
     }

@@ -53,12 +53,8 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < preWarmThreads; i++) {
             executor.execute(() -> {
-                try {
-                    barrier.await();
-                    latch.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(latch);
             });
         }
         logger.info("--> waiting for prewarm threads to all become blocked");

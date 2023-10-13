@@ -41,7 +41,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
     // version 2: Added 'profiling.host.machine' keyword mapping to profiling-hosts
-    public static final int INDEX_TEMPLATE_VERSION = 2;
+    // version 3: Add optional component template 'profiling-ilm@custom' to all ILM-managed index templates
+    public static final int INDEX_TEMPLATE_VERSION = 3;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
     public static final int PROFILING_EVENTS_VERSION = 1;

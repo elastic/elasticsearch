@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -295,7 +296,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 return;
             }
             ArrayList<Double> values = null;
-            ArrayList<Integer> counts = null;
+            ArrayList<Long> counts = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
@@ -343,7 +344,7 @@ public class HistogramFieldMapper extends FieldMapper {
                     while (token != XContentParser.Token.END_ARRAY) {
                         // should be a number
                         ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
-                        counts.add(subParser.intValue());
+                        counts.add(subParser.longValue());
                         token = subParser.nextToken();
                     }
                 } else {
@@ -385,7 +386,7 @@ public class HistogramFieldMapper extends FieldMapper {
             }
             BytesStreamOutput streamOutput = new BytesStreamOutput();
             for (int i = 0; i < values.size(); i++) {
-                int count = counts.get(i);
+                long count = counts.get(i);
                 if (count < 0) {
                     throw new DocumentParsingException(
                         subParser.getTokenLocation(),
@@ -393,7 +394,11 @@ public class HistogramFieldMapper extends FieldMapper {
                     );
                 } else if (count > 0) {
                     // we do not add elements with count == 0
-                    streamOutput.writeVInt(count);
+                    if (streamOutput.getTransportVersion().onOrAfter(TransportVersions.LONG_COUNT_IN_HISTOGRAM_ADDED)) {
+                        streamOutput.writeVLong(count);
+                    } else {
+                        streamOutput.writeVInt(Math.toIntExact(count));
+                    }
                     streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
                 }
             }
@@ -431,7 +436,7 @@ public class HistogramFieldMapper extends FieldMapper {
     /** re-usable {@link HistogramValue} implementation */
     private static class InternalHistogramValue extends HistogramValue {
         double value;
-        int count;
+        long count;
         boolean isExhausted;
         final ByteArrayStreamInput streamInput;
 
@@ -450,7 +455,11 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public boolean next() throws IOException {
             if (streamInput.available() > 0) {
-                count = streamInput.readVInt();
+                if (streamInput.getTransportVersion().onOrAfter(TransportVersions.LONG_COUNT_IN_HISTOGRAM_ADDED)) {
+                    count = streamInput.readVLong();
+                } else {
+                    count = streamInput.readVInt();
+                }
                 value = Double.longBitsToDouble(streamInput.readLong());
                 return true;
             }
@@ -467,7 +476,7 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public int count() {
+        public long count() {
             if (isExhausted) {
                 throw new IllegalArgumentException("histogram already exhausted");
             }

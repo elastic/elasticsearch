@@ -340,7 +340,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     }
 
     @Override
-    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) {
         // TODO: Make common with the index method ShapeFieldMapper
         if (geometry == null) {
             return;

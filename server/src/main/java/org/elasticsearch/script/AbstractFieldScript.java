@@ -33,7 +33,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
      */
     public static final int MAX_VALUES = 100;
 
-    static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
+    protected static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<>(
             name,
             factoryClass,

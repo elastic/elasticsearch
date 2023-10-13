@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +26,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
@@ -125,7 +127,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             Sets.newHashSet(
                 MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_ML_NODE_SIZE,
                 MachineLearning.MAX_LAZY_ML_NODES,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE
@@ -146,24 +148,27 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion, MlConfigVersion mlConfigVersion) {
-        return new DiscoveryNode(
-            "_node_name" + i,
-            "_node_id" + i,
-            new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
-            isMlNode
-                ? Map.of(
-                    "ml.machine_memory",
-                    String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
-                    "ml.max_jvm_size",
-                    String.valueOf(ByteSizeValue.ofMb(400).getBytes()),
-                    MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
-                    mlConfigVersion.toString()
-                )
-                : Map.of(),
-            isMlNode
-                ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
-                : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            VersionInformation.inferVersions(nodeVersion)
-        );
+        return DiscoveryNodeUtils.builder("_node_id" + i)
+            .name("_node_name" + i)
+            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i))
+            .attributes(
+                isMlNode
+                    ? Map.of(
+                        "ml.machine_memory",
+                        String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
+                        "ml.max_jvm_size",
+                        String.valueOf(ByteSizeValue.ofMb(400).getBytes()),
+                        MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+                        mlConfigVersion.toString()
+                    )
+                    : Map.of()
+            )
+            .roles(
+                isMlNode
+                    ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
+                    : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
+            )
+            .version(VersionInformation.inferVersions(nodeVersion))
+            .build();
     }
 }

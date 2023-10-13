@@ -11,11 +11,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -80,7 +82,14 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         this.columnar = false;
     }
 
-    public EsqlQueryResponse(StreamInput in) throws IOException {
+    /**
+     * Build a reader for the response.
+     */
+    public static Writeable.Reader<EsqlQueryResponse> reader(BlockFactory blockFactory) {
+        return in -> new EsqlQueryResponse(new BlockStreamInput(in, blockFactory));
+    }
+
+    public EsqlQueryResponse(BlockStreamInput in) throws IOException {
         super(in);
         this.columns = in.readCollectionAsList(ColumnInfo::new);
         this.pages = in.readCollectionAsList(Page::new);
@@ -140,7 +149,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
         } else {
             valuesIt = Iterators.flatMap(pages.iterator(), page -> {
                 final int columnCount = columns.size();
-                assert page.getBlockCount() == columnCount;
+                assert page.getBlockCount() == columnCount : page.getBlockCount() + " != " + columnCount;
                 final ColumnInfo.PositionToXContent[] toXContents = new ColumnInfo.PositionToXContent[columnCount];
                 for (int column = 0; column < columnCount; column++) {
                     toXContents[column] = columns.get(column).positionToXContent(page.getBlock(column), scratch);
@@ -213,13 +222,14 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                  */
                 int count = block.getValueCount(p);
                 int start = block.getFirstValueIndex(p);
+                String dataType = dataTypes.get(b);
                 if (count == 1) {
-                    return valueAt(dataTypes.get(b), block, start, scratch);
+                    return valueAt(dataType, block, start, scratch);
                 }
                 List<Object> thisResult = new ArrayList<>(count);
                 int end = count + start;
                 for (int i = start; i < end; i++) {
-                    thisResult.add(valueAt(dataTypes.get(b), block, i, scratch));
+                    thisResult.add(valueAt(dataType, block, i, scratch));
                 }
                 return thisResult;
             }))

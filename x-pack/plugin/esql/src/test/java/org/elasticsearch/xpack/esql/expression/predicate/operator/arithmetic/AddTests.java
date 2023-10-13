@@ -32,6 +32,8 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AddTests extends AbstractDateTimeArithmeticTestCase {
     public AddTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -99,7 +101,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
                 ),
-                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
+                "No evaluator, the tests only trigger the folding code since Period is not representable",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))
             );
@@ -111,7 +114,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataTypes.DATETIME, "rhs")
                 ),
-                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "No evaluator, the tests only trigger the folding code since Period is not representable",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(rhs).plus(lhs)))
             );
@@ -135,7 +138,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
                 ),
-                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "No evaluator, the tests only trigger the folding code since Duration is not representable",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))
             );
@@ -147,7 +150,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
                 ),
-                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "No evaluator, the tests only trigger the folding code since Duration is not representable",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))
             );
@@ -162,6 +165,20 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                 "Only folding possible, so there's no evaluator",
                 EsqlDataTypes.TIME_DURATION,
                 equalTo(lhs.plus(rhs))
+            );
+        }), new TestCaseSupplier("MV", () -> {
+            // Ensure we don't have an overflow
+            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataTypes.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+                ),
+                "AddIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.INTEGER,
+                is(nullValue())
             );
         })));
     }

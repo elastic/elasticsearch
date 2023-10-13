@@ -15,9 +15,11 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
     private final boolean value;
+
+    private final BooleanBlock block;
 
     public ConstantBooleanVector(boolean value, int positionCount) {
         this(value, positionCount, BlockFactory.getNonBreakingInstance());
@@ -26,6 +28,7 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
     public ConstantBooleanVector(boolean value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
+        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
@@ -35,7 +38,7 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public BooleanBlock asBlock() {
-        return new BooleanVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -55,7 +58,7 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(boolean.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -77,6 +80,10 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.session.EsqlConfiguration.QUERY_COMPRESS_THRESHOLD_CHARS;
+
 public class EsqlConfigurationSerializationTests extends AbstractWireSerializingTestCase<EsqlConfiguration> {
 
     @Override
@@ -29,6 +31,11 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
     }
 
     public static EsqlConfiguration randomConfiguration() {
+        int len = randomIntBetween(1, 300) + (frequently() ? 0 : QUERY_COMPRESS_THRESHOLD_CHARS);
+        return randomConfiguration(randomRealisticUnicodeOfLength(len));
+    }
+
+    public static EsqlConfiguration randomConfiguration(String query) {
         var zoneId = randomZone();
         var locale = randomLocale(random());
         var username = randomAlphaOfLengthBetween(1, 10);
@@ -36,7 +43,7 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
         var truncation = randomNonNegativeInt();
         var defaultTruncation = randomNonNegativeInt();
 
-        return new EsqlConfiguration(zoneId, locale, username, clusterName, randomQueryPragmas(), truncation, defaultTruncation);
+        return new EsqlConfiguration(zoneId, locale, username, clusterName, randomQueryPragmas(), truncation, defaultTruncation, query);
     }
 
     @Override
@@ -46,7 +53,7 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
 
     @Override
     protected EsqlConfiguration mutateInstance(EsqlConfiguration in) throws IOException {
-        int ordinal = between(0, 6);
+        int ordinal = between(0, 7);
         return new EsqlConfiguration(
             ordinal == 0 ? randomValueOtherThan(in.zoneId(), () -> randomZone().normalized()) : in.zoneId(),
             ordinal == 1 ? randomValueOtherThan(in.locale(), () -> randomLocale(random())) : in.locale(),
@@ -56,7 +63,8 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
                 ? new QueryPragmas(Settings.builder().put(QueryPragmas.EXCHANGE_BUFFER_SIZE.getKey(), between(1, 10)).build())
                 : in.pragmas(),
             ordinal == 5 ? in.resultTruncationMaxSize() + randomIntBetween(3, 10) : in.resultTruncationMaxSize(),
-            ordinal == 6 ? in.resultTruncationDefaultSize() + randomIntBetween(3, 10) : in.resultTruncationDefaultSize()
+            ordinal == 6 ? in.resultTruncationDefaultSize() + randomIntBetween(3, 10) : in.resultTruncationDefaultSize(),
+            ordinal == 7 ? randomAlphaOfLength(100) : in.query()
         );
     }
 }

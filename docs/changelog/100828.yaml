@@ -1,0 +1,5 @@
+pr: 100828
+summary: Consider task cancelled exceptions as recoverable
+area: Transform
+type: bug
+issues: []

@@ -108,7 +108,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.isLicensed = isLicensed;
         this.isModular = isModular;
         this.isStable = isStable;
-        this.builtWithSemanticVersion = Pattern.matches("^\\d+\\.\\d+\\.\\d+.*", elasticsearchVersion);
+        this.builtWithSemanticVersion = Optional.ofNullable(elasticsearchVersion)
+            .map(v -> Pattern.matches("^\\d+\\.\\d+\\.\\d+.*", v))
+            .orElse(false);
 
         ensureCorrectArgumentsForPluginType();
     }

@@ -168,8 +168,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     private static final int MIN_DOC_COUNT = 500;
     private static final int MAX_DOC_COUNT = 1000;
-    private static final int SHARD_COUNT_1 = 1;
-    private static final int REPLICA_COUNT_0 = 0;
+    private static final int SHARD_COUNT = 1;
+    private static final int REPLICA_COUNT = 0;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -248,19 +248,18 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSizeBytes, ByteSizeUnit.BYTES);
     }
 
-    /**
-     * Updates the cluster state settings to throttle shard recovery speed for shards of size 'shardSize' to 10 seconds.
-     * @param shardSize size in bytes to recover in 10 seconds
-     */
-    private void throttleRecovery(ByteSizeValue shardSize) {
+    private void slowDownRecovery(ByteSizeValue shardSize) {
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
-        updateClusterSettings(createRecoverySettingsChunkPerSecond(chunkSize));
+        updateClusterSettings(
+            Settings.builder()
+                // one chunk per sec..
+                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
+                // small chunks
+                .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
+        );
     }
 
-    /**
-     * Sets high MB per second throttling for recovery on all nodes in the cluster.
-     */
-    private void unthrottleRecovery() {
+    private void restoreRecoverySpeed() {
         updateClusterSettings(
             Settings.builder()
                 // 200mb is an arbitrary number intended to be large enough to avoid more throttling.
@@ -344,7 +343,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> start nodes");
         String node = internalCluster().startNode();
 
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0);
+        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> restarting cluster");
         internalCluster().fullRestart();
@@ -352,7 +351,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         logger.info("--> request recoveries");
         RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
-        assertThat(response.shardRecoveryStates().size(), equalTo(SHARD_COUNT_1));
+        assertThat(response.shardRecoveryStates().size(), equalTo(SHARD_COUNT));
         assertThat(response.shardRecoveryStates().get(INDEX_NAME).size(), equalTo(1));
 
         List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
@@ -369,7 +368,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> start nodes");
         internalCluster().startNode();
 
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0);
+        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> restarting cluster");
         internalCluster().fullRestart();
@@ -384,7 +383,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     public void testReplicaRecovery() throws Exception {
         final String nodeA = internalCluster().startNode();
-        createIndex(INDEX_NAME, SHARD_COUNT_1, REPLICA_COUNT_0);
+        createIndex(INDEX_NAME, SHARD_COUNT, REPLICA_COUNT);
         ensureGreen(INDEX_NAME);
 
         final int numOfDocs = scaledRandomIntBetween(0, 200);
@@ -531,147 +530,12 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
     }
 
-    /**
-     * Tests shard recovery throttling on the source node. Node statistics should show throttling time on the source node, while no
-     * throttling should be shown on the target node because the source will send data more slowly than the target's throttling threshold.
-     */
-    public void testSourceThrottling() throws Exception {
-        // --- Cluster setup.
-
-        logger.info("--> starting node A with default settings");
-        final String nodeA = internalCluster().startNode();
-
-        logger.info("--> creating index on node A");
-        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
-            .getStore()
-            .size();
-
-        logger.info("--> starting node B with default settings");
-        final String nodeB = internalCluster().startNode();
-
-        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
-        logger.info(
-            "--> restarting node A with recovery throttling settings. Index shard size is `{}`. Throttling down to a "
-                + "chunk of size `{}` per second. This will slow recovery of the shard to 10 seconds.",
-            shardSize,
-            ByteSizeValue.ofBytes(chunkSize)
-        );
-        internalCluster().restartNode(nodeA, new InternalTestCluster.RestartCallback() {
-            // This callback returns node Settings that are ultimately passed into the restarted node.
-            @Override
-            public Settings onNodeStopped(String nodeName) {
-                return createRecoverySettingsChunkPerSecond(chunkSize).build();
-            }
-        });
-
-        logger.info("--> waiting for the cluster to stabilize after restarting the source node (Node A)");
-        ensureGreen();
-
-        // --- Shard recovery.
-
-        startShardRecovery(INDEX_NAME, nodeA, nodeB);
-
-        logger.info("--> checking throttling increases on Node A (source node), while Node B (target node) reports no throttling");
-        assertBusy(() -> {
-            NodesStatsResponse nodeStatsResponse = clusterAdmin().prepareNodesStats()
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get();
-            assertThat(nodeStatsResponse.getNodes(), hasSize(2));
-            for (NodeStats nodeStats : nodeStatsResponse.getNodes()) {
-                final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-                if (nodeStats.getNode().getName().equals(nodeA)) {
-                    assertThat("node A throttling should  increase", recoveryStats.throttleTime().millis(), greaterThan(0L));
-                }
-                if (nodeStats.getNode().getName().equals(nodeB)) {
-                    assertThat("node B throttling should _not_ increase", recoveryStats.throttleTime().millis(), equalTo(0L));
-                }
-            }
-        });
-
-        logger.info("--> increasing the recovery throttle limit so that the shard recovery completes quickly");
-        unthrottleRecovery();
-
-        logger.info("--> waiting for the shard recovery to complete");
-        ensureGreen();
-
-        // --- Shard recovery complete. Verify throttling millis remain reflected in node stats.
-
-        logger.info("--> checking that both nodes A and B no longer have recoveries in progress, but that they do retain throttling stats");
-        // We must use assertBusy because recovery counters are decremented only when the last reference to
-        // the RecoveryTarget is decremented, which may happen after the recovery finishes.
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeA, true));
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeB, false));
-    }
-
-    /**
-     * Tests shard recovery throttling on the target node. Node statistics should show throttling time on the target node, while no
-     * throttling should be shown on the source node because the target will accept data more slowly than the source's throttling threshold.
-     */
-    public void testTargetThrottling() throws Exception {
-        logger.info("--> starting node A with default settings");
-        final String nodeA = internalCluster().startNode();
-
-        logger.info("--> creating index on node A");
-        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
-            .getStore()
-            .size();
-
-        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
-        logger.info(
-            "--> starting node B with recovery throttling settings. Index shard size is `{}`. Throttling down to a "
-                + "chunk of size `{}` per second. This will slow recovery of the existing shard to 10 seconds.",
-            shardSize,
-            ByteSizeValue.ofBytes(chunkSize)
-        );
-        final String nodeB = internalCluster().startNode(createRecoverySettingsChunkPerSecond(chunkSize));
-
-        logger.info("--> waiting for the cluster to stabilize after restarting the target node (Node B)");
-        ensureGreen();
-
-        // --- Shard recovery.
-
-        startShardRecovery(INDEX_NAME, nodeA, nodeB);
-
-        logger.info("--> checking throttling increases on Node B (target node), while Node A (source node) reports no throttling");
-        assertBusy(() -> {
-            NodesStatsResponse statsResponse1 = clusterAdmin().prepareNodesStats()
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get();
-            assertThat(statsResponse1.getNodes(), hasSize(2));
-            for (NodeStats nodeStats : statsResponse1.getNodes()) {
-                final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-                if (nodeStats.getNode().getName().equals(nodeA)) {
-                    assertThat("node A throttling should _not_ increase", recoveryStats.throttleTime().millis(), equalTo(0L));
-                }
-                if (nodeStats.getNode().getName().equals(nodeB)) {
-                    assertThat("node B throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(0L));
-                }
-            }
-        });
-
-        logger.info("--> increasing the recovery throttle limit so that the shard recovery completes quickly");
-        unthrottleRecovery();
-
-        logger.info("--> waiting for the shard recovery to complete");
-        ensureGreen();
-
-        // --- Shard recovery complete. Verify throttling millis remain reflected in node stats.
-
-        logger.info("--> checking that both nodes A and B no longer have recoveries in progress, but that they do retain throttling stats");
-        // we have to use assertBusy as recovery counters are decremented only when the last reference to the RecoveryTarget
-        // is decremented, which may happen after the recovery was done.
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeA, false));
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeB, true));
-    }
-
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> create index on node: {}", nodeA);
-        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats()
             .getStore()
             .size();
 
@@ -681,7 +545,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen();
 
         logger.info("--> slowing down recoveries");
-        throttleRecovery(shardSize);
+        slowDownRecovery(shardSize);
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB)).execute().actionGet().getState();
@@ -702,7 +566,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
         logger.info("--> speeding up recoveries");
-        unthrottleRecovery();
+        restoreRecoverySpeed();
 
         // wait for it to be finished
         ensureGreen();
@@ -724,7 +588,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         logger.info("--> slowing down recoveries");
-        throttleRecovery(shardSize);
+        slowDownRecovery(shardSize);
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC)).execute().actionGet().getState();
@@ -772,7 +636,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         logger.info("--> speeding up recoveries");
-        unthrottleRecovery();
+        restoreRecoverySpeed();
         ensureGreen();
 
         response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
@@ -793,6 +657,141 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
     }
 
+    /**
+     * Tests shard recovery throttling on the source node. Node statistics should show throttling time on the source node, while no
+     * throttling should be shown on the target node because the source will send data more slowly than the target's throttling threshold.
+     */
+    public void testSourceThrottling() throws Exception {
+        // --- Cluster setup.
+
+        logger.info("--> starting node A with default settings");
+        final String nodeA = internalCluster().startNode();
+
+        logger.info("--> creating index on node A");
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats()
+            .getStore()
+            .size();
+
+        logger.info("--> starting node B with default settings");
+        final String nodeB = internalCluster().startNode();
+
+        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
+        logger.info(
+            "--> restarting node A with recovery throttling settings. Index shard size is `{}`. Throttling down to a "
+                + "chunk of size `{}` per second. This will slow recovery of the shard to 10 seconds.",
+            shardSize,
+            ByteSizeValue.ofBytes(chunkSize)
+        );
+        internalCluster().restartNode(nodeA, new InternalTestCluster.RestartCallback() {
+            // This callback returns node Settings that are ultimately passed into the restarted node.
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return createRecoverySettingsChunkPerSecond(chunkSize).build();
+            }
+        });
+
+        logger.info("--> waiting for the cluster to stabilize after restarting the source node (Node A)");
+        ensureGreen();
+
+        // --- Shard recovery.
+
+        startShardRecovery(INDEX_NAME, nodeA, nodeB);
+
+        logger.info("--> checking throttling increases on Node A (source node), while Node B (target node) reports no throttling");
+        assertBusy(() -> {
+            NodesStatsResponse nodeStatsResponse = clusterAdmin().prepareNodesStats()
+                .clear()
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+                .get();
+            assertThat(nodeStatsResponse.getNodes(), hasSize(2));
+            for (NodeStats nodeStats : nodeStatsResponse.getNodes()) {
+                final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+                if (nodeStats.getNode().getName().equals(nodeA)) {
+                    assertThat("node A throttling should  increase", recoveryStats.throttleTime().millis(), greaterThan(0L));
+                }
+                if (nodeStats.getNode().getName().equals(nodeB)) {
+                    assertThat("node B throttling should _not_ increase", recoveryStats.throttleTime().millis(), equalTo(0L));
+                }
+            }
+        });
+
+        logger.info("--> increasing the recovery throttle limit so that the shard recovery completes quickly");
+        restoreRecoverySpeed();
+
+        logger.info("--> waiting for the shard recovery to complete");
+        ensureGreen();
+
+        // --- Shard recovery complete. Verify throttling millis remain reflected in node stats.
+
+        logger.info("--> checking that both nodes A and B no longer have recoveries in progress, but that they do retain throttling stats");
+        // We must use assertBusy because recovery counters are decremented only when the last reference to
+        // the RecoveryTarget is decremented, which may happen after the recovery finishes.
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeA, true));
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeB, false));
+    }
+
+    /**
+     * Tests shard recovery throttling on the target node. Node statistics should show throttling time on the target node, while no
+     * throttling should be shown on the source node because the target will accept data more slowly than the source's throttling threshold.
+     */
+    public void testTargetThrottling() throws Exception {
+        logger.info("--> starting node A with default settings");
+        final String nodeA = internalCluster().startNode();
+
+        logger.info("--> creating index on node A");
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats()
+            .getStore()
+            .size();
+
+        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
+        logger.info(
+            "--> starting node B with recovery throttling settings. Index shard size is `{}`. Throttling down to a "
+                + "chunk of size `{}` per second. This will slow recovery of the existing shard to 10 seconds.",
+            shardSize,
+            ByteSizeValue.ofBytes(chunkSize)
+        );
+        final String nodeB = internalCluster().startNode(createRecoverySettingsChunkPerSecond(chunkSize));
+
+        logger.info("--> waiting for the cluster to stabilize after restarting the target node (Node B)");
+        ensureGreen();
+
+        // --- Shard recovery.
+
+        startShardRecovery(INDEX_NAME, nodeA, nodeB);
+
+        logger.info("--> checking throttling increases on Node B (target node), while Node A (source node) reports no throttling");
+        assertBusy(() -> {
+            NodesStatsResponse statsResponse1 = clusterAdmin().prepareNodesStats()
+                .clear()
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+                .get();
+            assertThat(statsResponse1.getNodes(), hasSize(2));
+            for (NodeStats nodeStats : statsResponse1.getNodes()) {
+                final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+                if (nodeStats.getNode().getName().equals(nodeA)) {
+                    assertThat("node A throttling should _not_ increase", recoveryStats.throttleTime().millis(), equalTo(0L));
+                }
+                if (nodeStats.getNode().getName().equals(nodeB)) {
+                    assertThat("node B throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(0L));
+                }
+            }
+        });
+
+        logger.info("--> increasing the recovery throttle limit so that the shard recovery completes quickly");
+        restoreRecoverySpeed();
+
+        logger.info("--> waiting for the shard recovery to complete");
+        ensureGreen();
+
+        // --- Shard recovery complete. Verify throttling millis remain reflected in node stats.
+
+        logger.info("--> checking that both nodes A and B no longer have recoveries in progress, but that they do retain throttling stats");
+        // we have to use assertBusy as recovery counters are decremented only when the last reference to the RecoveryTarget
+        // is decremented, which may happen after the recovery was done.
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeA, false));
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeB, true));
+    }
+
     public void testSnapshotRecovery() throws Exception {
         logger.info("--> start node A");
         String nodeA = internalCluster().startNode();
@@ -803,7 +802,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen();
 
         logger.info("--> create index on node: {}", nodeA);
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0);
+        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = createSnapshot(INDEX_NAME);

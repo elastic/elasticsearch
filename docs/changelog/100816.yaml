@@ -1,0 +1,5 @@
+pr: 100816
+summary: Check if the index belongs to the SLM policy before deleting
+area: ILM+SLM
+type: bug
+issues: []

@@ -10,7 +10,6 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
@@ -39,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
@@ -628,41 +626,24 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
-    private static boolean matchWithRange(String nodeVersionSting, List<VersionRange> acceptedVersionRanges) {
-        try {
-            Version version = Version.fromString(nodeVersionSting.replace("-SNAPSHOT", ""));
-            return acceptedVersionRanges.stream().anyMatch(v -> v.contains(version));
-        } catch (IllegalArgumentException ignored) {}
-        return false;
-    }
-
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
-
-        final Predicate<String> nodeMatcher;
-        final String versionSelectorString;
-        if (parser.text().equals("current")) {
-            var currentUnqualified = Build.current().version().replace("-SNAPSHOT", "");
-            nodeMatcher = nodeVersion -> currentUnqualified.equals(nodeVersion.replace("-SNAPSHOT", ""));
-            versionSelectorString = "current";
-        } else {
-            var acceptedVersionRange = SkipSection.parseVersionRanges(parser.text());
-            nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange);
-            versionSelectorString = acceptedVersionRange.toString();
-        }
-
+        List<VersionRange> skipVersionRanges = parser.text().equals("current")
+            ? List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
+            : SkipSection.parseVersionRanges(parser.text());
         return new NodeSelector() {
             @Override
             public void select(Iterable<Node> nodes) {
                 for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                     Node node = itr.next();
-                    String versionString = node.getVersion();
-                    if (versionString == null) {
+                    if (node.getVersion() == null) {
                         throw new IllegalStateException("expected [version] metadata to be set but got " + node);
                     }
-                    if (nodeMatcher.test(versionString) == false) {
+                    Version version = Version.fromString(node.getVersion());
+                    boolean skip = skipVersionRanges.stream().anyMatch(v -> v.contains(version));
+                    if (false == skip) {
                         itr.remove();
                     }
                 }
@@ -670,7 +651,7 @@ public class DoSection implements ExecutableSection {
 
             @Override
             public String toString() {
-                return "version ranges " + versionSelectorString;
+                return "version ranges " + skipVersionRanges;
             }
         };
     }

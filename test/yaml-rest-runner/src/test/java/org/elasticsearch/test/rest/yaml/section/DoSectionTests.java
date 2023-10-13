@@ -9,7 +9,6 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
@@ -590,13 +589,11 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         Node v521 = nodeWithVersion("5.2.1");
         Node v550 = nodeWithVersion("5.5.0");
         Node v612 = nodeWithVersion("6.1.2");
-        Node nonSemantic = nodeWithVersion("abddef");
         List<Node> nodes = new ArrayList<>();
         nodes.add(v170);
         nodes.add(v521);
         nodes.add(v550);
         nodes.add(v612);
-        nodes.add(nonSemantic);
         doSection.getApiCallSection().getNodeSelector().select(nodes);
         assertEquals(Arrays.asList(v521, v550), nodes);
         ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
@@ -641,16 +638,14 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         Node v170 = nodeWithVersion("1.7.0");
         Node v521 = nodeWithVersion("5.2.1");
         Node v550 = nodeWithVersion("5.5.0");
-        Node oldCurrent = nodeWithVersion(Version.CURRENT.toString());
-        Node newCurrent = nodeWithVersion(Build.current().version());
+        Node current = nodeWithVersion(Version.CURRENT.toString());
         List<Node> nodes = new ArrayList<>();
         nodes.add(v170);
         nodes.add(v521);
         nodes.add(v550);
-        nodes.add(oldCurrent);
-        nodes.add(newCurrent);
+        nodes.add(current);
         doSection.getApiCallSection().getNodeSelector().select(nodes);
-        assertEquals(List.of(oldCurrent, newCurrent), nodes);
+        assertEquals(List.of(current), nodes);
     }
 
     private static Node nodeWithVersion(String version) {

@@ -47,7 +47,8 @@ excludeList.add('aggregations/filters_bucket/cache hits')
 // comment above.
 // Tentatively disable all tsdb tests to avoid flakiness until
 // version skip works properly for mixed cluster tests.
-excludeList.add('tsdb/*/* source')
+excludeList.add('tsdb/*/*')
+excludeList.add('aggregations/time_series/*')
 
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 

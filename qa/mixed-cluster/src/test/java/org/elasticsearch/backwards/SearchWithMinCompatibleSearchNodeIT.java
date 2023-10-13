@@ -121,10 +121,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
             );
             assertBusy(() -> {
                 ResponseException responseException = expectThrows(ResponseException.class, () -> client.performRequest(request));
-                assertThat(
-                    responseException.getResponse().getStatusLine().getStatusCode(),
-                    equalTo(RestStatus.BAD_REQUEST.getStatus())
-                );
+                assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
                 assertThat(responseException.getMessage(), containsString("""
                     {"error":{"root_cause":[{"type":"action_request_validation_exception"\
                     """));

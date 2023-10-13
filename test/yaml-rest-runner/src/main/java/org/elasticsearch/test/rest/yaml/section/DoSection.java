@@ -652,11 +652,11 @@ public class DoSection implements ExecutableSection {
         if (parser.text().equals("current")) {
             var currentUnqualified = Build.current().version().replace("-SNAPSHOT", "");
             nodeMatcher = nodeVersion -> currentUnqualified.equals(nodeVersion.replace("-SNAPSHOT", ""));
-            versionSelectorString = "current";
+            versionSelectorString = "version is " + currentUnqualified + " (current)";
         } else {
             var acceptedVersionRange = SkipSection.parseVersionRanges(parser.text());
             nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
-            versionSelectorString = acceptedVersionRange.toString();
+            versionSelectorString = "version ranges " + acceptedVersionRange;
         }
 
         return new NodeSelector() {
@@ -676,7 +676,7 @@ public class DoSection implements ExecutableSection {
 
             @Override
             public String toString() {
-                return "version ranges " + versionSelectorString;
+                return versionSelectorString;
             }
         };
     }

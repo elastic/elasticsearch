@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -104,7 +105,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(), License.OperationMode.BASIC.description()))
             .setInferenceConfig(randomFrom(inferenceConfigs))
             .setTags(tags)
-            .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance());
+            .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance())
+            .setPlatformArchitecture(randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     @Before
@@ -191,7 +193,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
-            ModelPackageConfigTests.randomModulePackageConfig()
+            ModelPackageConfigTests.randomModulePackageConfig(),
+            randomAlphaOfLength(10)
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -241,7 +244,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()),
             null,
-            ModelPackageConfigTests.randomModulePackageConfig()
+            ModelPackageConfigTests.randomModulePackageConfig(),
+            randomAlphaOfLength(10)
         );
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
@@ -452,6 +456,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         }
         if (instance.getInferenceConfig() instanceof NlpConfig nlpConfig) {
             builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
+        }
+        if (version.before(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+            builder.setPlatformArchitecture(null);
         }
         return builder.build();
     }

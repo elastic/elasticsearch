@@ -17,9 +17,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.logstash.action.GetPipelineAction;
 import org.elasticsearch.xpack.logstash.action.GetPipelineRequest;
-import org.elasticsearch.xpack.logstash.action.GetPipelineResponse;
 
-import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -38,20 +36,17 @@ public class RestGetPipelineAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final List<String> ids = List.of(request.paramAsStringArray("id", Strings.EMPTY_ARRAY));
         return restChannel -> client.execute(
             GetPipelineAction.INSTANCE,
             new GetPipelineRequest(ids),
-            new RestToXContentListener<>(restChannel) {
-                @Override
-                protected RestStatus getStatus(GetPipelineResponse response) {
-                    if (response.pipelines().isEmpty() && ids.isEmpty() == false) {
-                        return RestStatus.NOT_FOUND;
-                    }
-                    return RestStatus.OK;
+            new RestToXContentListener<>(restChannel, r -> {
+                if (r.pipelines().isEmpty() && ids.isEmpty() == false) {
+                    return RestStatus.NOT_FOUND;
                 }
-            }
+                return RestStatus.OK;
+            })
         );
     }
 }

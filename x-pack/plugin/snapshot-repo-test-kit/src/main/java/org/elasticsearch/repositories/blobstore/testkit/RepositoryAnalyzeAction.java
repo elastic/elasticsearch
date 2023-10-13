@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,8 +38,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -46,7 +47,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -56,6 +56,7 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -110,7 +111,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             ClusterService clusterService,
             RepositoriesService repositoriesService
         ) {
-            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, ThreadPool.Names.SAME);
+            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
             this.clusterService = clusterService;
             this.repositoriesService = repositoriesService;
@@ -629,14 +630,16 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             }
                         }, ref), listener -> {
                             switch (random.nextInt(3)) {
-                                case 0 -> getBlobContainer().getRegister(registerName, listener);
+                                case 0 -> getBlobContainer().getRegister(OperationPurpose.SNAPSHOT, registerName, listener);
                                 case 1 -> getBlobContainer().compareAndExchangeRegister(
+                                    OperationPurpose.SNAPSHOT,
                                     registerName,
                                     RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
                                     listener
                                 );
                                 case 2 -> getBlobContainer().compareAndSetRegister(
+                                    OperationPurpose.SNAPSHOT,
                                     registerName,
                                     RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
@@ -686,7 +689,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                 try {
                     final BlobContainer blobContainer = getBlobContainer();
                     final Set<String> missingBlobs = new HashSet<>(expectedBlobs);
-                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs();
+                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
                     missingBlobs.removeAll(blobsMap.keySet());
 
                     if (missingBlobs.isEmpty()) {
@@ -709,11 +712,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private void deleteContainer() {
             try {
                 final BlobContainer blobContainer = getBlobContainer();
-                blobContainer.delete();
+                blobContainer.delete(OperationPurpose.SNAPSHOT);
                 if (failure.get() != null) {
                     return;
                 }
-                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs();
+                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
                 if (blobsMap.isEmpty() == false) {
                     final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                         request.repositoryName,
@@ -1012,7 +1015,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private final String coordinatingNodeId;
         private final String coordinatingNodeName;
@@ -1105,11 +1108,6 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             out.writeCollection(blobResponses);
             out.writeVLong(listingTimeNanos);
             out.writeVLong(deleteTimeNanos);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

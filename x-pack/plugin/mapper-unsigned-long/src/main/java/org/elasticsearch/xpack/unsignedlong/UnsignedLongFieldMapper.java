@@ -99,6 +99,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this(name, IGNORE_MALFORMED_SETTING.get(settings), mode);
         }
 
+        @SuppressWarnings("this-escape")
         public Builder(String name, boolean ignoreMalformedByDefault, IndexMode mode) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(

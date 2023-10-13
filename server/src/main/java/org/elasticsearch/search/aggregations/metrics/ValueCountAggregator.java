@@ -38,6 +38,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     // a count per bucket
     LongArray counts;
 
+    @SuppressWarnings("this-escape")
     public ValueCountAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

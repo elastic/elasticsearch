@@ -63,6 +63,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     private final Encoder encoder;
 
+    @SuppressWarnings("this-escape")
     public CustomMustacheFactory(String mediaType) {
         super();
         setObjectHandler(new CustomReflectionObjectHandler());

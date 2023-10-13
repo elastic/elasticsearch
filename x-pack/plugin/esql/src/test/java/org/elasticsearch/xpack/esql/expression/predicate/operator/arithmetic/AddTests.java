@@ -99,7 +99,8 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
                 ),
-                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
+                "No evaluator, the tests only trigger the folding code since Period is not representable",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))
             );
@@ -111,9 +112,21 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, DataTypes.DATETIME, "rhs")
                 ),
-                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "No evaluator, the tests only trigger the folding code since Period is not representable",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(rhs).plus(lhs)))
+            );
+        }), new TestCaseSupplier("Period + Period", () -> {
+            Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                ),
+                "Only folding possible, so there's no evaluator",
+                EsqlDataTypes.DATE_PERIOD,
+                equalTo(lhs.plus(rhs))
             );
         }), new TestCaseSupplier("Datetime + Duration", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
@@ -123,7 +136,7 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
                 ),
-                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "No evaluator, the tests only trigger the folding code since Duration is not representable",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))
             );
@@ -135,9 +148,21 @@ public class AddTests extends AbstractDateTimeArithmeticTestCase {
                     new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
                     new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
                 ),
-                "AddDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "No evaluator, the tests only trigger the folding code since Duration is not representable",
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).plus(rhs)))
+            );
+        }), new TestCaseSupplier("Duration + Duration", () -> {
+            Duration lhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.TIME_DURATION, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                ),
+                "Only folding possible, so there's no evaluator",
+                EsqlDataTypes.TIME_DURATION,
+                equalTo(lhs.plus(rhs))
             );
         })));
     }

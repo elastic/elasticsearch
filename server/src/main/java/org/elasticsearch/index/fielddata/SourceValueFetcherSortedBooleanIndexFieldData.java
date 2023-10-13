@@ -119,7 +119,7 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
 
             iteratorIndex = 0;
 
-            return true;
+            return (trueCount + falseCount) > 0;
         }
 
         @Override

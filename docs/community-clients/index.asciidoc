@@ -25,6 +25,7 @@ a number of clients that have been contributed by the community for various lang
 * <<haskell>>
 * <<java>>
 * <<javascript>>
+* <<julia>>
 * <<kotlin>>
 * <<lua>>
 * <<dotnet>>
@@ -120,6 +121,12 @@ client].
 
 See the {client}/javascript-api/current/index.html[official Elasticsearch
 JavaScript client].
+
+[[julia]]
+== Julia
+
+* https://github.com/OpenSesame/ElasticsearchClient.jl[ElasticsearchClient.jl]:
+Elasticsearch client inspired by the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client].
 
 [[kotlin]]
 == Kotlin

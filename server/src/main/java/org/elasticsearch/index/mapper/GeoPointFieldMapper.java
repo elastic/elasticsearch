@@ -94,6 +94,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         private final Parameter<Boolean> dimension; // can only support time_series_dimension: false
         private final IndexMode indexMode;  // either STANDARD or TIME_SERIES
 
+        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             ScriptCompiler scriptCompiler,
@@ -442,7 +443,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             return query;
         }
 
-        private boolean isPointGeometry(LatLonGeometry[] geometries) {
+        private static boolean isPointGeometry(LatLonGeometry[] geometries) {
             return geometries.length == 1 && geometries[0] instanceof org.apache.lucene.geo.Point;
         }
 

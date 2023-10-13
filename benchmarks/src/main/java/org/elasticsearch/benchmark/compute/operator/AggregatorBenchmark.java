@@ -9,6 +9,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleArrayVector;
@@ -115,8 +117,12 @@ public class AggregatorBenchmark {
     public String blockType;
 
     private static Operator operator(String grouping, String op, String dataType) {
+        DriverContext driverContext = driverContext();
         if (grouping.equals("none")) {
-            return new AggregationOperator(List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE).get()));
+            return new AggregationOperator(
+                List.of(supplier(op, dataType, 0).aggregatorFactory(AggregatorMode.SINGLE).apply(driverContext)),
+                driverContext
+            );
         }
         List<HashAggregationOperator.GroupSpec> groups = switch (grouping) {
             case LONGS -> List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG));
@@ -141,8 +147,8 @@ public class AggregatorBenchmark {
         };
         return new HashAggregationOperator(
             List.of(supplier(op, dataType, groups.size()).groupingAggregatorFactory(AggregatorMode.SINGLE)),
-            () -> BlockHash.build(groups, BIG_ARRAYS, 16 * 1024, false),
-            new DriverContext(BigArrays.NON_RECYCLING_INSTANCE)
+            () -> BlockHash.build(groups, driverContext, 16 * 1024, false),
+            driverContext
         );
     }
 
@@ -575,5 +581,12 @@ public class AggregatorBenchmark {
         }
         operator.finish();
         checkExpected(grouping, op, blockType, dataType, operator.getOutput(), opCount);
+    }
+
+    static DriverContext driverContext() {
+        return new DriverContext(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE)
+        );
     }
 }

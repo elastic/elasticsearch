@@ -62,7 +62,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ClusterStateRequest::new,
             indexNameExpressionResolver,
             ClusterStateResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -151,7 +151,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
-            builder.compatibilityVersions(getCompatibilityVersions(currentState));
+            builder.nodeIdsToCompatibilityVersions(getCompatibilityVersions(currentState));
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {

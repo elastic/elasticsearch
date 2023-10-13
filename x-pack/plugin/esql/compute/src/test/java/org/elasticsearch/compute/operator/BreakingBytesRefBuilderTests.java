@@ -121,7 +121,7 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
                 boolean willResize = builder.length() + iteration.size() >= builder.bytes().length;
                 if (willResize) {
                     long resizeMemoryUsage = BreakingBytesRefBuilder.SHALLOW_SIZE + ramForArray(builder.bytes().length);
-                    resizeMemoryUsage += ramForArray(ArrayUtil.oversize(builder.bytes().length + iteration.size(), Byte.BYTES));
+                    resizeMemoryUsage += ramForArray(ArrayUtil.oversize(builder.length() + iteration.size(), Byte.BYTES));
                     if (resizeMemoryUsage > limit) {
                         Exception e = expectThrows(CircuitBreakingException.class, () -> iteration.applyToBuilder(builder));
                         assertThat(e.getMessage(), equalTo("over test limit"));

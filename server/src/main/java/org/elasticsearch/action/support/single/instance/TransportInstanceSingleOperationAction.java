@@ -66,7 +66,7 @@ public abstract class TransportInstanceSingleOperationAction<
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request
     ) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

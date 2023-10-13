@@ -2266,10 +2266,19 @@ restricts which ones are allowed to submit those JWTs to {es}.
 
 // tag::jwt-client-authentication-shared-secret-tag[]
 `client_authentication.shared_secret` {ess-icon}::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)
 Secret value string for client authentication.
 Required if `client_authentication.type` is `shared_secret`.
 // end::jwt-client-authentication-shared-secret-tag[]
+
+// tag::jwt-client-authentication-rotation-grace-period-tag[]
+`client_authentication.rotation_grace_period`::
+(<<static-cluster-setting,Static>>)
+Sets the grace period for how long after rotating the `client_authentication.shared_secret`
+is valid. `client_authentication.shared_secret` can be rotated by updating the
+keystore then calling the <<cluster-nodes-reload-secure-settings, reload API>>.
+Defaults to `1m`.
+// end::jwt-client-authentication-rotation-grace-period-tag[]
 
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
@@ -2413,6 +2422,12 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 (<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 // end::jwt-ssl-keystore-type-tag[]
+
+// tag::jwt-ssl-keystore-password-tag[]
+`ssl.keystore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+// end::jwt-ssl-keystore-password-tag[]
 
 `ssl.keystore.secure_password`::
 (<<secure-settings,Secure>>)

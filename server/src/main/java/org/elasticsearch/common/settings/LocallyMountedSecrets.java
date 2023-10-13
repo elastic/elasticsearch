@@ -116,6 +116,7 @@ public class LocallyMountedSecrets implements SecureSettings {
     /**
      * Direct constructor to be used by the CLI
      */
+    @SuppressWarnings("this-escape")
     public LocallyMountedSecrets(Environment environment) {
         var secretsDirPath = resolveSecretsDir(environment);
         var secretsFilePath = resolveSecretsFile(environment);

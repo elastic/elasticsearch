@@ -261,6 +261,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public InternalRange(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);

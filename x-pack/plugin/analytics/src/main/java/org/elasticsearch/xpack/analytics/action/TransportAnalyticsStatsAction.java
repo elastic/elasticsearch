@@ -45,7 +45,7 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
             actionFilters,
             AnalyticsStatsAction.Request::new,
             AnalyticsStatsAction.NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.usage = usage;
     }

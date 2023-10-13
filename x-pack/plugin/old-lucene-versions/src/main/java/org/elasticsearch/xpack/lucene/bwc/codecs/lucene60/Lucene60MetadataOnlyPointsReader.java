@@ -41,6 +41,7 @@ public class Lucene60MetadataOnlyPointsReader extends PointsReader {
     final Map<Integer, PointValues> readers = new HashMap<>();
 
     /** Sole constructor */
+    @SuppressWarnings("this-escape")
     public Lucene60MetadataOnlyPointsReader(SegmentReadState readState) throws IOException {
         this.readState = readState;
 

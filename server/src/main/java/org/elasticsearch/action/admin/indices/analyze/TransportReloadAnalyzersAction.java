@@ -68,7 +68,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
             actionFilters,
             indexNameExpressionResolver,
             ReloadAnalyzersRequest::new,
-            ThreadPool.Names.MANAGEMENT,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT),
             false
         );
         this.indicesService = indicesService;

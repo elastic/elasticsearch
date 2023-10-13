@@ -43,6 +43,7 @@ public class NodeInfo extends BaseNodeResponse {
     private final Version version;
     private final TransportVersion transportVersion;
     private final IndexVersion indexVersion;
+    private final Map<String, Integer> componentVersions;
     private final Build build;
 
     @Nullable
@@ -70,6 +71,11 @@ public class NodeInfo extends BaseNodeResponse {
             indexVersion = IndexVersion.readVersion(in);
         } else {
             indexVersion = IndexVersion.fromId(version.id);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_COMPONENT_VERSIONS_ADDED)) {
+            componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
+        } else {
+            componentVersions = Map.of();
         }
         build = Build.readBuild(in);
         if (in.readBoolean()) {
@@ -102,6 +108,7 @@ public class NodeInfo extends BaseNodeResponse {
         Version version,
         TransportVersion transportVersion,
         IndexVersion indexVersion,
+        Map<String, Integer> componentVersions,
         Build build,
         DiscoveryNode node,
         @Nullable Settings settings,
@@ -121,6 +128,7 @@ public class NodeInfo extends BaseNodeResponse {
         this.version = version;
         this.transportVersion = transportVersion;
         this.indexVersion = indexVersion;
+        this.componentVersions = componentVersions;
         this.build = build;
         this.settings = settings;
         addInfoIfNonNull(OsInfo.class, os);
@@ -163,6 +171,13 @@ public class NodeInfo extends BaseNodeResponse {
      */
     public IndexVersion getIndexVersion() {
         return indexVersion;
+    }
+
+    /**
+     * The version numbers of other installed components
+     */
+    public Map<String, Integer> getComponentVersions() {
+        return componentVersions;
     }
 
     /**
@@ -218,6 +233,9 @@ public class NodeInfo extends BaseNodeResponse {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_INDEX_VERSION_ADDED)) {
             IndexVersion.writeVersion(indexVersion, out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_COMPONENT_VERSIONS_ADDED)) {
+            out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
         }
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {

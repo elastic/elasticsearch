@@ -9,7 +9,6 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +28,7 @@ import java.util.NavigableMap;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * The index version.
@@ -70,61 +70,64 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      * When all the index version constants have been registered, the map is cleared & never touched again.
      */
     @SuppressWarnings("UnusedAssignment")
-    private static Map<String, Integer> IDS = new HashMap<>();
+    static TreeSet<Integer> IDS = new TreeSet<>();
 
-    private static IndexVersion registerIndexVersion(int id, Version luceneVersion, String uniqueId) {
+    private static IndexVersion def(int id, Version luceneVersion) {
         if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
 
-        Strings.requireNonEmpty(uniqueId, "Each IndexVersion needs a unique string id");
-        Integer existing = IDS.put(uniqueId, id);
-        if (existing != null) {
-            throw new IllegalArgumentException("Versions " + id + " and " + existing + " have the same unique id");
+        if (IDS.add(id) == false) {
+            throw new IllegalArgumentException("Version id " + id + " defined twice");
+        }
+        if (id < IDS.last()) {
+            throw new IllegalArgumentException("Version id " + id + " is not defined in the right location. Keep constants sorted");
         }
         return new IndexVersion(id, luceneVersion);
     }
 
-    public static final IndexVersion ZERO = registerIndexVersion(0, Version.LATEST, "00000000-0000-0000-0000-000000000000");
-    public static final IndexVersion V_7_0_0 = registerIndexVersion(7_00_00_99, Version.LUCENE_8_0_0, "b32be92d-c403-4858-a4a3-20d699a47ae6");
-    public static final IndexVersion V_7_1_0 = registerIndexVersion(7_01_00_99, Version.LUCENE_8_0_0, "f9964d87-9f20-4b26-af32-be1f979216ec");
-    public static final IndexVersion V_7_2_0 = registerIndexVersion(7_02_00_99, Version.LUCENE_8_0_0, "dba49448-87d4-45bb-ba19-f7b4eb85c757");
-    public static final IndexVersion V_7_2_1 = registerIndexVersion(7_02_01_99, Version.LUCENE_8_0_0, "58874b45-f9f8-4c04-92a9-67548a8b21c3");
-    public static final IndexVersion V_7_3_0 = registerIndexVersion(7_03_00_99, Version.LUCENE_8_1_0, "3d8a21df-58a4-4d7a-ba5d-438c92c16a7b");
-    public static final IndexVersion V_7_4_0 = registerIndexVersion(7_04_00_99, Version.LUCENE_8_2_0, "c1fe73ba-0173-476c-aba2-855c2b31ac18");
-    public static final IndexVersion V_7_5_0 = registerIndexVersion(7_05_00_99, Version.LUCENE_8_3_0, "ab08ae25-ede2-4e57-a43f-89d96aa989e4");
-    public static final IndexVersion V_7_5_2 = registerIndexVersion(7_05_02_99, Version.LUCENE_8_3_0, "706715ca-3b91-40d2-8c2e-c34c459b5d0d");
-    public static final IndexVersion V_7_6_0 = registerIndexVersion(7_06_00_99, Version.LUCENE_8_4_0, "63acbdb9-51c8-4976-bb3d-e55052a4fbd4");
-    public static final IndexVersion V_7_7_0 = registerIndexVersion(7_07_00_99, Version.LUCENE_8_5_1, "6fff8238-e6ce-4fb2-85de-196492026e49");
-    public static final IndexVersion V_7_8_0 = registerIndexVersion(7_08_00_99, Version.LUCENE_8_5_1, "81d7d459-f386-4c20-8235-f8fce8af7f0e");
-    public static final IndexVersion V_7_9_0 = registerIndexVersion(7_09_00_99, Version.LUCENE_8_6_0, "0fa951a2-43ce-4f76-91bf-066c1ecf8a93");
-    public static final IndexVersion V_7_10_0 = registerIndexVersion(7_10_00_99, Version.LUCENE_8_7_0, "92ccd91c-0251-4263-8873-9f1abfac3c10");
-    public static final IndexVersion V_7_11_0 = registerIndexVersion(7_11_00_99, Version.LUCENE_8_7_0, "e6d65f96-26d5-4669-ac5a-2964b9b1699f");
-    public static final IndexVersion V_7_12_0 = registerIndexVersion(7_12_00_99, Version.LUCENE_8_8_0, "39e2989a-a9a4-4f1a-b185-2e6015f74b1c");
-    public static final IndexVersion V_7_13_0 = registerIndexVersion(7_13_00_99, Version.LUCENE_8_8_2, "28b21fe0-4d1f-4c04-95cc-74df494ae0cf");
-    public static final IndexVersion V_7_14_0 = registerIndexVersion(7_14_00_99, Version.LUCENE_8_9_0, "b45bb223-bb73-4379-a46f-7dc74d38aaca");
-    public static final IndexVersion V_7_15_0 = registerIndexVersion(7_15_00_99, Version.LUCENE_8_9_0, "ab666b02-b866-4b64-9ba3-d511e86c55b5");
-    public static final IndexVersion V_7_16_0 = registerIndexVersion(7_16_00_99, Version.LUCENE_8_10_1, "a582e900-2d92-474c-9be3-2e08fa88be4b");
-    public static final IndexVersion V_7_17_0 = registerIndexVersion(7_17_00_99, Version.LUCENE_8_11_1, "18766ab8-4691-40a2-94f1-526f3b71420c");
-    public static final IndexVersion V_8_0_0 = registerIndexVersion(8_00_00_99, Version.LUCENE_9_0_0, "ff18a13c-1fa7-4cf7-a3b1-4fdcd9461d5b");
-    public static final IndexVersion V_8_1_0 = registerIndexVersion(8_01_00_99, Version.LUCENE_9_0_0, "b4742461-ee43-4fd0-a260-29f8388b82ec");
-    public static final IndexVersion V_8_2_0 = registerIndexVersion(8_02_00_99, Version.LUCENE_9_1_0, "af0ed990-2f32-42b5-aaf3-59d21a3dca7a");
-    public static final IndexVersion V_8_3_0 = registerIndexVersion(8_03_00_99, Version.LUCENE_9_2_0, "eca8e8a3-0724-4247-a58d-e4eafcec4b3f");
-    public static final IndexVersion V_8_4_0 = registerIndexVersion(8_04_00_99, Version.LUCENE_9_3_0, "d27324da-b36c-452a-93a8-9b69a6c302a1");
-    public static final IndexVersion V_8_5_0 = registerIndexVersion(8_05_00_99, Version.LUCENE_9_4_1, "c5284b51-7fee-4f34-a837-241bb57a7aa6");
-    public static final IndexVersion V_8_6_0 = registerIndexVersion(8_06_00_99, Version.LUCENE_9_4_2, "5e78c76c-74aa-464e-9383-89bdffb74db9");
-    public static final IndexVersion V_8_7_0 = registerIndexVersion(8_07_00_99, Version.LUCENE_9_5_0, "f9227941-d6f4-462b-957f-2bcd36c28382");
-    public static final IndexVersion V_8_8_0 = registerIndexVersion(8_08_00_99, Version.LUCENE_9_6_0, "d6ffc8d7-f6bd-469b-8495-01688c310000");
-    public static final IndexVersion V_8_8_2 = registerIndexVersion(8_08_02_99, Version.LUCENE_9_6_0, "9db9d888-6be8-4a58-825c-f423fd8c6b00");
-    public static final IndexVersion V_8_9_0 = registerIndexVersion(8_09_00_99, Version.LUCENE_9_7_0, "32f6dbab-cc24-4f5b-87b5-015a848480d9");
-    public static final IndexVersion V_8_9_1 = registerIndexVersion(8_09_01_99, Version.LUCENE_9_7_0, "955a80ac-f70c-40a5-9399-1d8a1e5d342d");
-    public static final IndexVersion V_8_10_0 = registerIndexVersion(8_10_00_99, Version.LUCENE_9_7_0, "2e107286-12ad-4c51-9a6f-f8943663b6e7");
-    public static final IndexVersion V_8_11_0 = registerIndexVersion(8_11_00_99, Version.LUCENE_9_7_0, "f08382c0-06ab-41f4-a56a-cf5397275627");
+    public static final IndexVersion ZERO = def(0, Version.LATEST);
+    public static final IndexVersion V_7_0_0 = def(7_00_00_99, Version.LUCENE_8_0_0);
+    public static final IndexVersion V_7_1_0 = def(7_01_00_99, Version.LUCENE_8_0_0);
+    public static final IndexVersion V_7_2_0 = def(7_02_00_99, Version.LUCENE_8_0_0);
+    public static final IndexVersion V_7_2_1 = def(7_02_01_99, Version.LUCENE_8_0_0);
+    public static final IndexVersion V_7_3_0 = def(7_03_00_99, Version.LUCENE_8_1_0);
+    public static final IndexVersion V_7_4_0 = def(7_04_00_99, Version.LUCENE_8_2_0);
+    public static final IndexVersion V_7_5_0 = def(7_05_00_99, Version.LUCENE_8_3_0);
+    public static final IndexVersion V_7_5_2 = def(7_05_02_99, Version.LUCENE_8_3_0);
+    public static final IndexVersion V_7_6_0 = def(7_06_00_99, Version.LUCENE_8_4_0);
+    public static final IndexVersion V_7_7_0 = def(7_07_00_99, Version.LUCENE_8_5_1);
+    public static final IndexVersion V_7_8_0 = def(7_08_00_99, Version.LUCENE_8_5_1);
+    public static final IndexVersion V_7_9_0 = def(7_09_00_99, Version.LUCENE_8_6_0);
+    public static final IndexVersion V_7_10_0 = def(7_10_00_99, Version.LUCENE_8_7_0);
+    public static final IndexVersion V_7_11_0 = def(7_11_00_99, Version.LUCENE_8_7_0);
+    public static final IndexVersion V_7_12_0 = def(7_12_00_99, Version.LUCENE_8_8_0);
+    public static final IndexVersion V_7_13_0 = def(7_13_00_99, Version.LUCENE_8_8_2);
+    public static final IndexVersion V_7_14_0 = def(7_14_00_99, Version.LUCENE_8_9_0);
+    public static final IndexVersion V_7_15_0 = def(7_15_00_99, Version.LUCENE_8_9_0);
+    public static final IndexVersion V_7_16_0 = def(7_16_00_99, Version.LUCENE_8_10_1);
+    public static final IndexVersion V_7_17_0 = def(7_17_00_99, Version.LUCENE_8_11_1);
+    public static final IndexVersion V_8_0_0 = def(8_00_00_99, Version.LUCENE_9_0_0);
+    public static final IndexVersion V_8_1_0 = def(8_01_00_99, Version.LUCENE_9_0_0);
+    public static final IndexVersion V_8_2_0 = def(8_02_00_99, Version.LUCENE_9_1_0);
+    public static final IndexVersion V_8_3_0 = def(8_03_00_99, Version.LUCENE_9_2_0);
+    public static final IndexVersion V_8_4_0 = def(8_04_00_99, Version.LUCENE_9_3_0);
+    public static final IndexVersion V_8_5_0 = def(8_05_00_99, Version.LUCENE_9_4_1);
+    public static final IndexVersion V_8_6_0 = def(8_06_00_99, Version.LUCENE_9_4_2);
+    public static final IndexVersion V_8_7_0 = def(8_07_00_99, Version.LUCENE_9_5_0);
+    public static final IndexVersion V_8_8_0 = def(8_08_00_99, Version.LUCENE_9_6_0);
+    public static final IndexVersion V_8_8_2 = def(8_08_02_99, Version.LUCENE_9_6_0);
+    public static final IndexVersion V_8_9_0 = def(8_09_00_99, Version.LUCENE_9_7_0);
+    public static final IndexVersion V_8_9_1 = def(8_09_01_99, Version.LUCENE_9_7_0);
+    public static final IndexVersion V_8_10_0 = def(8_10_00_99, Version.LUCENE_9_7_0);
 
     /*
      * READ THE COMMENT BELOW THIS BLOCK OF DECLARATIONS BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
-    public static final IndexVersion V_8_500_000 = registerIndexVersion(8_500_000, Version.LUCENE_9_7_0, "bf656f5e-5808-4eee-bf8a-e2bf6736ff55");
-    public static final IndexVersion V_8_500_001 = registerIndexVersion(8_500_001, Version.LUCENE_9_7_0, "45045a5a-fc57-4462-89f6-6bc04cda6015");
+    public static final IndexVersion FIRST_DETACHED_INDEX_VERSION = def(8_500_000, Version.LUCENE_9_7_0);
+    public static final IndexVersion NEW_SPARSE_VECTOR = def(8_500_001, Version.LUCENE_9_7_0);
+    public static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT = def(8_500_002, Version.LUCENE_9_7_0);
+    public static final IndexVersion UPGRADE_LUCENE_9_8 = def(8_500_003, Version.LUCENE_9_8_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -137,8 +140,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
      * Each index version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_11_0).
      *
      * To add a new index version, add a new constant at the bottom of the list, above this comment, which is one greater than the
-     * current highest version, ensure it has a fresh UUID, and update CurrentHolder#CURRENT to point to the new version. Don't add other
-     * lines, comments, etc.
+     * current highest version id. Use a descriptive constant name. Don't add other lines, comments, etc.
      *
      * REVERTING AN INDEX VERSION
      *
@@ -160,7 +162,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
             if (versionExtension == null) {
                 return LATEST_DEFINED;
             }
-            var version = versionExtension.getCurrentIndexVersion();
+            var version = versionExtension.getCurrentIndexVersion(LATEST_DEFINED);
 
             assert version.onOrAfter(LATEST_DEFINED);
             assert version.luceneVersion.equals(Version.LATEST)

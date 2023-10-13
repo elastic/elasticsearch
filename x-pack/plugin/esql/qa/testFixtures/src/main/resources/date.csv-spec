@@ -45,7 +45,7 @@ emp_no:integer | x:date
 
 
 evalDateFormat
-from employees | sort hire_date | eval x = date_format(hire_date), y = date_format(hire_date, "YYYY-MM-dd") | keep emp_no, x, y | limit 5;
+from employees | sort hire_date | eval x = date_format(hire_date), y = date_format("YYYY-MM-dd", hire_date) | keep emp_no, x, y | limit 5;
 
 emp_no:integer | x:keyword                     | y:keyword
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18            
@@ -174,7 +174,7 @@ ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-0
 // end::to_datetime-str[]
 ;
 warning:Line 2:19: evaluation of [TO_DATETIME(string)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
+warning:Line 2:19: java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']
 
 // tag::to_datetime-str-result[]
 string:keyword                                          |datetime:date
@@ -185,7 +185,7 @@ string:keyword                                          |datetime:date
 convertFromUnsignedLong
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
+warning:Line 1:58: org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
 
                 ul:ul              |           dt:date
 [9223372036854775808, 520128000000]|1986-06-26T00:00:00.000Z
@@ -295,7 +295,7 @@ hire_date:date           | hd:date
 ;
 
 now
-row a = now() | eval x = a == now(), y = substring(date_format(a, "yyyy"), 0, 2) | keep x, y;
+row a = now() | eval x = a == now(), y = substring(date_format("yyyy", a), 0, 2) | keep x, y;
 
 x:boolean  | y:keyword
 true       | 20
@@ -338,14 +338,14 @@ AVG(salary):double | bucket:date
 ;
 
 evalDateParseWithSimpleDate
-row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd") | keep b;
+row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
 
 b:datetime
 2023-02-01T00:00:00.000Z
 ;
 
 evalDateParseWithDateTime
-row a = "2023-02-01 12:15:55" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | keep b;
+row a = "2023-02-01 12:15:55" | eval b = date_parse("yyyy-MM-dd HH:mm:ss", a) | keep b;
 
 b:datetime
 2023-02-01T12:15:55.000Z
@@ -359,33 +359,33 @@ b:datetime
 ;
 
 evalDateParseWrongDate
-row a = "2023-02-01 foo" | eval b = date_parse(a, "yyyy-MM-dd") | keep b;
-warning:Line 1:37: evaluation of [date_parse(a, \"yyyy-MM-dd\")] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01 foo] with format [yyyy-MM-dd]
+row a = "2023-02-01 foo" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
+warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:37: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01 foo] with format [yyyy-MM-dd]
 
 b:datetime
 null
 ;
 
 evalDateParseNotMatching
-row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM") | keep b;
-warning:Line 1:33: evaluation of [date_parse(a, \"yyyy-MM\")] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM]
+row a = "2023-02-01" | eval b = date_parse("yyyy-MM", a) | keep b;
+warning:Line 1:33: evaluation of [date_parse(\"yyyy-MM\", a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:33: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM]
 b:datetime
 null
 ;
 
 evalDateParseNotMatching2
-row a = "2023-02-01" | eval b = date_parse(a, "yyyy-MM-dd HH:mm:ss") | keep b;
-warning:Line 1:33: evaluation of [date_parse(a, \"yyyy-MM-dd HH:mm:ss\")] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM-dd HH:mm:ss]
+row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd HH:mm:ss", a) | keep b;
+warning:Line 1:33: evaluation of [date_parse(\"yyyy-MM-dd HH:mm:ss\", a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:33: java.lang.IllegalArgumentException: failed to parse date field [2023-02-01] with format [yyyy-MM-dd HH:mm:ss]
 
 b:datetime
 null
 ;
 
 evalDateParseNullPattern
-row a = "2023-02-01" | eval b = date_parse(a, null) | keep b;
+row a = "2023-02-01" | eval b = date_parse(null, a) | keep b;
 
 b:datetime
 null
@@ -393,8 +393,8 @@ null
 
 evalDateParseDynamic
 from employees | where emp_no == 10039 or emp_no == 10040 | sort emp_no 
-| eval birth_date_string = date_format(birth_date, "yyyy-MM-dd")
-| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") | eval bool = new_date == birth_date | keep emp_no, new_date, birth_date, bool;
+| eval birth_date_string = date_format("yyyy-MM-dd", birth_date)
+| eval new_date = date_parse("yyyy-MM-dd", birth_date_string) | eval bool = new_date == birth_date | keep emp_no, new_date, birth_date, bool;
 
 emp_no:integer  | new_date:datetime | birth_date:datetime | bool:boolean
 10039           | 1959-10-01        | 1959-10-01          | true
@@ -403,8 +403,8 @@ emp_no:integer  | new_date:datetime | birth_date:datetime | bool:boolean
 
 evalDateParseDynamic2
 from employees | where emp_no >= 10047 | sort emp_no | where emp_no <= 10051 
-| eval birth_date_string = date_format(birth_date, "yyyy-MM-dd") 
-| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") 
+| eval birth_date_string = date_format("yyyy-MM-dd", birth_date) 
+| eval new_date = date_parse("yyyy-MM-dd", birth_date_string) 
 | keep emp_no, new_date, birth_date | eval bool = new_date == birth_date;
 
 emp_no:integer | new_date:datetime        | birth_date:datetime       | bool:boolean      
@@ -418,8 +418,8 @@ emp_no:integer | new_date:datetime        | birth_date:datetime       | bool:boo
 
 evalDateParseDynamicDateAndPattern
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
-| eval pattern = "yyyy-MM-dd", birth_date_string = date_format(birth_date, pattern)
-| eval new_date = date_parse(birth_date_string, "yyyy-MM-dd") | eval bool = new_date == birth_date | keep emp_no, new_date, birth_date, bool;
+| eval pattern = "yyyy-MM-dd", birth_date_string = date_format(pattern, birth_date)
+| eval new_date = date_parse("yyyy-MM-dd", birth_date_string) | eval bool = new_date == birth_date | keep emp_no, new_date, birth_date, bool;
 
 emp_no:integer  | new_date:datetime | birth_date:datetime | bool:boolean
 10049           | null              | null                | null
@@ -437,7 +437,7 @@ emp_no:integer  | new_date:datetime          | birth_date:datetime       | bool:
 
 dateFields
 from employees | where emp_no == 10049 or emp_no == 10050 
-| eval year = date_extract(birth_date, "year"), month = date_extract(birth_date, "month_of_year"), day = date_extract(birth_date, "day_of_month")
+| eval year = date_extract("year", birth_date), month = date_extract("month_of_year", birth_date), day = date_extract("day_of_month", birth_date)
 | keep emp_no, year, month, day;
 ignoreOrder:true
 
@@ -449,7 +449,7 @@ emp_no:integer | year:long    | month:long    | day:long
 
 dateFormatLocale
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
-| eval birth_month = date_format(birth_date, "MMMM") | keep emp_no, birth_date, birth_month;
+| eval birth_month = date_format("MMMM", birth_date) | keep emp_no, birth_date, birth_month;
 ignoreOrder:true
 
 emp_no:integer  |  birth_date:datetime       | birth_month:keyword
@@ -465,12 +465,35 @@ dt:datetime              |plus:datetime
 2100-01-01T01:01:01.000Z |2104-04-16T01:01:01.000Z
 ;
 
-datePlusDuration
-row dt = to_dt("2100-01-01T00:00:00.000Z")
-| eval plus = dt + 1 hour + 1 minute + 1 second + 1 milliseconds;
+datePlusPeriodFromLeft
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = 4 years + 3 months + 2 weeks + 1 day + n | keep then;
+
+then:datetime
+1957-07-19T00:00:00.000Z
+;
+
+datePlusMixedPeriodsFromLeft
+row n = to_dt("1953-04-01T00:00:00.000Z")
+| eval then = 4 years + 3 months + 1 year + 2 weeks + 1 month + 1 day + 1 week + 1 day + n
+| keep then;
+
+then:datetime
+1958-08-24T00:00:00.000Z
+;
+
+datePlusSumOfPeriodsFromLeft
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = (4 years + 3 months + 2 weeks + 1 day) + n | keep then;
+
+then:datetime
+1957-07-19T00:00:00.000Z
+;
+
+datePlusNegatedPeriod
+row dt = to_dt("2104-04-16T01:01:01.000Z")
+| eval plus = dt + (-(4 years + 3 months + 2 weeks + 1 day));
 
 dt:datetime              |plus:datetime
-2100-01-01T00:00:00.000Z |2100-01-01T01:01:01.001Z
+2104-04-16T01:01:01.000Z |2100-01-01T01:01:01.000Z
 ;
 
 dateMinusPeriod
@@ -481,12 +504,100 @@ dt:datetime              |minus:datetime
 2104-04-16T01:01:01.000Z |2100-01-01T01:01:01.000Z
 ;
 
+dateMinusPeriodFromLeft
+row n = to_dt("1957-07-19T00:00:00.000Z") | eval then = -4 years - 3 months - 2 weeks - 1 day + n | keep then;
+
+then:datetime
+1953-04-04T00:00:00.000Z
+;
+
+dateMinusSumOfNegativePeriods
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = n - (-4 years - 3 months - 2 weeks - 1 day)| keep then;
+
+then:datetime
+1957-07-19T00:00:00.000Z
+;
+
+dateMinusPeriodsFromLeftMultipleEvals
+row n = to_dt("1953-04-04T00:00:00.000Z")
+| eval x = -4 years + n
+| eval y = -3 months + x, then = y + (-2 weeks - 1 day)
+| keep then;
+
+then:datetime
+1948-12-20T00:00:00.000Z
+;
+
+datePlusDuration
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plus = dt + 1 hour + 1 minute + 1 second + 1 milliseconds;
+
+dt:datetime              |plus:datetime
+2100-01-01T00:00:00.000Z |2100-01-01T01:01:01.001Z
+;
+
+datePlusDurationFromLeft
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = 1 hour + 1 minute + 1 second + 1 milliseconds + n  | keep then;
+
+then:datetime
+1953-04-04T01:01:01.001Z
+;
+
+datePlusMixedDurationsFromLeft
+row n = to_dt("1953-04-04T00:00:00.000Z")
+| eval then = 1 hour + 1 minute + 2 hour + 1 second + 2 minute + 1 milliseconds + 2 second + 2 millisecond + n
+| keep then;
+
+then:datetime
+1953-04-04T03:03:03.003Z
+;
+
+datePlusSumOfDurationsFromLeft
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = (1 hour + 1 minute + 1 second + 1 milliseconds) + n | keep then;
+
+then:datetime
+1953-04-04T01:01:01.001Z
+;
+
+datePlusNegatedDuration
+row dt = to_dt("2100-01-01T01:01:01.001Z")
+| eval plus = dt + (-(1 hour + 1 minute + 1 second + 1 milliseconds));
+
+dt:datetime              |plus:datetime
+2100-01-01T01:01:01.001Z |2100-01-01T00:00:00.000Z
+;
+
 dateMinusDuration
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval minus = dt - 1 hour - 1 minute - 1 second - 1 milliseconds;
 
 dt:datetime              |minus:datetime
 2100-01-01T01:01:01.001Z |2100-01-01T00:00:00.000Z
+;
+
+dateMinusDurationFromLeft
+row n = to_dt("1953-04-04T01:01:01.001Z") | eval then = -1 hour - 1 minute - 1 second - 1 milliseconds + n | keep then;
+
+then:datetime
+1953-04-04T00:00:00.000Z
+;
+
+dateMinusSumOfNegativeDurations
+row n = to_dt("1953-04-04T00:00:00.000Z") | eval then = n - (-1 hour - 1 minute - 1 second - 1 milliseconds) | keep then;
+
+then:datetime
+1953-04-04T01:01:01.001Z
+;
+
+dateMinusDurationsFromLeftMultipleEvals
+row n = to_dt("1953-04-04T04:03:02.001Z")
+| eval x = -4 hour + n
+| eval y = -3 minute + x, then = y + (-2 second - 1 millisecond)
+| keep then
+;
+
+then:datetime
+1953-04-04T00:00:00.000Z
 ;
 
 datePlusPeriodAndDuration
@@ -527,7 +638,7 @@ row dt = to_dt(9223372036854775807)
 | keep plus;
 
 warning:Line 2:15: evaluation of [dt + 1 day] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 2:15: java.lang.ArithmeticException: long overflow
 
 plus:datetime
 null
@@ -539,7 +650,7 @@ row dt = to_dt(0)
 | keep plus;
 
 warning:Line 2:15: evaluation of [dt + 2147483647 years] failed, treating result as null. Only first 20 failures recorded.
-warning:java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
+warning:Line 2:15: java.time.DateTimeException: Invalid value for Year (valid values -999999999 - 999999999): 2147485617
 
 plus:datetime
 null

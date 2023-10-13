@@ -38,8 +38,8 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * already have become master and updated the state in a way that would be inconsistent with the response that {@code N} sends back to
      * clients.
      *
-     * @return The resulting cluster state after executing all the tasks. If {code batchExecutionContext.initialState()} is returned then no
-     * update is published.
+     * @return The resulting cluster state after executing all the tasks. If {@code batchExecutionContext.initialState()} is returned then
+     * no update is published.
      */
     ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception;
 

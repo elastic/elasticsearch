@@ -27,6 +27,7 @@ import java.util.Map;
 public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
     private final Weight weight;
 
+    @SuppressWarnings("this-escape")
     public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext context, Map<String, Object> metadata)
         throws IOException {
 

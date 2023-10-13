@@ -131,6 +131,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     protected AbstractHighlighterBuilder(StreamInput in) throws IOException {
         preTags(in.readOptionalStringArray());
         postTags(in.readOptionalStringArray());

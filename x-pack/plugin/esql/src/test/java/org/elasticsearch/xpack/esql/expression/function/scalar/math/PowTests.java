@@ -54,7 +54,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     DataTypes.DOUBLE,
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("java.lang.ArithmeticException: invalid result: pow(NaN, 1.0)")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: invalid result: pow(NaN, 1.0)")
             ),
             new TestCaseSupplier(
                 "pow(1, NaN)",
@@ -67,7 +67,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     DataTypes.DOUBLE,
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("java.lang.ArithmeticException: invalid result: pow(1.0, NaN)")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: invalid result: pow(1.0, NaN)")
             ),
             new TestCaseSupplier(
                 "pow(NaN, 0)",
@@ -144,7 +144,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     DataTypes.INTEGER,
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("java.lang.ArithmeticException: integer overflow")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: integer overflow")
             ),
             new TestCaseSupplier(
                 "long overflow case",
@@ -158,7 +158,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     DataTypes.LONG,
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("java.lang.ArithmeticException: long overflow")
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: long overflow")
             ),
             new TestCaseSupplier(
                 "pow(2, 0.5) == sqrt(2)",
@@ -213,7 +213,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                     DataTypes.DOUBLE,
                     equalTo(null)
                 ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("java.lang.ArithmeticException: invalid result: pow(" + (double) base + ", " + exp + ")");
+                    .withWarning("Line -1:-1: java.lang.ArithmeticException: invalid result: pow(" + (double) base + ", " + exp + ")");
                 return testCase;
             }),
             new TestCaseSupplier(

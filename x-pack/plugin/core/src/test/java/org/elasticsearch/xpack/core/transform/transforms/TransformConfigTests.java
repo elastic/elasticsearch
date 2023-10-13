@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -603,7 +603,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 "max_page_search_size": 111
               },
               "version": "%s"
-            }""", Version.V_7_6_0.toString());
+            }""", TransformConfigVersion.V_7_6_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -645,7 +645,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 }
               },
               "version": "%s"
-            }""", Version.V_7_12_0.toString());
+            }""", TransformConfigVersion.V_7_12_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -693,7 +693,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 "max_page_search_size": 555
               },
               "version": "%s"
-            }""", Version.V_7_5_0.toString());
+            }""", TransformConfigVersion.V_7_5_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -828,7 +828,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertThat(additiionalValidations.get(0), is(instanceOf(RemoteClusterMinimumVersionValidation.class)));
         RemoteClusterMinimumVersionValidation remoteClusterMinimumVersionValidation =
             (RemoteClusterMinimumVersionValidation) additiionalValidations.get(0);
-        assertThat(remoteClusterMinimumVersionValidation.getMinExpectedVersion(), is(equalTo(Version.V_7_12_0)));
+        assertThat(remoteClusterMinimumVersionValidation.getMinExpectedTransportVersion(), is(equalTo(TransportVersions.V_7_12_0)));
         assertThat(remoteClusterMinimumVersionValidation.getReason(), is(equalTo("source.runtime_mappings field was set")));
     }
 

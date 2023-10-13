@@ -52,6 +52,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -141,7 +142,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return metadata.build();
     }
 
-    IndexRequest copyIndexRequest(IndexRequest inRequest) throws IOException {
+    static IndexRequest copyIndexRequest(IndexRequest inRequest) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             inRequest.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -150,7 +151,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
-    protected DiscoveryNode getDiscoveryNode(String id) {
+    protected static DiscoveryNode getDiscoveryNode(String id) {
         return DiscoveryNodeUtils.builder(id).name(id).roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
@@ -451,7 +452,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public void recoverReplica(IndexShard replica) throws IOException {
-            recoverReplica(replica, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener));
+            recoverReplica(replica, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener));
         }
 
         public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)
@@ -619,7 +620,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 getPrimary().getLastKnownGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(),
                 acquirePermitFuture,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
                 replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
@@ -792,7 +793,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             delegatedListener.onFailure(e);
                         }
                     }),
-                    ThreadPool.Names.WRITE
+                    replica.getThreadPool().executor(ThreadPool.Names.WRITE)
                 );
             }
 
@@ -883,7 +884,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
         }
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME);
+        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (_update, _shardId, _listener1) -> {};
             TransportShardBulkAction.performOnPrimary(
@@ -938,7 +939,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             globalCheckpointOnPrimary,
             maxSeqNoOfUpdatesOrDeletes,
             permitAcquiredFuture,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         final Translog.Location location;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
@@ -1086,7 +1087,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             globalCheckpointOnPrimary,
             maxSeqNoOfUpdatesOrDeletes,
             acquirePermitFuture,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         try (Releasable ignored = acquirePermitFuture.actionGet()) {
             location = TransportResyncReplicationAction.performOnReplica(request, replica);

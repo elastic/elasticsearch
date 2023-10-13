@@ -51,6 +51,7 @@ public class FetchPhase {
 
     private final FetchSubPhase[] fetchSubPhases;
 
+    @SuppressWarnings("this-escape")
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);

@@ -103,6 +103,18 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
+        }), new TestCaseSupplier("Period - Period", () -> {
+            Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                ),
+                "Only folding possible, so there's no evaluator",
+                EsqlDataTypes.DATE_PERIOD,
+                equalTo(lhs.minus(rhs))
+            );
         }), new TestCaseSupplier("Datetime - Duration", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
             Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
@@ -116,6 +128,18 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
             return testCase;
+        }), new TestCaseSupplier("Duration - Duration", () -> {
+            Duration lhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.TIME_DURATION, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                ),
+                "Only folding possible, so there's no evaluator",
+                EsqlDataTypes.TIME_DURATION,
+                equalTo(lhs.minus(rhs))
+            );
         })));
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -62,7 +64,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
     /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
-    private static final TransformConfigVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION = TransformConfigVersion.V_7_12_0;
+    private static final TransportVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -207,6 +209,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         return NAME + "-" + transformId;
     }
 
+    @SuppressWarnings("this-escape")
     public TransformConfig(
         final String id,
         final SourceConfig source,
@@ -242,6 +245,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         this.transformVersion = version == null ? null : TransformConfigVersion.fromString(version);
     }
 
+    @SuppressWarnings("this-escape")
     public TransformConfig(final StreamInput in) throws IOException {
         id = in.readString();
         source = new SourceConfig(in);
@@ -341,7 +345,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
     public List<SourceDestValidation> getAdditionalSourceDestValidations() {
         if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
             SourceDestValidation validation = new SourceDestValidator.RemoteClusterMinimumVersionValidation(
-                TransformConfigVersion.toVersion(FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_VERSION),
+                FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION,
                 "source.runtime_mappings field was set"
             );
             return Collections.singletonList(validation);

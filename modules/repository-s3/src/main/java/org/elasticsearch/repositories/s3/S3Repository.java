@@ -35,13 +35,12 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -205,7 +204,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final Meter meter
     ) {
         super(
             metadata,
@@ -214,7 +214,8 @@ class S3Repository extends MeteredBlobStoreRepository {
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            meter
         );
         this.service = service;
         this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);
@@ -312,46 +313,35 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     @Override
-    public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        IndexVersion repositoryMetaVersion,
-        SnapshotDeleteListener listener
-    ) {
-        final SnapshotDeleteListener wrappedListener;
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion)) {
-            wrappedListener = listener;
-        } else {
-            wrappedListener = new SnapshotDeleteListener() {
-                @Override
-                public void onDone() {
-                    listener.onDone();
-                }
+    protected SnapshotDeleteListener wrapWithWeakConsistencyProtection(SnapshotDeleteListener listener) {
+        return new SnapshotDeleteListener() {
+            @Override
+            public void onDone() {
+                listener.onDone();
+            }
 
-                @Override
-                public void onRepositoryDataWritten(RepositoryData repositoryData) {
-                    logCooldownInfo();
-                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                        assert cancellable != null;
-                        listener.onRepositoryDataWritten(repositoryData);
-                    }, coolDown, snapshotExecutor));
-                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-                }
+            @Override
+            public void onRepositoryDataWritten(RepositoryData repositoryData) {
+                logCooldownInfo();
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                    assert cancellable != null;
+                    listener.onRepositoryDataWritten(repositoryData);
+                }, coolDown, snapshotExecutor));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logCooldownInfo();
-                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
-                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
-                        assert cancellable != null;
-                        listener.onFailure(e);
-                    }, coolDown, snapshotExecutor));
-                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
-                }
-            };
-        }
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, wrappedListener);
+            @Override
+            public void onFailure(Exception e) {
+                logCooldownInfo();
+                final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                    final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                    assert cancellable != null;
+                    listener.onFailure(e);
+                }, coolDown, snapshotExecutor));
+                assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+            }
+        };
     }
 
     /**
@@ -408,7 +398,18 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata, bigArrays, threadPool);
+        return new S3BlobStore(
+            service,
+            bucket,
+            serverSideEncryption,
+            bufferSize,
+            cannedACL,
+            storageClass,
+            metadata,
+            bigArrays,
+            threadPool,
+            meter
+        );
     }
 
     // only use for testing

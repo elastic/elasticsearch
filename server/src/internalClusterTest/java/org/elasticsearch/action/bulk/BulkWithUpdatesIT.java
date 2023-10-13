@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -697,7 +696,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen(indexName);
-        IndexResponse doc = index(indexName, "1", Map.of("user", "xyz"));
+        DocWriteResponse doc = index(indexName, "1", Map.of("user", "xyz"));
         assertThat(doc.getShardInfo().getSuccessful(), equalTo(2));
         final BulkResponse bulkResponse = client().prepareBulk()
             .add(new UpdateRequest().index(indexName).id("1").detectNoop(true).doc("user", "xyz")) // noop update

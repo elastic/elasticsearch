@@ -15,11 +15,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -214,7 +214,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Currently for EQL we don't set limit for a stored async response
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
-    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener) {
+    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener) {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
@@ -239,7 +239,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
      */
-    public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
+    public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener)
         throws IOException {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(

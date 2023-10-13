@@ -93,6 +93,7 @@ public class ReadOnlyEngine extends Engine {
      * @param requireCompleteHistory indicates whether this engine permits an incomplete history (i.e. LCP &lt; MSN)
      * @param lazilyLoadSoftDeletes indicates whether this engine should load the soft-delete based liveDocs eagerly, or on first access
      */
+    @SuppressWarnings("this-escape")
     public ReadOnlyEngine(
         EngineConfig config,
         SeqNoStats seqNoStats,

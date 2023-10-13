@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jose.util.JSONObjectUtils;
+import com.nimbusds.jwt.JWT;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -35,6 +38,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -58,6 +62,7 @@ import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import javax.net.ssl.HostnameVerifier;
@@ -99,12 +104,12 @@ public class JwtUtil {
         final String clientAuthenticationTypeConfigKey,
         final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType,
         final String clientAuthenticationSharedSecretConfigKey,
-        final SecureString clientAuthenticationSharedSecret
+        final RotatableSecret clientAuthenticationSharedSecret
     ) throws SettingsException {
         switch (clientAuthenticationType) {
             case SHARED_SECRET:
                 // If type is "SharedSecret", the shared secret value must be set
-                if (Strings.hasText(clientAuthenticationSharedSecret) == false) {
+                if (clientAuthenticationSharedSecret.isSet() == false) {
                     throw new SettingsException(
                         "Missing setting for ["
                             + clientAuthenticationSharedSecretConfigKey
@@ -119,7 +124,7 @@ public class JwtUtil {
             case NONE:
             default:
                 // If type is "None", the shared secret value must not be set
-                if (Strings.hasText(clientAuthenticationSharedSecret)) {
+                if (clientAuthenticationSharedSecret.isSet()) {
                     throw new SettingsException(
                         "Setting ["
                             + clientAuthenticationSharedSecretConfigKey
@@ -141,7 +146,7 @@ public class JwtUtil {
 
     public static void validateClientAuthentication(
         final JwtRealmSettings.ClientAuthenticationType type,
-        final SecureString expectedSecret,
+        final RotatableSecret expectedSecret,
         final SecureString actualSecret,
         final String tokenPrincipal
     ) throws Exception {
@@ -149,7 +154,7 @@ public class JwtUtil {
             case SHARED_SECRET:
                 if (Strings.hasText(actualSecret) == false) {
                     throw new Exception("Rejected client. Authentication type is [" + type + "] and secret is missing.");
-                } else if (expectedSecret.equals(actualSecret) == false) {
+                } else if (expectedSecret.matches(actualSecret) == false) {
                     throw new Exception("Rejected client. Authentication type is [" + type + "] and secret did not match.");
                 }
                 LOGGER.trace("Accepted client for token [{}]. Authentication type is [{}] and secret matched.", tokenPrincipal, type);
@@ -386,6 +391,25 @@ public class JwtUtil {
         public void close() {
             flush();
             closed = true;
+        }
+    }
+
+    /**
+     * @param jwt The signed JWT
+     * @return A print safe supplier to describe a JWT that redacts the signature. While the signature is not generally sensitive,
+     * we don't want to leak the entire JWT to the log to avoid a possible replay.
+     */
+    public static Supplier<String> toStringRedactSignature(JWT jwt) {
+        if (jwt instanceof JWSObject) {
+            Base64URL[] parts = jwt.getParsedParts();
+            assert parts.length == 3;
+            assert parts[0] != null;
+            assert parts[1] != null;
+            assert parts[2] != null;
+            assert Objects.equals(parts[2], ((JWSObject) jwt).getSignature());
+            return () -> parts[0] + "." + parts[1] + ".<redacted-signature>";
+        } else {
+            return jwt::getParsedString;
         }
     }
 }

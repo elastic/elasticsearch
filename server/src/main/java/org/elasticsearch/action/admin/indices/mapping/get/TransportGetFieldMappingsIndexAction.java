@@ -72,7 +72,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             actionFilters,
             indexNameExpressionResolver,
             GetFieldMappingsIndexRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;

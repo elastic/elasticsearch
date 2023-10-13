@@ -76,7 +76,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

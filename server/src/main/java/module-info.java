@@ -278,8 +278,13 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery;
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
+    exports org.elasticsearch.inference;
     exports org.elasticsearch.ingest;
-    exports org.elasticsearch.internal to org.elasticsearch.serverless.version, org.elasticsearch.serverless.buildinfo;
+    exports org.elasticsearch.internal
+        to
+            org.elasticsearch.serverless.version,
+            org.elasticsearch.serverless.buildinfo,
+            org.elasticsearch.serverless.constants;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -363,7 +368,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.synonyms;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;
@@ -379,6 +383,9 @@ module org.elasticsearch.server {
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering;
+    exports org.elasticsearch.telemetry.tracing;
+    exports org.elasticsearch.telemetry;
+    exports org.elasticsearch.telemetry.metric;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -395,6 +402,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
+    uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

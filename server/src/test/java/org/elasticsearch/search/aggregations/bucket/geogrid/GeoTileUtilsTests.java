@@ -20,7 +20,6 @@ import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.keyToGeoPoint;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

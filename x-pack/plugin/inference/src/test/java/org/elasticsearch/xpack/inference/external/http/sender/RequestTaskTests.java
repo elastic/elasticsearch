@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -35,8 +39,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class RequestTaskTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -95,5 +104,58 @@ public class RequestTaskTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is(format("Failed to send request [%s]", httpPost.getRequestLine())));
+    }
+
+    public void testRequest_ReturnsTimeoutException() throws Exception {
+        var httpClient = mock(HttpClient.class);
+
+        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+        var requestTask = new RequestTask(
+            mock(HttpRequestBase.class),
+            httpClient,
+            HttpClientContext.create(),
+            TimeValue.timeValueMillis(1),
+            threadPool,
+            listener
+        );
+        requestTask.doRun();
+
+        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueMillis(1)))
+        );
+    }
+
+    public void testRequest_DoesNotCallOnFailureTwiceWhenTimingOut() throws Exception {
+        var httpClient = mock(HttpClient.class);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<HttpResponse> listener = (ActionListener<HttpResponse>) invocation.getArguments()[2];
+            listener.onFailure(new ElasticsearchException("failed"));
+            return Void.TYPE;
+        }).when(httpClient).send(any(), any(), any());
+
+        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+        var spyListener = spy(listener);
+
+        var requestTask = new RequestTask(
+            mock(HttpRequestBase.class),
+            httpClient,
+            HttpClientContext.create(),
+            TimeValue.timeValueMillis(1),
+            threadPool,
+            listener
+        );
+
+        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueMillis(1)))
+        );
+        verify(spyListener, times(1)).onFailure(any());
+
+        requestTask.doRun();
+        verifyNoMoreInteractions(spyListener);
     }
 }

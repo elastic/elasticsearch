@@ -12,6 +12,7 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -70,7 +70,9 @@ class RequestTask extends HttpTask {
         assert timeout != null : "timeout must be defined to use a timeout handler";
         logger.debug(() -> format("Request [%s] timed out after [%s] while waiting to be executed", request.getRequestLine(), timeout));
         notifyOfResult(
-            () -> listener.onFailure(new TimeoutException(format("Request timed out waiting to be executed after [%s]", timeout)))
+            () -> listener.onFailure(
+                new ElasticsearchTimeoutException(format("Request timed out waiting to be executed after [%s]", timeout))
+            )
         );
     }
 

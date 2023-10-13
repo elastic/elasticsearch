@@ -628,14 +628,19 @@ public class DoSection implements ExecutableSection {
         return result;
     }
 
-    private static boolean matchWithRange(String nodeVersionSting, List<VersionRange> acceptedVersionRanges) {
+    private static boolean matchWithRange(String nodeVersionString, List<VersionRange> acceptedVersionRanges, XContentLocation location) {
+        var unqualifiedNodeVersionString = nodeVersionString.replace("-SNAPSHOT", "");
         try {
-            Version version = Version.fromString(nodeVersionSting.replace("-SNAPSHOT", ""));
+            Version version = Version.fromString(unqualifiedNodeVersionString);
             return acceptedVersionRanges.stream().anyMatch(v -> v.contains(version));
-        } catch (IllegalArgumentException ignored) {
+        } catch (IllegalArgumentException e) {
+            throw new XContentParseException(
+                location,
+                "expected [version] to be a semantic (x.y.z format), but found " + unqualifiedNodeVersionString,
+                e);
         }
-        return false;
     }
+
 
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {
@@ -650,7 +655,7 @@ public class DoSection implements ExecutableSection {
             versionSelectorString = "current";
         } else {
             var acceptedVersionRange = SkipSection.parseVersionRanges(parser.text());
-            nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange);
+            nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
             versionSelectorString = acceptedVersionRange.toString();
         }
 

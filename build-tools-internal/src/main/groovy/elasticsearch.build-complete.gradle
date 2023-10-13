@@ -8,9 +8,11 @@
 
 import java.nio.file.Files
 
-String buildNumber = System.getenv('BUILD_NUMBER')
+String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 
 if (buildNumber) {
+  def uploadFilePath = "build/${buildNumber}.tar.bz2"
+  File uploadFile = file(uploadFilePath)
   File uploadFile = file("build/${buildNumber}.tar.bz2")
   project.gradle.buildFinished { result ->
     println "build complete, generating: $uploadFile"
@@ -61,6 +63,28 @@ if (buildNumber) {
       }
     } catch (Exception e) {
       logger.lifecycle("Failed to archive additional logs", e)
+    }
+
+    if (uploadFile.exists() && System.getenv("BUILDKITE") == "true") {
+      try {
+        println "Uploading buildkite artifact: ${uploadFilePath}..."
+        new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath)
+          .start()
+          .waitFor()
+
+        println "Generating buildscan link for artifact..."
+
+        def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i").start()
+        process.waitFor()
+        def artifactUuid = (process.text ?: "").trim()
+
+        println "Artifact UUID: ${artifactUuid}"
+        if (artifactUuid) {
+          buildScan.link 'Artifact Upload', "https://buildkite.com/organizations/elastic/pipelines/${System.getenv('BUILDKITE_PIPELINE_SLUG')}/builds/${buildNumber}/jobs/${System.getenv('BUILDKITE_JOB_ID')}/artifacts/${artifactUuid}"
+        }
+      } catch (Exception e) {
+        logger.lifecycle("Failed to upload buildkite artifact", e)
+      }
     }
   }
 }

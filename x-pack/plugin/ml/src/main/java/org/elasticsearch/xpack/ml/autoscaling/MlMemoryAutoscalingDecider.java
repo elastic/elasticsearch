@@ -21,6 +21,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -88,11 +89,12 @@ class MlMemoryAutoscalingDecider {
 
         this.maxMachineMemoryPercent = MAX_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
-        this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
+        this.useAuto = MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         setMaxMlNodeSize(MachineLearning.MAX_ML_NODE_SIZE.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_ML_NODE_SIZE, this::setMaxMlNodeSize);
     }
 

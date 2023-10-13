@@ -426,7 +426,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 client.admin()
                     .cluster()
                     .prepareListTasks()
-                    .setActions(TransformField.TASK_NAME)
+                    .setActions(TransformField.TASK_NAME + "*")
                     .setWaitForCompletion(true)
                     .execute(ActionListener.wrap(listTransformTasks -> {
                         listTransformTasks.rethrowFailures("Waiting for transform tasks");

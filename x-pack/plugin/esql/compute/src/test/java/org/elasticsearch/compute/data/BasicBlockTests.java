@@ -746,16 +746,19 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(s, containsString("positions=2"));
             }
             for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
-                assertThat(block.filter(0).toString(), containsString("FilterIntVector[positions=1, values=[1]]"));
-                assertThat(block.filter(1).toString(), containsString("FilterIntVector[positions=1, values=[2]]"));
-                assertThat(block.filter(0, 1).toString(), containsString("FilterIntVector[positions=2, values=[1, 2]]"));
-                assertThat(block.filter().toString(), containsString("FilterIntVector[positions=0, values=[]]"));
+                assertThat(block.filter(0).toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
+                assertThat(block.filter(1).toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
+                assertThat(
+                    block.filter(0, 1).toString(),
+                    containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]")
+                );
+                assertThat(block.filter().toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
             }
             for (IntVector vector : List.of(intVector, intBlock.asVector())) {
-                assertThat(vector.filter(0).toString(), containsString("FilterIntVector[positions=1, values=[1]]"));
-                assertThat(vector.filter(1).toString(), containsString("FilterIntVector[positions=1, values=[2]]"));
-                assertThat(vector.filter(0, 1).toString(), containsString("FilterIntVector[positions=2, values=[1, 2]]"));
-                assertThat(vector.filter().toString(), containsString("FilterIntVector[positions=0, values=[]]"));
+                assertThat(vector.filter(0).toString(), containsString("ConstantIntVector[positions=1, value=1]"));
+                assertThat(vector.filter(1).toString(), containsString("ConstantIntVector[positions=1, value=2]"));
+                assertThat(vector.filter(0, 1).toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
+                assertThat(vector.filter().toString(), containsString("IntArrayVector[positions=0, values=[]]"));
             }
         }
 

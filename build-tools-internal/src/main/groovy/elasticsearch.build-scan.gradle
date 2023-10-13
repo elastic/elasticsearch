@@ -21,7 +21,7 @@ buildScan {
     buildScan.server = 'https://gradle-enterprise.elastic.co'
   }
 
-  background {
+  // background {
     tag OS.current().name()
     tag Architecture.current().name()
 
@@ -125,14 +125,14 @@ buildScan {
       println(uploadFile)
 
       if (uploadFile.exists()) {
-        println("exists, searching " + ["buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%u"].join(" "))
+        println("exists, searching " + ["buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i"].join(" "))
 
-        def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%u").start()
+        def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i").start()
         process.waitFor()
         println("Output: " + process.text)
-        def artifactUrl = (process.text ?: "").trim()
-        if (artifactUrl) {
-          link 'Artifact Upload', artifactUrl
+        def artifactUuid = (process.text ?: "").trim()
+        if (artifactUuid) {
+          link 'Artifact Upload', "https://buildkite.com/organizations/elastic/pipelines/${System.getenv('BUILDKITE_PIPELINE_SLUG')}/builds/${buildNumber}/jobs/${System.getenv('BUILDKITE_JOB_ID')}/artifacts/${artifactUuid}"
         }
       }
 
@@ -153,5 +153,5 @@ buildScan {
     } else {
       tag 'LOCAL'
     }
-  }
+  // }
 }

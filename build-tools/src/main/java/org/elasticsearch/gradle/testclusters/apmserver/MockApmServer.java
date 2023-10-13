@@ -8,9 +8,6 @@
 
 package org.elasticsearch.gradle.testclusters.apmserver;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -23,9 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 /**
  * This is a server which just accepts lines of JSON code and if the JSON
@@ -55,90 +49,8 @@ public class MockApmServer {
         server.blockUntilStopped();
     }
 
-    private static volatile HttpServer TheServerInstance;
+    private static volatile HttpServer instance;
 
-    private final List<JsonNode> transactions = new ArrayList<>();
-    private final List<JsonNode> metricsets = new ArrayList<>();
-
-    /**
-     * A count of the number of transactions received and not yet removed
-     * @return the number of transactions received and not yet removed
-     */
-    public int getTransactionCount() {
-        synchronized (transactions) {
-            return transactions.size();
-        }
-    }
-
-    /**
-     * Gets the transaction at index i if it exists within the timeout
-     * specified, and removes it from the transaction list.
-     * If it doesn't exist within the timeout period, an
-     * IllegalArgumentException is thrown
-     * @param i - the index to retrieve a transaction from
-     * @param timeOutInMillis - millisecond timeout to wait for the
-     *                        transaction at index i to exist
-     * @return - the transaction information as a JSON object
-     * @throws TimeoutException - thrown if no transaction
-     *                         exists at index i by timeout
-     */
-    public JsonNode getAndRemoveTransaction(int i, long timeOutInMillis) throws TimeoutException {
-        // because the agent writes to the server asynchronously,
-        // any transaction created in a client is not here immediately
-        long start = System.currentTimeMillis();
-        long elapsedTime = 0;
-        while (elapsedTime < timeOutInMillis) {
-            synchronized (transactions) {
-                if (transactions.size() > i) {
-                    break;
-                }
-                if (timeOutInMillis - elapsedTime > 0) {
-                    try {
-                        transactions.wait(timeOutInMillis - elapsedTime);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-                elapsedTime = System.currentTimeMillis() - start;
-            }
-        }
-        synchronized (transactions) {
-            if (transactions.size() <= i) {
-                throw new TimeoutException("The apm server does not have a transaction at index " + i);
-            }
-        }
-        synchronized (transactions) {
-            return transactions.remove(i);
-        }
-    }
-
-    public JsonNode popMetricset(long timeOutInMillis) throws TimeoutException {
-        // because the agent writes to the server asynchronously,
-        // any metricset created in a client is not here immediately
-        long start = System.currentTimeMillis();
-        long elapsedTime = 0;
-        while (elapsedTime < timeOutInMillis) {
-            synchronized (metricsets) {
-                if (metricsets.size() > 0) {
-                    break;
-                }
-                if (timeOutInMillis - elapsedTime > 0) {
-                    try {
-                        metricsets.wait(timeOutInMillis - elapsedTime);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-                elapsedTime = System.currentTimeMillis() - start;
-            }
-        }
-        if (timeOutInMillis - elapsedTime <= 0) {
-            return null;
-        }
-        synchronized (metricsets) {
-            return metricsets.remove(0);
-        }
-    }
 
     /**
      * Start the Mock APM server. Just returns empty JSON structures for every incoming message
@@ -146,7 +58,7 @@ public class MockApmServer {
      * @throws IOException
      */
     public synchronized int start() throws IOException {
-        if (TheServerInstance != null) {
+        if (instance != null) {
             throw new IOException("MockApmServer: Ooops, you can't start this instance more than once");
         }
         InetSocketAddress addr = new InetSocketAddress("0.0.0.0", 9999);
@@ -155,13 +67,13 @@ public class MockApmServer {
         server.createContext("/", new RootHandler());
 
         server.start();
-        TheServerInstance = server;
+        instance = server;
         logger.lifecycle("MockApmServer started on port " + server.getAddress().getPort());
         return server.getAddress().getPort();
     }
 
     public int getPort() {
-        return TheServerInstance.getAddress().getPort();
+        return instance.getAddress().getPort();
     }
 
     /**
@@ -169,8 +81,8 @@ public class MockApmServer {
      */
     public synchronized void stop() {
         logger.lifecycle("stopping apm server");
-        TheServerInstance.stop(1);
-        TheServerInstance = null;
+        instance.stop(1);
+        instance = null;
     }
 
     class RootHandler implements HttpHandler {
@@ -183,46 +95,14 @@ public class MockApmServer {
                 while ((lengthRead = body.read(buffer)) > 0) {
                     bytes.write(buffer, 0, lengthRead);
                 }
-                reportTransactionsAndMetrics(bytes.toString());
+                logger.lifecycle(("MockApmServer reading JSON objects: " + bytes.toString()));
+
                 String response = "{}";
                 t.sendResponseHeaders(200, response.length());
                 OutputStream os = t.getResponseBody();
                 os.write(response.getBytes());
                 os.close();
             } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        private void reportTransactionsAndMetrics(String json) {
-            String[] lines = json.split("[\r\n]");
-            for (String line : lines) {
-                reportTransactionOrMetric(line);
-            }
-        }
-
-        private void reportTransactionOrMetric(String line) {
-            logger.lifecycle(("MockApmServer reading JSON objects: " + line));
-            ObjectMapper objectMapper = new ObjectMapper();
-            JsonNode messageRootNode = null;
-            try {
-                messageRootNode = objectMapper.readTree(line);
-                JsonNode transactionNode = messageRootNode.get("transaction");
-                if (transactionNode != null) {
-                    synchronized (transactions) {
-                        transactions.add(transactionNode);
-                        transactions.notify();
-                    }
-                }
-                JsonNode metricsetNode = messageRootNode.get("metricset");
-                if (metricsetNode != null) {
-                    synchronized (metricsets) {
-                        metricsets.add(metricsetNode);
-                        metricsets.notify();
-                    }
-                }
-            } catch (JsonProcessingException e) {
-                logger.lifecycle("Not JSON: " + line);
                 e.printStackTrace();
             }
         }
@@ -239,8 +119,8 @@ public class MockApmServer {
                 OutputStream os = t.getResponseBody();
                 os.write(response.getBytes());
                 os.close();
-                TheServerInstance.stop(STOP_TIME);
-                TheServerInstance = null;
+                instance.stop(STOP_TIME);
+                instance = null;
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -251,7 +131,7 @@ public class MockApmServer {
      * Wait until the server is ready to accept messages
      */
     public void blockUntilReady() {
-        while (TheServerInstance == null) {
+        while (instance == null) {
             try {
                 Thread.sleep(1L);
             } catch (InterruptedException e) {
@@ -264,7 +144,7 @@ public class MockApmServer {
      * Wait until the server is terminated
      */
     public void blockUntilStopped() {
-        while (TheServerInstance != null) {
+        while (instance != null) {
             try {
                 Thread.sleep(1L);
             } catch (InterruptedException e) {

@@ -35,7 +35,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -126,8 +125,7 @@ public class ActionModuleTests extends ESTestCase {
             null,
             mock(ClusterService.class),
             List.of(),
-            RestExtension.allowAll(),
-            TelemetryProvider.NOOP
+            RestExtension.allowAll()
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -187,8 +185,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 mock(ClusterService.class),
                 List.of(),
-                RestExtension.allowAll(),
-                TelemetryProvider.NOOP
+                RestExtension.allowAll()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
@@ -241,8 +238,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 mock(ClusterService.class),
                 List.of(),
-                RestExtension.allowAll(),
-                TelemetryProvider.NOOP
+                RestExtension.allowAll()
             );
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -290,8 +286,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     mock(ClusterService.class),
                     List.of(),
-                    RestExtension.allowAll(),
-                    TelemetryProvider.NOOP
+                    RestExtension.allowAll()
                 )
             );
             assertThat(
@@ -330,8 +325,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     mock(ClusterService.class),
                     List.of(),
-                    RestExtension.allowAll(),
-                    TelemetryProvider.NOOP
+                    RestExtension.allowAll()
                 )
             );
             assertThat(
@@ -383,7 +377,7 @@ public class ActionModuleTests extends ESTestCase {
             Tracer tracer
         ) {
             if (installController) {
-                return new RestController(handlerWrapper, client, circuitBreakerService, usageService, tracer, TelemetryProvider.NOOP);
+                return new RestController(handlerWrapper, client, circuitBreakerService, usageService, tracer);
             } else {
                 return null;
             }

@@ -83,7 +83,7 @@ class APMJvmOptions {
         // is doing, leave this value alone.
         "log_level", "error",
         "application_packages", "org.elasticsearch,org.apache.lucene",
-        "metrics_interval", "5s",
+        "metrics_interval", "120s",
         "breakdown_metrics", "false",
         "central_config", "false"
         );

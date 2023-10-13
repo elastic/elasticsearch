@@ -34,8 +34,7 @@ testClusters.register("runTask") {
       numberOfNodes = 1
     }
 }
-Provider<ApmServerBuildService> apmServer
-  = project.getGradle().getSharedServices()
+Provider<ApmServerBuildService> apmServer = project.getGradle().getSharedServices()
   .registerIfAbsent("mockApmServer", ApmServerBuildService.class, spec -> {
   });
 
@@ -44,7 +43,6 @@ tasks.register("run", RunTask) {
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
   mockApmServer = apmServer
-//  usesService = apmServer
 
   impliesSubProjects = true
 }

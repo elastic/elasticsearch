@@ -35,10 +35,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.DoubleCounter;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
-import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -106,9 +102,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final UsageService usageService;
     private final Tracer tracer;
-    private final DoubleGauge gauge;
-    private final DoubleCounter counter;
-    private Meter meter;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
 
@@ -117,13 +110,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer,
-        TelemetryProvider telemetryProvider
+        Tracer tracer
     ) {
         this.usageService = usageService;
-        this.tracer = telemetryProvider.getTracer();
-        this.gauge = telemetryProvider.getMeter().registerDoubleGauge("przemekgauge", "descv", "sth");
-        this.counter = telemetryProvider.getMeter().registerDoubleCounter("przemekcounter", "descv", "sth");
+        this.tracer = tracer;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -391,7 +381,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         MethodHandlers methodHandlers,
         ThreadContext threadContext
     ) throws Exception {
-        counter.increment();
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
             if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {

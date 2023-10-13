@@ -375,14 +375,20 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         boolean canAssign(Deployment deployment, Node node, int allocations) {
-            return ((isAlreadyAssigned(deployment, node)
-                && deployment.estimateAdditionalMemoryUsageBytes(
-                    deployment.currentAllocationsByNodeId().get(node.id()),
-                    allocations
-                ) <= remainingNodeMemory.get(node))
-                || (deployment.estimateMemoryUsageBytes(allocations) <= remainingNodeMemory.get(node))
+            long requiredMemory = getDeploymentMemoryRequirement(deployment, node, allocations);
+            return (requiredMemory <= remainingNodeMemory.get(node))
                     && (deployment.priority == Priority.LOW
-                        || allocations * deployment.threadsPerAllocation() <= remainingNodeCores.get(node)));
+                        || allocations * deployment.threadsPerAllocation() <= remainingNodeCores.get(node));
+        }
+
+        private long getDeploymentMemoryRequirement(Deployment deployment, Node node, int allocations) {
+            if (isAlreadyAssigned(deployment, node)) {
+                int assignedAllocations = deployment.currentAllocationsByNodeId().containsKey(node.id())
+                    ? deployment.currentAllocationsByNodeId().get(node.id())
+                    :  assignments.get(deployment).get(node);
+                return deployment.estimateAdditionalMemoryUsageBytes(assignedAllocations, allocations);
+            }
+            return deployment.estimateMemoryUsageBytes(allocations);
         }
 
         public Builder assignModelToNode(Deployment deployment, Node node, int allocations) {
@@ -392,7 +398,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (isAlreadyAssigned(deployment, node) == false
                 && deployment.estimateMemoryUsageBytes(allocations) > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException(
-                    "not enough memory on node [" + node.id() + "] to assign  [" + allocations + "] to model [" + deployment.id() + "]"
+                    "not enough memory on node [" + node.id() + "] to assign [" + allocations + "] allocations to model [" + deployment.id() + "]"
                 );
             }
             if (deployment.priority == Priority.NORMAL && allocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
@@ -409,11 +415,9 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 );
             }
 
-            long additionalModelMemory = isAlreadyAssigned(deployment, node)
-                ? deployment.estimateAdditionalMemoryUsageBytes(deployment.currentAllocationsByNodeId().get(node.id()), allocations)
-                : deployment.estimateMemoryUsageBytes(allocations);
+            long deploymentMemory = getDeploymentMemoryRequirement(deployment, node, allocations);
             assignments.get(deployment).compute(node, (n, remAllocations) -> remAllocations + allocations);
-            remainingNodeMemory.compute(node, (n, remMemory) -> remMemory - additionalModelMemory);
+            remainingNodeMemory.compute(node, (n, remMemory) -> remMemory - deploymentMemory);
             if (remainingNodeMemory.get(node) < 0) {
                 throw new IllegalArgumentException(
                     "node enough memory on node ["

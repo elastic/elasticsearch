@@ -156,4 +156,22 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(response, matcher().created(0).slices(hasSize(0)));
     }
 
+    public void testReindexFromComplexDateMathIndexName() throws Exception {
+        String sourceIndexName = "datemath-2001-01-01-14";
+        String destIndexName = "<reindex-datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
+        indexRandom(
+            true,
+            client().prepareIndex(sourceIndexName).setId("1").setSource("foo", "a"),
+            client().prepareIndex(sourceIndexName).setId("2").setSource("foo", "a"),
+            client().prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
+            client().prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
+        );
+        assertHitCount(client().prepareSearch(sourceIndexName).setSize(0).get(), 4);
+
+        // Copy all the docs
+        ReindexRequestBuilder copy = reindex().source(sourceIndexName).destination(destIndexName).refresh(true);
+        assertThat(copy.get(), matcher().created(4));
+        assertHitCount(client().prepareSearch(destIndexName).setSize(0).get(), 4);
+    }
+
 }

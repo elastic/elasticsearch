@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
     @Override
-    //TODO all tests need to be updated to work with concurrent search
+    // TODO all tests need to be updated to work with concurrent search
     protected boolean enableConcurrentSearch() {
         return false;
     }
@@ -232,8 +232,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     }
 
     @TestIssueLogging(
-        value = "org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE,"
-            + "org.elasticsearch.tasks:TRACE",
+        value = "org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE," + "org.elasticsearch.tasks:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/99929"
     )
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {

@@ -681,7 +681,7 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard);
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, true);
         }
         OsStats osStats = null;
         if (frequently()) {

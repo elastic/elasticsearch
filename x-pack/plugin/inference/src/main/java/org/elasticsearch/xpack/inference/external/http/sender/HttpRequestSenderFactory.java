@@ -50,7 +50,7 @@ public class HttpRequestSenderFactory {
         private HttpRequestSender(String serviceName, ThreadPool threadPool, HttpClientManager httpClientManager) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService(threadPool.getThreadContext(), serviceName, manager.getHttpClient());
+            service = new HttpRequestExecutorService(serviceName, manager.getHttpClient());
         }
 
         /**

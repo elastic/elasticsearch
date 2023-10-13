@@ -12,9 +12,7 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
@@ -47,7 +45,6 @@ import static org.elasticsearch.core.Strings.format;
 class HttpRequestExecutorService extends AbstractExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
-    private final ThreadContext contextHolder;
     private final String serviceName;
     private final BlockingQueue<HttpTask> queue;
     private final AtomicBoolean running = new AtomicBoolean(true);
@@ -56,13 +53,12 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     private final HttpClient httpClient;
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, HttpClient httpClient) {
-        this(contextHolder, serviceName, httpClient, null);
+    HttpRequestExecutorService(String serviceName, HttpClient httpClient) {
+        this(serviceName, httpClient, null);
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, HttpClient httpClient, @Nullable Integer capacity) {
-        this.contextHolder = Objects.requireNonNull(contextHolder);
+    HttpRequestExecutorService(String serviceName, HttpClient httpClient, @Nullable Integer capacity) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
         this.httpContext = HttpClientContext.create();
@@ -97,11 +93,10 @@ class HttpRequestExecutorService extends AbstractExecutorService {
 
     private void executeTask(HttpTask task) {
         try {
-            contextHolder.preserveContext(task).run();
+            task.run();
         } catch (Exception e) {
             logger.error(format("Http executor service [%s] failed to execute request [%s]", serviceName, task), e);
         }
-        EsExecutors.rethrowErrors(ThreadContext.unwrap(task));
     }
 
     public int queueSize() {

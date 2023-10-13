@@ -45,20 +45,20 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testQueueSize_IsEmpty() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class));
 
         assertThat(service.queueSize(), is(0));
     }
 
     public void testQueueSize_IsOne() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class));
         service.send(mock(HttpRequestBase.class), new PlainActionFuture<>());
 
         assertThat(service.queueSize(), is(1));
     }
 
     public void testExecute_ThrowsUnsupported() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class));
         var noopTask = mock(RequestTask.class);
 
         var thrownException = expectThrows(UnsupportedOperationException.class, () -> service.execute(noopTask));
@@ -66,13 +66,13 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testIsTerminated_IsFalse() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class));
 
         assertFalse(service.isTerminated());
     }
 
     public void testIsTerminated_IsTrue() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class));
 
         service.shutdown();
         service.start();
@@ -89,7 +89,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(mockHttpClient).send(any(), any(), any());
 
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mockHttpClient);
+        var service = new HttpRequestExecutorService(getTestName(), mockHttpClient);
 
         Future<?> executorTermination = threadPool.generic().submit(() -> {
             try {
@@ -118,7 +118,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testExecute_AfterShutdown_Throws() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class));
+        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class));
 
         service.shutdown();
 
@@ -134,7 +134,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testExecute_Throws_WhenQueueIsFull() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class), 1);
+        var service = new HttpRequestExecutorService("test_service", mock(HttpClient.class), 1);
 
         service.send(mock(HttpRequestBase.class), new PlainActionFuture<>());
         var listener = new PlainActionFuture<HttpResult>();
@@ -151,7 +151,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     public void testTaskThrowsError_CallsOnFailure() throws Exception {
         var httpClient = mock(HttpClient.class);
 
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), httpClient);
+        var service = new HttpRequestExecutorService(getTestName(), httpClient);
 
         doAnswer(invocation -> {
             service.shutdown();
@@ -169,7 +169,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testShutdown_AllowsMultipleCalls() {
-        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), getTestName(), mock(HttpClient.class));
+        var service = new HttpRequestExecutorService(getTestName(), mock(HttpClient.class));
 
         service.shutdown();
         service.shutdown();

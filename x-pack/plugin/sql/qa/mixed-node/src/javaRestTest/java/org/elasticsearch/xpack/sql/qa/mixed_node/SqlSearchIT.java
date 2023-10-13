@@ -54,7 +54,6 @@ public class SqlSearchIT extends ESRestTestCase {
     private static List<TestNode> newNodes;
     private static List<TestNode> bwcNodes;
 
-
     @Before
     public void createIndex() throws IOException {
         nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);

@@ -13,7 +13,6 @@ String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_B
 if (buildNumber) {
   def uploadFilePath = "build/${buildNumber}.tar.bz2"
   File uploadFile = file(uploadFilePath)
-  File uploadFile = file("build/${buildNumber}.tar.bz2")
   project.gradle.buildFinished { result ->
     println "build complete, generating: $uploadFile"
     if (uploadFile.exists()) {

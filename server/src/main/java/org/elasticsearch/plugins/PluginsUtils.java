@@ -11,7 +11,6 @@ package org.elasticsearch.plugins;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.jdk.JarHell;

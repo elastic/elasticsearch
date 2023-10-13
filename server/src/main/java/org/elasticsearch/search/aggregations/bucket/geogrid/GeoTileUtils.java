@@ -41,6 +41,12 @@ public final class GeoTileUtils {
 
     private static final double PI_TIMES_4 = Math.PI * 4.0;
 
+    // precision up to geometry and arithmetic solution are consistent
+    private static final int MAX_TILES_FULL_PRECISION = 1 << 20;
+
+    // lucene latitude resolution
+    private static final double LUCENE_LAT_RES = 180.0D / (0x1L << 32);
+
     /**
      * Largest number of tiles (precision) to use.
      * This value cannot be more than (64-5)/2 = 29, because 5 bits are used for zoom level itself (0-31)
@@ -225,14 +231,17 @@ public final class GeoTileUtils {
      */
     public static Rectangle toBoundingBox(String hash) {
         final int[] hashAsInts = parseHash(hash);
+        validateZXY(hashAsInts[0], hashAsInts[1], hashAsInts[2]);
         return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
     }
 
     /**
-     * Decode a bucket key to a bounding box of the tile corners
+     * Decode a bucket key to a bounding box of the tile corners. The points belonging
+     * to the max latitude and min longitude belong to the tile while the points
+     * belonging to the min latitude and max longitude belong to the next tile.
      */
     public static Rectangle toBoundingBox(int xTile, int yTile, int precision) {
-        final double tiles = validateZXY(precision, xTile, yTile);
+        final int tiles = validateZXY(precision, xTile, yTile);
         return new Rectangle(
             tileToLon(xTile, tiles),            // minLon
             tileToLon(xTile + 1, tiles),  // maxLon
@@ -256,10 +265,29 @@ public final class GeoTileUtils {
      * Decode a yTile into its latitude value
      */
     public static double tileToLat(int yTile, int tiles) {
-        return tileToLat(yTile, (double) tiles);
+        final double lat = tileToLat(yTile, tiles);
+        if (tiles < MAX_TILES_FULL_PRECISION || yTile == 0 || yTile == tiles) {
+            return lat; // precise case, don't need to do more work
+        }
+        // Maybe adjust latitude due to numerical errors
+        final double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+        final int computedYTile = getYTile(qLat, tiles);
+        // the idea here is that the latitude returned belongs to the tile and the next latitude up belongs to the next tile
+        // therefore we can be in the current tile and we need to find the point up just before the next tile,
+        // or we are in the other tile and we need to find the first point down that belong to this tile.
+        return findBoundaryPoint(qLat, computedYTile, tiles, computedYTile == yTile ? LUCENE_LAT_RES : -LUCENE_LAT_RES);
     }
 
-    private static double tileToLat(double yTile, double tiles) {
+    private static double findBoundaryPoint(double qLat, int yTile, int tiles, double step) {
+        final double nextQLat = qLat + step;
+        final int nextYTile = getYTile(nextQLat, tiles);
+        if (yTile != nextYTile) {
+            return step > 0 ? qLat : nextQLat;
+        }
+        return findBoundaryPoint(nextQLat, nextYTile, tiles, step);
+    }
+
+    private static double tileToLat(double yTile, int tiles) {
         final double n = Math.PI - (PI_TIMES_2 * yTile) / tiles;
         return Math.toDegrees(ESSloppyMath.atan(ESSloppyMath.sinh(n)));
     }
@@ -281,7 +309,7 @@ public final class GeoTileUtils {
      * Converts zoom/x/y integers into a GeoPoint.
      */
     private static GeoPoint zxyToGeoPoint(int zoom, int xTile, int yTile) {
-        final double tiles = validateZXY(zoom, xTile, yTile);
+        final int tiles = validateZXY(zoom, xTile, yTile);
         return new GeoPoint(tileToLat(yTile + 0.5, tiles), tileToLon(xTile + 0.5, tiles));
     }
 }

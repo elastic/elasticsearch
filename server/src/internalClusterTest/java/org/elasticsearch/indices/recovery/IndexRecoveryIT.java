@@ -296,7 +296,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             .getState();
 
         logger.info("--> requesting shard recovery");
-        indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
+        client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
         logger.info("--> waiting for recovery to begin on both the source and target nodes");
         final Index index = resolveIndex(INDEX_NAME);

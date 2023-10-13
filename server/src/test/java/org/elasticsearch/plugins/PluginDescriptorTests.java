@@ -185,7 +185,7 @@ public class PluginDescriptorTests extends ESTestCase {
             });
             assertThat(
                 e.getMessage(),
-                containsString("The plugin descriptor cannot yet use opaque Elasticsearch version identifier [bogus]")
+                containsString("The plugin descriptor cannot yet return opaque Elasticsearch version identifier [bogus]")
             );
         });
     }

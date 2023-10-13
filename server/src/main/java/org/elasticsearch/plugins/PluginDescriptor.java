@@ -34,6 +34,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -50,7 +51,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private static final TransportVersion LICENSED_PLUGINS_SUPPORT = TransportVersions.V_7_11_0;
     private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersions.V_8_3_0;
     private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersions.V_8_4_0;
-    private static final Version BWC_PLACEHOLDER_VERSION = Version.V_8_12_0;
 
     private final String name;
     private final String description;
@@ -64,6 +64,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final boolean isLicensed;
     private final boolean isModular;
     private final boolean isStable;
+    private final boolean builtWithSemanticVersion;
 
     /**
      * Construct plugin info.
@@ -107,6 +108,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.isLicensed = isLicensed;
         this.isModular = isModular;
         this.isStable = isStable;
+        this.builtWithSemanticVersion = Pattern.matches("^\\d+\\.\\d+\\.\\d+.*", elasticsearchVersion);
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -123,8 +125,10 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.version = in.readString();
         if (in.getTransportVersion().before(TransportVersions.PLUGIN_DESCRIPTOR_STRING_VERSION)) {
             elasticsearchVersion = Version.readVersion(in).toString();
+            this.builtWithSemanticVersion = true;
         } else {
             elasticsearchVersion = in.readString();
+            this.builtWithSemanticVersion = Pattern.matches("^\\d+\\.\\d+\\.\\d+.*", elasticsearchVersion);
         }
         javaVersion = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME)) {
@@ -167,11 +171,11 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(description);
         out.writeString(version);
         if (out.getTransportVersion().before(TransportVersions.PLUGIN_DESCRIPTOR_STRING_VERSION)) {
-            try {
+            if (this.builtWithSemanticVersion) {
                 Version.writeVersion(Version.fromString(elasticsearchVersion), out);
-            } catch (IllegalArgumentException e) {
-                // can't parse current version, so send placeholder
-                Version.writeVersion(BWC_PLACEHOLDER_VERSION, out);
+            } else {
+                // Send old nodes something they can understand
+                Version.writeVersion(Version.CURRENT, out);
             }
         } else {
             out.writeString(elasticsearchVersion);
@@ -406,12 +410,12 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      * @return an Elasticsearch version
      */
     public Version getElasticsearchVersion() {
-        try {
+        if (this.builtWithSemanticVersion) {
             return Version.fromString(elasticsearchVersion);
-        } catch (IllegalArgumentException e) {
+        } else {
+            // TODO[wrb]: Remove with https://github.com/elastic/elasticsearch/pull/100735
             throw new IllegalStateException(
-                "The plugin descriptor cannot yet use opaque Elasticsearch version identifier [" + elasticsearchVersion + "]",
-                e
+                "The plugin descriptor cannot yet return opaque Elasticsearch version identifier [" + elasticsearchVersion + "]"
             );
         }
     }

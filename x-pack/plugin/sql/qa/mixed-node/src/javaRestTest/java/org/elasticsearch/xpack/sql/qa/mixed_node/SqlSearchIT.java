@@ -40,6 +40,9 @@ import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.TestUtils.readResource;
 
 public class SqlSearchIT extends ESRestTestCase {
+
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
     private static final Version VERSION_FIELD_QL_INTRODUCTION = Version.V_8_4_0;
     private static final String index = "test_sql_mixed_versions";
     private static int numShards;
@@ -48,16 +51,15 @@ public class SqlSearchIT extends ESRestTestCase {
     private static TestNodes nodes;
     private static List<TestNode> newNodes;
     private static List<TestNode> bwcNodes;
-    private static Version bwcVersion;
+    private static final Version bwcVersion = Version.fromString(BWC_NODES_VERSION);
 
     @Before
     public void createIndex() throws IOException {
-        nodes = buildNodeAndVersions(client());
+        nodes = buildNodeAndVersions(client(), BWC_NODES_VERSION);
         numShards = nodes.size();
         numDocs = randomIntBetween(numShards, 15);
         newNodes = new ArrayList<>(nodes.getNewNodes());
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
-        bwcVersion = nodes.getBWCNodes().get(0).version();
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(

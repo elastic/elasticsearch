@@ -66,7 +66,7 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
       logger.lifecycle("Failed to archive additional logs", e)
     }
 
-    if (uploadFile.exists() System.getenv("BUILDKITE") == "true") {
+    if (uploadFile.exists() && System.getenv("BUILDKITE") == "true") {
       try {
         new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath)
           .start()

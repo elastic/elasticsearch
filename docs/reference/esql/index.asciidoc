@@ -80,8 +80,9 @@ By default, results are returned as JSON. You can return data in other
 <<esql-rest-format,response formats>> by specifying the `format` parameter in
 the URL or by setting the `Accept` or `Content-Type` HTTP header.
 
-The previous query's `LIMIT` command limits results to 5 rows. If not specified,
-`LIMIT` defaults to `500`. A single query will not return more than 10,000 rows,
+By default, an {esql} query returns up to 500 rows. You can change this using
+the <<esql-limit,`LIMIT` command>>. The previous query's `LIMIT` command limits
+results to 5 rows. The maximum number of returned rows is 10,000 rows,
 regardless of the `LIMIT` value.
 
 [discrete]

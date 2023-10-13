@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
 import static org.elasticsearch.indices.IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING;
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
-import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.test.XContentTestUtils.createJsonMapView;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -182,10 +181,6 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         }
 
         return danglingIndexIds;
-    }
-
-    private void assertOK(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
     }
 
     /**

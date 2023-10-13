@@ -373,7 +373,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                             latch.countDown();
                                         }
                                     }
-                                    latch.await();
+                                    safeAwait(latch);
                                 } catch (Exception ex) {
                                     throw new AssertionError(ex);
                                 }
@@ -786,7 +786,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         final int numGetCalls = randomIntBetween(1000, 10000);
                         getThreads[i] = new Thread(() -> {
                             try {
-                                barrier.await();
+                                safeAwait(barrier);
                                 for (int j = 0; j < numGetCalls; j++) {
                                     try {
                                         Transport.Connection lowLevelConnection = connection.getConnection();
@@ -806,7 +806,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         final int numDisconnects = randomIntBetween(5, 10);
                         modifyingThreads[i] = new Thread(() -> {
                             try {
-                                barrier.await();
+                                safeAwait(barrier);
                                 for (int j = 0; j < numDisconnects; j++) {
                                     DiscoveryNode node = randomFrom(discoverableNodes);
                                     try {

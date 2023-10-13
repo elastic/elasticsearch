@@ -46,7 +46,7 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
             );
     }
 
-    private void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
+    private static void handleFailure(Exception e, ActionListener<DeletePipelineResponse> listener) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         if (cause instanceof IndexNotFoundException) {
             listener.onResponse(new DeletePipelineResponse(false));

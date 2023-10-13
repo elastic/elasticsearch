@@ -180,7 +180,7 @@ public class URLHttpClient implements Closeable {
         return errorMessage;
     }
 
-    private Charset getCharset(HttpEntity httpEntity) {
+    private static Charset getCharset(HttpEntity httpEntity) {
         final Header contentType = httpEntity.getContentType();
         if (contentType == null) {
             return StandardCharsets.UTF_8;
@@ -195,14 +195,14 @@ public class URLHttpClient implements Closeable {
         return StandardCharsets.UTF_8;
     }
 
-    private boolean isValidContentTypeToParseError(HttpEntity httpEntity) {
+    private static boolean isValidContentTypeToParseError(HttpEntity httpEntity) {
         Header contentType = httpEntity.getContentType();
         return contentType != null
             && httpEntity.getContentLength() > 0
             && (contentType.getValue().startsWith("text/") || contentType.getValue().startsWith("application/"));
     }
 
-    private boolean isSuccessful(int statusCode) {
+    private static boolean isSuccessful(int statusCode) {
         return statusCode / 100 == RestStatus.OK.getStatus() / 100;
     }
 

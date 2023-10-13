@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
@@ -128,17 +129,17 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         BlockFactory blockFactory = BlockFactory.getInstance(cranky.getBreaker(CircuitBreaker.REQUEST), bigArrays);
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
 
-        boolean[] driverStarted = new boolean[1];
+        boolean driverStarted = false;
         try {
             Operator operator = simple(bigArrays).get(driverContext);
-            driverStarted[0] = true;
-            List<Page> result = drive(operator, input.iterator(), driverContext);
+            driverStarted = true;
+            drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
-        if (driverStarted[0] == false) {
+        if (driverStarted == false) {
             // if drive hasn't even started then we need to release the input pages
             Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
         }
@@ -179,6 +180,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     protected final void assertSimple(DriverContext context, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), size));
+
+        List<Block> inputBlocks = new ArrayList<>();
+        for (Page p : input) {
+            for (int i = 0; i < p.getBlockCount(); i++) {
+                inputBlocks.add(p.getBlock(i));
+            }
+        }
+
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
@@ -187,9 +196,31 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         assertSimpleOutput(origInput, results);
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
 
+        List<Block> resultBlocks = new ArrayList<>();
+        // Release all result blocks. After this, all input blocks should be released as well, otherwise we have a leak.
+        for (Page p : results) {
+            for (int i = 0; i < p.getBlockCount(); i++) {
+                resultBlocks.add(p.getBlock(i));
+            }
+
+            p.releaseBlocks();
+        }
+
+        int unreleasedInputs = 0;
+        for (Block b : inputBlocks) {
+            if (b.isReleased() == false) {
+                unreleasedInputs++;
+            }
+        }
+        if (unreleasedInputs > 0) {
+            throw new AssertionError("[" + unreleasedInputs + "] unreleased input blocks");
+        }
     }
 
-    // Tests that finish then close without calling getOutput to retrieve a potential last page, releases all memory
+    /**
+     * Tests that finish then close without calling {@link Operator#getOutput} to
+     * retrieve a potential last page, releases all memory.
+     */
     public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));

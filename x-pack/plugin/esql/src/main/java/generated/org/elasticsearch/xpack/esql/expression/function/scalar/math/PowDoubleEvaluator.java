@@ -42,12 +42,12 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   public Block.Ref eval(Page page) {
     try (Block.Ref baseRef = base.eval(page)) {
       if (baseRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
       }
       DoubleBlock baseBlock = (DoubleBlock) baseRef.block();
       try (Block.Ref exponentRef = exponent.eval(page)) {
         if (exponentRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount()));
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
         }
         DoubleBlock exponentBlock = (DoubleBlock) exponentRef.block();
         DoubleVector baseVector = baseBlock.asVector();
@@ -64,37 +64,39 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (baseBlock.isNull(p) || baseBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (baseBlock.isNull(p) || baseBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        if (exponentBlock.isNull(p) || exponentBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      if (exponentBlock.isNull(p) || exponentBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
-      }
-      try {
-        result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override

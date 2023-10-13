@@ -21,7 +21,7 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits Filter$Type$Block, $Type$ArrayBlock, $Type$VectorBlock {
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock {
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
@@ -52,33 +52,38 @@ $endif$
     @Override
     $Type$Block filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::of);
-
     @Override
     default String getWriteableName() {
         return "$Type$Block";
     }
 
-    static $Type$Block of(StreamInput in) throws IOException {
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::readFrom);
+
+    private static $Type$Block readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static $Type$Block readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return $Type$Vector.of(in).asBlock();
+            return $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.append$Type$(in.read$Type$());
+        try ($Type$Block.Builder builder = in.blockFactory().new$Type$BlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.append$Type$(in.read$Type$());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
@@ -127,6 +132,9 @@ $endif$
      * equals method works properly across different implementations of the $Type$Block interface.
      */
     static boolean equals($Type$Block block1, $Type$Block block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

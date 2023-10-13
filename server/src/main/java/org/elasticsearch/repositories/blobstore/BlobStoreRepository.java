@@ -1056,12 +1056,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 for (ShardSnapshotMetaDeleteResult newGen : shardDeleteResults) {
                     builder.put(newGen.indexId, newGen.shardId, newGen.newGeneration);
                 }
-                final RepositoryData newRepositoryData = originalRepositoryData.removeSnapshots(snapshotIds, builder.build());
-                writeIndexGen(
-                    newRepositoryData,
-                    originalRepositoryDataGeneration,
-                    repositoryFormatIndexVersion,
-                    Function.identity(),
+                updateRepositoryData(
+                    originalRepositoryData.removeSnapshots(snapshotIds, builder.build()),
                     ActionListener.wrap(writeUpdatedRepoDataStep::onResponse, listener::onFailure)
                 );
             }, listener::onFailure));
@@ -1078,11 +1074,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         private void runWithLegacyNumericShardMetadataNaming(SnapshotDeleteListener listener) {
             // Write the new repository data first (with the removed snapshot), using no shard generations
-            writeIndexGen(
+            updateRepositoryData(
                 originalRepositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY),
-                originalRepositoryDataGeneration,
-                repositoryFormatIndexVersion,
-                Function.identity(),
                 ActionListener.wrap(newRepositoryData -> {
                     try (var refs = new RefCountingRunnable(() -> {
                         listener.onRepositoryDataWritten(newRepositoryData);
@@ -1117,11 +1110,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 listener.onResponse(new RepositoryCleanupResult(DeleteResult.ZERO));
             } else {
                 // write new index-N blob to ensure concurrent operations will fail
-                writeIndexGen(
+                updateRepositoryData(
                     originalRepositoryData,
-                    originalRepositoryDataGeneration,
-                    repositoryFormatIndexVersion,
-                    Function.identity(),
                     listener.delegateFailureAndWrap(
                         // TODO should we pass newRepositoryData to cleanupStaleBlobs()?
                         (l, newRepositoryData) -> cleanupUnlinkedRootAndIndicesBlobs(
@@ -1349,6 +1339,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     listener.onResponse(null);
                 }
             }
+        }
+
+        // ---------------------------------------------------------------------------------------------------------------------------------
+        // Updating the root RepositoryData blob
+
+        private void updateRepositoryData(RepositoryData newRepositoryData, ActionListener<RepositoryData> listener) {
+            writeIndexGen(newRepositoryData, originalRepositoryDataGeneration, repositoryFormatIndexVersion, Function.identity(), listener);
         }
 
         // ---------------------------------------------------------------------------------------------------------------------------------

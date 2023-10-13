@@ -259,7 +259,7 @@ class RealmsAuthenticator implements Authenticator {
         messages.forEach((realm, tuple) -> {
             final String message = tuple.v1();
             final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
-            logger.debug("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
+            logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
         });
         if (context.getUnlicensedRealms().isEmpty() == false) {
             logger.warn(

@@ -277,7 +277,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      * @param targetNode node recovering the shard
      * @throws Exception
      */
-    public void startShardRecovery(String INDEX_NAME, String sourceNode, String targetNode) throws Exception {
+    public void startShardRecovery(String sourceNode, String targetNode) throws Exception {
         logger.info("--> updating cluster settings with moving shard from node `{}` to node `{}`", sourceNode, targetNode);
         clusterAdmin().prepareReroute()
             .add(new MoveAllocationCommand(INDEX_NAME, 0, sourceNode, targetNode))

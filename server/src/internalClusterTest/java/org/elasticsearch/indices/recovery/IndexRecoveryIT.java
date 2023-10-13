@@ -133,6 +133,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -550,6 +551,15 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB)).execute().actionGet().getState();
 
+        logger.info("--> waiting for recovery to start both on source and target");
+        final Index index = resolveIndex(INDEX_NAME);
+        assertBusy(() -> {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
+            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(), equalTo(1));
+            indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
+            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(), equalTo(1));
+        });
+
         logger.info("--> request recoveries");
         RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
@@ -565,6 +575,23 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertOnGoingRecoveryState(nodeBRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryStates.get(0).getIndex());
 
+        logger.info("--> request node recovery stats");
+        NodesStatsResponse statsResponse = clusterAdmin().prepareNodesStats()
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get();
+        for (NodeStats nodeStats : statsResponse.getNodes()) {
+            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+            if (nodeStats.getNode().getName().equals(nodeA)) {
+                assertThat("node A should have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(1));
+                assertThat("node A should not have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(0));
+            }
+            if (nodeStats.getNode().getName().equals(nodeB)) {
+                assertThat("node B should not have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(0));
+                assertThat("node B should have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(1));
+            }
+        }
+
         logger.info("--> speeding up recoveries");
         restoreRecoverySpeed();
 
@@ -578,6 +605,23 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         assertRecoveryState(recoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
+
+        Consumer<String> assertNodeHasThrottleTimeAndNoRecoveries = nodeName -> {
+            NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats()
+                .setNodesIds(nodeName)
+                .clear()
+                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+                .get();
+            assertThat(nodesStatsResponse.getNodes(), hasSize(1));
+            NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
+            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+            assertThat(recoveryStats.currentAsSource(), equalTo(0));
+            assertThat(recoveryStats.currentAsTarget(), equalTo(0));
+        };
+        // we have to use assertBusy as recovery counters are decremented only when the last reference to the RecoveryTarget
+        // is decremented, which may happen after the recovery was done.
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeA));
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeB));
 
         logger.info("--> bump replica count");
         setReplicaCount(1, INDEX_NAME);

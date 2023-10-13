@@ -15,6 +15,7 @@ import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
+import org.elasticsearch.telemetry.apm.internal.metrics.internal.TestAPMMeterService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class GaugeAdapterTests extends ESTestCase {
+    TestAPMMeterService apmMeter;
     Meter testMeter = Mockito.mock(Meter.class);
     LongGaugeBuilder longGaugeBuilder = Mockito.mock(LongGaugeBuilder.class);
     DoubleGaugeBuilder mockDoubleGaugeBuilder = Mockito.mock(DoubleGaugeBuilder.class);
@@ -43,6 +45,7 @@ public class GaugeAdapterTests extends ESTestCase {
         when(mockDoubleGaugeBuilder.setUnit(Mockito.anyString())).thenReturn(mockDoubleGaugeBuilder);
         when(mockDoubleGaugeBuilder.setDescription(Mockito.anyString())).thenReturn(mockDoubleGaugeBuilder);
         when(testMeter.gaugeBuilder(anyString())).thenReturn(mockDoubleGaugeBuilder);
+        apmMeter = new TestAPMMeterService();
     }
 
     // testing that a value reported is then used in a callback

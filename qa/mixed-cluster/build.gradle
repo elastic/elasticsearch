@@ -49,6 +49,12 @@ excludeList.add('aggregations/filters_bucket/cache hits')
 // version skip works properly for mixed cluster tests.
 excludeList.add('tsdb/*/* source')
 
+// The test checks that tsdb mappings report source as synthetic.
+// It is supposed to be skipped (not needed) for versions before
+// 8.10 but mixed cluster tests may not respect that - see the
+// comment above.
+excludeList.add('tsdb/20_mapping/Synthetic source')
+
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {

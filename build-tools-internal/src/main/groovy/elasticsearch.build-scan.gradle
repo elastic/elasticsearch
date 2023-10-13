@@ -98,11 +98,17 @@ buildScan {
       def branch = System.getenv('BUILDKITE_BRANCH')
       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
+      def jobName = (System.getenv('BUILDKITE_LABEL') ?: '').replaceAll(/[^a-zA-Z0-9_\-]+/, '_').toLowerCase()
+
       tag 'CI'
       link 'CI Build', buildKiteUrl
       value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+
       value 'Pipeline', System.getenv('BUILDKITE_PIPELINE_SLUG')
-      value 'Job Name', System.getenv('BUILDKITE_LABEL')
+      tag System.getenv('BUILDKITE_PIPELINE_SLUG')
+
+      value 'Job Name', jobName
+      tag jobName
 
       // Add SCM information
       def prId = System.getenv('BUILDKITE_PULL_REQUEST')

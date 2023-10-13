@@ -125,7 +125,7 @@ public class PluginsUtils {
                         + "] was built for Elasticsearch version "
                         + info.getElasticsearchVersion()
                         + " but earlier version "
-                        + Version.CURRENT
+                        + Build.current().version()
                         + " is running"
                 );
             }
@@ -136,7 +136,7 @@ public class PluginsUtils {
                     + "] was built for Elasticsearch version "
                     + info.getElasticsearchVersion()
                     + " but version "
-                    + Version.CURRENT
+                    + Build.current().version()
                     + " is running"
             );
         }

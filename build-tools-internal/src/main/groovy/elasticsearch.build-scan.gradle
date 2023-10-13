@@ -122,14 +122,14 @@ buildScan {
       def uploadFilePath = "build/${buildNumber}.tar.bz2"
       File uploadFile = file(uploadFilePath)
 
-      println(uploadFile)
+      logger.info(uploadFile)
 
       if (uploadFile.exists()) {
-        println("exists, searching " + ["buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i"].join(" "))
+        logger.info("exists, searching " + ["buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i"].join(" "))
 
         def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i").start()
         process.waitFor()
-        println("Output: " + process.text)
+        logger.info("Output: " + process.text)
         def artifactUuid = (process.text ?: "").trim()
         if (artifactUuid) {
           link 'Artifact Upload', "https://buildkite.com/organizations/elastic/pipelines/${System.getenv('BUILDKITE_PIPELINE_SLUG')}/builds/${buildNumber}/jobs/${System.getenv('BUILDKITE_JOB_ID')}/artifacts/${artifactUuid}"

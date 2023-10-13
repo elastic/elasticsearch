@@ -491,7 +491,12 @@ public class ModelLoadingService implements ClusterStateListener {
                 handleLoadFailure(modelId, failure);
             }));
         }, failure -> {
-            logger.warn(() -> "[" + modelId + "] failed to load model configuration", failure);
+            if (consumer != Consumer.PIPELINE) {
+                // The model loading was triggered by an ingest pipeline change
+                // referencing a model that cannot be found. This is not an error
+                // as the model may be put later
+                logger.warn(() -> "[" + modelId + "] failed to load model configuration ", failure);
+            }
             handleLoadFailure(modelId, failure);
         }));
     }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.globalstate;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -25,17 +24,11 @@ import java.util.Iterator;
 public class SnapshotGlobalStateResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private final Metadata metadata;
-    private static final TransportVersion GLOBAL_STATE_VERSION = TransportVersions.V_8_8_1;
 
     public SnapshotGlobalStateResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(GLOBAL_STATE_VERSION)) {
-            metadata = Metadata.readFrom(in);
-        } else {
-            metadata = Metadata.EMPTY_METADATA;
-            throw new IllegalArgumentException();
-        }
-
+        assert in.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_GLOBAL_STATE_API_ADDED) : in.getTransportVersion();
+        metadata = Metadata.readFrom(in);
     }
 
     public SnapshotGlobalStateResponse(Metadata metadata) {
@@ -44,6 +37,7 @@ public class SnapshotGlobalStateResponse extends ActionResponse implements Chunk
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert out.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_GLOBAL_STATE_API_ADDED) : out.getTransportVersion();
         out.writeOptionalWriteable(metadata);
     }
 

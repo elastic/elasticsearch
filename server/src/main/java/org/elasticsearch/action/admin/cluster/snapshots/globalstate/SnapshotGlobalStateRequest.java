@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.globalstate;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +43,7 @@ public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobal
 
     public SnapshotGlobalStateRequest(StreamInput in) throws IOException {
         super(in);
+        assert in.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_GLOBAL_STATE_API_ADDED) : in.getTransportVersion();
         repository = in.readString();
         snapshot = in.readString();
     }
@@ -49,6 +51,7 @@ public class SnapshotGlobalStateRequest extends MasterNodeRequest<SnapshotGlobal
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        assert out.getTransportVersion().onOrAfter(TransportVersions.SNAPSHOT_GLOBAL_STATE_API_ADDED) : out.getTransportVersion();
         out.writeString(repository);
         out.writeString(snapshot);
     }

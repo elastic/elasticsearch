@@ -2330,7 +2330,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             )
         ) {
             TransportAddress address = service.boundAddress().publishAddress();
-            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", address, emptyMap(), emptySet(), version0);
+            DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
+                .name("TS_TPC")
+                .address(address)
+                .roles(emptySet())
+                .version(version0)
+                .build();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
@@ -2364,14 +2369,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             )
         ) {
             TransportAddress address = service.boundAddress().publishAddress();
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                address,
-                emptyMap(),
-                emptySet(),
-                VersionInformation.inferVersions(Version.fromString("2.0.0"))
-            );
+            DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
+                .name("TS_TPC")
+                .address(address)
+                .roles(emptySet())
+                .version(VersionInformation.inferVersions(Version.fromString("2.0.0")))
+                .build();
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
             builder.addConnections(
                 1,
@@ -2396,14 +2399,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
         try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                service.boundAddress().publishAddress(),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
+                .name("TS_TPC")
+                .address(service.boundAddress().publishAddress())
+                .attributes(emptyMap())
+                .roles(emptySet())
+                .version(version0)
+                .build();
             originalTransport.openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
                 assertBusy(() -> { assertTrue(originalTransport.getKeepAlive().successfulPingCount() > 30); });
@@ -2416,14 +2418,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                service.boundAddress().publishAddress(),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
+                .name("TS_TPC")
+                .address(service.boundAddress().publishAddress())
+                .roles(emptySet())
+                .version(version0)
+                .build();
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
@@ -3367,7 +3367,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    private long[] getConstantMessageSizeHistogram(int count, long size) {
+    private static long[] getConstantMessageSizeHistogram(int count, long size) {
         final var histogram = new long[29];
         int bucket = 0;
         long bucketLowerBound = 8;

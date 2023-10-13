@@ -11,7 +11,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 
 import java.util.List;
@@ -35,6 +35,6 @@ public class RestSqlAsyncGetStatusAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         GetAsyncStatusRequest statusRequest = new GetAsyncStatusRequest(request.param(ID_NAME));
-        return channel -> client.execute(SqlAsyncGetStatusAction.INSTANCE, statusRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(SqlAsyncGetStatusAction.INSTANCE, statusRequest, new RestToXContentListener<>(channel));
     }
 }

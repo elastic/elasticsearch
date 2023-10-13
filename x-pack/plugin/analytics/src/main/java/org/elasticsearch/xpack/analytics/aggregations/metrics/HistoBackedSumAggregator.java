@@ -41,6 +41,7 @@ public class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleVal
     private DoubleArray sums;
     private DoubleArray compensations;
 
+    @SuppressWarnings("this-escape")
     public HistoBackedSumAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
@@ -57,11 +56,9 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -76,23 +73,24 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.Expressions.names;
 import static org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC;
@@ -105,7 +103,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -129,16 +127,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     public static List<Object[]> readScriptSpec() {
         return settings().stream().map(t -> {
             var settings = Settings.builder().loadFromMap(t.v2()).build();
-            return new Object[] {
-                t.v1(),
-                new EsqlConfiguration(
-                    DateUtils.UTC,
-                    Locale.US,
-                    null,
-                    null,
-                    new QueryPragmas(settings),
-                    EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(settings)
-                ) };
+            return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
         }).toList();
     }
 
@@ -191,10 +180,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             Set.of("foo")
         );
 
-        analyzer = new Analyzer(
-            new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution),
-            new Verifier(new Metrics())
-        );
+        analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
     }
 
     public void testSingleFieldExtractor() {
@@ -258,6 +244,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
 
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[SUM(salary{f}#882) AS x],FINAL,null]
+     *   \_ExchangeExec[[sum{r}#887, seen{r}#888],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[SUM(salary{f}#882) AS x]]
+     * \_Filter[ROUND(emp_no{f}#877) > 10[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#883, emp_no{f}#877, first_name{f}#87..]]]
+     */
     public void testDoubleExtractorPerFieldEvenWithAliasNoPruningDueToImplicitProjection() {
         var plan = physicalPlan("""
             from test
@@ -275,9 +271,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         aggregate = as(exchange.child(), AggregateExec.class);
         assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
 
-        var eval = as(aggregate.child(), EvalExec.class);
-
-        var extract = as(eval.child(), FieldExtractExec.class);
+        var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("salary"));
 
         var filter = as(extract.child(), FilterExec.class);
@@ -285,7 +279,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
 
         var query = source(extract.child());
-        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 4 /* for doc id, emp_no, salary, and c */));
+        assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no and salary*/));
     }
 
     public void testTripleExtractorPerField() {
@@ -390,7 +384,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
         );
     }
 
@@ -420,7 +414,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
         );
     }
 
@@ -877,7 +871,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(
             names(extract.attributesToExtract()),
-            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "salary")
+            contains("_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary")
         );
 
         var source = source(extract.child());
@@ -917,16 +911,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     *
-     * ProjectExec[[emp_no{f}#7, x{r}#4]]
-     * \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER]]
-     *   \_ExchangeExec[]
-     *     \_ProjectExec[[emp_no{f}#7, x{r}#4]]
-     *       \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER]]
-     *         \_FieldExtractExec[emp_no{f}#7]
-     *           \_EvalExec[[first_name{f}#8 AS x]]
-     *             \_FieldExtractExec[first_name{f}#8]
-     *               \_EsQueryExec[test], query[][_doc{f}#14], limit[]
+     * ProjectExec[[emp_no{f}#7, first_name{f}#8 AS x]]
+     * \_TopNExec[[Order[emp_no{f}#7,ASC,LAST]],5[INTEGER],0]
+     *   \_ExchangeExec[[],false]
+     *     \_ProjectExec[[emp_no{f}#7, first_name{f}#8]]
+     *       \_FieldExtractExec[emp_no{f}#7, first_name{f}#8]
+     *         \_EsQueryExec[test], query[][_doc{f}#28], limit[5], sort[[FieldSort[field=emp_no{f}#7, direction=ASC, nulls=LAST]]]...
      */
     public void testLocalProjectIncludeLocalAlias() throws Exception {
         var optimized = optimizedPlan(physicalPlan("""
@@ -942,11 +932,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("emp_no", "x"));
-        topN = as(project.child(), TopNExec.class);
-        var extract = as(topN.child(), FieldExtractExec.class);
-        var eval = as(extract.child(), EvalExec.class);
-        extract = as(eval.child(), FieldExtractExec.class);
+        assertThat(names(project.projections()), contains("emp_no", "first_name"));
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = as(extract.child(), EsQueryExec.class);
     }
 
     /**
@@ -1683,6 +1671,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertNull(source.query());
     }
 
+    public void testNoNonIndexedFilterPushDown() {
+        var plan = physicalPlan("""
+            from test
+            | where long_noidx == 1
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var limit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var limit2 = as(extract.child(), LimitExec.class);
+        var filter = as(limit2.child(), FilterExec.class);
+        var extract2 = as(filter.child(), FieldExtractExec.class);
+        var source = source(extract2.child());
+        assertNull(source.query());
+    }
+
     public void testTextWithRawFilterPushDown() {
         var plan = physicalPlan("""
             from test
@@ -1703,6 +1709,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plan = physicalPlan("""
             from test
             | sort gender
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topN = as(optimized, TopNExec.class);
+        var exchange = as(topN.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var extract = as(project.child(), FieldExtractExec.class);
+        var topN2 = as(extract.child(), TopNExec.class);
+        var extract2 = as(topN2.child(), FieldExtractExec.class);
+        var source = source(extract2.child());
+        assertNull(source.sorts());
+    }
+
+    public void testNoNonIndexedSortPushDown() {
+        var plan = physicalPlan("""
+            from test
+            | sort long_noidx
             """);
 
         var optimized = optimizedPlan(plan);
@@ -1820,7 +1843,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(limit.limit().fold(), equalTo(10000));
         var aggFinal = as(limit.child(), AggregateExec.class);
-        assertThat(aggFinal.getMode(), equalTo(AggregateExec.Mode.FINAL));
+        assertThat(aggFinal.getMode(), equalTo(FINAL));
         var aggPartial = as(aggFinal.child(), AggregateExec.class);
         assertThat(aggPartial.getMode(), equalTo(AggregateExec.Mode.PARTIAL));
         limit = as(aggPartial.child(), LimitExec.class);
@@ -1891,4 +1914,5 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(sv.field(), equalTo(fieldName));
         return sv.next();
     }
+
 }

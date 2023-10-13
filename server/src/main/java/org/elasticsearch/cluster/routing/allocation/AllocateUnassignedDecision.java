@@ -12,15 +12,17 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -291,28 +293,33 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         checkDecisionState();
-        builder.field("can_allocate", getAllocationDecision());
-        builder.field("allocate_explanation", getExplanation());
-        if (targetNode != null) {
-            builder.startObject("target_node");
-            discoveryNodeToXContent(targetNode, true, builder);
-            builder.endObject();
-        }
-        if (allocationId != null) {
-            builder.field("allocation_id", allocationId);
-        }
-        if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            builder.humanReadableField(
-                "configured_delay_in_millis",
-                "configured_delay",
-                TimeValue.timeValueMillis(configuredDelayInMillis)
-            );
-            builder.humanReadableField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayInMillis));
-        }
-        nodeDecisionsToXContent(nodeDecisions, builder, params);
-        return builder;
+        return Iterators.concat(Iterators.single((builder, p) -> {
+            builder.field("can_allocate", getAllocationDecision());
+            builder.field("allocate_explanation", getExplanation());
+            if (targetNode != null) {
+                builder.startObject("target_node");
+                discoveryNodeToXContent(targetNode, true, builder);
+                builder.endObject();
+            }
+            if (allocationId != null) {
+                builder.field("allocation_id", allocationId);
+            }
+            if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
+                builder.humanReadableField(
+                    "configured_delay_in_millis",
+                    "configured_delay",
+                    TimeValue.timeValueMillis(configuredDelayInMillis)
+                );
+                builder.humanReadableField(
+                    "remaining_delay_in_millis",
+                    "remaining_delay",
+                    TimeValue.timeValueMillis(remainingDelayInMillis)
+                );
+            }
+            return builder;
+        }), nodeDecisionsToXContentChunked(nodeDecisions));
     }
 
     @Override

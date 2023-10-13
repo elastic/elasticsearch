@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -177,7 +177,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
                 phaser.arriveAndAwaitAdvance();
                 while (completedRequests.incrementAndGet() <= numRequests) {
                     try {
-                        final IndexResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
+                        final DocWriteResponse resp = client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
                         numSuccess.incrementAndGet();
                         assertThat(resp.status(), equalTo(RestStatus.CREATED));
                     } catch (IllegalArgumentException e) {

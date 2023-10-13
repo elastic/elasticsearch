@@ -188,6 +188,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
+        @SuppressWarnings("this-escape")
         public Request(StreamInput in) throws IOException {
             super(in);
             this.remoteCluster = in.readString();

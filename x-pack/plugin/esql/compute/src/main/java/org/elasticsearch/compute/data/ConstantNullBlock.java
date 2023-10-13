@@ -22,8 +22,13 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
 
+    // Eventually, this should use the GLOBAL breaking instance
     ConstantNullBlock(int positionCount) {
-        super(positionCount);
+        this(positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
     }
 
     @Override
@@ -63,7 +68,7 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public Block filter(int... positions) {
-        return new ConstantNullBlock(positions.length);
+        return blockFactory.newConstantNullBlock(positions.length);
     }
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -121,11 +126,27 @@ public final class ConstantNullBlock extends AbstractBlock {
 
     @Override
     public void close() {
-        // no-op
+        if (isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 
     static class Builder implements Block.Builder {
+
+        final BlockFactory blockFactory;
+
+        Builder(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
+
         private int positionCount;
+
+        /**
+         * Has this builder been closed already?
+         */
+        private boolean closed = false;
 
         @Override
         public Builder appendNull() {
@@ -150,6 +171,7 @@ public final class ConstantNullBlock extends AbstractBlock {
                     throw new UnsupportedOperationException("can't append non-null values to a null block");
                 }
             }
+            positionCount += endExclusive - beginInclusive;
             return this;
         }
 
@@ -165,7 +187,16 @@ public final class ConstantNullBlock extends AbstractBlock {
 
         @Override
         public Block build() {
-            return new ConstantNullBlock(positionCount);
+            if (closed) {
+                throw new IllegalStateException("already closed");
+            }
+            close();
+            return blockFactory.newConstantNullBlock(positionCount);
+        }
+
+        @Override
+        public void close() {
+            closed = true;
         }
     }
 }

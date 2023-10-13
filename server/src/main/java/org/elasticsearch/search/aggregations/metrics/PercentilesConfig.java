@@ -134,6 +134,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             this(compression, null);
         }
 
+        @SuppressWarnings("this-escape")
         public TDigest(double compression, TDigestExecutionHint executionHint) {
             super(PercentilesMethod.TDIGEST);
             this.executionHint = executionHint;
@@ -288,6 +289,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             this(DEFAULT_NUMBER_SIG_FIGS);
         }
 
+        @SuppressWarnings("this-escape")
         public Hdr(int numberOfSignificantValueDigits) {
             super(PercentilesMethod.HDR);
             setNumberOfSignificantValueDigits(numberOfSignificantValueDigits);

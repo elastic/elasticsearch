@@ -18,7 +18,9 @@ import java.io.IOException;
  * Block that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock, BytesRefArrayBlock, BytesRefVectorBlock {
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock {
+
+    BytesRef NULL_VALUE = new BytesRef();
 
     /**
      * Retrieves the BytesRef value stored at the given value index.
@@ -38,33 +40,38 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
     @Override
     BytesRefBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", BytesRefBlock::of);
-
     @Override
     default String getWriteableName() {
         return "BytesRefBlock";
     }
 
-    static BytesRefBlock of(StreamInput in) throws IOException {
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", BytesRefBlock::readFrom);
+
+    private static BytesRefBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return BytesRefVector.of(in).asBlock();
+            return BytesRefVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendBytesRef(in.readBytesRef());
+        try (BytesRefBlock.Builder builder = in.blockFactory().newBytesRefBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendBytesRef(in.readBytesRef());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
@@ -109,6 +116,9 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
      * equals method works properly across different implementations of the BytesRefBlock interface.
      */
     static boolean equals(BytesRefBlock block1, BytesRefBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -160,12 +170,24 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new BytesRefBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBytesRefBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static BytesRefBlock newConstantBlockWith(BytesRef value, int positions) {
-        return new ConstantBytesRefVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static BytesRefBlock newConstantBlockWith(BytesRef value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantBytesRefBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits BytesRefBlockBuilder {

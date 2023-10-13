@@ -54,7 +54,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             actionFilters,
             NodesStatsRequest::new,
             NodeStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
     }
@@ -83,6 +83,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         Set<String> metrics = request.requestedMetrics();
         return nodeService.stats(
             request.indices(),
+            request.includeShardsStats(),
             NodesStatsRequest.Metric.OS.containedIn(metrics),
             NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
             NodesStatsRequest.Metric.JVM.containedIn(metrics),

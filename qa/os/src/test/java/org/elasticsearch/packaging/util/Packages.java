@@ -318,6 +318,7 @@ public class Packages {
          * Create a new wrapper for Elasticsearch JournalD logs.
          * @param sh A shell with appropriate permissions.
          */
+        @SuppressWarnings("this-escape")
         public JournaldWrapper(Shell sh) {
             this.sh = sh;
             clear();

@@ -17,7 +17,7 @@ import java.io.IOException;
  * Block that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, BooleanArrayBlock, BooleanVectorBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.
@@ -36,33 +36,38 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
     @Override
     BooleanBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BooleanBlock", BooleanBlock::of);
-
     @Override
     default String getWriteableName() {
         return "BooleanBlock";
     }
 
-    static BooleanBlock of(StreamInput in) throws IOException {
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BooleanBlock", BooleanBlock::readFrom);
+
+    private static BooleanBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final boolean isVector = in.readBoolean();
         if (isVector) {
-            return BooleanVector.of(in).asBlock();
+            return BooleanVector.readFrom(in.blockFactory(), in).asBlock();
         }
         final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendBoolean(in.readBoolean());
+        try (BooleanBlock.Builder builder = in.blockFactory().newBooleanBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendBoolean(in.readBoolean());
+                    }
+                    builder.endPositionEntry();
                 }
-                builder.endPositionEntry();
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
@@ -107,6 +112,9 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
      * equals method works properly across different implementations of the BooleanBlock interface.
      */
     static boolean equals(BooleanBlock block1, BooleanBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -157,12 +165,24 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new BooleanBlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBooleanBlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static BooleanBlock newConstantBlockWith(boolean value, int positions) {
-        return new ConstantBooleanVector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
+    }
+
+    static BooleanBlock newConstantBlockWith(boolean value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstantBooleanBlockWith(value, positions);
     }
 
     sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {

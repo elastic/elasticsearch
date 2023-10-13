@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -217,7 +217,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
         {
-            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DocWriteResponse> future = PlainActionFuture.newFuture();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();
@@ -252,7 +252,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // But the index is still auto-created
         {
-            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DocWriteResponse> future = PlainActionFuture.newFuture();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();

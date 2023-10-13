@@ -258,11 +258,16 @@ public class TextFieldMapper extends FieldMapper {
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
             "eager_global_ordinals",
             true,
-            m -> ((TextFieldMapper) m).eagerGlobalOrdinals,
+            m -> ((TextFieldMapper) m).fieldType().eagerGlobalOrdinals,
             false
         );
 
-        final Parameter<Boolean> indexPhrases = Parameter.boolParam("index_phrases", false, m -> ((TextFieldMapper) m).indexPhrases, false);
+        final Parameter<Boolean> indexPhrases = Parameter.boolParam(
+            "index_phrases",
+            false,
+            m -> ((TextFieldMapper) m).fieldType().indexPhrases,
+            false
+        );
         final Parameter<PrefixConfig> indexPrefixes = new Parameter<>(
             "index_prefixes",
             false,
@@ -366,9 +371,10 @@ public class TextFieldMapper extends FieldMapper {
                     tsi,
                     context.isSourceSynthetic(),
                     syntheticSourceDelegate(fieldType, multiFields),
-                    meta.getValue()
+                    meta.getValue(),
+                    eagerGlobalOrdinals.getValue(),
+                    indexPhrases.getValue()
                 );
-                ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
                 }
@@ -376,7 +382,7 @@ public class TextFieldMapper extends FieldMapper {
             return ft;
         }
 
-        private KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
+        private static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
             if (fieldType.stored()) {
                 return null;
             }
@@ -443,7 +449,6 @@ public class TextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Cannot set index_phrases on field [" + name() + "] if positions are not enabled");
             }
             FieldType phraseFieldType = new FieldType(fieldType);
-            parent.setIndexPhrases();
             PhraseWrappedAnalyzer a = new PhraseWrappedAnalyzer(
                 analyzers.getIndexAnalyzer().analyzer(),
                 analyzers.positionIncrementGap.get()
@@ -648,8 +653,8 @@ public class TextFieldMapper extends FieldMapper {
         private boolean fielddata;
         private FielddataFrequencyFilter filter;
         private PrefixFieldType prefixFieldType;
-        private boolean indexPhrases = false;
-        private boolean eagerGlobalOrdinals = false;
+        private final boolean indexPhrases;
+        private final boolean eagerGlobalOrdinals;
         private final boolean isSyntheticSource;
         /**
          * In some configurations text fields use a sub-keyword field to provide
@@ -665,12 +670,16 @@ public class TextFieldMapper extends FieldMapper {
             TextSearchInfo tsi,
             boolean isSyntheticSource,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean eagerGlobalOrdinals,
+            boolean indexPhrases
         ) {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
             this.isSyntheticSource = isSyntheticSource;
             this.syntheticSourceDelegate = syntheticSourceDelegate;
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+            this.indexPhrases = indexPhrases;
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
@@ -685,6 +694,8 @@ public class TextFieldMapper extends FieldMapper {
             fielddata = false;
             isSyntheticSource = false;
             syntheticSourceDelegate = null;
+            eagerGlobalOrdinals = false;
+            indexPhrases = false;
         }
 
         public TextFieldType(String name, boolean isSyntheticSource) {
@@ -695,7 +706,9 @@ public class TextFieldMapper extends FieldMapper {
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 isSyntheticSource,
                 null,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false,
+                false
             );
         }
 
@@ -731,10 +744,6 @@ public class TextFieldMapper extends FieldMapper {
 
         void setIndexPrefixes(int minChars, int maxChars) {
             this.prefixFieldType = new PrefixFieldType(this, minChars, maxChars);
-        }
-
-        void setIndexPhrases() {
-            this.indexPhrases = true;
         }
 
         public PrefixFieldType getPrefixFieldType() {
@@ -1005,7 +1014,7 @@ public class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, null, meta);
+            super(name, indexed, stored, tsi, false, null, meta, false, false);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1114,15 +1123,14 @@ public class TextFieldMapper extends FieldMapper {
     private final NamedAnalyzer indexAnalyzer;
     private final IndexAnalyzers indexAnalyzers;
     private final int positionIncrementGap;
-    private final boolean eagerGlobalOrdinals;
     private final PrefixConfig indexPrefixes;
     private final FielddataFrequencyFilter freqFilter;
     private final boolean fieldData;
-    private final boolean indexPhrases;
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
+    @SuppressWarnings("this-escape")
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -1152,11 +1160,9 @@ public class TextFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
         this.termVectors = builder.termVectors.getValue();
-        this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
-        this.indexPhrases = builder.indexPhrases.getValue();
     }
 
     @Override

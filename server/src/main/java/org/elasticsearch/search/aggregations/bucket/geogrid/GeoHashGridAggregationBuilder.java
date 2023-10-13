@@ -41,6 +41,7 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
         GeoHashGridAggregationBuilder::new
     );
 
+    @SuppressWarnings("this-escape")
     public GeoHashGridAggregationBuilder(String name) {
         super(name);
         precision(DEFAULT_PRECISION);

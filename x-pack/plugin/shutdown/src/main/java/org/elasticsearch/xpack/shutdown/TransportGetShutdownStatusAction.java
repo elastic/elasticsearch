@@ -91,7 +91,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             GetShutdownStatusAction.Request::readFrom,
             indexNameExpressionResolver,
             GetShutdownStatusAction.Response::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.allocationService = allocationService;
         this.allocationDeciders = allocationDeciders;

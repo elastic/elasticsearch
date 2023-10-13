@@ -105,6 +105,7 @@ public class FollowersChecker {
     private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
 
+    @SuppressWarnings("this-escape")
     public FollowersChecker(
         Settings settings,
         TransportService transportService,

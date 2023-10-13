@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -55,7 +56,6 @@ import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.test.BuildUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -101,7 +101,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     public void setUp() throws Exception {
         super.setUp();
         clusterName = randomAlphaOfLength(5);
-        version = VersionUtils.randomVersion(random()).toString();
+        version = randomAlphaOfLengthBetween(6, 32);
         clusterStatus = randomFrom(ClusterHealthStatus.values());
         usages = emptyList();
         clusterStats = mock(ClusterStatsResponse.class);
@@ -236,7 +236,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
     public void testNodesHash() {
         final int nodeCount = randomIntBetween(0, 5);
-        final Map<String, String> emptyMap = emptyMap();
         final DiscoveryNode masterNode = masterNode();
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder()
             .add(masterNode)
@@ -245,17 +244,17 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         for (int i = 0; i < nodeCount; ++i) {
             builder.add(
-                new DiscoveryNode(
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(2 + i),
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(5),
-                    randomAlphaOfLength(5),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
-                    randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
-                    singleton(randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))),
-                    null
-                )
+                DiscoveryNodeUtils.builder(randomAlphaOfLength(2 + i))
+                    .name(randomAlphaOfLength(5))
+                    .ephemeralId(randomAlphaOfLength(5))
+                    .address(randomAlphaOfLength(5), randomAlphaOfLength(5), new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i))
+                    .attributes(randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap())
+                    .roles(
+                        singleton(
+                            randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))
+                        )
+                    )
+                    .build()
             );
         }
 
@@ -314,7 +313,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final List<XPackFeatureSet.Usage> usageList = singletonList(new MonitoringFeatureSetUsage(false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
-        Version mockNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
+        var mockNodeVersion = randomAlphaOfLengthBetween(6, 32);
         when(mockNodeInfo.getVersion()).thenReturn(mockNodeVersion);
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
@@ -794,17 +793,13 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     }
 
     private DiscoveryNode masterNode() {
-        return new DiscoveryNode(
-            "_node_name",
-            "_node_id",
-            "_ephemeral_id",
-            "_host_name",
-            "_host_address",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            singletonMap("attr", "value"),
-            singleton(DiscoveryNodeRole.MASTER_ROLE),
-            null
-        );
+        return DiscoveryNodeUtils.builder("_node_id")
+            .name("_node_name")
+            .ephemeralId("_ephemeral_id")
+            .address("_host_name", "_host_address", new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .attributes(singletonMap("attr", "value"))
+            .roles(singleton(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
     }
 
 }

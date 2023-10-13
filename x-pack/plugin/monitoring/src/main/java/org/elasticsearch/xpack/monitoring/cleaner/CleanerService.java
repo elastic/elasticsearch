@@ -39,6 +39,7 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     private volatile TimeValue globalRetention;
 
+    @SuppressWarnings("this-escape")
     CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, ExecutionScheduler executionScheduler) {
         this.threadPool = threadPool;
         this.genericExecutor = threadPool.generic();
@@ -50,6 +51,7 @@ public class CleanerService extends AbstractLifecycleComponent {
         clusterSettings.addSettingsUpdateConsumer(MonitoringField.HISTORY_DURATION, this::setGlobalRetention);
     }
 
+    @SuppressWarnings("this-escape")
     public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(settings, clusterSettings, threadPool, new DefaultExecutionScheduler());
     }
@@ -75,7 +77,7 @@ public class CleanerService extends AbstractLifecycleComponent {
         logger.debug("cleaning service closed");
     }
 
-    private String executorName() {
+    private static String executorName() {
         return ThreadPool.Names.GENERIC;
     }
 

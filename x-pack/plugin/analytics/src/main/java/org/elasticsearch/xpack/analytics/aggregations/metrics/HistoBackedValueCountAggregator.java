@@ -36,6 +36,7 @@ public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.Si
     /** Count per bucket */
     LongArray counts;
 
+    @SuppressWarnings("this-escape")
     public HistoBackedValueCountAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

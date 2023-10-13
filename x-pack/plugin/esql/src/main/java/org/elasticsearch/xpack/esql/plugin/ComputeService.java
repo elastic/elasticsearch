@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -86,6 +87,8 @@ public class ComputeService {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
     private final BigArrays bigArrays;
+    private final BlockFactory blockFactory;
+
     private final TransportService transportService;
     private final Executor esqlExecutor;
     private final DriverTaskRunner driverRunner;
@@ -98,11 +101,13 @@ public class ComputeService {
         ExchangeService exchangeService,
         EnrichLookupService enrichLookupService,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        BlockFactory blockFactory
     ) {
         this.searchService = searchService;
         this.transportService = transportService;
         this.bigArrays = bigArrays.withCircuitBreaking();
+        this.blockFactory = blockFactory;
         this.esqlExecutor = threadPool.executor(ESQL_THREAD_POOL_NAME);
         transportService.registerRequestHandler(DATA_ACTION_NAME, this.esqlExecutor, DataNodeRequest::new, new DataNodeRequestHandler());
         this.driverRunner = new DriverTaskRunner(transportService, this.esqlExecutor);
@@ -122,6 +127,10 @@ public class ComputeService {
             configuration
         );
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        listener = listener.delegateResponse((l, e) -> {
+            collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
+            l.onFailure(e);
+        });
         PhysicalPlan coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
 
@@ -238,6 +247,7 @@ public class ComputeService {
                 context.sessionId,
                 task,
                 bigArrays,
+                blockFactory,
                 context.configuration,
                 context.exchangeSource(),
                 context.exchangeSink(),
@@ -249,7 +259,9 @@ public class ComputeService {
             plan = PlannerUtils.localPlan(context.searchContexts, context.configuration, plan);
             LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(plan);
 
-            LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+            }
             drivers = localExecutionPlan.createDrivers(context.sessionId);
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");

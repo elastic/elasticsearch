@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SslConfigurationLoaderTests extends ESTestCase {
 
+    @SuppressWarnings("this-escape")
     private final Path certRoot = getDataPath("/certs/ca1/ca.crt").getParent().getParent();
 
     private Settings settings;

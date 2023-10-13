@@ -183,11 +183,6 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
     }
 
     @Override
-    public boolean supportsParallelCollection() {
-        return false;
-    }
-
-    @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new FrequentItemSetsAggregationBuilder(name, fields, minimumSupport, minimumSetSize, size, filter, executionHint);
     }

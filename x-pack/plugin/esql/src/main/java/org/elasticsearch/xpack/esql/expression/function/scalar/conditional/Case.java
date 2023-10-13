@@ -14,6 +14,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -42,6 +44,7 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
     private final Expression elseValue;
     private DataType dataType;
 
+    @SuppressWarnings("this-escape")
     public Case(Source source, Expression first, List<Expression> rest) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
         int conditionCount = children().size() / 2;
@@ -159,6 +162,7 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
             .toList();
         var elseValueEval = toEvaluator.apply(elseValue);
         return dvrCtx -> new CaseEvaluator(
+            dvrCtx,
             LocalExecutionPlanner.toElementType(dataType()),
             conditionsEval.stream().map(x -> x.apply(dvrCtx)).toList(),
             elseValueEval.get(dvrCtx)
@@ -174,13 +178,21 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         }
     }
 
-    record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value) {}
-
-    private record CaseEvaluator(ElementType resultType, List<ConditionEvaluator> conditions, EvalOperator.ExpressionEvaluator elseVal)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value) implements Releasable {
         @Override
-        public Block eval(Page page) {
+        public void close() {
+            Releasables.closeExpectNoException(condition, value);
+        }
+    }
+
+    private record CaseEvaluator(
+        DriverContext driverContext,
+        ElementType resultType,
+        List<ConditionEvaluator> conditions,
+        EvalOperator.ExpressionEvaluator elseVal
+    ) implements EvalOperator.ExpressionEvaluator {
+        @Override
+        public Block.Ref eval(Page page) {
             /*
              * We have to evaluate lazily so any errors or warnings that would be
              * produced by the right hand side are avoided. And so if anything
@@ -191,30 +203,48 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
              * a time - but it's not at all fast.
              */
             int positionCount = page.getPositionCount();
-            Block.Builder result = resultType.newBlockBuilder(positionCount);
-            position: for (int p = 0; p < positionCount; p++) {
-                int[] positions = new int[] { p };
-                Page limited = new Page(
-                    IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
-                );
-                for (ConditionEvaluator condition : conditions) {
-                    Block e = condition.condition.eval(limited);
-                    if (e.areAllValuesNull()) {
-                        continue;
+            try (Block.Builder result = resultType.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+                position: for (int p = 0; p < positionCount; p++) {
+                    int[] positions = new int[] { p };
+                    Page limited = new Page(
+                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                    );
+                    try (Releasable ignored = limited::releaseBlocks) {
+                        for (ConditionEvaluator condition : conditions) {
+                            try (Block.Ref conditionRef = condition.condition.eval(limited)) {
+                                if (conditionRef.block().areAllValuesNull()) {
+                                    continue;
+                                }
+                                BooleanBlock b = (BooleanBlock) conditionRef.block();
+                                if (b.isNull(0)) {
+                                    continue;
+                                }
+                                if (false == b.getBoolean(b.getFirstValueIndex(0))) {
+                                    continue;
+                                }
+                                try (Block.Ref valueRef = condition.value.eval(limited)) {
+                                    result.copyFrom(valueRef.block(), 0, 1);
+                                    continue position;
+                                }
+                            }
+                        }
+                        try (Block.Ref elseRef = elseVal.eval(limited)) {
+                            result.copyFrom(elseRef.block(), 0, 1);
+                        }
                     }
-                    BooleanBlock b = (BooleanBlock) e;
-                    if (b.isNull(0)) {
-                        continue;
-                    }
-                    if (false == b.getBoolean(b.getFirstValueIndex(0))) {
-                        continue;
-                    }
-                    result.copyFrom(condition.value.eval(limited), 0, 1);
-                    continue position;
                 }
-                result.copyFrom(elseVal.eval(limited), 0, 1);
+                return Block.Ref.floating(result.build());
             }
-            return result.build();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(() -> Releasables.close(conditions), elseVal);
+        }
+
+        @Override
+        public String toString() {
+            return "CaseEvaluator[resultType=" + resultType + ", conditions=" + conditions + ", elseVal=" + elseVal + ']';
         }
     }
 }

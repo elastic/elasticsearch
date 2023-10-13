@@ -41,6 +41,7 @@ public class EnableAssignmentDecider {
 
     private volatile Allocation enableAssignment;
 
+    @SuppressWarnings("this-escape")
     public EnableAssignmentDecider(final Settings settings, final ClusterSettings clusterSettings) {
         this.enableAssignment = CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING, this::setEnableAssignment);

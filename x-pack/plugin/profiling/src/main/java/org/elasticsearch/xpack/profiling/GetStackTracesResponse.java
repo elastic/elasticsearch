@@ -137,6 +137,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return totalFrames;
     }
 
+    public double getSamplingRate() {
+        return samplingRate;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
@@ -147,11 +151,12 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
             optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
             Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
             Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
+            // start and end are intentionally not written to the XContent representation because we only need them on the transport layer
             ChunkedToXContentHelper.endObject()
         );
     }
 
-    private <T> Iterator<? extends ToXContent> optional(
+    private static <T> Iterator<? extends ToXContent> optional(
         String name,
         Map<String, T> values,
         BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier

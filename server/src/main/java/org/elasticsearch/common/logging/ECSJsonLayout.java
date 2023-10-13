@@ -39,6 +39,7 @@ public class ECSJsonLayout {
         @PluginAttribute("dataset")
         String dataset;
 
+        @SuppressWarnings("this-escape")
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
         }

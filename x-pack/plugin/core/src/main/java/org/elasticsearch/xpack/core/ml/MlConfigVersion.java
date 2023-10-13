@@ -149,12 +149,14 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
      */
 
     public static final MlConfigVersion V_10 = registerMlConfigVersion(10_00_00_99, "4B940FD9-BEDD-4589-8E08-02D9B480B22D");
+    // V_11 is used in ELSER v2 package configs
+    public static final MlConfigVersion V_11 = registerMlConfigVersion(11_00_00_99, "79CB2950-57C7-11EE-AE5D-0800200C9A66");
 
     /**
      * Reference to the most recent Ml config version.
      * This should be the Ml config version with the highest id.
      */
-    public static final MlConfigVersion CURRENT = V_10;
+    public static final MlConfigVersion CURRENT = V_11;
 
     /**
      * Reference to the first MlConfigVersion that is detached from the
@@ -266,7 +268,8 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         return version1.id > version2.id ? version1 : version2;
     }
 
-    public static MlConfigVersion fromVersion(Version version) {
+    // Visible only for testing
+    static MlConfigVersion fromVersion(Version version) {
         if (version.equals(Version.V_8_10_0)) {
             return V_10;
         }
@@ -274,13 +277,6 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
             throw new IllegalArgumentException("Cannot convert " + version + ". Incompatible version");
         }
         return fromId(version.id);
-    }
-
-    public static Version toVersion(MlConfigVersion mlConfigVersion) {
-        if (mlConfigVersion.before(FIRST_ML_VERSION) || mlConfigVersion.onOrAfter(V_8_10_0)) {
-            throw new IllegalArgumentException("Cannot convert " + mlConfigVersion + ". Incompatible version");
-        }
-        return Version.fromId(mlConfigVersion.id);
     }
 
     public static MlConfigVersion getMinMlConfigVersion(DiscoveryNodes nodes) {
@@ -319,13 +315,18 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     }
 
     // Parse an MlConfigVersion from a string.
-    // Note that version "8.10.0" is silently converted to "10.0.0".
+    // Note that version "8.10.x" and "8.11.0" are silently converted to "10.0.0".
     // This is to support upgrade scenarios in pre-prod QA environments.
     public static MlConfigVersion fromString(String str) {
         if (str == null) {
             return CURRENT;
         }
-        if (str.equals("8.10.0")) {
+        // The whole switch from Version to MlConfigVersion was supposed to take
+        // place during development of 8.10.0, however, one place was missed. As
+        // a result there may be DFA destination indices in the wild with metadata
+        // containing 8.10.1, 8.10.2, 8.10.3 or 8.11.0. We can treat these as V_10
+        // for config version comparison purposes.
+        if (str.startsWith("8.10.") || str.equals("8.11.0")) {
             return V_10;
         }
         Matcher matcher = Pattern.compile("^(\\d+)\\.0\\.0$").matcher(str);

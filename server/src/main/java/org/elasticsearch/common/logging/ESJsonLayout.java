@@ -163,6 +163,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         @PluginConfiguration
         private Configuration config;
 
+        @SuppressWarnings("this-escape")
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
         }

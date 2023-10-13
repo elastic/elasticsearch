@@ -969,7 +969,7 @@ public class RBACEngine implements AuthorizationEngine {
         private final Predicate<String> isAuthorizedPredicate;
 
         AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, Predicate<String> isAuthorizedPredicate) {
-            this.allAuthorizedAndAvailableSupplier = new CachedSupplier<>(allAuthorizedAndAvailableSupplier);
+            this.allAuthorizedAndAvailableSupplier = CachedSupplier.wrap(allAuthorizedAndAvailableSupplier);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 

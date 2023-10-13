@@ -36,7 +36,11 @@ public abstract class DisabledSecurityDataStreamTestCase extends ESRestTestCase 
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        if (super.restAdminSettings().keySet().contains(ThreadContext.PREFIX + ".Authorization")) {
+            return super.restAdminSettings();
+        } else {
+            String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+            return Settings.builder().put(super.restAdminSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+        }
     }
 }

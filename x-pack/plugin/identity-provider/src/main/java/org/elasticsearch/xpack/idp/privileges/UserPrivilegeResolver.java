@@ -104,7 +104,7 @@ public class UserPrivilegeResolver {
 
     }
 
-    private UserPrivileges buildResult(HasPrivilegesResponse response, ServiceProviderPrivileges service) {
+    private static UserPrivileges buildResult(HasPrivilegesResponse response, ServiceProviderPrivileges service) {
         final Set<ResourcePrivileges> appPrivileges = response.getApplicationPrivileges().get(service.getApplicationName());
         if (appPrivileges == null || appPrivileges.isEmpty()) {
             return UserPrivileges.noAccess(response.getUsername());

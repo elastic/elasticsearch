@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.WaitUntilTimeSeriesEndTimePassesStep;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.junit.Before;
 
@@ -47,13 +48,16 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DownsampleActionIT extends ESRestTestCase {
 
@@ -70,7 +74,44 @@ public class DownsampleActionIT extends ESRestTestCase {
                     "index": {
                         "number_of_replicas": 0,
                         "number_of_shards": 1,
-                        "mode": "time_series"
+                        "time_series": {
+                          "start_time": "%s",
+                          "end_time": "%s"
+                        },
+                        "routing_path": ["metricset"],
+                        "mode": "time_series",
+                        "lifecycle.name": "%s"
+                    }
+                },
+                "mappings":{
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "metricset": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "volume": {
+                            "type": "double",
+                            "time_series_metric": "gauge"
+                        }
+                    }
+                }
+            },
+            "data_stream": { }
+        }""";
+
+    private static final String TEMPLATE_NO_TIME_BOUNDARIES = """
+        {
+            "index_patterns": ["%s*"],
+            "template": {
+                "settings":{
+                    "index": {
+                        "number_of_replicas": 0,
+                        "number_of_shards": 1,
+                        "mode": "time_series",
+                        "routing_path": ["metricset"]
                     },
                     "index.lifecycle.name": "%s"
                 },
@@ -125,7 +166,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             settings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2006-01-08T23:40:53.384Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-01-08T23:40:53.384Z");
         }
 
         XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -260,6 +301,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100271")
     public void testTsdbDataStreams() throws Exception {
         // Create the ILM policy
         DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
@@ -267,11 +309,12 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
-        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE, dataStream, policy));
+        createIndexTemplateRequest.setJsonEntity(
+            Strings.format(TEMPLATE, dataStream, "2006-01-08T23:40:53.384Z", "2021-01-08T23:40:53.384Z", policy)
+        );
         assertOK(client().performRequest(createIndexTemplateRequest));
 
-        String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
-        index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+        index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         assertBusy(
@@ -283,6 +326,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             30,
             TimeUnit.SECONDS
         );
+
+        // before we rollover, update template to not contain time boundaries anymore (rollover is blocked otherwise due to index time
+        // boundaries overlapping after rollover)
+        Request updateIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        updateIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE_NO_TIME_BOUNDARIES, dataStream, policy));
+        assertOK(client().performRequest(updateIndexTemplateRequest));
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
@@ -297,6 +346,49 @@ public class DownsampleActionIT extends ESRestTestCase {
             assertEquals(policy, settings.get(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
             assertEquals(DownsampleTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey()));
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testILMWaitsForTimeSeriesEndTimeToLapse() throws Exception {
+        // Create the ILM policy
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        createNewSingletonPolicy(client(), policy, "warm", new DownsampleAction(fixedInterval, DownsampleAction.DEFAULT_WAIT_TIMEOUT));
+
+        // Create a template
+        Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE_NO_TIME_BOUNDARIES, dataStream, policy));
+        assertOK(client().performRequest(createIndexTemplateRequest));
+
+        String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
+        index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+
+        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
+        assertBusy(
+            () -> assertThat(
+                "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+                explainIndex(client(), backingIndexName).get("step"),
+                is(CheckNotDataStreamWriteIndexStep.NAME)
+            ),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        assertBusy(() -> {
+            assertThat(
+                "index must wait in the " + WaitUntilTimeSeriesEndTimePassesStep.NAME + " until its end time lapses",
+                explainIndex(client(), backingIndexName).get("step"),
+                is(WaitUntilTimeSeriesEndTimePassesStep.NAME)
+            );
+
+            assertThat(explainIndex(client(), backingIndexName).get("step_info"), is(notNullValue()));
+            assertThat(
+                (String) ((Map<String, Object>) explainIndex(client(), backingIndexName).get("step_info")).get("message"),
+                containsString("Waiting until the index's time series end time lapses")
+            );
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testRollupNonTSIndex() throws Exception {
@@ -343,11 +435,12 @@ public class DownsampleActionIT extends ESRestTestCase {
 
         // Create a template
         Request createIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
-        createIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE, dataStream, policy));
+        createIndexTemplateRequest.setJsonEntity(
+            Strings.format(TEMPLATE, dataStream, "2006-01-08T23:40:53.384Z", "2021-01-08T23:40:53.384Z", policy)
+        );
         assertOK(client().performRequest(createIndexTemplateRequest));
 
-        String now = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(Instant.now());
-        index(client(), dataStream, true, null, "@timestamp", now, "volume", 11.0, "metricset", randomAlphaOfLength(5));
+        index(client(), dataStream, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
 
         String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
         logger.info("--> firstBackingIndex: {}", firstBackingIndex);
@@ -360,6 +453,12 @@ public class DownsampleActionIT extends ESRestTestCase {
             30,
             TimeUnit.SECONDS
         );
+
+        // before we rollover, update template to not contain time boundaries anymore (rollover is blocked otherwise due to index time
+        // boundaries overlapping after rollover)
+        Request updateIndexTemplateRequest = new Request("POST", "/_index_template/" + dataStream);
+        updateIndexTemplateRequest.setJsonEntity(Strings.format(TEMPLATE_NO_TIME_BOUNDARIES, dataStream, policy));
+        assertOK(client().performRequest(updateIndexTemplateRequest));
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);

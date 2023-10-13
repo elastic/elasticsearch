@@ -114,11 +114,6 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public boolean supportsParallelCollection() {
-        return false;
-    }
-
-    @Override
     protected boolean serializeTargetValueType(TransportVersion version) {
         return true;
     }

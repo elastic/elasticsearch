@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -36,51 +37,59 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block eval(Page page) {
-    Block valUncastBlock = val.eval(page);
-    if (valUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref valRef = val.eval(page)) {
+      if (valRef.block().areAllValuesNull()) {
+        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+      }
+      LongBlock valBlock = (LongBlock) valRef.block();
+      LongVector valVector = valBlock.asVector();
+      if (valVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), valVector));
     }
-    LongBlock valBlock = (LongBlock) valUncastBlock;
-    LongVector valVector = valBlock.asVector();
-    if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock);
-    }
-    return eval(page.getPositionCount(), valVector);
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        try {
+          result.appendDouble(Sqrt.process(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
-      try {
-        result.appendDouble(Sqrt.process(valBlock.getLong(valBlock.getFirstValueIndex(p))));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
-      }
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleBlock eval(int positionCount, LongVector valVector) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      try {
-        result.appendDouble(Sqrt.process(valVector.getLong(p)));
-      } catch (ArithmeticException e) {
-        warnings.registerException(e);
-        result.appendNull();
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        try {
+          result.appendDouble(Sqrt.process(valVector.getLong(p)));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
   public String toString() {
     return "SqrtLongEvaluator[" + "val=" + val + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(val);
   }
 }

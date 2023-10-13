@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.http.HttpStatus;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -152,15 +153,26 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 client().performRequest(indexDoc);
             }
             refresh("test-enrich");
-            Response resp = runESQLCommand(
-                "user1",
-                "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
+            for (String user : List.of("user1", "user4")) {
+                Response resp = runESQLCommand(
+                    user,
+                    "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
+                );
+                Map<String, Object> respMap = entityAsMap(resp);
+                assertThat(
+                    respMap.get("values"),
+                    equalTo(List.of(List.of(2.75, "Disturbed"), List.of(10.5, "Eagles"), List.of(8.25, "Linkin Park")))
+                );
+            }
+
+            ResponseException resp = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand(
+                    "user5",
+                    "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
+                )
             );
-            Map<String, Object> respMap = entityAsMap(resp);
-            assertThat(
-                respMap.get("values"),
-                equalTo(List.of(List.of(2.75, "Disturbed"), List.of(10.5, "Eagles"), List.of(8.25, "Linkin Park")))
-            );
+            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         } finally {
             removeEnrichPolicy();
         }

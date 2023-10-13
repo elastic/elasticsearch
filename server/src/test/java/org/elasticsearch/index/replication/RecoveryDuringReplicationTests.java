@@ -452,7 +452,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             AtomicBoolean recoveryDone = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
-                return new RecoveryTarget(indexShard, node, null, null, recoveryListener) {
+                return new RecoveryTarget(indexShard, node, 0L, null, null, recoveryListener) {
                     @Override
                     public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
                         recoveryDone.set(true);
@@ -506,7 +506,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard replica = shards.addReplica();
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(
                 replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, null, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, 0L, null, null, recoveryListener) {
                     @Override
                     public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -538,11 +538,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         } catch (final Exception e) {
                             throw new AssertionError(e);
                         }
-                        try {
-                            phaseTwoStartLatch.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(phaseTwoStartLatch);
                         super.indexTranslogOperations(
                             operations,
                             totalTranslogOps,
@@ -784,7 +780,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             PeerRecoveryTargetService.RecoveryListener listener,
             Logger logger
         ) {
-            super(shard, sourceNode, null, null, listener);
+            super(shard, sourceNode, 0L, null, null, listener);
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;
@@ -898,11 +894,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         if (latch != null) {
                             latch.countDown();
                         }
-                        try {
-                            block.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(block);
                     }
                     return super.addDocument(doc);
                 }

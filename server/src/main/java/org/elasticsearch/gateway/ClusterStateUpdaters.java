@@ -36,7 +36,7 @@ public class ClusterStateUpdaters {
     ) {
         return ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
-            .compatibilityVersions(Map.of(localNode.getId(), compatibilityVersions))
+            .putCompatibilityVersions(localNode.getId(), compatibilityVersions)
             .build();
     }
 

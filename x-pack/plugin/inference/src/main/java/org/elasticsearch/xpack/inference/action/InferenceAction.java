@@ -14,14 +14,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.inference.TaskType;
-import org.elasticsearch.xpack.inference.results.InferenceResult;
 
 import java.io.IOException;
 import java.util.Map;
@@ -168,15 +168,19 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final InferenceResult result;
+        private final InferenceResults result;
 
-        public Response(InferenceResult result) {
+        public Response(InferenceResults result) {
             this.result = result;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            result = in.readNamedWriteable(InferenceResult.class);
+            result = in.readNamedWriteable(InferenceResults.class);
+        }
+
+        public InferenceResults getResult() {
+            return result;
         }
 
         @Override

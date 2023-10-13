@@ -46,6 +46,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -1049,7 +1050,7 @@ public class ClusterStateTests extends ESTestCase {
                     .add(DiscoveryNodeUtils.create("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111)))
                     .build()
             )
-            .compatibilityVersions(
+            .nodeIdsToCompatibilityVersions(
                 Map.of(
                     "nodeId1",
                     new CompatibilityVersions(TransportVersion.current(), Map.of(".tasks", new SystemIndexDescriptor.MappingsVersion(1, 1)))
@@ -1159,7 +1160,7 @@ public class ClusterStateTests extends ESTestCase {
 
         for (int i = 0; i < numNodes; i++) {
             TransportVersion tv = TransportVersionUtils.randomVersion();
-            builder.putTransportVersion("nodeTv" + i, tv);
+            builder.putCompatibilityVersions("nodeTv" + i, tv, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS);
             minVersion = Collections.min(List.of(minVersion, tv));
         }
 
@@ -1173,6 +1174,73 @@ public class ClusterStateTests extends ESTestCase {
                 .build()
                 .getMinTransportVersion()
         );
+    }
+
+    public void testHasMixedSystemIndexVersions() throws IOException {
+        // equal mappings versions
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.compatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    )
+                )
+            );
+            assertFalse(builder.build().hasMixedSystemIndexVersions());
+        }
+
+        // unequal mappings versions
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.compatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(2, 0))
+                    )
+                )
+            );
+            assertTrue(builder.build().hasMixedSystemIndexVersions());
+        }
+
+        // one node has a mappings version that the other is missing
+        {
+            var builder = ClusterState.builder(buildClusterState());
+            builder.compatibilityVersions(
+                Map.of(
+                    "node1",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(
+                            ".system-index",
+                            new SystemIndexDescriptor.MappingsVersion(1, 0),
+                            ".another-system-index",
+                            new SystemIndexDescriptor.MappingsVersion(1, 0)
+                        )
+                    ),
+                    "node2",
+                    new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+                    )
+                )
+            );
+            assertTrue(builder.build().hasMixedSystemIndexVersions());
+        }
     }
 
     public static int expectedChunkCount(ToXContent.Params params, ClusterState clusterState) {

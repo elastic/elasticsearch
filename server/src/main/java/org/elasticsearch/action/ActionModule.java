@@ -249,9 +249,12 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.action.support.MappedActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.synonyms.DeleteSynonymRuleAction;
 import org.elasticsearch.action.synonyms.DeleteSynonymsAction;
@@ -276,7 +279,6 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -461,13 +463,12 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -512,7 +513,6 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
-    private final boolean serverlessEnabled;
     private final RestExtension restExtension;
 
     public ActionModule(
@@ -539,7 +539,6 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.serverlessEnabled = DiscoveryNode.isServerless();
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -683,7 +682,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
-        actions.register(GetHealthAction.INSTANCE, GetHealthAction.TransportAction.class);
+        actions.register(GetHealthAction.INSTANCE, GetHealthAction.LocalAction.class);
         actions.register(PrevalidateNodeRemovalAction.INSTANCE, TransportPrevalidateNodeRemovalAction.class);
         actions.register(HealthApiStatsAction.INSTANCE, HealthApiStatsTransportAction.class);
 
@@ -851,9 +850,21 @@ public class ActionModule extends AbstractModule {
     }
 
     private static ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
-        return new ActionFilters(
-            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
-        );
+        List<ActionFilter> finalFilters = new ArrayList<>();
+        List<MappedActionFilter> mappedFilters = new ArrayList<>();
+        for (var plugin : actionPlugins) {
+            for (var filter : plugin.getActionFilters()) {
+                if (filter instanceof MappedActionFilter mappedFilter) {
+                    mappedFilters.add(mappedFilter);
+                } else {
+                    finalFilters.add(filter);
+                }
+            }
+        }
+        if (mappedFilters.isEmpty() == false) {
+            finalFilters.add(new MappedActionFilters(mappedFilters));
+        }
+        return new ActionFilters(Set.copyOf(finalFilters));
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {

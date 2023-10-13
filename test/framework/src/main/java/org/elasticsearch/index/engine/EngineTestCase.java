@@ -1173,11 +1173,7 @@ public abstract class EngineTestCase extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startGun);
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < ops.size()) {
                     try {
@@ -1513,7 +1509,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
                     try {
-                        final IndexSearcher searcher = newSearcher(leaf, false);
+                        final IndexSearcher searcher = new IndexSearcher(leaf);
                         searcher.setQueryCache(null);
                         final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
                         final Scorer scorer = weight.scorer(leaf.getContext());

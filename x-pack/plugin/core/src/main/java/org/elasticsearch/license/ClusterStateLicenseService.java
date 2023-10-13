@@ -96,6 +96,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
+    @SuppressWarnings("this-escape")
     public ClusterStateLicenseService(
         Settings settings,
         ThreadPool threadPool,
@@ -265,7 +266,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private boolean licenseIsCompatible(License license, Version version) {
+    private static boolean licenseIsCompatible(License license, Version version) {
         final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
         return license.version() <= maxVersion;
     }
@@ -275,7 +276,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         return allowedLicenseTypes.contains(type);
     }
 
-    private TimeValue days(int days) {
+    private static TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
     }
 

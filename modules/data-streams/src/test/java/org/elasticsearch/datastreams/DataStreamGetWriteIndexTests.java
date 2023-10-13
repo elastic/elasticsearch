@@ -270,7 +270,6 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
                 clusterService,
                 indicesService,
-                null,
                 xContentRegistry()
             );
             rolloverService = new MetadataRolloverService(

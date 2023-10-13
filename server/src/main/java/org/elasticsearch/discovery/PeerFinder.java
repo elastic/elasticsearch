@@ -94,6 +94,7 @@ public abstract class PeerFinder {
     private Optional<DiscoveryNode> leader = Optional.empty();
     private volatile List<TransportAddress> lastResolvedAddresses = emptyList();
 
+    @SuppressWarnings("this-escape")
     public PeerFinder(
         Settings settings,
         TransportService transportService,

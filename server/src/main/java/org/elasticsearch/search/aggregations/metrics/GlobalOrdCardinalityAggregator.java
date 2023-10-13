@@ -252,17 +252,14 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 }
             } else {
                 final FieldInfo fi = aggCtx.getLeafReaderContext().reader().getFieldInfos().fieldInfo(field);
-                if (fi == null) {
-                    // The field doesn't exist at all, we can skip the segment entirely
-                    noData++;
-                    return LeafBucketCollector.NO_OP_COLLECTOR;
-                } else if (fi.getIndexOptions() != IndexOptions.NONE) {
+                if (fi != null && fi.getIndexOptions() != IndexOptions.NONE) {
                     // The field doesn't have terms while index options are not NONE. This means that this segment doesn't have a single
                     // value for the field.
                     noData++;
                     return LeafBucketCollector.NO_OP_COLLECTOR;
                 }
-                // Otherwise we might be aggregating e.g. an IP field, which indexes data using points rather than an inverted index.
+                // Otherwise we might be aggregating e.g. an IP or a const_keyword field, which index data using points rather than an
+                // inverted index.
             }
         }
 

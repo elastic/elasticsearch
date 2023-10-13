@@ -801,7 +801,7 @@ public class SecuritySystemIndices {
                         .setIndexPattern(".security-profile-[0-9]+*")
                         .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
                         .setDescription("Contains user profile documents")
-                        .setMappings(getProfileIndexMappings(INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT))
+                        .setMappings(getProfileIndexMappings(INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT - 1))
                         .setSettings(getProfileIndexSettings(settings))
                         .setAliasName(SECURITY_PROFILE_ALIAS)
                         .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)

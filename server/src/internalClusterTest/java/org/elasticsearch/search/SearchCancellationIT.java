@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -33,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -50,9 +50,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
+
+    @Override
+    //TODO all tests need to be updated to work with concurrent search
+    protected boolean enableConcurrentSearch() {
+        return false;
+    }
 
     public void testCancellationDuringQueryPhase() throws Exception {
 
@@ -226,6 +231,11 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE,"
+            + "org.elasticsearch.tasks:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/99929"
+    )
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         int numberOfShards = between(2, 5);
         createIndex("test", numberOfShards, 0);

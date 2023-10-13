@@ -383,6 +383,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             SnapshotIndexCommit snapshotIndexCommit = null;
             try {
                 snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
+                final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
                 snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
                 snapshotStatus.ensureNotAborted();
                 repository.snapshotShard(
@@ -392,7 +393,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         snapshot.getSnapshotId(),
                         indexId,
                         snapshotIndexCommit,
-                        getShardStateId(indexShard, snapshotIndexCommit.indexCommit()),
+                        shardStateId,
                         snapshotStatus,
                         version,
                         entryStartTime,

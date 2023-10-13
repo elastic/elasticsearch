@@ -408,8 +408,10 @@ ROW date_string = "2022-05-06"
 // end::dateParse[]
 ;
 
+//tag::dateParse-result[]
 date_string:keyword | date:date
 2022-05-06          | 2022-05-06T00:00:00.000Z
+// end::dateParse-result[]
 ;
 
 docsReplace
@@ -424,4 +426,27 @@ ROW str = "Hello World"
 str:keyword
 Hello Universe
 // end::replaceString-result[]
+;
+
+docsCase
+// tag::case[]
+FROM employees
+| EVAL type = case(
+    languages <= 1, "monolingual",
+    languages <= 2, "bilingual",
+     "polyglot")
+| KEEP emp_no, languages, type
+// end::case[]
+| SORT emp_no
+| LIMIT 5
+;
+
+// tag::case-result[]
+emp_no:integer | languages:integer| type:keyword
+10001          | 2                |bilingual      
+10002          | 5                |polyglot       
+10003          | 4                |polyglot       
+10004          | 5                |polyglot       
+10005          | 1                |monolingual    
+// end::case-result[]
 ;

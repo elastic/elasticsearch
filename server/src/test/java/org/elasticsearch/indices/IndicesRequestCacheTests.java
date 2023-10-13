@@ -601,7 +601,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         @Override
         public BytesRefIterator iterator() {
-            return null;
+            return BytesRefIterator.EMPTY;
         }
 
         @Override

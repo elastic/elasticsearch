@@ -114,8 +114,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                 } else {
                     // The architecture field could be an empty set, the individual services will need to handle that
                     parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, architectures, listener);
-                } else {
-                    parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, architectures, listener);
                 }
             }, listener::onFailure), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
         } else {

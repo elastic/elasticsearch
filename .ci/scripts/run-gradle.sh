@@ -33,3 +33,7 @@ fi
 
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@
+
+file="build/${BUILDKITE_BUILD_NUMBER}.tar.bz2"
+ls -alh build
+buildkite-agent artifact search "$file" --step "$BUILDKITE_JOB_ID" --format %u

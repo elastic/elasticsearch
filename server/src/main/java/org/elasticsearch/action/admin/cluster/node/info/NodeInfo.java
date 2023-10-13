@@ -45,7 +45,6 @@ public class NodeInfo extends BaseNodeResponse {
     private final IndexVersion indexVersion;
     private final Map<String, Integer> componentVersions;
     private final Build build;
-    private static final Version BWC_PLACEHOLDER_VERSION = Version.V_8_12_0;
 
     @Nullable
     private final Settings settings;
@@ -238,12 +237,7 @@ public class NodeInfo extends BaseNodeResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_VERSION_AS_STRING)) {
             out.writeString(version);
         } else {
-            try {
-                Version.writeVersion(Version.fromString(version), out);
-            } catch (IllegalArgumentException e) {
-                // can't parse current version, so send placeholder
-                Version.writeVersion(BWC_PLACEHOLDER_VERSION, out);
-            }
+            Version.writeVersion(Version.fromString(version), out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             TransportVersion.writeVersion(transportVersion, out);

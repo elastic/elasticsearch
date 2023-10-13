@@ -31,8 +31,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
-import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,6 +50,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
 
 class S3BlobStore implements BlobStore {
 
@@ -83,8 +82,6 @@ class S3BlobStore implements BlobStore {
     private final Executor snapshotExecutor;
     private final Meter meter;
     private final LongCounter requestCounter;
-    private final DoubleGauge clientTimeGauge;
-    private final DoubleHistogram clientTimeHistogram;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
@@ -115,9 +112,7 @@ class S3BlobStore implements BlobStore {
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.meter = meter;
-        this.requestCounter = this.meter.getLongCounter(S3Repository.TYPE + ".request_counter");
-        this.clientTimeGauge = this.meter.getDoubleGauge(S3Repository.TYPE + ".client_time_gauge");
-        this.clientTimeHistogram = this.meter.getDoubleHistogram(S3Repository.TYPE + ".client_time_histogram");
+        this.requestCounter = this.meter.getLongCounter(METRIC_REQUESTS_COUNT);
         s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
         threadPool.scheduleWithFixedDelay(() -> {
             var priorRetryStats = s3RequestRetryStats;
@@ -131,7 +126,9 @@ class S3BlobStore implements BlobStore {
         return new RequestMetricCollector() {
 
             private final Map<String, Object> attributes = Map.of(
-                "repo",
+                "repo_type",
+                S3Repository.TYPE,
+                "repo_name",
                 repositoryMetadata.name(),
                 "operation",
                 operation.getKey(),
@@ -143,11 +140,6 @@ class S3BlobStore implements BlobStore {
             public void collectMetrics(Request<?> request, Response<?> response) {
                 s3RequestRetryStats.addRequest(request);
                 requestCounter.incrementBy(getRequestCount(request), attributes);
-                final Double clientTime = request.getAWSRequestMetrics().getTimingInfo().getTimeTakenMillisIfKnown();
-                if (clientTime != null) {
-                    clientTimeGauge.record(clientTime, attributes);
-                    clientTimeHistogram.record(clientTime, attributes);
-                }
                 collector.collectMetrics(request, response);
             }
         };
@@ -163,9 +155,9 @@ class S3BlobStore implements BlobStore {
 
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
     // issue
-    private static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
+    static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
 
-        private final LongAdder counter = new LongAdder();
+        final LongAdder counter = new LongAdder();
         private final Operation operation;
 
         private IgnoreNoResponseMetricsCollector(Operation operation) {
@@ -384,6 +376,17 @@ class S3BlobStore implements BlobStore {
 
         Operation(String key) {
             this.key = key;
+        }
+
+        static Operation parse(String s) {
+            for (Operation operation : Operation.values()) {
+                if (operation.key.equals(s)) {
+                    return operation;
+                }
+            }
+            throw new IllegalArgumentException(
+                Strings.format("invalid operation [%s] expected one of [%s]", s, Strings.arrayToCommaDelimitedString(Operation.values()))
+            );
         }
     }
 

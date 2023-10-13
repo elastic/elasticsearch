@@ -69,7 +69,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
-    private final SetOnce<Meter> meter = new SetOnce<>();
+    protected final SetOnce<Meter> meter = new SetOnce<>();
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -111,9 +111,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         service.set(s3Service(environment, clusterService.getSettings()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         meter.set(telemetryProvider.getMeter());
-        meter.get().registerLongCounter(S3Repository.TYPE + ".request_counter", "request counter", "unit");
-        meter.get().registerDoubleGauge(S3Repository.TYPE + ".client_time_gauge", "request gauge", "unit");
-        meter.get().registerDoubleHistogram(S3Repository.TYPE + ".client_time_histogram", "response time histogram", "millis");
         return List.of(service);
     }
 

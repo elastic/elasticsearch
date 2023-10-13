@@ -13,7 +13,8 @@ import java.nio.file.Files
 String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
 if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false) {
-  File uploadFile = file("build/${buildNumber}.tar.bz2")
+  def uploadFilePath = "build/${buildNumber}.tar.bz2"
+  File uploadFile = file(uploadFilePath)
   project.gradle.buildFinished { result ->
     println "build complete, generating: $uploadFile"
     if (uploadFile.exists()) {
@@ -63,6 +64,16 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
       }
     } catch (Exception e) {
       logger.lifecycle("Failed to archive additional logs", e)
+    }
+
+    if (uploadFile.exists() System.getenv("BUILDKITE") == "true") {
+      try {
+        new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath)
+          .start()
+          .waitFor()
+      } catch (Exception e) {
+        logger.lifecycle("Failed to upload buildkite artifact", e)
+      }
     }
   }
 }

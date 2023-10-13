@@ -94,13 +94,14 @@ buildScan {
     } else if (buildKiteUrl) { //Buildkite-specific build scan metadata
       // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
       uploadInBackground = false
+      def buildNumber = System.getenv('BUILDKITE_BUILD_NUMBER')
 
       def branch = System.getenv('BUILDKITE_BRANCH')
       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
       tag 'CI'
       link 'CI Build', buildKiteUrl
-      value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+      value 'Job Number', buildNumber
 
 
       // Add SCM information
@@ -116,6 +117,17 @@ buildScan {
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
         tag branch
+      }
+
+      def uploadFilePath = "build/${buildNumber}.tar.bz2"
+      File uploadFile = file(uploadFilePath)
+      if (uploadFile.exists()) {
+        def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%u").start()
+        process.waitFor()
+        def artifactUrl = (process.text ?: "").trim()
+        if (artifactUrl) {
+          link 'Artifact Upload', artifactUrl
+        }
       }
 
       buildScanPublished { scan ->

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -22,6 +23,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
@@ -51,8 +54,8 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -89,7 +92,8 @@ import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter
  * The positionCount of the output page must be equal to the positionCount of the input page.
  */
 public class EnrichLookupService {
-    public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup";
+    private static final String AUTHENTICATE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/lookup";
+    private static final String LOOKUP_ACTION_NAME = "indices:data/read/esql/lookup";
 
     private final ClusterService clusterService;
     private final SearchService searchService;
@@ -111,7 +115,16 @@ public class EnrichLookupService {
         this.executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
-        transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new TransportHandler());
+        // The enrich lookup occurs in two steps. First, we send an authentication request, which includes a lookup request,
+        // to 'cluster:monitor/xpack/enrich/esql/lookup' to verify that the current user has the `monitor_enrich` privilege.
+        // Once authenticated, we send the lookup request using 'enrich_origin' to 'indices:data/read/esql/lookup' on the local node.
+        transportService.registerRequestHandler(
+            AUTHENTICATE_ACTION_NAME,
+            this.executor,
+            AuthenticateRequest::new,
+            new AuthenticateTransportHandler(transportService)
+        );
+        transportService.registerRequestHandler(LOOKUP_ACTION_NAME, this.executor, LookupRequest::new, new LookupTransportHandler());
     }
 
     public void lookupAsync(
@@ -142,8 +155,8 @@ public class EnrichLookupService {
         // TODO: handle retry and avoid forking for the local lookup
         transportService.sendChildRequest(
             targetNode,
-            LOOKUP_ACTION_NAME,
-            lookupRequest,
+            AUTHENTICATE_ACTION_NAME,
+            new AuthenticateRequest(lookupRequest),
             parentTask,
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
@@ -248,7 +261,35 @@ public class EnrichLookupService {
         return new ProjectOperator(projection);
     }
 
-    private class TransportHandler implements TransportRequestHandler<LookupRequest> {
+    private class AuthenticateTransportHandler implements TransportRequestHandler<AuthenticateRequest> {
+        private final TransportService transportService;
+
+        AuthenticateTransportHandler(TransportService transportService) {
+            this.transportService = transportService;
+        }
+
+        @Override
+        public void messageReceived(AuthenticateRequest request, TransportChannel channel, Task task) {
+            ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+            ActionListener<LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
+                new ChannelActionListener<>(channel),
+                threadContext
+            );
+            try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
+                transportService.sendChildRequest(
+                    transportService.getLocalNode(),
+                    LOOKUP_ACTION_NAME,
+                    request.lookupRequest,
+                    task,
+                    TransportRequestOptions.EMPTY,
+                    // use the direct executor as we immediately handle over the response to the authentication action
+                    new ActionListenerResponseHandler<>(listener, LookupResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                );
+            }
+        }
+    }
+
+    private class LookupTransportHandler implements TransportRequestHandler<LookupRequest> {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
             ActionListener<LookupResponse> listener = new ChannelActionListener<>(channel);
@@ -262,6 +303,30 @@ public class EnrichLookupService {
                 request.extractFields,
                 listener.map(LookupResponse::new)
             );
+        }
+    }
+
+    private static class AuthenticateRequest extends TransportRequest {
+        private final LookupRequest lookupRequest;
+
+        AuthenticateRequest(LookupRequest lookupRequest) {
+            this.lookupRequest = lookupRequest;
+        }
+
+        AuthenticateRequest(StreamInput in) throws IOException {
+            super(in);
+            this.lookupRequest = new LookupRequest(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            lookupRequest.writeTo(out);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return lookupRequest.createTask(id, type, action, parentTaskId, headers);
         }
     }
 

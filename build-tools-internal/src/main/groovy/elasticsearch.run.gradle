@@ -8,6 +8,7 @@
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.RunTask
+import org.elasticsearch.gradle.testclusters.apmserver.RunApmServerTask
 
 // gradle has an open issue of failing applying plugins in
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
@@ -37,6 +38,13 @@ testClusters.register("runTask") {
 tasks.register("run", RunTask) {
   useCluster testClusters.named("runTask")
   description = 'Runs elasticsearch in the foreground'
+  group = 'Verification'
+
+  impliesSubProjects = true
+}
+tasks.register("runApmServer", RunApmServerTask) {
+  useCluster testClusters.named("runTask")
+  description = 'Runs apmserver in the foreground'
   group = 'Verification'
 
   impliesSubProjects = true

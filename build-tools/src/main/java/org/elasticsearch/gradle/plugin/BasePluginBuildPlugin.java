@@ -16,6 +16,7 @@ import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.testclusters.apmserver.RunApmServerTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -89,6 +90,11 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
         project.getTasks().register("run", RunTask.class, r -> {
             r.useCluster(runCluster);
             r.dependsOn(project.getTasks().named(BUNDLE_PLUGIN_TASK_NAME));
+        });
+//
+        project.getTasks().register("runApmServer", RunApmServerTask.class, r -> {
+            r.useCluster(runCluster);
+            r.shouldRunAfter(project.getTasks().named("run"));
         });
     }
 

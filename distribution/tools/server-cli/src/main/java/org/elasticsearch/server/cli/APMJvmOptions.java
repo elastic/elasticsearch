@@ -49,8 +49,9 @@ class APMJvmOptions {
         // by the agent. Don't disable writing to a log file, as the agent will then
         // require extra Security Manager permissions when it tries to do something
         // else, and it's just painful.
-        "log_file", "_AGENT_HOME_/../../logs/apm.log",
-
+        // TODO(stu): changed for testing APM
+        "log_file", "/Users/przemyslawgomulka/workspace/pgomulka/elasticsearch/../apm.log",
+        "log_level", "trace",
         // ES does not use auto-instrumentation.
         "instrument", "false",
         "enable_experimental_instrumentations", "true"
@@ -82,7 +83,7 @@ class APMJvmOptions {
         // is doing, leave this value alone.
         "log_level", "error",
         "application_packages", "org.elasticsearch,org.apache.lucene",
-        "metrics_interval", "120s",
+        "metrics_interval", "5s",
         "breakdown_metrics", "false",
         "central_config", "false"
         );

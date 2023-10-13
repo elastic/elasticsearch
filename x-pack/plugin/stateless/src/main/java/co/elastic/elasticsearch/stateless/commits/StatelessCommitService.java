@@ -32,6 +32,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.client.internal.Client;
@@ -299,19 +300,31 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 @Override
                 public void onFailure(Exception e) {
                     assert assertClosedOrRejectionFailure(e);
-                    logger.warn(
-                        () -> format(
-                            "%s failed to upload commit [%s] to object store because shard was closed",
-                            reference.getShardId(),
-                            reference.getGeneration()
-                        ),
-                        e
-                    );
+                    ShardCommitState.State state = commitState.state;
+                    if (closedOrRelocated(state)) {
+                        logger.debug(
+                            () -> format(
+                                "%s failed to upload commit [%s] to object store because shard has invalid state %s",
+                                reference.getShardId(),
+                                reference.getGeneration(),
+                                state
+                            ),
+                            e
+                        );
+                    } else {
+                        logger.warn(
+                            () -> format(
+                                "%s failed to upload commit [%s] to object store for unexpected reason",
+                                reference.getShardId(),
+                                reference.getGeneration()
+                            ),
+                            e
+                        );
+                    }
                 }
 
                 private boolean assertClosedOrRejectionFailure(final Exception e) {
-                    ShardCommitState.State state = commitState.state;
-                    final var closed = state == ShardCommitState.State.CLOSED || state == ShardCommitState.State.RELOCATED;
+                    final var closed = closedOrRelocated(commitState.state);
                     assert closed
                         || e instanceof EsRejectedExecutionException
                         || e instanceof IndexNotFoundException
@@ -505,8 +518,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         @Override
         public boolean shouldRetry(Exception e) {
-            ShardCommitState.State state = shardCommitState.state;
-            return state == ShardCommitState.State.RUNNING || state == ShardCommitState.State.RELOCATING;
+            return closedOrRelocated(shardCommitState.state) == false;
         }
     }
 
@@ -562,6 +574,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
         return commitState;
+    }
+
+    private static boolean closedOrRelocated(ShardCommitState.State state) {
+        return state == ShardCommitState.State.CLOSED || state == ShardCommitState.State.RELOCATED;
     }
 
     private class ShardCommitState {
@@ -774,7 +790,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert primaryTerm == allocationPrimaryTerm;
 
             synchronized (this) {
-                if (state == State.CLOSED || state == State.RELOCATED) {
+                if (closedOrRelocated(state)) {
                     return false;
                 } else {
                     pendingUploadGenerations.add(generation);
@@ -962,7 +978,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             boolean completeListenerSuccess = false;
             boolean completeListenerClosed = false;
             synchronized (this) {
-                if (state == State.CLOSED) {
+                if (closedOrRelocated(state)) {
                     completeListenerClosed = true;
                 } else if (getMaxUploadedGeneration() >= generation) {
                     // Location already visible, just call the listener
@@ -982,7 +998,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             if (completeListenerClosed) {
-                listener.onFailure(new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
+                if (state == State.RELOCATED) {
+                    listener.onFailure(new UnavailableShardsException(shardId, "shard relocated"));
+                } else {
+                    listener.onFailure(new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
+                }
             } else if (completeListenerSuccess) {
                 listener.onResponse(null);
             }
@@ -994,7 +1014,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         public void addConsumerForNewUploadedCommit(Consumer<UploadedCommitInfo> consumer) {
             synchronized (this) {
-                if (state != State.CLOSED) {
+                if (closedOrRelocated(state) == false) {
                     if (uploadedCommitConsumers == null) {
                         uploadedCommitConsumers = new ArrayList<>();
                     }
@@ -1003,21 +1023,26 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        private void close() {
+        private List<ActionListener<Void>> changeStateAndGetListeners(State newState) {
             List<Tuple<Long, ActionListener<Void>>> listenersToFail;
             synchronized (this) {
-                state = State.CLOSED;
+                assert newState == State.CLOSED || newState == State.RELOCATED : newState;
+                state = newState;
                 listenersToFail = generationListeners;
                 generationListeners = null;
                 uploadedCommitConsumers = null;
             }
 
             if (listenersToFail != null) {
-                ActionListener.onFailure(
-                    listenersToFail.stream().map(Tuple::v2).collect(Collectors.toList()),
-                    new AlreadyClosedException("shard closed")
-                );
+                return listenersToFail.stream().map(Tuple::v2).collect(Collectors.toList());
+            } else {
+                return Collections.emptyList();
             }
+        }
+
+        private void close() {
+            List<ActionListener<Void>> listenersToFail = changeStateAndGetListeners(State.CLOSED);
+            ActionListener.onFailure(listenersToFail, new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
 
             if (isDeleted) {
                 updateUnpromotableShardAssignedNodes(Set.of(), Long.MAX_VALUE); // clear all unpromotable references
@@ -1054,12 +1079,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * commit state.
          */
         private void markRelocated() {
+            List<ActionListener<Void>> listenersToFail;
             synchronized (this) {
                 if (state != State.CLOSED) {
                     assert state == State.RELOCATING;
-                    state = State.RELOCATED;
+                    listenersToFail = changeStateAndGetListeners(State.RELOCATED);
+                } else {
+                    listenersToFail = Collections.emptyList();
                 }
             }
+
+            ActionListener.onFailure(listenersToFail, new UnavailableShardsException(shardId, "shard relocated"));
         }
 
         /**

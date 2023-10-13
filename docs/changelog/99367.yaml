@@ -1,0 +1,6 @@
+pr: 99367
+summary: Add API for retrieving global state from snapshot
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 73248

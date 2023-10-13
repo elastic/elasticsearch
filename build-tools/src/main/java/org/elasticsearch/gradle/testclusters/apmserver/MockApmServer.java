@@ -51,7 +51,6 @@ public class MockApmServer {
 
     private static volatile HttpServer instance;
 
-
     /**
      * Start the Mock APM server. Just returns empty JSON structures for every incoming message
      * @return - the port the Mock APM server started on

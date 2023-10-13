@@ -49,9 +49,7 @@ class APMJvmOptions {
         // by the agent. Don't disable writing to a log file, as the agent will then
         // require extra Security Manager permissions when it tries to do something
         // else, and it's just painful.
-        "log_file", "/home/stu/tmp/apm.log",
-        "log_level", "TRACE",
-
+        "log_file", "_AGENT_HOME_/../../logs/apm.log",
         // ES does not use auto-instrumentation.
         "instrument", "false",
         "enable_experimental_instrumentations", "true"

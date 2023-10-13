@@ -277,17 +277,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodeVersions != null;
     }
 
-    // TODO[lor]: this needs to be replaced with (historical) feature checks once https://github.com/elastic/elasticsearch/pull/100330
-    // is merged
+    // This needs to be replaced with (historical) feature checks once we have a Feature API
     @Deprecated(forRemoval = true)
     private static Version parseLegacyVersion(String versionString) {
-        try {
-            return Version.fromString(versionString.replace("-SNAPSHOT", ""));
-        } catch (IllegalArgumentException ignored) {
-            // placeholder version: new enough to be compatible with all checks in this class, old enough to represent all
-            // non-semantic versions
-            return Version.V_8_8_0;
-        }
+        return Version.fromString(versionString.replace("-SNAPSHOT", ""));
     }
 
     protected static boolean has(ProductFeature feature) {

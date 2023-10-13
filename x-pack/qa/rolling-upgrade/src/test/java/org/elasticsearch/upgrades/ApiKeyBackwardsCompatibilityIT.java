@@ -304,18 +304,9 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
-
         // TODO[lor]: the method can be kept, but we need to replace version check with features checks
         String versionString = (String) nodeDetails.get("version");
-        Version version;
-        try {
-            version = Version.fromString(versionString.replace("-SNAPSHOT", ""));
-        } catch (IllegalArgumentException ignored) {
-            // placeholder version: new enough to be compatible with all checks in this class, old enough to represent
-            // non-semantic versions
-            version = Version.V_8_10_0;
-        }
-
+        Version version = Version.fromString(versionString.replace("-SNAPSHOT", ""));
         return version.onOrAfter(API_KEY_SUPPORT_REMOTE_INDICES_VERSION);
     }
 

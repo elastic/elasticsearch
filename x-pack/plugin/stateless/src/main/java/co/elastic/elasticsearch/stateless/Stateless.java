@@ -180,6 +180,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
@@ -219,6 +220,7 @@ public class Stateless extends Plugin
     private final SetOnce<ShardSizesCollector> shardSizesCollector = new SetOnce<>();
     private final SetOnce<IndicesMappingSizeCollector> indicesMappingSizeCollector = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
+    private final SetOnce<StatelessIndexSettingProvider> statelessIndexSettingProvider = new SetOnce<>();
 
     private final boolean sharedCachedSettingExplicitlySet;
 
@@ -457,6 +459,9 @@ public class Stateless extends Plugin
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
+        assert statelessIndexSettingProvider.get() != null;
+        statelessIndexSettingProvider.get().initialize(clusterService, indexNameExpressionResolver);
+
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
         }
@@ -551,7 +556,8 @@ public class Stateless extends Plugin
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
-            BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING
+            BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING,
+            DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING
         );
     }
 
@@ -946,7 +952,7 @@ public class Stateless extends Plugin
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(new StatelessIndexSettingProvider());
+        return List.of(setAndGet(statelessIndexSettingProvider, new StatelessIndexSettingProvider()));
     }
 
     @Override

@@ -637,10 +637,10 @@ public class DoSection implements ExecutableSection {
             throw new XContentParseException(
                 location,
                 "expected [version] to be a semantic (x.y.z format), but found " + unqualifiedNodeVersionString,
-                e);
+                e
+            );
         }
     }
-
 
     private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
         if (false == parser.currentToken().isValue()) {

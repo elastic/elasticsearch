@@ -184,7 +184,11 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
 
     /**
      * Returns a BytesRefIterator for this BytesReference. This method allows
-     * access to the internal pages of this reference without copying them. Use with care!
+     * access to the internal pages of this reference without copying them.
+     * It must return direct references to the pages, not copies. If the object
+     * does not hold internal pages, then it mush return Use with care!
+     *
+     *
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();

@@ -668,10 +668,10 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     }
 
     public void testWriteWithIterator() throws IOException {
-        final int length = randomIntBetween(1014, 1024 * 1024);
+        final int length = randomIntBetween(1024, 1024 * 1024);
         final byte[] bytes = new byte[length];
         random().nextBytes(bytes);
-        final BytesReference bytesReference = randomBytesReference(length);
+        final BytesReference bytesReference = newBytesReference(length);
         final BytesRefIterator iterator = bytesReference.iterator();
         BytesRef bytesRef;
         int offset = 0;

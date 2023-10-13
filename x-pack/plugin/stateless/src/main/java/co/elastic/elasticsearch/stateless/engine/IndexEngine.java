@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -364,6 +363,4 @@ public class IndexEngine extends InternalEngine {
     public StatelessCommitService getStatelessCommitService() {
         return statelessCommitService;
     }
-
-    private record OpenReaderInfo(Set<String> files) {};
 }

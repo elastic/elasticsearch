@@ -561,8 +561,14 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected boolean resetFeatureStates() {
         try {
+            final Version minimumNodeVersion = minimumNodeVersion();
+            // Reset feature state API was introduced in 7.13.0
+            if (minimumNodeVersion.before(Version.V_7_13_0)) {
+                return false;
+            }
+
             // ML reset fails when ML is disabled in versions before 8.7
-            if (isMlEnabled() == false && minimumNodeVersion().before(Version.V_8_7_0)) {
+            if (isMlEnabled() == false && minimumNodeVersion.before(Version.V_8_7_0)) {
                 return false;
             }
         } catch (IOException e) {
@@ -872,7 +878,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
     }
 
-    private Set<String> getAllUnexpectedIlmPolicies(Set<String> exclusions) throws IOException {
+    private static Set<String> getAllUnexpectedIlmPolicies(Set<String> exclusions) throws IOException {
         Map<String, Object> policies;
         try {
             Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
@@ -965,8 +971,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            // remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
-            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*"));
+            // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
+            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
             }
@@ -1057,7 +1063,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Remove any cluster settings.
      */
-    private void wipeClusterSettings() throws IOException {
+    private static void wipeClusterSettings() throws IOException {
         Map<?, ?> getResponse = entityAsMap(adminClient().performRequest(new Request("GET", "/_cluster/settings")));
 
         boolean mustClear = false;
@@ -1163,7 +1169,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return RefreshResponse.fromXContent(responseAsParser(response));
     }
 
-    private void waitForPendingRollupTasks() throws Exception {
+    private static void waitForPendingRollupTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
@@ -1271,7 +1277,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Waits for the cluster state updates to have been processed, so that no cluster
      * state updates are still in-progress when the next test starts.
      */
-    private void waitForClusterStateUpdatesToFinish() throws Exception {
+    private static void waitForClusterStateUpdatesToFinish() throws Exception {
         assertBusy(() -> {
             try {
                 Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
@@ -1432,7 +1438,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Set<String> runningTasks(Response response) throws IOException {
+    private static Set<String> runningTasks(Response response) throws IOException {
         Set<String> runningTasks = new HashSet<>();
 
         Map<String, Object> nodes = (Map<String, Object>) entityAsMap(response).get("nodes");
@@ -2036,7 +2042,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+    private static void ensureGlobalCheckpointSynced(String index) throws Exception {
         assertBusy(() -> {
             Map<?, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);

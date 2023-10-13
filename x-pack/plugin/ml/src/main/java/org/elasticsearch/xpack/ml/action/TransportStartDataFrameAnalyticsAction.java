@@ -340,7 +340,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         validateSourceIndexHasAtLeastOneAnalyzedField(startContext, validateAtLeastOneAnalyzedFieldListener);
     }
 
-    private void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
+    private static void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
         Set<String> requiredFields = startContext.config.getAnalysis()
             .getRequiredFields()
             .stream()
@@ -415,7 +415,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         );
     }
 
-    private void checkDestIndexIsEmptyIfExists(
+    private static void checkDestIndexIsEmptyIfExists(
         ParentTaskAssigningClient parentTaskClient,
         StartContext startContext,
         ActionListener<StartContext> listener

@@ -115,7 +115,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         stopJob(parentTaskClient, request, stopListener);
     }
 
-    private void stopJob(
+    private static void stopJob(
         ParentTaskAssigningClient parentTaskClient,
         DeleteDataFrameAnalyticsAction.Request request,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener

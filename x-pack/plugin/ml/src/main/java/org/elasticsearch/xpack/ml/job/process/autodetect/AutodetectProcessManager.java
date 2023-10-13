@@ -1010,7 +1010,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         );
     }
 
-    private void logSetJobStateFailure(JobState state, String jobId, Exception e) {
+    private static void logSetJobStateFailure(JobState state, String jobId, Exception e) {
         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             logger.debug("Could not set job state to [{}] for job [{}] as it has been closed", state, jobId);
         } else {

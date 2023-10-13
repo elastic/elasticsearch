@@ -3057,6 +3057,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "packetbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "winlogbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "endgame-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
@@ -3124,6 +3126,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "packetbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "winlogbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "endgame-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));

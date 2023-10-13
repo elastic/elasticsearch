@@ -12,12 +12,15 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleCounterBuilder;
 import io.opentelemetry.api.metrics.DoubleGaugeBuilder;
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.DoubleHistogramBuilder;
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.DoubleUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.LongCounterBuilder;
 import io.opentelemetry.api.metrics.LongGaugeBuilder;
+import io.opentelemetry.api.metrics.LongHistogram;
+import io.opentelemetry.api.metrics.LongHistogramBuilder;
 import io.opentelemetry.api.metrics.LongUpDownCounter;
 import io.opentelemetry.api.metrics.LongUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.Meter;
@@ -62,13 +65,303 @@ public class RecordingMeterProvider implements Meter {
 
     @Override
     public DoubleHistogramBuilder histogramBuilder(String name) {
-        // TODO(stu): implement
-        throw new UnsupportedOperationException("unimplemented");
+        return new RecordingDoubleHistogramBuilder(name);
     }
 
     @Override
     public DoubleGaugeBuilder gaugeBuilder(String name) {
         return new RecordingDoubleGaugeBuilder(name);
+    }
+
+    // Counter
+    private class RecordingLongCounterBuilder extends AbstractBuilder implements LongCounterBuilder {
+        RecordingLongCounterBuilder(String name) {
+            super(name);
+        }
+
+        @Override
+        public LongCounterBuilder setDescription(String description) {
+            innerSetDescription(description);
+            return this;
+        }
+
+        @Override
+        public LongCounterBuilder setUnit(String unit) {
+            innerSetUnit(unit);
+            return this;
+        }
+
+        @Override
+        public DoubleCounterBuilder ofDoubles() {
+            return new RecordingDoubleCounterBuilder(this);
+        }
+
+        @Override
+        public LongCounter build() {
+            LongRecorder counter = new LongRecorder(name);
+            recorder.registerLong(counter.getInstrument(), name, description, unit);
+            return counter;
+        }
+
+        @Override
+        public ObservableLongCounter buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
+            unimplemented();
+            return null;
+        }
+
+        @Override
+        public ObservableLongMeasurement buildObserver() {
+            unimplemented();
+            return null;
+        }
+    }
+
+    private class LongRecorder extends LongUpDownRecorder implements LongCounter {
+        LongRecorder(String name) {
+            super(name, MeterRecorder.INSTRUMENT.COUNTER);
+        }
+
+        @Override
+        public void add(long value) {
+            assert value >= 0;
+            super.add(value);
+        }
+
+        @Override
+        public void add(long value, Attributes attributes) {
+            assert value >= 0;
+            super.add(value, attributes);
+        }
+
+        @Override
+        public void add(long value, Attributes attributes, Context context) {
+            assert value >= 0;
+            super.add(value, attributes, context);
+        }
+    }
+
+    private class RecordingDoubleCounterBuilder extends AbstractBuilder implements DoubleCounterBuilder {
+
+        RecordingDoubleCounterBuilder(AbstractBuilder other) {
+            super(other);
+        }
+
+        @Override
+        public DoubleCounterBuilder setDescription(String description) {
+            innerSetDescription(description);
+            return this;
+        }
+
+        @Override
+        public DoubleCounterBuilder setUnit(String unit) {
+            innerSetUnit(unit);
+            return this;
+        }
+
+        @Override
+        public DoubleCounter build() {
+            DoubleRecorder counter = new DoubleRecorder(name);
+            recorder.registerDouble(counter.getInstrument(), name, description, unit);
+            return counter;
+        }
+
+        @Override
+        public ObservableDoubleCounter buildWithCallback(Consumer<ObservableDoubleMeasurement> callback) {
+            unimplemented();
+            return null;
+        }
+
+        @Override
+        public ObservableDoubleMeasurement buildObserver() {
+            unimplemented();
+            return null;
+        }
+    }
+
+    private class DoubleRecorder extends DoubleUpDownRecorder implements DoubleCounter {
+        DoubleRecorder(String name) {
+            super(name, MeterRecorder.INSTRUMENT.COUNTER);
+        }
+
+        @Override
+        public void add(double value) {
+            assert value >= 0;
+            super.add(value);
+        }
+
+        @Override
+        public void add(double value, Attributes attributes) {
+            assert value >= 0;
+            super.add(value, attributes);
+        }
+
+        @Override
+        public void add(double value, Attributes attributes, Context context) {
+            assert value >= 0;
+            super.add(value, attributes, context);
+        }
+    }
+
+    private class RecordingLongUpDownBuilder extends AbstractBuilder implements LongUpDownCounterBuilder {
+        RecordingLongUpDownBuilder(String name) {
+            super(name);
+        }
+
+        @Override
+        public LongUpDownCounterBuilder setDescription(String description) {
+            innerSetDescription(description);
+            return this;
+        }
+
+        @Override
+        public LongUpDownCounterBuilder setUnit(String unit) {
+            innerSetUnit(unit);
+            return this;
+        }
+
+        @Override
+        public DoubleUpDownCounterBuilder ofDoubles() {
+            return new RecordingDoubleUpDownBuilder(this);
+        }
+
+        @Override
+        public LongUpDownCounter build() {
+            LongUpDownRecorder counter = new LongUpDownRecorder(name);
+            recorder.registerLong(counter.getInstrument(), name, description, unit);
+            return counter;
+        }
+
+        @Override
+        public ObservableLongUpDownCounter buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
+            unimplemented();
+            return null;
+        }
+
+        @Override
+        public ObservableLongMeasurement buildObserver() {
+            unimplemented();
+            return null;
+        }
+    }
+
+    private class LongUpDownRecorder extends AbstractInstrument implements LongUpDownCounter {
+        LongUpDownRecorder(String name) {
+            super(name, MeterRecorder.INSTRUMENT.UP_DOWN_COUNTER);
+        }
+
+        protected LongUpDownRecorder(String name, MeterRecorder.INSTRUMENT instrument) {
+            // used by LongRecorder
+            super(name, instrument);
+        }
+
+        @Override
+        public void add(long value) {
+            recorder.call(instrument, name, value, null);
+        }
+
+        @Override
+        public void add(long value, Attributes attributes) {
+            recorder.call(instrument, name, value, toMap(attributes));
+        }
+
+        @Override
+        public void add(long value, Attributes attributes, Context context) {
+            unimplemented();
+        }
+    }
+
+    private class RecordingDoubleUpDownBuilder extends AbstractBuilder implements DoubleUpDownCounterBuilder {
+
+        RecordingDoubleUpDownBuilder(AbstractBuilder other) {
+            super(other);
+        }
+
+        @Override
+        public DoubleUpDownCounterBuilder setDescription(String description) {
+            innerSetDescription(description);
+            return this;
+        }
+
+        @Override
+        public DoubleUpDownCounterBuilder setUnit(String unit) {
+            innerSetUnit(unit);
+            return this;
+        }
+
+        @Override
+        public DoubleUpDownCounter build() {
+            DoubleUpDownRecorder counter = new DoubleUpDownRecorder(name);
+            recorder.registerDouble(counter.getInstrument(), name, description, unit);
+            return counter;
+        }
+
+        @Override
+        public ObservableDoubleUpDownCounter buildWithCallback(Consumer<ObservableDoubleMeasurement> callback) {
+            unimplemented();
+            return null;
+        }
+
+        @Override
+        public ObservableDoubleMeasurement buildObserver() {
+            unimplemented();
+            return null;
+        }
+    }
+
+    private class DoubleUpDownRecorder extends AbstractInstrument implements DoubleUpDownCounter {
+        DoubleUpDownRecorder(String name) {
+            super(name, MeterRecorder.INSTRUMENT.UP_DOWN_COUNTER);
+        }
+
+        protected DoubleUpDownRecorder(String name, MeterRecorder.INSTRUMENT instrument) {
+            // used by DoubleRecorder
+            super(name, instrument);
+        }
+
+        @Override
+        public void add(double value) {
+            recorder.call(instrument, name, value, null);
+        }
+
+        @Override
+        public void add(double value, Attributes attributes) {
+            recorder.call(instrument, name, value, toMap(attributes));
+        }
+
+        @Override
+        public void add(double value, Attributes attributes, Context context) {
+            unimplemented();
+        }
+    }
+
+    abstract static class AbstractInstrument {
+        protected final String name;
+        protected final MeterRecorder.INSTRUMENT instrument;
+
+        AbstractInstrument(String name, MeterRecorder.INSTRUMENT instrument) {
+            this.name = name;
+            this.instrument = instrument;
+        }
+
+        public MeterRecorder.INSTRUMENT getInstrument() {
+            return instrument;
+        }
+
+        protected void unimplemented() {
+            throw new UnsupportedOperationException("unimplemented");
+        }
+
+        Map<String, Object> toMap(Attributes attributes) {
+            if (attributes == null) {
+                return null;
+            }
+            if (attributes.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            Map<String, Object> map = new HashMap<>(attributes.size());
+            attributes.forEach((k, v) -> map.put(k.getKey(), v));
+            return map;
+        }
     }
 
     // Gauges
@@ -219,301 +512,98 @@ public class RecordingMeterProvider implements Meter {
         }
     }
 
-    // Counter
-    private class RecordingLongCounterBuilder extends AbstractBuilder implements LongCounterBuilder {
-        RecordingLongCounterBuilder(String name) {
+    // Histograms
+    private class RecordingDoubleHistogramBuilder extends AbstractBuilder implements DoubleHistogramBuilder {
+        RecordingDoubleHistogramBuilder(String name) {
             super(name);
         }
 
         @Override
-        public LongCounterBuilder setDescription(String description) {
+        public DoubleHistogramBuilder setDescription(String description) {
             innerSetDescription(description);
             return this;
         }
 
         @Override
-        public LongCounterBuilder setUnit(String unit) {
+        public DoubleHistogramBuilder setUnit(String unit) {
             innerSetUnit(unit);
             return this;
         }
 
         @Override
-        public DoubleCounterBuilder ofDoubles() {
-            return new RecordingDoubleCounterBuilder(this);
+        public LongHistogramBuilder ofLongs() {
+            return new RecordingLongHistogramBuilder(this);
         }
 
         @Override
-        public LongCounter build() {
-            LongRecorder counter = new LongRecorder(name);
-            recorder.registerLong(counter.getInstrument(), name, description, unit);
-            return counter;
-        }
-
-        @Override
-        public ObservableLongCounter buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
-            unimplemented();
-            return null;
-        }
-
-        @Override
-        public ObservableLongMeasurement buildObserver() {
-            unimplemented();
-            return null;
+        public DoubleHistogram build() {
+            return new DoubleHistogramRecorder(name);
         }
     }
 
-    private class LongRecorder extends LongUpDownRecorder implements LongCounter {
-        LongRecorder(String name) {
-            super(name, MeterRecorder.INSTRUMENT.COUNTER);
+    private class DoubleHistogramRecorder extends AbstractInstrument implements DoubleHistogram {
+        DoubleHistogramRecorder(String name) {
+            super(name, MeterRecorder.INSTRUMENT.HISTOGRAM);
         }
 
         @Override
-        public void add(long value) {
-            assert value >= 0;
-            super.add(value);
+        public void record(double value) {
+            recorder.call(getInstrument(), name, value, null);
         }
 
         @Override
-        public void add(long value, Attributes attributes) {
-            assert value >= 0;
-            super.add(value, attributes);
+        public void record(double value, Attributes attributes) {
+            recorder.call(getInstrument(), name, value, toMap(attributes));
         }
 
         @Override
-        public void add(long value, Attributes attributes, Context context) {
-            assert value >= 0;
-            super.add(value, attributes, context);
+        public void record(double value, Attributes attributes, Context context) {
+            unimplemented();
         }
     }
 
-    private class RecordingDoubleCounterBuilder extends AbstractBuilder implements DoubleCounterBuilder {
+    private class RecordingLongHistogramBuilder extends AbstractBuilder implements LongHistogramBuilder {
 
-        RecordingDoubleCounterBuilder(AbstractBuilder other) {
+        RecordingLongHistogramBuilder(AbstractBuilder other) {
             super(other);
         }
 
         @Override
-        public DoubleCounterBuilder setDescription(String description) {
+        public LongHistogramBuilder setDescription(String description) {
             innerSetDescription(description);
             return this;
         }
 
         @Override
-        public DoubleCounterBuilder setUnit(String unit) {
+        public LongHistogramBuilder setUnit(String unit) {
             innerSetUnit(unit);
             return this;
         }
 
         @Override
-        public DoubleCounter build() {
-            DoubleRecorder counter = new DoubleRecorder(name);
-            recorder.registerDouble(counter.getInstrument(), name, description, unit);
-            return counter;
-        }
-
-        @Override
-        public ObservableDoubleCounter buildWithCallback(Consumer<ObservableDoubleMeasurement> callback) {
-            unimplemented();
-            return null;
-        }
-
-        @Override
-        public ObservableDoubleMeasurement buildObserver() {
-            unimplemented();
-            return null;
+        public LongHistogram build() {
+            return new LongHistogramRecorder(name);
         }
     }
 
-    private class DoubleRecorder extends DoubleUpDownRecorder implements DoubleCounter {
-        DoubleRecorder(String name) {
-            super(name, MeterRecorder.INSTRUMENT.COUNTER);
+    private class LongHistogramRecorder extends AbstractInstrument implements LongHistogram {
+        LongHistogramRecorder(String name) {
+            super(name, MeterRecorder.INSTRUMENT.HISTOGRAM);
         }
 
         @Override
-        public void add(double value) {
-            assert value >= 0;
-            super.add(value);
+        public void record(long value) {
+            recorder.call(getInstrument(), name, value, null);
         }
 
         @Override
-        public void add(double value, Attributes attributes) {
-            assert value >= 0;
-            super.add(value, attributes);
+        public void record(long value, Attributes attributes) {
+            recorder.call(getInstrument(), name, value, toMap(attributes));
         }
 
         @Override
-        public void add(double value, Attributes attributes, Context context) {
-            assert value >= 0;
-            super.add(value, attributes, context);
-        }
-    }
-
-    private class RecordingLongUpDownBuilder extends AbstractBuilder implements LongUpDownCounterBuilder {
-        RecordingLongUpDownBuilder(String name) {
-            super(name);
-        }
-
-        RecordingLongUpDownBuilder(AbstractBuilder other) {
-            super(other);
-        }
-
-        @Override
-        public LongUpDownCounterBuilder setDescription(String description) {
-            innerSetDescription(description);
-            return this;
-        }
-
-        @Override
-        public LongUpDownCounterBuilder setUnit(String unit) {
-            innerSetUnit(unit);
-            return this;
-        }
-
-        @Override
-        public DoubleUpDownCounterBuilder ofDoubles() {
-            return new RecordingDoubleUpDownBuilder(this);
-        }
-
-        @Override
-        public LongUpDownCounter build() {
-            LongUpDownRecorder counter = new LongUpDownRecorder(name);
-            recorder.registerLong(counter.getInstrument(), name, description, unit);
-            return counter;
-        }
-
-        @Override
-        public ObservableLongUpDownCounter buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
+        public void record(long value, Attributes attributes, Context context) {
             unimplemented();
-            return null;
-        }
-
-        @Override
-        public ObservableLongMeasurement buildObserver() {
-            unimplemented();
-            return null;
-        }
-    }
-
-    private class LongUpDownRecorder extends AbstractInstrument implements LongUpDownCounter {
-        LongUpDownRecorder(String name) {
-            super(name, MeterRecorder.INSTRUMENT.UP_DOWN_COUNTER);
-        }
-
-        protected LongUpDownRecorder(String name, MeterRecorder.INSTRUMENT instrument) {
-            // used by LongRecorder
-            super(name, instrument);
-        }
-
-        @Override
-        public void add(long value) {
-            recorder.call(instrument, name, value, null);
-        }
-
-        @Override
-        public void add(long value, Attributes attributes) {
-            recorder.call(instrument, name, value, toMap(attributes));
-        }
-
-        @Override
-        public void add(long value, Attributes attributes, Context context) {
-            unimplemented();
-        }
-    }
-
-    private class RecordingDoubleUpDownBuilder extends AbstractBuilder implements DoubleUpDownCounterBuilder {
-        RecordingDoubleUpDownBuilder(String name) {
-            super(name);
-        }
-
-        RecordingDoubleUpDownBuilder(AbstractBuilder other) {
-            super(other);
-        }
-
-        @Override
-        public DoubleUpDownCounterBuilder setDescription(String description) {
-            innerSetDescription(description);
-            return this;
-        }
-
-        @Override
-        public DoubleUpDownCounterBuilder setUnit(String unit) {
-            innerSetUnit(unit);
-            return this;
-        }
-
-        @Override
-        public DoubleUpDownCounter build() {
-            DoubleUpDownRecorder counter = new DoubleUpDownRecorder(name);
-            recorder.registerDouble(counter.getInstrument(), name, description, unit);
-            return counter;
-        }
-
-        @Override
-        public ObservableDoubleUpDownCounter buildWithCallback(Consumer<ObservableDoubleMeasurement> callback) {
-            unimplemented();
-            return null;
-        }
-
-        @Override
-        public ObservableDoubleMeasurement buildObserver() {
-            unimplemented();
-            return null;
-        }
-    }
-
-    private class DoubleUpDownRecorder extends AbstractInstrument implements DoubleUpDownCounter {
-        DoubleUpDownRecorder(String name) {
-            super(name, MeterRecorder.INSTRUMENT.UP_DOWN_COUNTER);
-        }
-
-        protected DoubleUpDownRecorder(String name, MeterRecorder.INSTRUMENT instrument) {
-            // used by DoubleRecorder
-            super(name, instrument);
-        }
-
-        @Override
-        public void add(double value) {
-            recorder.call(instrument, name, value, null);
-        }
-
-        @Override
-        public void add(double value, Attributes attributes) {
-            recorder.call(instrument, name, value, toMap(attributes));
-        }
-
-        @Override
-        public void add(double value, Attributes attributes, Context context) {
-            unimplemented();
-        }
-    }
-
-    abstract static class AbstractInstrument {
-        protected final String name;
-        protected final MeterRecorder.INSTRUMENT instrument;
-
-        AbstractInstrument(String name, MeterRecorder.INSTRUMENT instrument) {
-            this.name = name;
-            this.instrument = instrument;
-        }
-
-        public MeterRecorder.INSTRUMENT getInstrument() {
-            return instrument;
-        }
-
-        protected void unimplemented() {
-            throw new UnsupportedOperationException("unimplemented");
-        }
-
-        Map<String, Object> toMap(Attributes attributes) {
-            if (attributes == null) {
-                return null;
-            }
-            if (attributes.isEmpty()) {
-                return Collections.emptyMap();
-            }
-            Map<String, Object> map = new HashMap<>(attributes.size());
-            attributes.forEach((k, v) -> map.put(k.getKey(), v));
-            return map;
         }
     }
 

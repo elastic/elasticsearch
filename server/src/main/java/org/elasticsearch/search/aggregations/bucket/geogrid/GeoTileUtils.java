@@ -265,7 +265,7 @@ public final class GeoTileUtils {
      * Decode a yTile into its latitude value
      */
     public static double tileToLat(int yTile, int tiles) {
-        final double lat = tileToLat(yTile, tiles);
+        final double lat = tileToLat((double) yTile, tiles);
         if (tiles < MAX_TILES_FULL_PRECISION || yTile == 0 || yTile == tiles) {
             return lat; // precise case, don't need to do more work
         }

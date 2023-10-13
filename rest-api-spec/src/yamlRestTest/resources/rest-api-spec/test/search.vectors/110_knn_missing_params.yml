@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: ' - 8.11.99'
-      reason: 'kNN search added in 8.11'
+      reason: '[k] and [num_candidates] were made optional for kNN search in 8.12'
   - do:
       indices.create:
         index: test
@@ -127,4 +127,3 @@ setup:
           size: 10
 
   - match: { status: 400 }
-

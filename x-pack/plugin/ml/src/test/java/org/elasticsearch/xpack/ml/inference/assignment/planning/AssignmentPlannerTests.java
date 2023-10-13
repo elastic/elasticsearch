@@ -255,10 +255,10 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testMultipleModelsAndNodesWithSingleSolution() {
-        Node node1 = new Node("n_1", scaleNodeSize(100), 7);
-        Node node2 = new Node("n_2", scaleNodeSize(100), 7);
-        Node node3 = new Node("n_3", scaleNodeSize(100), 2);
-        Node node4 = new Node("n_4", scaleNodeSize(100), 2);
+        Node node1 = new Node("n_1", 2*scaleNodeSize(50), 7);
+        Node node2 = new Node("n_2", 2*scaleNodeSize(50), 7);
+        Node node3 = new Node("n_3", 2*scaleNodeSize(50), 2);
+        Node node4 = new Node("n_4", 2*scaleNodeSize(50), 2);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(50).getBytes(), 2, 4, Map.of(), 0, 0, 0);
         Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 2, 3, Map.of(), 0, 0, 0);
         Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 2, Map.of(), 0, 0, 0);
@@ -668,6 +668,9 @@ public class AssignmentPlannerTests extends ESTestCase {
             StopWatch stopWatch = new StopWatch();
             stopWatch.start();
             AssignmentPlan assignmentPlan = solver.computePlan();
+            for (Node node : nodes) {
+                assertThat(assignmentPlan.getRemainingNodeMemory(node.id()), greaterThanOrEqualTo(0L));
+            }
             stopWatch.stop();
 
             Quality quality = computeQuality(nodes, deployments, assignmentPlan);
@@ -807,8 +810,8 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenClusterResize_AllocationShouldNotExceedMemoryConstraints() {
-        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
-        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1840).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(2580).getBytes(), 2);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
         Deployment deployment2 = new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
         Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, 0, 0);
@@ -849,8 +852,8 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testGivenClusterResize_ShouldAllocateEachModelAtLeastOnce() {
-        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
-        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(2600).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(2600).getBytes(), 2);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
         Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
         Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, 0, 0);
@@ -886,8 +889,8 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(indexedBasedPlan.get("m_3"), equalTo(Map.of("n_2", 1)));
 
         // Now the cluster starts getting resized.
-        Node node3 = new Node("n_3", ByteSizeValue.ofMb(2400).getBytes(), 2);
-        Node node4 = new Node("n_4", ByteSizeValue.ofMb(2400).getBytes(), 2);
+        Node node3 = new Node("n_3", ByteSizeValue.ofMb(2600).getBytes(), 2);
+        Node node4 = new Node("n_4", ByteSizeValue.ofMb(2600).getBytes(), 2);
 
         // First, one node goes away.
         assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
@@ -920,8 +923,8 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     public void testGivenClusterResize_ShouldRemoveAllocatedModels() {
         // Ensure that plan is removing previously allocated models if not enough memory is available
-        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
-        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1840).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(2580).getBytes(), 2);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
         Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
         Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 1, 1, Map.of(), 0, 0, 0);

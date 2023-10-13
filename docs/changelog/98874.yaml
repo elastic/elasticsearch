@@ -1,6 +1,5 @@
 pr: 98874
-summary: Use `perAllocation` and `perDeployment` memory usage in the model assignment
-  planner
+summary: Estimate the memory required to deploy trained models more accurately
 area: Machine Learning
 type: enhancement
 issues: []

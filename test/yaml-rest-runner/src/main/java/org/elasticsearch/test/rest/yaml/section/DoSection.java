@@ -636,7 +636,7 @@ public class DoSection implements ExecutableSection {
         } catch (IllegalArgumentException e) {
             throw new XContentParseException(
                 location,
-                "expected [version] to be a semantic (x.y.z format), but found " + unqualifiedNodeVersionString,
+                "[version] range node selector expects a semantic version format (x.y.z), but found " + unqualifiedNodeVersionString,
                 e
             );
         }

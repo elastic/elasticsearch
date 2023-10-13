@@ -20,6 +20,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.hamcrest.MatcherAssert;
@@ -37,6 +38,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -577,7 +579,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(e.getMessage(), equalTo("the warning [foo] was both allowed and expected"));
     }
 
-    public void testNodeSelectorByVersion() throws IOException {
+    public void testNodeSelectorByVersionRange() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:
                 version: 5.2.0-6.0.0
@@ -590,13 +592,11 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         Node v521 = nodeWithVersion("5.2.1");
         Node v550 = nodeWithVersion("5.5.0");
         Node v612 = nodeWithVersion("6.1.2");
-        Node nonSemantic = nodeWithVersion("abddef");
         List<Node> nodes = new ArrayList<>();
         nodes.add(v170);
         nodes.add(v521);
         nodes.add(v550);
         nodes.add(v612);
-        nodes.add(nonSemantic);
         doSection.getApiCallSection().getNodeSelector().select(nodes);
         assertEquals(Arrays.asList(v521, v550), nodes);
         ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
@@ -627,6 +627,28 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             Exception e = expectThrows(IllegalStateException.class, () -> doSection.getApiCallSection().getNodeSelector().select(badNodes));
             assertEquals("expected [version] metadata to be set but got [host=http://dummy]", e.getMessage());
         }
+    }
+
+    public void testNodeSelectorByVersionRangeFailsWithNonSemanticVersion() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, """
+            node_selector:
+                version: 5.2.0-6.0.0
+            indices.get_field_mapping:
+                index: test_index""");
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node nonSemantic = nodeWithVersion("abddef");
+        List<Node> nodes = new ArrayList<>();
+
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> doSection.getApiCallSection().getNodeSelector().select(List.of(nonSemantic))
+        );
+        assertThat(
+            exception.getMessage(),
+            endsWith("[version] range node selector expects a semantic version format (x.y.z), but found abddef")
+        );
     }
 
     public void testNodeSelectorCurrentVersion() throws IOException {

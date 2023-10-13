@@ -166,23 +166,25 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             final Map<String, String> nodesIdsAndVersions = nodesVersions();
             assertThat("Cluster should have 3 nodes", nodesIdsAndVersions.size(), equalTo(numberOfNodes));
 
-            final String nodeIdWithOriginalVersion = randomFrom(
-                nodesIdsAndVersions.entrySet()
-                    .stream()
-                    .filter(node -> UPGRADE_FROM_VERSION.equals(node.getValue()))
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet())
-            );
+            final var newVersionNodes = nodesIdsAndVersions.entrySet()
+                .stream()
+                .filter(node -> UPGRADE_FROM_VERSION.equals(node.getValue()) == false)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
 
+            final var originalVersionNodes = nodesIdsAndVersions.entrySet()
+                .stream()
+                .filter(node -> UPGRADE_FROM_VERSION.equals(node.getValue()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+
+            final String nodeIdWithOriginalVersion = randomFrom(originalVersionNodes);
+
+            // We may not have upgraded nodes, if we are running these test on the same version (original == current)
+            final var upgradedVersionNodes = newVersionNodes.isEmpty() ? originalVersionNodes : newVersionNodes;
             final String nodeIdWithUpgradedVersion = randomValueOtherThan(
                 nodeIdWithOriginalVersion,
-                () -> randomFrom(
-                    nodesIdsAndVersions.entrySet()
-                        .stream()
-                        .filter(node -> UPGRADE_FROM_VERSION.equals(node.getValue()) == false)
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toSet())
-                )
+                () -> randomFrom(upgradedVersionNodes)
             );
 
             // The snapshot is mounted on the node with the min. version in order to force the node to populate the blob store cache index.

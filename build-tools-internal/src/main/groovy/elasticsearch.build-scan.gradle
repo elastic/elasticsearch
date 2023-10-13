@@ -124,7 +124,7 @@ buildScan {
       def uploadFilePath = "build/${buildNumber}.tar.bz2"
       File uploadFile = file(uploadFilePath)
 
-      logger.info(uploadFile)
+      logger.info(uploadFilePath)
 
       if (uploadFile.exists()) {
         logger.info("exists, searching " + ["buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i"].join(" "))

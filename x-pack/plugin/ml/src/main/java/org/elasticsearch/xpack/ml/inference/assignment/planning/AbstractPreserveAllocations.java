@@ -83,12 +83,15 @@ abstract class AbstractPreserveAllocations {
                 int newAllocations = assignmentsByModelNodeIdPair.getOrDefault(Tuple.tuple(m.id(), n.id()), 0);
                 int preservedAllocations = 0;
                 if (m.currentAllocationsByNodeId().containsKey(n.id())) {
-                    if (mergedPlanBuilder.getRemainingMemory(n) >= m.memoryBytes()) {
-                        preservedAllocations = addPreservedAllocations(n, m);
+                    preservedAllocations = addPreservedAllocations(n, m);
+                    if (mergedPlanBuilder.getRemainingMemory(n) >= m.estimateMemoryUsageBytes(preservedAllocations)) {
                         newAllocations += preservedAllocations;
                         // As the node has all its available memory we need to manually account memory of models with
                         // current allocations.
-                        mergedPlanBuilder.accountMemory(m, n);
+                        mergedPlanBuilder.accountMemory(m, n, preservedAllocations);
+                    }
+                    else {
+                        preservedAllocations = 0;
                     }
                 }
                 if (newAllocations > 0

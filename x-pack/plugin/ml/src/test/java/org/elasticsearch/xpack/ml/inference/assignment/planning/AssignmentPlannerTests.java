@@ -948,6 +948,33 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     }
 
+    public void testGivenClusterResize_ShouldRemoveAllocatedModels_NewMemoryFields() {
+        // Ensure that plan is removing previously allocated models if not enough memory is available
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(700).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 2);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(100).getBytes(), 2, 1, Map.of(), 0, ByteSizeValue.ofMb(400).getBytes(), ByteSizeValue.ofMb(100).getBytes());
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(100).getBytes(), 1, 1, Map.of(), 0, ByteSizeValue.ofMb(400).getBytes(), ByteSizeValue.ofMb(150).getBytes());
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(50).getBytes(), 1, 1, Map.of(), 0, ByteSizeValue.ofMb(250).getBytes(), ByteSizeValue.ofMb(50).getBytes());
+
+        // Create a plan where all deployments are assigned at least once
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))
+            .computePlan();
+        Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(assignmentPlan);
+        assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2", "m_3"));
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+        assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_2", 1)));
+        assertThat(indexedBasedPlan.get("m_3"), equalTo(Map.of("n_2", 1)));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node2.id()), greaterThanOrEqualTo(0L));
+
+        // Now the cluster starts getting resized. Ensure that resources are not over-allocated.
+        assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeCores(node1.id()), greaterThanOrEqualTo(0));
+
+    }
+
     public static List<Deployment> createModelsFromPlan(AssignmentPlan plan) {
         List<Deployment> deployments = new ArrayList<>();
         for (Deployment m : plan.models()) {

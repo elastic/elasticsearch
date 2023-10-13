@@ -1,0 +1,104 @@
+[role="xpack"]
+[[put-inference-api]]
+=== Create {infer} API
+
+Creates a model to perform an {infer} task.
+
+
+[discrete]
+[[put-inference-api-request]]
+==== {api-request-title}
+
+`PUT /_inference/<task_type>/<model_id>`
+
+
+[discrete]
+[[put-inference-api-prereqs]]
+==== {api-prereq-title}
+
+* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+
+[discrete]
+[[put-inference-api-desc]]
+==== {api-description-title}
+
+The create {infer} API enables you to create and configure an {infer} model to 
+perform a specific {infer} task. 
+
+
+[discrete]
+[[put-inference-api-path-params]]
+==== {api-path-parms-title}
+
+
+`<model_id>`::
+(Required, string)
+The unique identifier of the model.
+
+`<task_type>`::
+(Required, string)
+The type of the {infer} task that the model will perform. Available task types:
+* `sparse_embedding`,
+* `text_embedding`.
+
+
+[discrete]
+[[put-inference-api-request-body]]
+== {api-request-body-title}
+
+`service`::
+(Required, string)
+The type of service supported for the specified task type.
+Available services:
+* `elser`,
+* `elser_mlnode`.
+
+`service_settings`::
+(Required, object)
+Settings used to install the {infer} model. These settings are specific to the 
+`service` you specified.
+
+`task_settings`::
+(Optional, object)
+Settings to configure the {infer} task. These settings are specific to the 
+`<task_type>` you specified.
+
+
+[discrete]
+[[put-inference-api-example]]
+==== {api-examples-title}
+
+The following example shows how to create an {infer} model called 
+`my-elser-model` to perform a `sparse_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/my-elser-model
+{
+  "service": "elser_mlnode",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1
+  },
+  "task_settings": {}
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+Example response:
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "model_id": "my-elser-model",
+  "task_type": "sparse_embedding",
+  "service": "elser_mlnode",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1
+  },
+  "task_settings": {}
+}
+------------------------------------------------------------
+// NOTCONSOLE

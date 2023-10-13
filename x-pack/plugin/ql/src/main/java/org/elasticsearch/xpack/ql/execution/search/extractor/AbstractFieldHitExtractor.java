@@ -69,6 +69,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         }
     }
 
+    @SuppressWarnings("this-escape")
     protected AbstractFieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
         String typeName = in.readOptionalString();
@@ -206,7 +207,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return values;
     }
 
-    private boolean isListOfNulls(Object unwrapped) {
+    private static boolean isListOfNulls(Object unwrapped) {
         if (unwrapped instanceof List<?> list) {
             if (list.size() == 0) {
                 return false;

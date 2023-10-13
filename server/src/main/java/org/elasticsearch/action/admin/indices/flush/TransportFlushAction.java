@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -48,7 +49,7 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
             actionFilters,
             indexNameExpressionResolver,
             TransportShardFlushAction.TYPE,
-            ThreadPool.Names.FLUSH
+            transportService.getThreadPool().executor(ThreadPool.Names.FLUSH)
         );
     }
 

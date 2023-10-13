@@ -7,12 +7,14 @@
  */
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
@@ -111,7 +113,9 @@ public class NodeMetadataTests extends ESTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            startsWith("cannot upgrade a node from version [" + Version.V_EMPTY + "] directly to version [" + Version.CURRENT + "]")
+            startsWith(
+                "cannot upgrade a node from version [" + Version.V_EMPTY + "] directly to version [" + Build.current().version() + "]"
+            )
         );
     }
 
@@ -122,7 +126,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]"))
+            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Build.current().version() + "]"))
         );
     }
 
@@ -137,9 +141,9 @@ public class NodeMetadataTests extends ESTestCase {
                 startsWith("cannot upgrade a node from version ["),
                 endsWith(
                     "] directly to version ["
-                        + Version.CURRENT
+                        + Build.current().version()
                         + "], upgrade to version ["
-                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + Build.current().minWireCompatVersion()
                         + "] first."
                 )
             )
@@ -153,6 +157,23 @@ public class NodeMetadataTests extends ESTestCase {
         final NodeMetadata nodeMetadata = new NodeMetadata(nodeId, version, IndexVersion.current()).upgradeToCurrentVersion();
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
         assertThat(nodeMetadata.previousNodeVersion(), equalTo(version));
+    }
+
+    public void testIsNodeVersionWireCompatible() {
+        String nodeVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT).toString();
+        assertTrue(NodeMetadata.isNodeVersionWireCompatible(nodeVersion));
+        nodeVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()).toString();
+        assertFalse(NodeMetadata.isNodeVersionWireCompatible(nodeVersion));
+
+        String transportVersion = TransportVersionUtils.randomCompatibleVersion(random()).toString();
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> NodeMetadata.isNodeVersionWireCompatible(transportVersion)
+        );
+        assertThat(e1.getMessage(), equalTo("Cannot parse [" + transportVersion + "] as a transport version identifier"));
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> NodeMetadata.isNodeVersionWireCompatible("x.y.z"));
+        assertThat(e2.getMessage(), equalTo("Cannot parse [x.y.z] as a transport version identifier"));
     }
 
     public static Version tooNewVersion() {

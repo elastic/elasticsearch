@@ -258,7 +258,13 @@ of the underlying filesystem and then take a backup of this filesystem
 snapshot. It is very important that the filesystem snapshot is taken
 atomically.
 
-WARNING: You cannot use filesystem snapshots of individual nodes as a backup
+WARNING: Do not rely on repository backups that were taken by methods other
+than the one described in this section. If you use another method to make a
+copy of your repository contents then the resulting copy may capture an
+inconsistent view of your data. Restoring a repository from such a copy may
+fail, reporting errors, or may succeed having silently lost some of your data.
+
+WARNING: Do not use filesystem snapshots of individual nodes as a backup
 mechanism. You must use the {es} snapshot and restore feature to copy the
 cluster contents to a separate repository. Then, if desired, you can take a
 filesystem snapshot of this repository.

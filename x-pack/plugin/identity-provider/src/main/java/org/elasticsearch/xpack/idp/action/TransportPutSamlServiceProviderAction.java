@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -56,7 +57,13 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
         SamlIdentityProvider identityProvider,
         Clock clock
     ) {
-        super(PutSamlServiceProviderAction.NAME, transportService, actionFilters, PutSamlServiceProviderRequest::new);
+        super(
+            PutSamlServiceProviderAction.NAME,
+            transportService,
+            actionFilters,
+            PutSamlServiceProviderRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.index = index;
         this.identityProvider = identityProvider;
         this.clock = clock;
@@ -146,7 +153,7 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
         );
     }
 
-    private String deriveDocumentId(SamlServiceProviderDocument document) {
+    private static String deriveDocumentId(SamlServiceProviderDocument document) {
         final byte[] sha256 = MessageDigests.sha256().digest(document.entityId.getBytes(StandardCharsets.UTF_8));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(sha256);
     }

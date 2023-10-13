@@ -365,15 +365,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static String versionString(IndexVersion version) {
-        if (version.before(IndexVersion.V_8_9_0)) {
-            // add back the "" for a json String
-            return "\"" + Version.fromId(version.id()) + "\"";
-        } else {
-            return version.toString();
-        }
-    }
-
     /**
      * Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
      * generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
@@ -392,11 +383,19 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final RepositoryData repositoryData = getRepositoryData(repoName, version);
         final XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(jsonBuilder, version);
+        final var currentVersionString = Strings.toString(jsonBuilder);
+        final String oldVersionString;
+        if (version.onOrAfter(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
+            oldVersionString = currentVersionString.replace(
+                ",\"index_version\":" + IndexVersion.current(),
+                ",\"index_version\":" + version
+            );
+        } else {
+            oldVersionString = currentVersionString.replace(",\"index_version\":" + IndexVersion.current(), "")
+                .replace(",\"version\":\"8.11.0\"", ",\"version\":\"" + Version.fromId(version.id()) + "\"");
+        }
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(
-            JsonXContent.jsonXContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                Strings.toString(jsonBuilder).replace(IndexVersion.current().toString(), versionString(version))
-            ),
+            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, oldVersionString),
             repositoryData.getGenId(),
             randomBoolean()
         );

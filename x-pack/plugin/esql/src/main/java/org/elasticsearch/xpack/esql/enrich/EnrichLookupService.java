@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,9 +22,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValueSources;
@@ -52,7 +51,6 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
@@ -66,7 +64,6 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -142,19 +139,15 @@ public class EnrichLookupService {
         }
         DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
         LookupRequest lookupRequest = new LookupRequest(sessionId, shardIt.shardId(), matchType, matchField, inputPage, extractFields);
-        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        listener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-        try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
-            // TODO: handle retry and avoid forking for the local lookup
-            transportService.sendChildRequest(
-                targetNode,
-                LOOKUP_ACTION_NAME,
-                lookupRequest,
-                parentTask,
-                TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
-            );
-        }
+        // TODO: handle retry and avoid forking for the local lookup
+        transportService.sendChildRequest(
+            targetNode,
+            LOOKUP_ACTION_NAME,
+            lookupRequest,
+            parentTask,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
+        );
     }
 
     private void doLookup(
@@ -245,10 +238,14 @@ public class EnrichLookupService {
     }
 
     private static Operator droppingBlockOperator(int totalBlocks, int droppingPosition) {
-        BitSet bitSet = new BitSet(totalBlocks);
-        bitSet.set(0, totalBlocks);
-        bitSet.clear(droppingPosition);
-        return new ProjectOperator(bitSet);
+        var size = totalBlocks - 1;
+        var projection = new ArrayList<Integer>(size);
+        for (int i = 0; i < totalBlocks; i++) {
+            if (i != droppingPosition) {
+                projection.add(i);
+            }
+        }
+        return new ProjectOperator(projection);
     }
 
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {
@@ -298,7 +295,8 @@ public class EnrichLookupService {
             this.shardId = new ShardId(in);
             this.matchType = in.readString();
             this.matchField = in.readString();
-            this.inputPage = new Page(in);
+            // TODO real BlockFactory
+            this.inputPage = new Page(new BlockStreamInput(in, BlockFactory.getNonBreakingInstance()));
             PlanStreamInput planIn = new PlanStreamInput(in, PlanNameRegistry.INSTANCE, in.namedWriteableRegistry(), null);
             this.extractFields = planIn.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
         }
@@ -368,7 +366,8 @@ public class EnrichLookupService {
         }
 
         LookupResponse(StreamInput in) throws IOException {
-            this.page = new Page(in);
+            // TODO real BlockFactory
+            this.page = new Page(new BlockStreamInput(in, BlockFactory.getNonBreakingInstance()));
         }
 
         @Override

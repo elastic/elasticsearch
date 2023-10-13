@@ -15,6 +15,7 @@ import java.util.Collections;
 
 public class ObjectMapperMergeTests extends ESTestCase {
 
+    @SuppressWarnings("this-escape")
     private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
     private RootObjectMapper createMapping(

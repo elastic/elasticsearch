@@ -22,6 +22,7 @@ public class TransformRegistry {
         String,
         TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> factories;
 
+    @SuppressWarnings("this-escape")
     public TransformRegistry(
         Map<String, TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> factories
     ) {

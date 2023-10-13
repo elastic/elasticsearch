@@ -32,6 +32,7 @@ import static org.mockito.Mockito.mock;
 
 public class TransportRankEvalActionTests extends ESTestCase {
 
+    @SuppressWarnings("this-escape")
     private Settings settings = Settings.builder()
         .put("path.home", createTempDir().toString())
         .put("node.name", "test-" + getTestName())

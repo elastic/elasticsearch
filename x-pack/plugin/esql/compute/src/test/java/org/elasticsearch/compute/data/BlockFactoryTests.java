@@ -29,6 +29,8 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -37,6 +39,10 @@ import static org.mockito.Mockito.when;
 // BlockFactory is used and effectively tested in many other places, but this class contains tests
 // more specific to the factory implementation itself (and not necessarily tested elsewhere).
 public class BlockFactoryTests extends ESTestCase {
+    public static BlockFactory blockFactory(ByteSizeValue size) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, size).withCircuitBreaking();
+        return new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+    }
 
     final CircuitBreaker breaker;
     final BigArrays bigArrays;
@@ -44,11 +50,19 @@ public class BlockFactoryTests extends ESTestCase {
 
     @ParametersFactory
     public static List<Object[]> params() {
-        List<Supplier<BlockFactory>> l = List.of(() -> {
-            CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-            BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-            return BlockFactory.getInstance(breaker, bigArrays);
-        }, BlockFactory::getGlobalInstance);
+        List<Supplier<BlockFactory>> l = List.of(new Supplier<>() {
+            @Override
+            public BlockFactory get() {
+                CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+                BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+                return BlockFactory.getInstance(breaker, bigArrays);
+            }
+
+            @Override
+            public String toString() {
+                return "1gb";
+            }
+        });
         return l.stream().map(s -> new Object[] { s }).toList();
     }
 
@@ -541,6 +555,19 @@ public class BlockFactoryTests extends ESTestCase {
         }
     }
 
+    public void testReleaseVector() {
+        int positionCount = randomIntBetween(1, 10);
+        IntVector vector = blockFactory.newIntArrayVector(new int[positionCount], positionCount);
+        if (randomBoolean()) {
+            vector.asBlock().close();
+        } else {
+            vector.close();
+        }
+        assertTrue(vector.isReleased());
+        assertTrue(vector.asBlock().isReleased());
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     static BytesRef randomBytesRef() {
         return new BytesRef(randomByteArrayOfLength(between(1, 20)));
     }
@@ -550,8 +577,17 @@ public class BlockFactoryTests extends ESTestCase {
     }
 
     <T extends Releasable & Accountable> void releaseAndAssertBreaker(T data) {
+        Page page = data instanceof Block block ? new Page(block) : null;
         assertThat(breaker.getUsed(), greaterThan(0L));
         Releasables.closeExpectNoException(data);
+        if (data instanceof Block block) {
+            assertThat(block.isReleased(), is(true));
+            Exception e = expectThrows(IllegalStateException.class, () -> page.getBlock(0));
+            assertThat(e.getMessage(), containsString("can't read released block"));
+
+            e = expectThrows(IllegalArgumentException.class, () -> new Page(block));
+            assertThat(e.getMessage(), containsString("can't build page out of released blocks"));
+        }
         assertThat(breaker.getUsed(), is(0L));
     }
 

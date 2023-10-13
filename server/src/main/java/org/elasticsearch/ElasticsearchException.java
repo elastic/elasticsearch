@@ -144,6 +144,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         super(LoggerMessageFormat.format(msg, args), cause);
     }
 
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);

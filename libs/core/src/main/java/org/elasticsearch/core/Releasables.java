@@ -89,7 +89,7 @@ public enum Releasables {
      *  // the resources will be released when reaching here
      *  </pre>
      */
-    public static Releasable wrap(final Iterable<Releasable> releasables) {
+    public static Releasable wrap(final Iterable<? extends Releasable> releasables) {
         return new Releasable() {
             @Override
             public void close() {

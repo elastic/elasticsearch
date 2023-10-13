@@ -91,6 +91,11 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     }
 
     @Override
+    public boolean supportsParallelCollection() {
+        return false;
+    }
+
+    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,

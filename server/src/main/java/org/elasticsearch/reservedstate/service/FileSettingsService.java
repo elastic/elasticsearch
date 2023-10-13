@@ -124,7 +124,7 @@ public class FileSettingsService extends AbstractFileWatchingService {
         completion.get();
     }
 
-    private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
+    private static void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
         if (e != null) {
             completion.onFailure(e);
         } else {

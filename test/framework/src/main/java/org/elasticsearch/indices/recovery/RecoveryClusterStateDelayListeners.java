@@ -50,11 +50,11 @@ public class RecoveryClusterStateDelayListeners implements Releasable {
         clusterStateBarriers.values().forEach(l -> l.onResponse(null));
     }
 
-    void addCleanup(Runnable runnable) {
+    public void addCleanup(Runnable runnable) {
         cleanup.add(runnable);
     }
 
-    SubscribableListener<Void> getClusterStateDelayListener(long clusterStateVersion) {
+    public SubscribableListener<Void> getClusterStateDelayListener(long clusterStateVersion) {
         ESTestCase.assertThat(clusterStateVersion, greaterThanOrEqualTo(initialClusterStateVersion));
         if (refCounted.tryIncRef()) {
             try {
@@ -67,14 +67,13 @@ public class RecoveryClusterStateDelayListeners implements Releasable {
         }
     }
 
-    void onStartRecovery() {
+    public void onStartRecovery() {
         Thread.yield();
         ESTestCase.assertFalse(startRecoveryListener.isDone());
         startRecoveryListener.onResponse(null);
     }
 
     public void delayUntilRecoveryStart(SubscribableListener<Void> listener) {
-        ESTestCase.assertFalse(startRecoveryListener.isDone());
         startRecoveryListener.addListener(listener);
     }
 }

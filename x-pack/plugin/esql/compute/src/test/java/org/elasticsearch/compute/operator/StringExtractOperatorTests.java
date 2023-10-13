@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -25,11 +26,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new BytesRefBlockSourceOperator(input);
+        return new BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(String fieldName) implements Function<String, Map<String, String>> {
@@ -46,8 +47,8 @@ public class StringExtractOperatorTests extends OperatorTestCase {
             new String[] { "test" },
             dvrCtx -> new EvalOperator.ExpressionEvaluator() {
                 @Override
-                public Block eval(Page page) {
-                    return page.getBlock(0);
+                public Block.Ref eval(Page page) {
+                    return new Block.Ref(page.getBlock(0), page);
                 }
 
                 @Override
@@ -83,21 +84,20 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 
     public void testMultivalueDissectInput() {
 
         StringExtractOperator operator = new StringExtractOperator(new String[] { "test" }, new EvalOperator.ExpressionEvaluator() {
             @Override
-            public Block eval(Page page) {
-                return page.getBlock(0);
+            public Block.Ref eval(Page page) {
+                return new Block.Ref(page.getBlock(0), page);
             }
 
             @Override
             public void close() {}
-        }, new FirstWord("test"));
+        }, new FirstWord("test"), driverContext());
 
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
         builder.beginPositionEntry();

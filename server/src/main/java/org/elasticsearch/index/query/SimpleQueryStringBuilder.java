@@ -91,7 +91,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
-    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_500_023;
+    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_500_040;
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
@@ -142,6 +142,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public SimpleQueryStringBuilder(StreamInput in) throws IOException {
         super(in);
         queryText = in.readString();

@@ -32,6 +32,7 @@ public class QueryShardException extends ElasticsearchException {
      * This constructor is provided for use in unit tests where a
      * {@link SearchExecutionContext} may not be available
      */
+    @SuppressWarnings("this-escape")
     public QueryShardException(Index index, String msg, Throwable cause, Object... args) {
         super(msg, cause, args);
         setIndex(index);

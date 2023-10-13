@@ -464,6 +464,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         private Boolean multivariateByFields;
         private TimeValue modelPruneWindow;
 
+        @SuppressWarnings("this-escape")
         public Builder(List<Detector> detectors) {
             setDetectors(detectors);
         }

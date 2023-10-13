@@ -24,6 +24,7 @@ public class LegacyReaderContext extends ReaderContext {
     private AggregatedDfs aggregatedDfs;
     private RescoreDocIds rescoreDocIds;
 
+    @SuppressWarnings("this-escape")
     public LegacyReaderContext(
         ShardSearchContextId id,
         IndexService indexService,

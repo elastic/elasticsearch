@@ -1,0 +1,5 @@
+pr: 100360
+summary: "ESQL: Limit how many bytes `concat()` can process"
+area: ES|QL
+type: bug
+issues: []

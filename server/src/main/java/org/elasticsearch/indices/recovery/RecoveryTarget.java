@@ -103,6 +103,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *                                    preventing the exhaustion of repository resources.
      * @param listener                    called when recovery is completed/failed
      */
+    @SuppressWarnings("this-escape")
     public RecoveryTarget(
         IndexShard indexShard,
         DiscoveryNode sourceNode,

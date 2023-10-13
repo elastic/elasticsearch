@@ -46,12 +46,14 @@ public class RequestInfo {
         this(mode, clientId, null);
     }
 
+    @SuppressWarnings("this-escape")
     public RequestInfo(Mode mode, String clientId, String version) {
         mode(mode);
         clientId(clientId);
         version(version);
     }
 
+    @SuppressWarnings("this-escape")
     public RequestInfo(Mode mode, SqlVersion version) {
         mode(mode);
         this.version = version;

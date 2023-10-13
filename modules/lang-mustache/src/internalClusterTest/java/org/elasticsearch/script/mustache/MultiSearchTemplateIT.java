@@ -182,7 +182,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
     }
 
     /**
-    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before TransportVersion.current() works
     */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """

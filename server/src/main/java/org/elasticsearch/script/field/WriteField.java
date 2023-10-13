@@ -32,6 +32,7 @@ public class WriteField implements Field<Object> {
 
     private static final Object MISSING = new Object();
 
+    @SuppressWarnings("this-escape")
     public WriteField(String path, Supplier<Map<String, Object>> rootSupplier) {
         this.path = path;
         this.rootSupplier = rootSupplier;

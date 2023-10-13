@@ -30,7 +30,7 @@ public class StackTemplatesRestIT extends ESRestTestCase {
         // Ensure the logs template has been added
         assertBusy(() -> {
             try {
-                Request request = new Request("GET", "_index_template/logs");
+                Request request = new Request("GET", "_index_template/logs@template");
                 assertOK(client.performRequest(request));
             } catch (ResponseException e) {
                 fail(e.getMessage());
@@ -48,10 +48,10 @@ public class StackTemplatesRestIT extends ESRestTestCase {
                 """);
             assertOK(client.performRequest(request));
         }
-        Request getRequest = new Request("GET", "_index_template/logs");
+        Request getRequest = new Request("GET", "_index_template/logs@template");
         assertOK(client.performRequest(getRequest));
 
-        Request deleteRequest = new Request("DELETE", "_index_template/logs");
+        Request deleteRequest = new Request("DELETE", "_index_template/logs@template");
         assertOK(client.performRequest(deleteRequest));
         ResponseException exception = expectThrows(ResponseException.class, () -> client.performRequest(deleteRequest));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(404));

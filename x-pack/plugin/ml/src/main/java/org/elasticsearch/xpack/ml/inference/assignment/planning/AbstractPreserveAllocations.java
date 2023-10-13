@@ -41,6 +41,11 @@ abstract class AbstractPreserveAllocations {
             }
         }
 
+        if (n.availableMemoryBytes() < bytesUsed) {
+            throw new IllegalArgumentException("Node " + n.id()
+            + " has less available memory than required to preserve allocations");
+        }
+
         return new Node(n.id(), n.availableMemoryBytes() - bytesUsed, n.cores() - coresUsed);
     }
 

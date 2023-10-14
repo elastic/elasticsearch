@@ -31,15 +31,12 @@ public class FrameGroupID {
         String sourceFilename,
         String functionName
     ) {
-        StringBuilder sb = new StringBuilder();
         if (functionName.isEmpty()) {
-            sb.append(fileId);
-            sb.append(addressOrLine);
-        } else {
-            sb.append(exeFilename);
-            sb.append(functionName);
-            sb.append(getFilename(sourceFilename));
+            return Integer.toString(Objects.hash(fileId, addressOrLine));
         }
-        return sb.toString();
+        if (sourceFilename.isEmpty()) {
+            return Integer.toString(Objects.hash(fileId, functionName));
+        }
+        return Integer.toString(Objects.hash(exeFilename, functionName, getFilename(sourceFilename)));
     }
 }

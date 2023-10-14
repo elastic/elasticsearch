@@ -46,10 +46,11 @@ public class ExchangeSinkExec extends UnaryExec {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ExchangeSinkExec that = (ExchangeSinkExec) o;
-        return Objects.equals(output, that.output) && intermediateAgg == that.intermediateAgg;
+        if (super.equals(o)) {
+            ExchangeSinkExec that = (ExchangeSinkExec) o;
+            return intermediateAgg == that.intermediateAgg && Objects.equals(output, that.output);
+        }
+        return false;
     }
 
     @Override

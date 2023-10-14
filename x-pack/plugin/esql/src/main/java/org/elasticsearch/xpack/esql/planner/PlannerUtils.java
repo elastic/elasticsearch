@@ -117,7 +117,8 @@ public class PlannerUtils {
                     query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter)
                 );
             }
-            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), physicalOptimizer.localOptimize(physicalFragment));
+            var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
+            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
         });
         return isCoordPlan.get() ? plan : localPhysicalPlan;
     }

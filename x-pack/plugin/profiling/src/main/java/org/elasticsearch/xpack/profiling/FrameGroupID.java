@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.elasticsearch.core.SuppressForbidden;
-
 import java.util.Objects;
 
 public class FrameGroupID {
     private static final char UNIX_PATH_SEPARATOR = '/';
 
-    @SuppressForbidden(reason = "Using pathSeparator constant to extract the filename with low overhead")
     public static String getBasenameAndParent(String fullPath) {
         if (fullPath == null || fullPath.isEmpty()) {
             return fullPath;

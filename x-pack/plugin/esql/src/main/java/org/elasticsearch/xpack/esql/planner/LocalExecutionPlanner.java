@@ -348,8 +348,9 @@ public class LocalExecutionPlanner {
         var child = exchangeSink.child();
         PhysicalOperation source = plan(child, context);
 
-        boolean isAgg = child instanceof AggregateExec || child instanceof EsStatsQueryExec;
-        Function<Page, Page> transformer = isAgg ? Function.identity() : alignPageToAttributes(exchangeSink.output(), source.layout);
+        Function<Page, Page> transformer = exchangeSink.isIntermediateAgg()
+            ? Function.identity()
+            : alignPageToAttributes(exchangeSink.output(), source.layout);
 
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkHandler::createExchangeSink, transformer), source.layout);
     }

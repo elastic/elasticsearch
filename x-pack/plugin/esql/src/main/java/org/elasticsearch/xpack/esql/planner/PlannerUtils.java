@@ -52,7 +52,7 @@ public class PlannerUtils {
         PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
             // remember the datanode subplan and wire it to a sink
             var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), subplan));
+            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.isInBetweenAggs(), subplan));
 
             return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
         });

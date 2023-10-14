@@ -496,12 +496,13 @@ public final class PlanNamedTypes {
     }
 
     static ExchangeSinkExec readExchangeSinkExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSinkExec(in.readSource(), readAttributes(in), in.readPhysicalPlanNode());
+        return new ExchangeSinkExec(in.readSource(), readAttributes(in), in.readBoolean(), in.readPhysicalPlanNode());
     }
 
     static void writeExchangeSinkExec(PlanStreamOutput out, ExchangeSinkExec exchangeSinkExec) throws IOException {
         out.writeNoSource();
         writeAttributes(out, exchangeSinkExec.output());
+        out.writeBoolean(exchangeSinkExec.isIntermediateAgg());
         out.writePhysicalPlanNode(exchangeSinkExec.child());
     }
 

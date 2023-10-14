@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -98,7 +97,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 String executable = response.getExecutables().getOrDefault(fileId, "");
 
                 for (Frame frame : stackFrame.frames()) {
-                    String frameGroupId = createFrameGroupId(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
+                    String frameGroupId = FrameGroupID.create(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
 
                     int nodeId;
                     if (builder.isExists(frameGroupId)) {
@@ -128,34 +127,6 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             }
         }
         return builder.build();
-    }
-
-    @SuppressForbidden(reason = "Using pathSeparator constant to extract the filename with low overhead")
-    private static String getFilename(String fullPath) {
-        if (fullPath == null || fullPath.isEmpty()) {
-            return fullPath;
-        }
-        int lastSeparatorIdx = fullPath.lastIndexOf(File.pathSeparator);
-        return lastSeparatorIdx == -1 ? fullPath : fullPath.substring(lastSeparatorIdx + 1);
-    }
-
-    private static String createFrameGroupId(
-        String fileId,
-        Integer addressOrLine,
-        String exeFilename,
-        String sourceFilename,
-        String functionName
-    ) {
-        StringBuilder sb = new StringBuilder();
-        if (functionName.isEmpty()) {
-            sb.append(fileId);
-            sb.append(addressOrLine);
-        } else {
-            sb.append(exeFilename);
-            sb.append(functionName);
-            sb.append(getFilename(sourceFilename));
-        }
-        return sb.toString();
     }
 
     private static class FlamegraphBuilder {

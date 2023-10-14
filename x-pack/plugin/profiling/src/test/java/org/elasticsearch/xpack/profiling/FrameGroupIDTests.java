@@ -41,17 +41,35 @@ public class FrameGroupIDTests extends ESTestCase {
     }
 
     public void testFunctionNameAndEmptySourceFilename() {
-        String frameGroupID = FrameGroupID.create("FEDCBA9876543210", 6694, "<main>", "", "void jdk.internal.misc.Unsafe.park(boolean, long)");
+        String frameGroupID = FrameGroupID.create(
+            "FEDCBA9876543210",
+            6694,
+            "<main>",
+            "",
+            "void jdk.internal.misc.Unsafe.park(boolean, long)"
+        );
         assertEquals("1523167754", frameGroupID);
     }
 
     public void testFunctionNameAndSourceFilenameWithAbsolutePath() {
-        String frameGroupID = FrameGroupID.create("FEDCBA9876543210", 64, "main", "/usr/local/go/src/runtime/lock_futex.go", "futex_wake");
+        String frameGroupID = FrameGroupID.create(
+            "FEDCBA9876543210",
+            64,
+            "main",
+            "/usr/local/go/src/runtime/lock_futex.go",
+            "futex_wake"
+        );
         assertEquals("1422498024", frameGroupID);
     }
 
     public void testFunctionNameAndSourceFilenameWithoutAbsolutePath() {
-        String frameGroupID = FrameGroupID.create("FEDCBA9876543210", 29338, "<main>", "bootstrap.java", "void jdk.internal.misc.Unsafe.park(boolean, long)");
+        String frameGroupID = FrameGroupID.create(
+            "FEDCBA9876543210",
+            29338,
+            "<main>",
+            "bootstrap.java",
+            "void jdk.internal.misc.Unsafe.park(boolean, long)"
+        );
         assertEquals("-685957655", frameGroupID);
     }
 }

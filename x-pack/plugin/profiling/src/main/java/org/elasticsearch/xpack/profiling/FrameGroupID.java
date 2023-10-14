@@ -9,19 +9,22 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.core.SuppressForbidden;
 
-import java.io.File;
 import java.util.Objects;
 
 public class FrameGroupID {
-    private static final String UNIX_PATH_SEPARATOR = "/";
+    private static final char UNIX_PATH_SEPARATOR = '/';
 
     @SuppressForbidden(reason = "Using pathSeparator constant to extract the filename with low overhead")
-    private static String getFilename(String fullPath) {
+    public static String getBasenameAndParent(String fullPath) {
         if (fullPath == null || fullPath.isEmpty()) {
             return fullPath;
         }
         int lastSeparatorIdx = fullPath.lastIndexOf(UNIX_PATH_SEPARATOR);
-        return lastSeparatorIdx == -1 ? fullPath : fullPath.substring(lastSeparatorIdx + 1);
+        if (lastSeparatorIdx <= 0) {
+            return fullPath;
+        }
+        int nextSeparatorIdx = fullPath.lastIndexOf(UNIX_PATH_SEPARATOR, lastSeparatorIdx - 1);
+        return nextSeparatorIdx == -1 ? fullPath : fullPath.substring(nextSeparatorIdx + 1);
     }
 
     public static String create(
@@ -37,6 +40,6 @@ public class FrameGroupID {
         if (sourceFilename.isEmpty()) {
             return Integer.toString(Objects.hash(fileId, functionName));
         }
-        return Integer.toString(Objects.hash(exeFilename, functionName, getFilename(sourceFilename)));
+        return Integer.toString(Objects.hash(exeFilename, functionName, getBasenameAndParent(sourceFilename)));
     }
 }

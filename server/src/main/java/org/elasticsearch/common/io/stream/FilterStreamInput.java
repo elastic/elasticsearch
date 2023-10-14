@@ -9,7 +9,6 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 import java.io.EOFException;
@@ -37,11 +36,6 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    public BytesReference readBytesReference() throws IOException {
-        return delegate.readBytesReference();
-    }
-
-    @Override
     public ReleasableBytesReference readReleasableBytesReference() throws IOException {
         return delegate.readReleasableBytesReference();
     }
@@ -55,16 +49,6 @@ public abstract class FilterStreamInput extends StreamInput {
     public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
         assert supportReadAllToReleasableBytesReference() : "This InputStream doesn't support readAllToReleasableBytesReference";
         return delegate.readAllToReleasableBytesReference();
-    }
-
-    @Override
-    public BytesReference readOptionalBytesReference() throws IOException {
-        return delegate.readOptionalBytesReference();
-    }
-
-    @Override
-    public BytesReference readBytesReference(int length) throws IOException {
-        return delegate.readBytesReference(length);
     }
 
     @Override

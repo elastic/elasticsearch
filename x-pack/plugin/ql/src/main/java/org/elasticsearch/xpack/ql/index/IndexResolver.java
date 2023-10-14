@@ -711,6 +711,16 @@ public class IndexResolver {
                         EsField field = indexFields.flattedMapping.get(fieldName);
                         if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
                             createField(typeRegistry, fieldName, indexFields, fieldCaps, invalidField, typeCap);
+                            // if there was a field before, copy its properties
+                            if (field != null) {
+                                EsField newField = indexFields.flattedMapping.get(fieldName);
+                                if (newField != field) {
+                                    if (newField.getProperties().size() > 0) {
+                                        throw new QlIllegalArgumentException("Expected new field to have no properties");
+                                    }
+                                    newField.getProperties().putAll(field.getProperties());
+                                }
+                            }
                         }
                     }
                 }
@@ -772,7 +782,7 @@ public class IndexResolver {
                     s,
                     typeCap.getType(),
                     typeCap.getMetricType(),
-                    emptyMap(),
+                    new TreeMap<>(),
                     typeCap.isAggregatable(),
                     isAliasFieldType.get()
                 )

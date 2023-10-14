@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
-import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -98,8 +97,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        var localSource = new Batch<>("Local execution", Limiter.ONCE, new AlignLocalOutputToExchange());
-
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
         esSourceRules.add(new ReplaceAttributeSourceWithDocId());
 
@@ -116,31 +113,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
         var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction());
-        return asList(localSource, pushdown, fieldExtraction);
+        return asList(pushdown, fieldExtraction);
     }
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
         return rules(true);
-    }
-
-    /**
-     * LocalSources, resulting from folding a query to no-op, can miss that they happen on a local node.
-     * This is fixed by this rule which aligns the two.
-     */
-    private static class AlignLocalOutputToExchange extends OptimizerRule<ExchangeExec> {
-
-        @Override
-        protected PhysicalPlan rule(ExchangeExec exchange) {
-            PhysicalPlan plan = exchange;
-            if (exchange.child() instanceof LocalSourceExec localExec) {
-                var output = exchange.output();
-                if (output.equals(localExec.output()) == false) {
-                    plan = exchange.replaceChild(new LocalSourceExec(localExec.source(), output, localExec.supplier()));
-                }
-            }
-            return plan;
-        }
     }
 
     private static class ReplaceAttributeSourceWithDocId extends OptimizerRule<EsSourceExec> {

@@ -505,14 +505,16 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             for (var agg : aggs) {
                 // there needs to be an alias
                 if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
-                    result.add(aggFunc instanceof Count ? 0L : null);
+                    result.add(aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null) ? 0L : null);
                 } else {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
                 }
             }
+
             var blocks = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), result);
             return LocalSupplier.of(blocks);
         }
+
     }
 
     private static LogicalPlan skipPlan(UnaryPlan plan) {

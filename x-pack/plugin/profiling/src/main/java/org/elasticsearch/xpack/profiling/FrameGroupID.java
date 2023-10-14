@@ -13,12 +13,14 @@ import java.io.File;
 import java.util.Objects;
 
 public class FrameGroupID {
+    private static final String UNIX_PATH_SEPARATOR = "/";
+
     @SuppressForbidden(reason = "Using pathSeparator constant to extract the filename with low overhead")
     private static String getFilename(String fullPath) {
         if (fullPath == null || fullPath.isEmpty()) {
             return fullPath;
         }
-        int lastSeparatorIdx = fullPath.lastIndexOf(File.pathSeparator);
+        int lastSeparatorIdx = fullPath.lastIndexOf(UNIX_PATH_SEPARATOR);
         return lastSeparatorIdx == -1 ? fullPath : fullPath.substring(lastSeparatorIdx + 1);
     }
 

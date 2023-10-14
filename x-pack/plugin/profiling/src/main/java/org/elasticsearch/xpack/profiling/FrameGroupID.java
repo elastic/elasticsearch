@@ -24,13 +24,7 @@ public class FrameGroupID {
         return nextSeparatorIdx == -1 ? fullPath : fullPath.substring(nextSeparatorIdx + 1);
     }
 
-    public static String create(
-        String fileId,
-        Integer addressOrLine,
-        String exeFilename,
-        String sourceFilename,
-        String functionName
-    ) {
+    public static String create(String fileId, Integer addressOrLine, String exeFilename, String sourceFilename, String functionName) {
         if (functionName.isEmpty()) {
             return Integer.toString(Objects.hash(fileId, addressOrLine));
         }

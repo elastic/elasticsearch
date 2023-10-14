@@ -52,13 +52,7 @@ public class FrameGroupIDTests extends ESTestCase {
     }
 
     public void testFunctionNameAndSourceFilenameWithAbsolutePath() {
-        String frameGroupID = FrameGroupID.create(
-            "FEDCBA9876543210",
-            64,
-            "main",
-            "/usr/local/go/src/runtime/lock_futex.go",
-            "futex_wake"
-        );
+        String frameGroupID = FrameGroupID.create("FEDCBA9876543210", 64, "main", "/usr/local/go/src/runtime/lock_futex.go", "futex_wake");
         assertEquals("1422498024", frameGroupID);
     }
 

@@ -12,12 +12,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -217,19 +216,14 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public BytesReference readBytesReference(int length) throws IOException {
-        if (length == 0) {
-            return BytesArray.EMPTY;
+        if (length < ByteSizeValue.ofMb(1).getBytes()) {
+            // if the length is small enough we can just copy the bytes in a single array
+            return super.readBytesReference(length);
+        } else {
+            final int offset = offset();
+            skip(length); // advance stream
+            return bytesReference.copy(offset, length);
         }
-        final List<BytesReference> slices = new ArrayList<>();
-        while (length > 0) {
-            maybeNextSlice();
-            final byte[] bytes = slice.array().clone();
-            final int currentLen = Math.min(length, slice.remaining());
-            slices.add(new BytesArray(bytes, slice.position(), currentLen));
-            skip(currentLen);
-            length -= currentLen;
-        }
-        return CompositeBytesReference.of(slices.toArray(BytesReference[]::new));
     }
 
     @Override

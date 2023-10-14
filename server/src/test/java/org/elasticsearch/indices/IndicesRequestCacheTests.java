@@ -595,6 +595,11 @@ public class IndicesRequestCacheTests extends ESTestCase {
         }
 
         @Override
+        public BytesReference copy(int from, int length) {
+            return null;
+        }
+
+        @Override
         public BytesRef toBytesRef() {
             return null;
         }

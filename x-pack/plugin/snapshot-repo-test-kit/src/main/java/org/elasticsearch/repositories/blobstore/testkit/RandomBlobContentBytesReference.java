@@ -41,6 +41,12 @@ class RandomBlobContentBytesReference extends AbstractBytesReference {
     }
 
     @Override
+    public BytesReference copy(int from, int length) {
+        assert false : "must not copy a RandomBlobContentBytesReference";
+        throw new UnsupportedOperationException("RandomBlobContentBytesReference#copy(int, int) is unsupported");
+    }
+
+    @Override
     public long ramBytesUsed() {
         // no need for accurate accounting of the overhead since we don't really account for these things anyway
         return randomBlobContent.buffer.length;

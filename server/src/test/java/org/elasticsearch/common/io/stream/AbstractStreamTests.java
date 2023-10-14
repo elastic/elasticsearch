@@ -739,23 +739,22 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testBytesReferenceSerialization() throws IOException {
-        final int length = randomIntBetween(1024, 1024 * 1024);
-        final byte[] bytes = new byte[length];
-        random().nextBytes(bytes);
-        BytesReference expected;
-        if (randomBoolean()) {
-            final ByteArray byteArray = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length, randomBoolean());
-            byteArray.set(0, bytes, 0, length);
-            expected = BytesReference.fromByteArray(byteArray, length);
-        } else {
-            expected = new BytesArray(bytes);
+        byte[][] bytes = new byte[randomIntBetween(1, 5)][];
+        for (int i = 0; i < bytes.length; i++) {
+            final int length = randomIntBetween(1024, 3 * 1024 * 1024);
+            bytes[i] = new byte[length];
+            random().nextBytes(bytes[i]);
+        }
+        final BytesStreamOutput output = new BytesStreamOutput();
+        final BytesReference[] expected = new BytesReference[bytes.length];
+        for (int i = 0; i < bytes.length; i++) {
+            expected[i] = new BytesArray(bytes[i]);
+            output.writeBytesReference(expected[i]);
         }
 
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.writeBytesReference(expected);
         final StreamInput in = getStreamInput(output.bytes());
-
-        final BytesReference loaded = in.readBytesReference();
-        assertThat(loaded, equalTo(expected));
+        for (BytesReference bytesReference : expected) {
+            assertThat(in.readBytesReference().toBytesRef(), equalTo(bytesReference.toBytesRef()));
+        }
     }
 }

@@ -81,6 +81,47 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
                 // the offset can be anywhere
                 assertEquals(sliceLength, singlePageOrNull.length);
             }
+            // make sure the slice is affected by changes to the original
+            final BytesRefIterator iterator = pbr.iterator();
+            BytesRef bytesRef;
+            while ((bytesRef = iterator.next()) != null) {
+                for (int i = 0; i < bytesRef.length; i++) {
+                    bytesRef.bytes[bytesRef.offset + i]++;
+                }
+            }
+            for (int i = 0; i < sliceLength; i++) {
+                assertEquals(pbr.get(i + sliceOffset), slice.get(i));
+            }
+        }
+    }
+
+    public void testCopy() throws IOException {
+        for (int length : new int[] { 0, 1, randomIntBetween(2, PAGE_SIZE), randomIntBetween(PAGE_SIZE + 1, 3 * PAGE_SIZE) }) {
+            BytesReference pbr = newBytesReference(length);
+            int sliceOffset = randomIntBetween(0, length / 2);
+            int copyLength = Math.max(0, length - sliceOffset - 1);
+            BytesReference slice = pbr.copy(sliceOffset, copyLength);
+            assertEquals(copyLength, slice.length());
+            for (int i = 0; i < copyLength; i++) {
+                assertEquals(pbr.get(i + sliceOffset), slice.get(i));
+            }
+            BytesRef singlePageOrNull = getSinglePageOrNull(slice);
+            if (singlePageOrNull != null) {
+                // we can't assert the offset since if the length is smaller than the refercence
+                // the offset can be anywhere
+                assertEquals(copyLength, singlePageOrNull.length);
+            }
+            // make sure copy is not affected by changes to the original
+            final BytesRefIterator iterator = pbr.iterator();
+            BytesRef bytesRef;
+            while ((bytesRef = iterator.next()) != null) {
+                for (int i = 0; i < bytesRef.length; i++) {
+                    bytesRef.bytes[bytesRef.offset + i]++;
+                }
+            }
+            for (int i = 0; i < copyLength; i++) {
+                assertEquals(pbr.get(i + sliceOffset), (byte) (slice.get(i) + 1));
+            }
         }
     }
 

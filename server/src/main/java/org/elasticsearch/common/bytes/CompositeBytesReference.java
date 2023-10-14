@@ -164,6 +164,26 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         return CompositeBytesReference.ofMultiple(inSlice);
     }
 
+    @Override
+    public BytesReference copy(int from, int length) {
+        Objects.checkFromIndexSize(from, length, this.length);
+        final int to = from + length;
+        final int limit = getOffsetIndex(to - 1);
+        final int start = getOffsetIndex(from);
+        final int numCopies = 1 + (limit - start);
+        final int inCopyOffset = from - offsets[start];
+        if (numCopies == 1) {
+            return references[start].copy(inCopyOffset, length);
+        }
+        final BytesReference[] inCopy = new BytesReference[numCopies];
+        inCopy[0] = references[start].copy(inCopyOffset, references[start].length() - inCopyOffset);
+        for (int i = 1, j = start + 1; i < inCopy.length - 1; i++, j++) {
+            inCopy[i] = references[j].copy(0, references[j].length());
+        }
+        inCopy[inCopy.length - 1] = references[limit].copy(0, to - offsets[limit]);
+        return CompositeBytesReference.ofMultiple(inCopy);
+    }
+
     private int getOffsetIndex(int offset) {
         final int i = Arrays.binarySearch(offsets, offset);
         return i < 0 ? (-(i + 1)) - 1 : i;

@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.test.BuildUtils.mutateBuild;
 import static org.elasticsearch.test.BuildUtils.newBuild;

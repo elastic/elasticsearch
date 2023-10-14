@@ -56,7 +56,7 @@ public class ScriptException extends ElasticsearchException {
      * @throws NullPointerException if any parameters are {@code null} except pos.
      */
     public ScriptException(String message, Throwable cause, List<String> scriptStack, String script, String lang, Position pos) {
-        super(Objects.requireNonNull(message), new CauseWrapper(Objects.requireNonNull(cause)));
+        super(Objects.requireNonNull(message), Objects.requireNonNull(cause));
         this.scriptStack = Collections.unmodifiableList(Objects.requireNonNull(scriptStack));
         this.script = Objects.requireNonNull(script);
         this.lang = Objects.requireNonNull(lang);
@@ -204,20 +204,6 @@ public class ScriptException extends ElasticsearchException {
         @Override
         public int hashCode() {
             return Objects.hash(offset, start, end);
-        }
-    }
-
-    private static class CauseWrapper extends ElasticsearchException {
-        final Throwable t;
-        CauseWrapper(Throwable t) {
-            super(t.getMessage());
-            this.t = t;
-        }
-
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("type", getExceptionName(t));
-            builder.field("reason", t.getMessage());
-            return builder;
         }
     }
 }

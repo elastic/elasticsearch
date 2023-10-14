@@ -20,6 +20,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
@@ -212,11 +213,13 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testOutOfMemoryError() {
         assumeTrue("test only happens to work for sure on oracle jre", Constants.JAVA_VENDOR.startsWith("Oracle"));
-        expectScriptThrows(OutOfMemoryError.class, () -> { exec("int[] x = new int[Integer.MAX_VALUE - 1];"); });
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("int[] x = new int[Integer.MAX_VALUE - 1];"); });
+        assertThat(e.realCause.getClass(), equalTo(OutOfMemoryError.class));
     }
 
     public void testStackOverflowError() {
-        expectScriptThrows(StackOverflowError.class, () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); });
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); });
+        assertThat(e.realCause.getClass(), equalTo(StackOverflowError.class));
     }
 
     public void testCanNotOverrideRegexEnabled() {

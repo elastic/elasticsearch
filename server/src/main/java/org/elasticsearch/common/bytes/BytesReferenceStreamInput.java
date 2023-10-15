@@ -214,13 +214,6 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
-    protected BytesReference readPagedBytesReference(int length) throws IOException {
-        final int offset = offset();
-        skip(length); // advance stream
-        return bytesReference.copy(offset, length);
-    }
-
-    @Override
     public boolean markSupported() {
         return true;
     }

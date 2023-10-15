@@ -164,29 +164,23 @@ public abstract class StreamInput extends InputStream {
         if (length == 0) {
             return BytesArray.EMPTY;
         } else if (length < ByteSizeValue.ofMb(1).getBytes()) {
-            // if the length is small enough we can just copy the bytes in a single array
+            // if the bytes reference is small enough we can just copy the bytes in a single array
             byte[] bytes = new byte[length];
             readBytes(bytes, 0, length);
             return new BytesArray(bytes, 0, length);
         } else {
-            return readPagedBytesReference(length);
+            // paginate the bytes reference to avoid allocating a single byte array that is too large
+            final BytesReference br = BytesReference.fromByteArray(BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length), length);
+            final BytesRefIterator iterator = br.iterator();
+            BytesRef bytesRef;
+            int offset = 0;
+            while ((bytesRef = iterator.next()) != null) {
+                final int len = Math.min(bytesRef.length, length - offset);
+                readBytes(bytesRef.bytes, bytesRef.offset, len);
+                offset += len;
+            }
+            return br;
         }
-    }
-
-    /**
-     * Reads a bytes reference using pagination if necessary.
-     */
-    protected BytesReference readPagedBytesReference(int length) throws IOException {
-        final BytesReference bytesReference = BytesReference.fromByteArray(BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length), length);
-        final BytesRefIterator iterator = bytesReference.iterator();
-        BytesRef bytesRef;
-        int offset = 0;
-        while ((bytesRef = iterator.next()) != null) {
-            final int len = Math.min(bytesRef.length, length - offset);
-            readBytes(bytesRef.bytes, bytesRef.offset, len);
-            offset += len;
-        }
-        return bytesReference;
     }
 
     public BytesRef readBytesRef() throws IOException {

@@ -67,7 +67,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     ) {
         @Override
         public void execute() {
-            emitFromObject("POINT(0 0)");
+            emitFromObject("LINESTRING(0 0, 1 1)");
         }
     };
 
@@ -99,12 +99,12 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
             List<Object> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                GeoShapeScriptFieldType ft = build("fromLatLon", Map.of(), OnScriptError.FAIL);
+                GeoShapeScriptFieldType ft = build("fromWKT", Map.of(), OnScriptError.FAIL);
                 GeoShapeScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -142,7 +142,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     public void testFetch() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("""
-                {"foo": {"coordinates": [45.0, 45.0], "type" : "Point"}}"""))));
+                {"foo": {"coordinates": [[45.0, 45.0], [0.0, 0.0]], "type" : "LineString"}}"""))));
             try (DirectoryReader reader = iw.getReader()) {
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 Source source = searchContext.lookup().getSource(reader.leaves().get(0), 0);
@@ -150,11 +150,11 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 fetcher.setNextReader(reader.leaves().get(0));
                 assertThat(
                     fetcher.fetchValues(source, 0, null),
-                    equalTo(List.of(Map.of("type", "Point", "coordinates", List.of(45.0, 45.0))))
+                    equalTo(List.of(Map.of("type", "LineString", "coordinates", List.of(List.of(45.0, 45.0), List.of(0.0, 0.0)))))
                 );
                 fetcher = simpleMappedFieldType().valueFetcher(searchContext, "wkt");
                 fetcher.setNextReader(reader.leaves().get(0));
-                assertThat(fetcher.fetchValues(source, 0, null), equalTo(List.of("POINT (45.0 45.0)")));
+                assertThat(fetcher.fetchValues(source, 0, null), equalTo(List.of("LINESTRING (45.0 45.0, 0.0 0.0)")));
             }
         }
     }
@@ -162,8 +162,8 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -196,8 +196,8 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 45.0, \"lon\" : 45.0}}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": {\"lat\": 0.0, \"lon\" : 0.0}}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(0.0 0.0, 1.0 1.0)\" }"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"LINESTRING(45.0 45.0, 3.0 3.0)\" }"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(2));
@@ -254,7 +254,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     @Override
     protected GeoShapeScriptFieldType simpleMappedFieldType() {
-        return build("fromLatLon", Map.of(), OnScriptError.FAIL);
+        return build("fromWKT", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -277,7 +277,7 @@ public class GeoShapeScriptFieldTypeTests extends AbstractNonTextScriptFieldType
 
     private static GeometryFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
-            case "fromLatLon" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new GeometryFieldScript(
+            case "fromWKT" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new GeometryFieldScript(
                 fieldName,
                 params,
                 lookup,

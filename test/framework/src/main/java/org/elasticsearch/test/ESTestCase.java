@@ -323,10 +323,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
-        if (usually() && System.getProperty("es.use_unpooled_allocator") == null) {
-            // Unless explicitly forced to unpooled, always test with the pooled allocator to get the best possible coverage from Netty's
-            // leak detection which does not cover simple unpooled heap buffer.
-            // Skip this sometimes to get some coverage for the unpooled case.
+        if (System.getProperty("es.use_unpooled_allocator") == null) {
+            // unless explicitly forced to unpooled, always test with the pooled allocator to get the best possible coverage from Netty's
+            // leak detection which does not cover simple unpooled heap buffers
             System.setProperty("es.use_unpooled_allocator", "false");
         }
 

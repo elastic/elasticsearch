@@ -1205,17 +1205,18 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     assertNotNull(localReleasables.add(blockNodeRestarts()));
                     assertNotNull(localReleasables.add(tryAcquireAllPermits(permits)));
                     final Client client = localReleasables.add(acquireClient()).getClient();
-                    putRepositoryAndContinue(client, localReleasables.transfer());
+                    putRepositoryAndContinue(client, false, localReleasables.transfer());
                 }
             }
 
-            private void putRepositoryAndContinue(Client client, Releasable releasable) {
+            private void putRepositoryAndContinue(Client client, boolean nodeMightRestart, Releasable releasable) {
                 logger.info("--> put repo [{}]", repositoryName);
                 client.admin()
                     .cluster()
                     .preparePutRepository(repositoryName)
                     .setType(FsRepository.TYPE)
                     .setSettings(Settings.builder().put(FsRepository.LOCATION_SETTING.getKey(), location))
+                    .setVerify(nodeMightRestart == false)
                     .execute(mustSucceed(acknowledgedResponse -> {
                         assertTrue(acknowledgedResponse.isAcknowledged());
                         logger.info("--> finished put repo [{}]", repositoryName);
@@ -1242,6 +1243,8 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             return;
                         }
 
+                        final var nodeMightRestart = localReleasables.add(blockNodeRestarts()) == null;
+
                         final Client client = localReleasables.add(acquireClient()).getClient();
 
                         final Releasable releaseAll = localReleasables.transfer();
@@ -1250,7 +1253,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         clusterAdmin().prepareDeleteRepository(repositoryName).execute(mustSucceed(acknowledgedResponse -> {
                             assertTrue(acknowledgedResponse.isAcknowledged());
                             logger.info("--> finished delete repo [{}]", repositoryName);
-                            putRepositoryAndContinue(client, releaseAll);
+                            putRepositoryAndContinue(client, nodeMightRestart, releaseAll);
                         }));
 
                         replacingRepo = true;

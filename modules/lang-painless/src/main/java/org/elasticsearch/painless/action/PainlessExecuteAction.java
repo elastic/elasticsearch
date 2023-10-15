@@ -687,14 +687,14 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     GeometryFieldScript.Factory factory = scriptService.compile(request.script, GeometryFieldScript.CONTEXT);
                     GeometryFieldScript.LeafFactory leafFactory = factory.newFactory(
-                        GeoPointFieldScript.CONTEXT.name,
+                        GeometryFieldScript.CONTEXT.name,
                         request.getScript().getParams(),
                         context.lookup(),
                         OnScriptError.FAIL
                     );
-                    GeometryFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
+                    GeometryFieldScript geometryFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Geometry> geometries = new ArrayList<>();
-                    geoPointFieldScript.runForDoc(0, geometries::add);
+                    geometryFieldScript.runForDoc(0, geometries::add);
                     // convert geometries to the standard format of the fields api
                     Function<List<Geometry>, List<Object>> format = GeometryFormatterFactory.getFormatter(
                         GeometryFormatterFactory.GEOJSON,

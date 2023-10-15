@@ -21,6 +21,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -596,6 +597,11 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public BytesRef toBytesRef() {
             return null;
+        }
+
+        @Override
+        public BytesRefIterator iterator() {
+            return BytesRefIterator.EMPTY;
         }
 
         @Override

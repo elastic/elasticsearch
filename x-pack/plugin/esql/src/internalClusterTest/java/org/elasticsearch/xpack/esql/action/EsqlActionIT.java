@@ -1227,21 +1227,23 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .indices()
                 .prepareCreate("index-1")
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
-                .setMapping("field_1", "type=keyword")
+                .setMapping("field_1", "type=integer")
         );
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("index-2")
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
-                .setMapping("field_2", "type=keyword")
+                .setMapping("field_2", "type=integer")
         );
-        try (var resp = run("from index-1,index-2 | where field_1 is not null | stats c = count(*), c1 = count(field_1)")) {
+        try (
+            var resp = run("from index-1,index-2 | where field_1 is not null | stats c = count(*), c1 = count(field_1), m = min(field_1)")
+        ) {
             var valuesList = getValuesList(resp);
-            assertEquals(2, resp.columns().size());
+            assertEquals(3, resp.columns().size());
             assertEquals(1, valuesList.size());
 
-            assertThat(valuesList.get(0), contains(0L, 0L));
+            assertThat(valuesList.get(0), contains(0L, 0L, nullValue()));
         }
     }
 

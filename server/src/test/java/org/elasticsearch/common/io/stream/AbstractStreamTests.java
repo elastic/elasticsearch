@@ -741,26 +741,6 @@ public abstract class AbstractStreamTests extends ESTestCase {
         });
     }
 
-    public void testBytesReferenceSerialization() throws IOException {
-        byte[][] bytes = new byte[randomIntBetween(1, 5)][];
-        for (int i = 0; i < bytes.length; i++) {
-            final int length = randomIntBetween(1024, 3 * 1024 * 1024);
-            bytes[i] = new byte[length];
-            random().nextBytes(bytes[i]);
-        }
-        final BytesStreamOutput output = new BytesStreamOutput();
-        final BytesReference[] expected = new BytesReference[bytes.length];
-        for (int i = 0; i < bytes.length; i++) {
-            expected[i] = new BytesArray(bytes[i]);
-            output.writeBytesReference(expected[i]);
-        }
-
-        final StreamInput in = getStreamInput(output.bytes());
-        for (BytesReference bytesReference : expected) {
-            assertThat(in.readBytesReference().toBytesRef(), equalTo(bytesReference.toBytesRef()));
-        }
-    }
-
     private static final int BYTES_IN_MB = (int) ByteSizeValue.ofMb(1).getBytes();
 
     public void testDeserializeBytesArray() throws IOException {
@@ -782,6 +762,8 @@ public abstract class AbstractStreamTests extends ESTestCase {
             input = new FilterStreamInput(input) {
             };
         }
-        assertThat(input.readBytesReference(), instanceOf(c));
+        final BytesReference read = input.readBytesReference();
+        assertThat(read, instanceOf(c));
+        assertThat(read.toBytesRef(), equalTo(bytesReference.toBytesRef()));
     }
 }

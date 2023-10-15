@@ -14,7 +14,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -72,7 +73,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *
  * @see SearchHits
  */
-public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField> {
+public final class SearchHit implements Writeable, ToXContentObject, Iterable<DocumentField>, RefCounted {
 
     private final transient int docId;
 
@@ -90,7 +91,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
     private long primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
-    private BytesReference source;
+    private ReleasableBytesReference source;
 
     private final Map<String, DocumentField> documentFields = new HashMap<>();
     private final Map<String, DocumentField> metaFields = new HashMap<>();
@@ -149,7 +150,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         version = in.readLong();
         seqNo = in.readZLong();
         primaryTerm = in.readVLong();
-        source = in.readBytesReference();
+        source = in.readReleasableBytesReference();
         if (source.length() == 0) {
             source = null;
         }
@@ -371,23 +372,20 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * Returns bytes reference, also uncompress the source if needed.
      */
     public BytesReference getSourceRef() {
-        if (this.source == null) {
-            return null;
-        }
-
-        try {
-            this.source = CompressorFactory.uncompressIfNeeded(this.source);
-            return this.source;
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to decompress source", e);
-        }
+        return this.source;
     }
 
     /**
      * Sets representation, might be compressed....
      */
-    public SearchHit sourceRef(BytesReference source) {
+    public SearchHit sourceRef(ReleasableBytesReference source) {
         this.source = source;
+        this.sourceAsMap = null;
+        return this;
+    }
+
+    public SearchHit sourceRef(BytesReference source) {
+        this.source = ReleasableBytesReference.wrap(source);
         this.sourceAsMap = null;
         return this;
     }
@@ -635,6 +633,26 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     public void setInnerHits(Map<String, SearchHits> innerHits) {
         this.innerHits = innerHits;
+    }
+
+    @Override
+    public void incRef() {
+        source.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return source.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return source.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return source.hasReferences();
     }
 
     public static class Fields {

@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import java.io.IOException;
 
 public class BytesReferenceStreamInputTests extends AbstractStreamTests {
-
     @Override
     protected StreamInput getStreamInput(BytesReference bytesReference) throws IOException {
         return bytesReference.streamInput();

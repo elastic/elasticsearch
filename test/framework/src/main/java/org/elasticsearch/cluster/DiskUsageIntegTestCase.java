@@ -83,7 +83,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
         try {
             Files.createDirectories(dataPath);
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
         fileSystemProvider.addTrackedPath(dataPath);
         return Settings.builder()
@@ -207,7 +207,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
             try {
                 fileStore = super.getFileStore(path);
             } catch (IOException e) {
-                throw new AssertionError("unexpected", e);
+                fail(e);
             }
             assertNull(trackedPaths.put(path, new TestFileStore(fileStore, getScheme(), path)));
         }

@@ -56,6 +56,26 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     @Override
+    public void incRef() {
+        hits.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return hits.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return hits.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return hits.hasReferences();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return this;
     }

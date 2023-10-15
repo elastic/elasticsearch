@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContent;
@@ -32,7 +33,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<SearchHit> {
+public final class SearchHits extends AbstractRefCounted implements Writeable, ChunkedToXContent, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
     public static final SearchHits EMPTY_WITH_TOTAL_HITS = new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
@@ -162,6 +163,13 @@ public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<
     @Override
     public Iterator<SearchHit> iterator() {
         return Iterators.forArray(getHits());
+    }
+
+    @Override
+    protected void closeInternal() {
+        for (SearchHit hit : hits) {
+            hit.decRef();
+        }
     }
 
     public static final class Fields {

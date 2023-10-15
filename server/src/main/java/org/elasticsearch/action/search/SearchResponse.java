@@ -274,6 +274,26 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     @Override
+    public void incRef() {
+        getHits().incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return getHits().tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return getHits().decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return getHits().hasReferences();
+    }
+
+    @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),

@@ -1,0 +1,126 @@
+[[get-snapshot-globalstate-api]]
+=== Get snapshot globalstate API
+++++
+<titleabbrev>Get snapshot global state</titleabbrev>
+++++
+
+Retrieves information about global state of a snapshot.
+
+[source,console]
+----
+GET /_snapshot/my_repository/my_snapshot/_global_state
+----
+
+[[get-snapshot-globalstate-api-request]]
+==== {api-request-title}
+
+`GET /_snapshot/<repository>/<snapshot>/_global_state`
+
+[[get-snapshot-globalstate-api-path-params]]
+==== {api-path-params-title}
+
+`<repository>`::
+(Required, string) Name of the repository under which snapshot has been created. No wildcard `*` is supported.
+Repository name should be atomic, no comma separated list of repositories.
+
+`<snapshot>`::
+(Required, string)
+Name of the repository whose global state data has to be retrieved.
+
+[role="child_attributes"]
+[[get-snapshot-globalstate-api-response-body]]
+==== {api-response-body-title}
+
+`metadata`::
+(object)
+Details of metadata of snapshot's global state.
+
+[[get-snapshot-globalstate-api-example]]
+==== {api-examples-title}
+
+The following request returns information of global state metadata for `snapshot_1` in the `my_repository` repository.
+
+[source,console]
+----
+GET /_snapshot/my_repository/snapshot_1/_global_state
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "metadata": {
+    "cluster_uuid": "MZx2BbixRZ-ImWm9SwAGaQ",
+    "cluster_uuid_committed": true,
+    "cluster_coordination": {
+      "term": 1,
+      "last_committed_config": [
+        "5nB1bwcDT3OB4vhjQA401w"
+      ],
+      "last_accepted_config": [
+        "5nB1bwcDT3OB4vhjQA401w"
+      ],
+      "voting_config_exclusions": []
+    },
+    "templates": {
+      ".monitoring-kibana": {},
+      ".monitoring-logstash": {},
+      ".monitoring-es": {},
+      ".monitoring-beats": {},
+      ".monitoring-alerts-7": {}
+    },
+    "indices": {},
+    "index_lifecycle": {
+      "policies": {},
+      "operation_mode": "RUNNING"
+    },
+    "component_template": {},
+    "data_stream": {
+      "data_stream": {},
+      "data_stream_aliases": {}
+    },
+    "ingest": {
+      "pipeline": []
+    },
+    "index-graveyard": {
+      "tombstones": []
+    },
+    "persistent_tasks": {
+      "last_allocation_id": 2,
+      "tasks": [
+        {
+          "id": "health-node",
+          "task": {
+            "health-node": {
+              "params": {}
+            }
+          },
+          "allocation_id": 0,
+          "assignment": {
+            "executor_node": null,
+            "explanation": "waiting for initial assignment"
+          }
+        },
+        {
+          "id": "geoip-downloader",
+          "task": {
+            "geoip-downloader": {
+              "params": {}
+            }
+          },
+          "allocation_id": 0,
+          "assignment": {
+            "executor_node": null,
+            "explanation": "waiting for initial assignment"
+          }
+        }
+      ]
+    },
+    "index_template": {
+      "index_template": {}
+    },
+    "reserved_state": {}
+  }
+}
+----

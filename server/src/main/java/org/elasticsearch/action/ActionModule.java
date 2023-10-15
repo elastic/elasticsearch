@@ -89,6 +89,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.TransportGetShardSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.globalstate.SnapshotGlobalStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.globalstate.TransportSnapshotGlobalStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
@@ -358,6 +360,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsActio
 import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestResetFeatureStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.RestSnapshotGlobalStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshottableFeaturesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestUpdateDesiredNodesAction;
@@ -713,6 +716,7 @@ public class ActionModule extends AbstractModule {
         actions.register(GetFeatureUpgradeStatusAction.INSTANCE, TransportGetFeatureUpgradeStatusAction.class);
         actions.register(PostFeatureUpgradeAction.INSTANCE, TransportPostFeatureUpgradeAction.class);
         actions.register(GetShardSnapshotAction.INSTANCE, TransportGetShardSnapshotAction.class);
+        actions.register(SnapshotGlobalStateAction.INSTANCE, TransportSnapshotGlobalStateAction.class);
 
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
@@ -910,6 +914,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRestoreSnapshotAction());
         registerHandler.accept(new RestDeleteSnapshotAction());
         registerHandler.accept(new RestSnapshotsStatusAction());
+        registerHandler.accept(new RestSnapshotGlobalStateAction());
         registerHandler.accept(new RestSnapshottableFeaturesAction());
         registerHandler.accept(new RestResetFeatureStateAction());
         registerHandler.accept(new RestGetFeatureUpgradeStatusAction());

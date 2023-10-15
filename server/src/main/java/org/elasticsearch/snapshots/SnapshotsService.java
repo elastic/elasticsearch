@@ -269,6 +269,29 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         submitCreateSnapshotRequest(request, listener, repository, new Snapshot(repositoryName, snapshotId), repository.getMetadata());
     }
 
+    /**
+     * This method provides the metadata of the cluster at the time when snapshot was being captured
+     * @param repositoryName repository name
+     * @param snapshotName snapshot name
+     * @param listener snapshot global state listener
+     */
+    public void getSnapshotGlobalMetadata(String repositoryName, String snapshotName, ActionListener<Metadata> listener) {
+        final Repository repository = repositoriesService.repository(repositoryName);
+        repository.getRepositoryData(
+            listener.delegateFailureAndWrap(
+                (delegate, repositoryData) -> threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+                    .execute(ActionRunnable.supply(delegate, () -> {
+                        for (final SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
+                            if (Objects.equals(snapshotId.getName(), snapshotName)) {
+                                return repository.getSnapshotGlobalMetadata(snapshotId);
+                            }
+                        }
+                        throw new SnapshotMissingException(repositoryName, snapshotName);
+                    }))
+            )
+        );
+    }
+
     private void submitCreateSnapshotRequest(
         CreateSnapshotRequest request,
         ActionListener<Snapshot> listener,

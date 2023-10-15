@@ -11,6 +11,7 @@ package org.elasticsearch.common.io.stream;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -23,6 +24,8 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
@@ -160,10 +163,30 @@ public abstract class StreamInput extends InputStream {
     public BytesReference readBytesReference(int length) throws IOException {
         if (length == 0) {
             return BytesArray.EMPTY;
+        } else if (length < ByteSizeValue.ofMb(1).getBytes()) {
+            // if the length is small enough we can just copy the bytes in a single array
+            byte[] bytes = new byte[length];
+            readBytes(bytes, 0, length);
+            return new BytesArray(bytes, 0, length);
+        } else {
+            return readPagedBytesReference(length);
         }
-        byte[] bytes = new byte[length];
-        readBytes(bytes, 0, length);
-        return new BytesArray(bytes, 0, length);
+    }
+
+    /**
+     * Reads a bytes reference using pagination if necessary.
+     */
+    protected BytesReference readPagedBytesReference(int length) throws IOException {
+        final BytesReference bytesReference = BytesReference.fromByteArray(BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length), length);
+        final BytesRefIterator iterator = bytesReference.iterator();
+        BytesRef bytesRef;
+        int offset = 0;
+        while ((bytesRef = iterator.next()) != null) {
+            final int len = Math.min(bytesRef.length, length - offset);
+            readBytes(bytesRef.bytes, bytesRef.offset, len);
+            offset += len;
+        }
+        return bytesReference;
     }
 
     public BytesRef readBytesRef() throws IOException {

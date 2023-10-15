@@ -12,7 +12,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.PagedBytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
@@ -51,6 +53,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -756,5 +759,29 @@ public abstract class AbstractStreamTests extends ESTestCase {
         for (BytesReference bytesReference : expected) {
             assertThat(in.readBytesReference().toBytesRef(), equalTo(bytesReference.toBytesRef()));
         }
+    }
+
+    private static final int BYTES_IN_MB = (int) ByteSizeValue.ofMb(1).getBytes();
+
+    public void testDeserializeBytesArray() throws IOException {
+        deserializeBytesReference(randomIntBetween(0, BYTES_IN_MB - 1), BytesArray.class);
+    }
+
+    public void testDeserializePagedBytesReference() throws IOException {
+        deserializeBytesReference(randomIntBetween(BYTES_IN_MB, 3 * BYTES_IN_MB), PagedBytesReference.class);
+    }
+
+    private void deserializeBytesReference(int length, Class<?> c) throws IOException {
+        final byte[] bytes = new byte[length];
+        random().nextBytes(bytes);
+        final BytesReference bytesReference = new BytesArray(bytes);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeBytesReference(bytesReference);
+        StreamInput input = getStreamInput(out.bytes());
+        if (randomBoolean()) {
+            input = new FilterStreamInput(input) {
+            };
+        }
+        assertThat(input.readBytesReference(), instanceOf(c));
     }
 }

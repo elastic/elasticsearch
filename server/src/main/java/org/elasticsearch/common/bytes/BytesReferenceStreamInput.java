@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -215,15 +214,10 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
-    public BytesReference readBytesReference(int length) throws IOException {
-        if (length < ByteSizeValue.ofMb(1).getBytes()) {
-            // if the length is small enough we can just copy the bytes in a single array
-            return super.readBytesReference(length);
-        } else {
-            final int offset = offset();
-            skip(length); // advance stream
-            return bytesReference.copy(offset, length);
-        }
+    protected BytesReference readPagedBytesReference(int length) throws IOException {
+        final int offset = offset();
+        skip(length); // advance stream
+        return bytesReference.copy(offset, length);
     }
 
     @Override

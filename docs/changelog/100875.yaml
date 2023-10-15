@@ -1,0 +1,6 @@
+pr: 100875
+summary: Preserve subfields for unsupported types
+area: "SQL, EQL, ES|QL"
+type: bug
+issues:
+ - 100869

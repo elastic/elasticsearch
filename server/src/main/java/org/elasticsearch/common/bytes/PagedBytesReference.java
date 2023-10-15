@@ -10,7 +10,6 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
@@ -47,25 +46,6 @@ public class PagedBytesReference extends AbstractBytesReference {
         }
         Objects.checkFromIndexSize(from, length, this.length);
         return new PagedBytesReference(byteArray, offset + from, length);
-    }
-
-    @Override
-    public BytesReference copy(int from, int length) {
-        Objects.checkFromIndexSize(from, length, this.length);
-        final ByteArray byteArray = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length);
-        final int offset = this.offset + from;
-        final int initialFragmentSize = offset != 0 ? PAGE_SIZE - (offset % PAGE_SIZE) : PAGE_SIZE;
-        final BytesRef slice = new BytesRef();
-        int nextFragmentSize = Math.min(length, initialFragmentSize);
-        int position = 0;
-        while (nextFragmentSize != 0) {
-            final boolean materialized = this.byteArray.get(offset + position, nextFragmentSize, slice);
-            assert materialized == false : "iteration should be page aligned but array got materialized";
-            byteArray.set(position, slice.bytes, slice.offset, slice.length);
-            position += nextFragmentSize;
-            nextFragmentSize = Math.min(length - position, PAGE_SIZE);
-        }
-        return BytesReference.fromByteArray(byteArray, length);
     }
 
     @Override

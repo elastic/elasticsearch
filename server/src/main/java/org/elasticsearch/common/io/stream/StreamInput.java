@@ -164,12 +164,12 @@ public abstract class StreamInput extends InputStream {
         if (length == 0) {
             return BytesArray.EMPTY;
         } else if (length < ByteSizeValue.ofMb(1).getBytes()) {
-            // if the bytes reference is small enough we can just copy the bytes in a single array
+            // if the BytesReference is less that 1MB we copy the bytes into a single byte array
             byte[] bytes = new byte[length];
             readBytes(bytes, 0, length);
             return new BytesArray(bytes, 0, length);
         } else {
-            // paginate the bytes reference to avoid allocating a single byte array that is too large
+            // paginate the BytesReference to avoid humongous allocations
             final BytesReference br = BytesReference.fromByteArray(BigArrays.NON_RECYCLING_INSTANCE.newByteArray(length), length);
             final BytesRefIterator iterator = br.iterator();
             BytesRef bytesRef;

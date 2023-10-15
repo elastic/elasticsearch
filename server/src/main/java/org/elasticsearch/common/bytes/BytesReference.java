@@ -153,16 +153,9 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     int length();
 
     /**
-     * Slice the bytes from the {@code from} index up to {@code length}. The slice contains
-     * a direct reference to the internal pages.
+     * Slice the bytes from the {@code from} index up to {@code length}.
      */
     BytesReference slice(int from, int length);
-
-    /**
-     * Make a copy the bytes from the {@code from} index up to {@code length}. The copy does not
-     * contain a direct reference to the internal pages.
-     */
-    BytesReference copy(int from, int length);
 
     /**
      * The amount of memory used by this BytesReference

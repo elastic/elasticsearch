@@ -47,11 +47,6 @@ public class ZeroBytesReference extends AbstractBytesReference {
     }
 
     @Override
-    public BytesReference copy(int from, int length) {
-        return slice(from, length);
-    }
-
-    @Override
     public long ramBytesUsed() {
         return 0;
     }

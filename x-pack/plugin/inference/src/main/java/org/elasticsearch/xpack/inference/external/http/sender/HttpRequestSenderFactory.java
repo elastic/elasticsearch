@@ -63,9 +63,9 @@ public class HttpRequestSenderFactory {
         private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
 
         /**
-         * The maximum time a request can take. The time starts once a request is enqueued to when a response is received from the 3rd
-         * party service. This encompasses the time the request might just sit in the queue waiting to be sent if another request is
-         * already waiting for a connection lease from the connection pool.
+         * The maximum time a request can take. The timer starts once a request is enqueued and continues until a response is
+         * received from the 3rd party service. This encompasses the time the request might just sit in the queue waiting to be sent
+         * if another request is already waiting for a connection lease from the connection pool.
          */
         public static final Setting<TimeValue> MAX_REQUEST_TIMEOUT = Setting.timeSetting(
             "xpack.inference.http.max_request_timeout",
@@ -99,6 +99,7 @@ public class HttpRequestSenderFactory {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_REQUEST_TIMEOUT, this::setMaxRequestTimeout);
         }
 
+        // Default for testing
         void setMaxRequestTimeout(TimeValue maxRequestTimeout) {
             logger.debug(() -> format("Max request timeout updated to [%s] for service [%s]", maxRequestTimeout, service));
             this.maxRequestTimeout = maxRequestTimeout;

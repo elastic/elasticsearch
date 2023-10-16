@@ -243,13 +243,4 @@ public class HttpClientTests extends ESTestCase {
     private static HttpSettings createHttpSettings(Settings settings) {
         return new HttpSettings(settings, mockClusterService(settings));
     }
-
-    // private static ClusterService mockClusterService(Settings settings) {
-    // var clusterService = mock(ClusterService.class);
-    //
-    // var cSettings = new ClusterSettings(settings, new HashSet<>(HttpSettings.getSettings()));
-    // when(clusterService.getClusterSettings()).thenReturn(cSettings);
-    //
-    // return clusterService;
-    // }
 }

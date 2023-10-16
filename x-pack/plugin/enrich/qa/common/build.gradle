@@ -1,6 +1,5 @@
 apply plugin: 'elasticsearch.java'
 
-
 dependencies {
   api project(':test:framework')
 }

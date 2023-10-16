@@ -131,7 +131,9 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
 
             ClusterStateHealth streamHealth = new ClusterStateHealth(
                 state,
-                dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)
+                dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new),
+                false,
+                false
             );
 
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();

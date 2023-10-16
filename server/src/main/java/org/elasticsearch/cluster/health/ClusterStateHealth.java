@@ -38,9 +38,11 @@ public final class ClusterStateHealth implements Writeable {
      * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and all indices in the cluster.
      *
      * @param clusterState The current cluster state. Must not be null.
+     * @param includeIndicesStats if true, indices stats will be added
+     * @param includeShardsStats if true, shards stats will be added
      */
-    public ClusterStateHealth(final ClusterState clusterState) {
-        this(clusterState, clusterState.metadata().getConcreteAllIndices());
+    public ClusterStateHealth(final ClusterState clusterState, boolean includeIndicesStats, boolean includeShardsStats) {
+        this(clusterState, clusterState.metadata().getConcreteAllIndices(), includeIndicesStats, includeShardsStats);
     }
 
     /**
@@ -48,8 +50,16 @@ public final class ClusterStateHealth implements Writeable {
      *
      * @param clusterState    The current cluster state. Must not be null.
      * @param concreteIndices An array of index names to consider. Must not be null but may be empty.
+     * @param includeIndicesStats if true, indices stats will be added
+     * @param includeShardsStats if true, shards stats will be added
      */
-    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
+    public ClusterStateHealth(
+        final ClusterState clusterState,
+        final String[] concreteIndices,
+        boolean includeIndicesStats,
+        boolean includeShardsStats
+    ) {
+        assert (includeIndicesStats == false && includeShardsStats) == false;
         numberOfNodes = clusterState.nodes().getSize();
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
         indices = new HashMap<>();
@@ -68,8 +78,10 @@ public final class ClusterStateHealth implements Writeable {
                 continue;
             }
 
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
-            indices.put(indexHealth.getIndex(), indexHealth);
+            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable, includeShardsStats);
+            if (includeIndicesStats) {
+                indices.put(indexHealth.getIndex(), indexHealth);
+            }
 
             totalShardCount += indexMetadata.getTotalNumberOfShards();
             computeActivePrimaryShards += indexHealth.getActivePrimaryShards();

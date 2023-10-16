@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -37,6 +38,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
+    private boolean includeIndicesStats = true;
+    private boolean includeShardsStats = true;
 
     public ClusterHealthRequest() {}
 
@@ -59,6 +62,13 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         }
         waitForNoInitializingShards = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_HEALTH_INCLUDE_SHARDS_AND_INDICES_STATS_ADDED)) {
+            includeIndicesStats = in.readBoolean();
+            includeShardsStats = in.readBoolean();
+        } else {
+            includeIndicesStats = true;
+            includeShardsStats = true;
+        }
     }
 
     @Override
@@ -87,6 +97,10 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         }
         out.writeBoolean(waitForNoInitializingShards);
         indicesOptions.writeIndicesOptions(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_HEALTH_INCLUDE_SHARDS_AND_INDICES_STATS_ADDED)) {
+            out.writeBoolean(includeIndicesStats);
+            out.writeBoolean(includeShardsStats);
+        }
     }
 
     @Override
@@ -238,5 +252,21 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    public boolean includeShardsStats() {
+        return includeShardsStats;
+    }
+
+    public void setIncludeShardsStats(boolean includeShardsStats) {
+        this.includeShardsStats = includeShardsStats;
+    }
+
+    public boolean includeIndicesStats() {
+        return includeIndicesStats;
+    }
+
+    public void setIncludeIndicesStats(boolean includeIndicesStats) {
+        this.includeIndicesStats = includeIndicesStats;
     }
 }

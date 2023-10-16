@@ -250,7 +250,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             );
         } else {
             final IndexRoutingTable routingTable = state.getRoutingTable().index(indexMetadata.getIndex());
-            indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
+            indexHealth = new ClusterIndexHealth(indexMetadata, routingTable, false).getStatus();
         }
 
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);

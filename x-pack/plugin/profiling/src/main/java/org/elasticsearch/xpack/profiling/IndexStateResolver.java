@@ -47,7 +47,7 @@ class IndexStateResolver {
             return new IndexState<>(index, metadata.getIndex(), IndexStatus.CLOSED);
         }
         final IndexRoutingTable routingTable = state.getRoutingTable().index(metadata.getIndex());
-        ClusterHealthStatus indexHealth = new ClusterIndexHealth(metadata, routingTable).getStatus();
+        ClusterHealthStatus indexHealth = new ClusterIndexHealth(metadata, routingTable, false).getStatus();
         if (indexHealth == ClusterHealthStatus.RED) {
             logger.trace("Index [{}] health status is RED, any pending mapping upgrades will wait until this changes", metadata.getIndex());
             return new IndexState<>(index, metadata.getIndex(), IndexStatus.UNHEALTHY);

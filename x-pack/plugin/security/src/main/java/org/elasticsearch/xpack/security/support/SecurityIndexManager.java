@@ -248,7 +248,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         } else {
             indexState = IndexMetadata.State.OPEN;
             final IndexRoutingTable routingTable = event.state().getRoutingTable().index(indexMetadata.getIndex());
-            indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
+            indexHealth = new ClusterIndexHealth(indexMetadata, routingTable, false).getStatus();
         }
         final String indexUUID = indexMetadata != null ? indexMetadata.getIndexUUID() : null;
         final State newState = new State(

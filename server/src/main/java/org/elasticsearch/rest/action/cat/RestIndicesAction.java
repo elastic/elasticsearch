@@ -548,7 +548,7 @@ public class RestIndicesAction extends AbstractCatAction {
             final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
             final ClusterHealthStatus indexHealthStatus = indexRoutingTable == null
                 ? ClusterHealthStatus.RED // no routing table => cluster not recovered
-                : new ClusterIndexHealth(indexMetadata, indexRoutingTable).getStatus();
+                : new ClusterIndexHealth(indexMetadata, indexRoutingTable, false).getStatus();
 
             if (healthStatusFilter != null && indexHealthStatus != healthStatusFilter) {
                 // index health does not match the one requested

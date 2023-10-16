@@ -60,6 +60,8 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
         TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
+        final boolean includeIndicesStats = randomBoolean();
+        final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
             "bla",
             new String[] { Metadata.ALL },
@@ -67,7 +69,9 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
             pendingTasks,
             inFlight,
             delayedUnassigned,
-            pendingTaskInQueueTime
+            pendingTaskInQueueTime,
+            includeIndicesStats,
+            includeShardsStats
         );
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth);

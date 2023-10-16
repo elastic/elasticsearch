@@ -79,7 +79,9 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {
-        return new ClusterStateHealth(clusterState).getStatus();
+        final boolean includeIndicesStats = randomBoolean();
+        final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
+        return new ClusterStateHealth(clusterState, includeIndicesStats, includeShardsStats).getStatus();
     }
 
 }

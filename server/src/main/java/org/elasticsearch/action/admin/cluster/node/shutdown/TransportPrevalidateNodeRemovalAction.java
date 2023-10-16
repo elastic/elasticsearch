@@ -158,7 +158,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         assert requestNodes != null && requestNodes.isEmpty() == false;
 
         logger.debug(() -> "prevalidate node removal for nodes " + requestNodes);
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, true, true);
         Metadata metadata = clusterState.metadata();
         DiscoveryNodes clusterNodes = clusterState.getNodes();
         if (clusterStateHealth.getStatus() == ClusterHealthStatus.GREEN || clusterStateHealth.getStatus() == ClusterHealthStatus.YELLOW) {

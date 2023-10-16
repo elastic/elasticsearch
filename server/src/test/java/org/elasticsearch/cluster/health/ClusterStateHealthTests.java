@@ -70,6 +70,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterStateHealthTests extends ESTestCase {
     private static ThreadPool threadPool;
@@ -194,7 +196,14 @@ public class ClusterStateHealthTests extends ESTestCase {
             IndicesOptions.strictExpand(),
             (String[]) null
         );
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        final boolean includeIndicesStats = randomBoolean();
+        final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(
+            clusterState,
+            concreteIndices,
+            includeIndicesStats,
+            includeShardsStats
+        );
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
         clusterStateHealth = maybeSerialize(clusterStateHealth);
         assertClusterHealth(clusterStateHealth, counter);
@@ -207,7 +216,9 @@ public class ClusterStateHealthTests extends ESTestCase {
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is always YELLOW, up until the last state where it should be GREEN
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final boolean includeIndicesStats = randomBoolean();
+            final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, includeIndicesStats, includeShardsStats);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -224,7 +235,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
             // failed allocations that should make the cluster health RED
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final boolean includeIndicesStats = randomBoolean();
+            final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, includeIndicesStats, includeShardsStats);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -240,7 +253,9 @@ public class ClusterStateHealthTests extends ESTestCase {
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, when it turns GREEN
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final boolean includeIndicesStats = randomBoolean();
+            final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, includeIndicesStats, includeShardsStats);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -257,7 +272,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
             // failed allocations that should make the cluster health RED
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final boolean includeIndicesStats = randomBoolean();
+            final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, includeIndicesStats, includeShardsStats);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -274,7 +291,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             // because there were previous allocation ids, we should be RED until the primaries are started,
             // then move to YELLOW, and the last state should be GREEN when all shards have been started
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final boolean includeIndicesStats = randomBoolean();
+            final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, includeIndicesStats, includeShardsStats);
             if (i < clusterStates.size() - 1) {
                 // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated),
                 // then cluster health is YELLOW, otherwise RED
@@ -293,7 +312,9 @@ public class ClusterStateHealthTests extends ESTestCase {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
         for (final ClusterState clusterState : simulateClusterRecoveryStates(indexName, true, true)) {
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final boolean includeIndicesStats = randomBoolean();
+            final boolean includeShardsStats = includeIndicesStats == false ? false : randomBoolean();
+            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices, includeIndicesStats, includeShardsStats);
             // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated)
             // then cluster health is YELLOW, otherwise RED
             if (primaryInactiveDueToRecovery(indexName, clusterState)) {
@@ -580,4 +601,40 @@ public class ClusterStateHealthTests extends ESTestCase {
         assertThat(clusterStateHealth.getUnassignedShards(), equalTo(counter.unassigned));
         assertThat(clusterStateHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
+
+    public void testIncludeIndicesStatsAndIncludeShardsStatsFlag() {
+        RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
+        RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        Metadata.Builder metadata = Metadata.builder();
+        final String indexName = "test_index";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
+        metadata.put(indexMetadata, true);
+        routingTable.add(indexRoutingTable);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable.build()).build();
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, new String[] { indexName }, true, true);
+        assertThat(clusterStateHealth.getIndices().get(indexName), notNullValue());
+        assertThat(clusterStateHealth.getIndices().get(indexName).getShards().get(0), notNullValue());
+
+        clusterStateHealth = new ClusterStateHealth(clusterState, new String[] { indexName }, true, false);
+        assertThat(clusterStateHealth.getIndices().get(indexName), notNullValue());
+        assertThat(clusterStateHealth.getIndices().get(indexName).getShards().get(0), nullValue());
+
+        clusterStateHealth = new ClusterStateHealth(clusterState, new String[] { indexName }, false, false);
+        assertThat(clusterStateHealth.getIndices().get(indexName), nullValue());
+
+        AssertionError error = null;
+        try {
+            new ClusterStateHealth(clusterState, new String[] { indexName }, false, true);
+        } catch (AssertionError e) {
+            error = e;
+        }
+        assertThat(error, notNullValue());
+    }
+
 }

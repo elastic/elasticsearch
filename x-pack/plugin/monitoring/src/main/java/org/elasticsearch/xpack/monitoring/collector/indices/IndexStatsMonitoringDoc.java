@@ -62,7 +62,7 @@ public class IndexStatsMonitoringDoc extends FilteredMonitoringDoc {
 
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        final ClusterIndexHealth health = new ClusterIndexHealth(metadata, routingTable);
+        final ClusterIndexHealth health = new ClusterIndexHealth(metadata, routingTable, false);
 
         builder.startObject(TYPE);
         {

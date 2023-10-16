@@ -377,6 +377,20 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(objectFieldScript);
+        } else if (context.instanceClazz.equals(GeometryFieldScript.class)) {
+            GeometryFieldScript.Factory geometryFieldScript = (f, p, s, onScriptError) -> ctx -> new GeometryFieldScript(
+                f,
+                p,
+                s,
+                OnScriptError.FAIL,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    emitFromObject("POINT(1.2 1.2)");
+                }
+            };
+            return context.factoryClazz.cast(geometryFieldScript);
         } else if (context.instanceClazz.equals(DoubleValuesScript.class)) {
             DoubleValuesScript.Factory doubleValuesScript = () -> new MockDoubleValuesScript();
             return context.factoryClazz.cast(doubleValuesScript);

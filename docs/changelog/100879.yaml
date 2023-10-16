@@ -1,0 +1,5 @@
+pr: 100879
+summary: Drop ClusterStateHealth#indices and ClusterIndexHealth#shards when unnecessary
+area: Stats
+type: enhancement
+issues: [90631]

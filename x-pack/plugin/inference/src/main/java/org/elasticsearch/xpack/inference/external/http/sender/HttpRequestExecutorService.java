@@ -60,7 +60,7 @@ class HttpRequestExecutorService extends AbstractExecutorService {
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
     HttpRequestExecutorService(ThreadContext contextHolder, String serviceName, HttpClient httpClient, ThreadPool threadPool) {
-        this(contextHolder, serviceName, httpClient, threadPool, null);
+        this(contextHolder, serviceName, httpClient, threadPool, new LinkedBlockingQueue<>());
     }
 
     @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
@@ -69,19 +69,28 @@ class HttpRequestExecutorService extends AbstractExecutorService {
         String serviceName,
         HttpClient httpClient,
         ThreadPool threadPool,
-        @Nullable Integer capacity
+        int capacity
+    ) {
+        this(contextHolder, serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity));
+    }
+
+    /**
+     * This constructor should only be used directly for testing.
+     */
+    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+    HttpRequestExecutorService(
+        ThreadContext contextHolder,
+        String serviceName,
+        HttpClient httpClient,
+        ThreadPool threadPool,
+        BlockingQueue<HttpTask> queue
     ) {
         this.contextHolder = Objects.requireNonNull(contextHolder);
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.httpContext = HttpClientContext.create();
-
-        if (capacity == null) {
-            this.queue = new LinkedBlockingQueue<>();
-        } else {
-            this.queue = new LinkedBlockingQueue<>(capacity);
-        }
+        this.queue = queue;
     }
 
     /**
@@ -90,19 +99,35 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     public void start() {
         try {
             while (running.get()) {
-                HttpTask task = queue.take();
-                if (task.shouldShutdown() || running.get() == false) {
-                    running.set(false);
-                    logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
-                } else {
-                    executeTask(task);
-                }
+                handleTasks();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
             notifyRequestsOfShutdown();
             terminationLatch.countDown();
+        }
+    }
+
+    /**
+     * Protects the task retrieval logic from an unexpected exception.
+     *
+     * @throws InterruptedException rethrows the exception if it occurred retrieving a task because the thread is likely attempting to
+     * shut down
+     */
+    private void handleTasks() throws InterruptedException {
+        try {
+            HttpTask task = queue.take();
+            if (task.shouldShutdown() || running.get() == false) {
+                running.set(false);
+                logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
+            } else {
+                executeTask(task);
+            }
+        } catch (InterruptedException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.warn(format("Http executor service [%s] failed while retrieving task for execution", serviceName), e);
         }
     }
 

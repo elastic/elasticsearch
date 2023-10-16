@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
@@ -31,6 +33,9 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class HttpRequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -212,5 +217,51 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         );
         assertTrue(thrownException.isExecutorShutdown());
         assertTrue(service.isTerminated());
+    }
+
+    public void testQueueTake_Throwing_DoesNotCauseServiceToTerminate() throws InterruptedException {
+        @SuppressWarnings("unchecked")
+        BlockingQueue<HttpTask> queue = mock(LinkedBlockingQueue.class);
+        when(queue.take()).thenThrow(new ElasticsearchException("failed")).thenReturn(new ShutdownTask());
+
+        var service = new HttpRequestExecutorService(
+            threadPool.getThreadContext(),
+            "test_service",
+            mock(HttpClient.class),
+            threadPool,
+            queue
+        );
+
+        service.start();
+
+        assertTrue(service.isTerminated());
+        verify(queue, times(2)).take();
+    }
+
+    public void testQueueTake_ThrowingInterruptedException_TerminatesService() throws Exception {
+        @SuppressWarnings("unchecked")
+        BlockingQueue<HttpTask> queue = mock(LinkedBlockingQueue.class);
+        when(queue.take()).thenThrow(new InterruptedException("failed"));
+
+        var service = new HttpRequestExecutorService(
+            threadPool.getThreadContext(),
+            "test_service",
+            mock(HttpClient.class),
+            threadPool,
+            queue
+        );
+
+        Future<?> executorTermination = threadPool.generic().submit(() -> {
+            try {
+                service.start();
+            } catch (Exception e) {
+                fail(Strings.format("Failed to shutdown executor: %s", e));
+            }
+        });
+
+        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+
+        assertTrue(service.isTerminated());
+        verify(queue, times(1)).take();
     }
 }

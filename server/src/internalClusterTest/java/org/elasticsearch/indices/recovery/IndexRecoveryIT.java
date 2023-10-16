@@ -250,12 +250,12 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     /**
-     * Updates the cluster state settings to throttle shard recovery speed for shards of size 'shardSize' to 10 seconds.
+     * Updates the cluster state settings to throttle recovery data transmission to 'dataSize' every 10 seconds.
      *
-     * @param shardSize size in bytes to recover in 10 seconds
+     * @param dataSize size in bytes to recover in 10 seconds
      */
-    private void throttleRecovery(ByteSizeValue shardSize) {
-        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
+    private void throttleRecovery10Seconds(ByteSizeValue dataSize) {
+        long chunkSize = Math.max(1, dataSize.getBytes() / 10);
         updateClusterSettings(createRecoverySettingsChunkPerSecond(chunkSize));
     }
 
@@ -547,7 +547,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen();
 
         logger.info("--> slowing down recoveries");
-        throttleRecovery(shardSize);
+        throttleRecovery10Seconds(shardSize);
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB)).execute().actionGet().getState();
@@ -633,7 +633,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         logger.info("--> slowing down recoveries");
-        throttleRecovery(shardSize);
+        throttleRecovery10Seconds(shardSize);
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC)).execute().actionGet().getState();

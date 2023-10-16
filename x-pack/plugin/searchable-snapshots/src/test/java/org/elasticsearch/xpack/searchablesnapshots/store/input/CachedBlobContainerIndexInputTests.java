@@ -25,6 +25,7 @@ import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.NoopBlobStoreCacheService;
@@ -122,7 +123,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                         cacheDir,
                         shardPath,
                         threadPool,
-                        sharedBlobCacheService
+                        sharedBlobCacheService,
+                        Meter.NOOP
                     )
                 ) {
                     RecoveryState recoveryState = createRecoveryState(recoveryFinalizedDone);
@@ -227,7 +229,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     cacheDir,
                     shardPath,
                     threadPool,
-                    sharedBlobCacheService
+                    sharedBlobCacheService,
+                    Meter.NOOP
                 )
             ) {
                 RecoveryState recoveryState = createRecoveryState(randomBoolean());

@@ -407,7 +407,14 @@ public class IndexResolverTests extends ESTestCase {
     public void testMergeObjectIncompatibleTypes() throws Exception {
         var response = readFieldCapsResponse("fc-incompatible-object-compatible-subfields.json");
 
-        IndexResolution resolution = mergedMappings("*", response);
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            SqlDataTypeRegistry.INSTANCE,
+            "*",
+            response,
+            (fieldName, types) -> null,
+            IndexResolver.PRESERVE_PROPERTIES
+
+        );
 
         assertTrue(resolution.isValid());
         EsIndex esIndex = resolution.get();
@@ -575,10 +582,6 @@ public class IndexResolverTests extends ESTestCase {
             indexPattern,
             new FieldCapabilitiesResponse(indexNames, fieldCaps)
         );
-    }
-
-    private static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse response) {
-        return IndexResolver.mergedMappings(SqlDataTypeRegistry.INSTANCE, indexPattern, response);
     }
 
     private static List<EsIndex> separateMappings(

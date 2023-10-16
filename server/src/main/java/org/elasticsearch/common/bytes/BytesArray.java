@@ -93,7 +93,7 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     @Override
-    public BytesReference copy(int from, int length) {
+    public BytesReference deepCopy(int from, int length) {
         Objects.checkFromIndexSize(from, length, this.length);
         final byte[] copy = new byte[length];
         System.arraycopy(bytes, offset + from, copy, 0, length);

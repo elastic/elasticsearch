@@ -595,7 +595,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         }
 
         @Override
-        public BytesReference copy(int from, int length) {
+        public BytesReference deepCopy(int from, int length) {
             return null;
         }
 

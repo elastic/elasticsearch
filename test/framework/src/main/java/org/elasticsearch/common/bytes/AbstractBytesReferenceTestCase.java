@@ -100,7 +100,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             BytesReference pbr = newBytesReference(length);
             int sliceOffset = randomIntBetween(0, length / 2);
             int copyLength = Math.max(0, length - sliceOffset - 1);
-            BytesReference slice = pbr.copy(sliceOffset, copyLength);
+            BytesReference slice = pbr.deepCopy(sliceOffset, copyLength);
             assertEquals(copyLength, slice.length());
             for (int i = 0; i < copyLength; i++) {
                 assertEquals(pbr.get(i + sliceOffset), slice.get(i));

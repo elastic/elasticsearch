@@ -50,24 +50,21 @@ public class PagedBytesReference extends AbstractBytesReference {
     }
 
     @Override
-    public BytesReference copy(int from, int length) {
+    public BytesReference deepCopy(int from, int length) throws IOException {
         Objects.checkFromIndexSize(from, length, this.length);
         final int offsetFirstPage = (Math.addExact(offset, from)) % PAGE_SIZE;
         // adjust offset and length for doing aligned page copies
         final int adjustedFrom = from - offsetFirstPage;
         final int adjustedLength = Math.addExact(length, offsetFirstPage);
+        // copy data using slices to ensure we do NOT materialize the pages
         final ByteArray byteArray = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(adjustedLength);
-        final long offset = this.offset + adjustedFrom;
-        final BytesRef slice = new BytesRef();
-        int nextFragmentSize = Math.min(adjustedLength, PAGE_SIZE);
+        final BytesRefIterator iterator = slice(adjustedFrom, adjustedLength).iterator();
+        BytesRef slice;
         int position = 0;
-        while (nextFragmentSize != 0) {
-            final boolean materialized = this.byteArray.get(offset + position, nextFragmentSize, slice);
-            assert materialized == false : "iteration should be page aligned but array got materialized";
-            assert slice.offset == 0 : "iteration should be page aligned but it did not copy the start of the page";
+        while ((slice = iterator.next()) != null) {
+            assert slice.offset == 0 : "iteration should be page aligned but we are not at the beginning of the page";
             byteArray.set(position, slice.bytes, slice.offset, slice.length);
-            position += nextFragmentSize;
-            nextFragmentSize = Math.min(adjustedLength - position, PAGE_SIZE);
+            position += slice.length;
         }
         return BytesReference.fromByteArray(byteArray, offsetFirstPage, length);
     }

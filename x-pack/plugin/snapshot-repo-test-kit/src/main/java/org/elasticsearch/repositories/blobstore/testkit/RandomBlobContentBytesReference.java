@@ -41,7 +41,7 @@ class RandomBlobContentBytesReference extends AbstractBytesReference {
     }
 
     @Override
-    public BytesReference copy(int from, int length) {
+    public BytesReference deepCopy(int from, int length) {
         assert false : "must not copy a RandomBlobContentBytesReference";
         throw new UnsupportedOperationException("RandomBlobContentBytesReference#copy(int, int) is unsupported");
     }

@@ -47,7 +47,7 @@ public class ZeroBytesReference extends AbstractBytesReference {
     }
 
     @Override
-    public BytesReference copy(int from, int length) {
+    public BytesReference deepCopy(int from, int length) {
         return slice(from, length);
     }
 

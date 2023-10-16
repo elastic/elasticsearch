@@ -140,9 +140,9 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     }
 
     @Override
-    public BytesReference copy(int from, int length) {
+    public BytesReference deepCopy(int from, int length) throws IOException {
         assert hasReferences();
-        return delegate.copy(from, length);
+        return delegate.deepCopy(from, length);
     }
 
     @Override

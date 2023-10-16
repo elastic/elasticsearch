@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsMetrics;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -101,11 +102,11 @@ public class RestNodesAction extends AbstractCatAction {
         nodesStatsRequest.clear()
             .indices(true)
             .addMetrics(
-                NodesStatsRequest.Metric.JVM.metricName(),
-                NodesStatsRequest.Metric.OS.metricName(),
-                NodesStatsRequest.Metric.FS.metricName(),
-                NodesStatsRequest.Metric.PROCESS.metricName(),
-                NodesStatsRequest.Metric.SCRIPT.metricName()
+                NodesStatsMetrics.Metric.JVM.metricName(),
+                NodesStatsMetrics.Metric.OS.metricName(),
+                NodesStatsMetrics.Metric.FS.metricName(),
+                NodesStatsMetrics.Metric.PROCESS.metricName(),
+                NodesStatsMetrics.Metric.SCRIPT.metricName()
             );
         nodesStatsRequest.indices().includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
 

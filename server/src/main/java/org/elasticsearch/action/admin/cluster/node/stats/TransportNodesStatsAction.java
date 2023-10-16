@@ -84,21 +84,21 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         return nodeService.stats(
             request.indices(),
             request.includeShardsStats(),
-            NodesStatsRequest.Metric.OS.containedIn(metrics),
-            NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
-            NodesStatsRequest.Metric.JVM.containedIn(metrics),
-            NodesStatsRequest.Metric.THREAD_POOL.containedIn(metrics),
-            NodesStatsRequest.Metric.FS.containedIn(metrics),
-            NodesStatsRequest.Metric.TRANSPORT.containedIn(metrics),
-            NodesStatsRequest.Metric.HTTP.containedIn(metrics),
-            NodesStatsRequest.Metric.BREAKER.containedIn(metrics),
-            NodesStatsRequest.Metric.SCRIPT.containedIn(metrics),
-            NodesStatsRequest.Metric.DISCOVERY.containedIn(metrics),
-            NodesStatsRequest.Metric.INGEST.containedIn(metrics),
-            NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
-            NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics),
-            NodesStatsRequest.Metric.REPOSITORIES.containedIn(metrics)
+            NodesStatsMetrics.Metric.OS.containedIn(metrics),
+            NodesStatsMetrics.Metric.PROCESS.containedIn(metrics),
+            NodesStatsMetrics.Metric.JVM.containedIn(metrics),
+            NodesStatsMetrics.Metric.THREAD_POOL.containedIn(metrics),
+            NodesStatsMetrics.Metric.FS.containedIn(metrics),
+            NodesStatsMetrics.Metric.TRANSPORT.containedIn(metrics),
+            NodesStatsMetrics.Metric.HTTP.containedIn(metrics),
+            NodesStatsMetrics.Metric.BREAKER.containedIn(metrics),
+            NodesStatsMetrics.Metric.SCRIPT.containedIn(metrics),
+            NodesStatsMetrics.Metric.DISCOVERY.containedIn(metrics),
+            NodesStatsMetrics.Metric.INGEST.containedIn(metrics),
+            NodesStatsMetrics.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
+            NodesStatsMetrics.Metric.SCRIPT_CACHE.containedIn(metrics),
+            NodesStatsMetrics.Metric.INDEXING_PRESSURE.containedIn(metrics),
+            NodesStatsMetrics.Metric.REPOSITORIES.containedIn(metrics)
         );
     }
 

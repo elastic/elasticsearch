@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsMetrics;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -393,7 +394,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     static NodesStatsRequest nodeStatsRequest(ClusterState state, TaskId parentTaskId) {
         String[] ingestNodes = state.nodes().getIngestNodes().keySet().toArray(String[]::new);
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
-            .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
+            .addMetric(NodesStatsMetrics.Metric.INGEST.metricName());
         nodesStatsRequest.setParentTask(parentTaskId);
         return nodesStatsRequest;
     }

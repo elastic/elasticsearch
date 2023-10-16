@@ -117,11 +117,17 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
 
     // visible for testing
     void readLatestClusterStateForTerm(long termTarget, ActionListener<Optional<PersistedClusterState>> listener) {
-        BlobContainer blobContainer = blobContainerSupplier.apply(termTarget);
-        try (Directory termDirectory = new TermBlobDirectory(blobContainer)) {
-            SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(termDirectory);
-
-            downloadState(termTarget, segmentCommitInfos, listener);
+        final var termBlobContainer = blobContainerSupplier.apply(termTarget);
+        try (Directory termDirectory = new TermBlobDirectory(termBlobContainer)) {
+            final var files = SegmentInfos.readLatestCommit(termDirectory).files(true);
+            final var downloadDirectory = new AutoCleanDirectory(clusterStateReadStagingPath);
+            ActionListener.run(ActionListener.runBefore(listener, () -> {
+                try {
+                    downloadDirectory.close();
+                } catch (IOException | RuntimeException e) {
+                    logger.warn("Unable to clean temporary cluster state files from [" + clusterStateReadStagingPath + "]", e);
+                }
+            }), l -> downloadState(termBlobContainer, files, downloadDirectory, l));
         } catch (IndexNotFoundException e) {
             listener.onResponse(Optional.empty());
         } catch (IOException e) {
@@ -129,46 +135,44 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         }
     }
 
-    private void downloadState(long term, SegmentInfos segmentInfos, ActionListener<Optional<PersistedClusterState>> listener)
-        throws IOException {
-        final var luceneFilesToDownload = segmentInfos.files(true);
+    private void downloadState(
+        BlobContainer termBlobContainer,
+        Iterable<String> files,
+        Directory downloadDirectory,
+        ActionListener<Optional<PersistedClusterState>> listener
+    ) {
+        SubscribableListener
 
-        final var downloadDirectory = new AutoCleanDirectory(clusterStateReadStagingPath);
-        listener = ActionListener.runBefore(listener, () -> {
-            try {
-                downloadDirectory.close();
-            } catch (IOException | RuntimeException e) {
-                logger.warn("Unable to clean temporary cluster state files from [" + clusterStateReadStagingPath + "]", e);
-            }
-        });
-
-        ActionListener<Void> allFilesDownloadedListener = listener.map(unused -> {
-            try (DirectoryReader directoryReader = DirectoryReader.open(downloadDirectory)) {
-                PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadOnDiskState(
-                    downloadDirectory.getPath(),
-                    directoryReader
-                );
-                return Optional.of(
-                    new PersistedClusterState(onDiskState.currentTerm, onDiskState.lastAcceptedVersion, onDiskState.metadata)
-                );
-            }
-        });
-
-        try (var refCountingListener = new RefCountingListener(new ThreadedActionListener<>(executorService, allFilesDownloadedListener))) {
-            final var termBlobContainer = blobContainerSupplier.apply(term);
-            for (String file : luceneFilesToDownload) {
-                throttledTaskRunner.enqueueTask(refCountingListener.acquire().map(r -> {
-                    // TODO: retry
-                    try (r; var inputStream = termBlobContainer.readBlob(OperationPurpose.CLUSTER_STATE, file)) {
-                        Streams.copy(
-                            inputStream,
-                            new IndexOutputOutputStream(((Directory) downloadDirectory).createOutput(file, IOContext.DEFAULT))
-                        );
+            .<Void>newForked(l -> {
+                try (var refCountingListener = new RefCountingListener(new ThreadedActionListener<>(executorService, l))) {
+                    for (String file : files) {
+                        throttledTaskRunner.enqueueTask(refCountingListener.acquire().map(r -> {
+                            // TODO: retry
+                            try (r; var inputStream = termBlobContainer.readBlob(OperationPurpose.CLUSTER_STATE, file)) {
+                                Streams.copy(
+                                    inputStream,
+                                    new IndexOutputOutputStream(downloadDirectory.createOutput(file, IOContext.DEFAULT))
+                                );
+                            }
+                            return null;
+                        }));
                     }
-                    return null;
-                }));
-            }
-        }
+                }
+            })
+
+            .<Optional<PersistedClusterState>>andThen((l, ignored) -> ActionListener.completeWith(l, () -> {
+                try (DirectoryReader directoryReader = DirectoryReader.open(downloadDirectory)) {
+                    PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadOnDiskState(
+                        clusterStateReadStagingPath,
+                        directoryReader
+                    );
+                    return Optional.of(
+                        new PersistedClusterState(onDiskState.currentTerm, onDiskState.lastAcceptedVersion, onDiskState.metadata)
+                    );
+                }
+            }))
+
+            .addListener(listener);
     }
 
     private void getLatestStoredClusterStateMetadataForTerm(

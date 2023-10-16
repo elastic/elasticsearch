@@ -105,13 +105,20 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * that backing array directly.
      */
     static BytesReference fromByteArray(ByteArray byteArray, int length) {
+        return fromByteArray(byteArray, 0, length);
+    }
+
+    /**
+     * Similar to {@link #fromByteArray(ByteArray, int)} but allows to specify an offset into the ByteArray.
+     */
+    static BytesReference fromByteArray(ByteArray byteArray, int offset, int length) {
         if (length == 0) {
             return BytesArray.EMPTY;
         }
         if (byteArray.hasArray()) {
-            return new BytesArray(byteArray.array(), 0, length);
+            return new BytesArray(byteArray.array(), offset, length);
         }
-        return new PagedBytesReference(byteArray, 0, length);
+        return new PagedBytesReference(byteArray, offset, length);
     }
 
     /**
@@ -153,9 +160,16 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     int length();
 
     /**
-     * Slice the bytes from the {@code from} index up to {@code length}.
+     * Slice the bytes from the {@code from} index up to {@code length}. The slice contains
+     * a direct reference to the internal pages.
      */
     BytesReference slice(int from, int length);
+
+    /**
+     * Make a copy the bytes from the {@code from} index up to {@code length}. The copy does not
+     * contain a direct reference to the internal pages.
+     */
+    BytesReference copy(int from, int length);
 
     /**
      * The amount of memory used by this BytesReference

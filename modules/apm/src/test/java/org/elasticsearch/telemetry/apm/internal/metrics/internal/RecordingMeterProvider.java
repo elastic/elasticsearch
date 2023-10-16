@@ -51,6 +51,10 @@ public class RecordingMeterProvider implements Meter {
         longCallbacks.forEach(LongGaugeRecorder::doCall);
     }
 
+    public MeterRecorder getRecorder() {
+        return recorder;
+    }
+
     private final MeterRecorder recorder = new MeterRecorder();
 
     @Override

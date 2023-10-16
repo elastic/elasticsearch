@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.metrics.internal;
 import org.elasticsearch.core.Strings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,12 +26,6 @@ public class MeterRecorder {
         GAUGE_OBSERVER
     }
 
-    sealed interface MetricCall permits LongMetricCall, DoubleMetricCall {}
-
-    record LongMetricCall(long value, Map<String, Object> attributes) implements MetricCall {}
-
-    record DoubleMetricCall(double value, Map<String, Object> attributes) implements MetricCall {}
-
     private record Registration(String name, String description, String unit) {
         Registration {
             Objects.requireNonNull(name);
@@ -39,28 +34,28 @@ public class MeterRecorder {
         }
     };
 
-    private record RegisteredMetric<M extends MetricCall>(Map<String, Registration> registered, Map<String, List<M>> called) {
+    private record RegisteredMetric(Map<String, Registration> registered, Map<String, List<TestAPMMeterService.Metric>> called) {
         void register(String name, String description, String unit) {
             assert registered.containsKey(name) == false
                 : Strings.format("unexpected [{}]: [{}][{}], already registered[{}]", name, description, unit, registered.get(name));
             registered.put(name, new Registration(name, description, unit));
         }
 
-        void call(String name, M call) {
+        void call(String name, TestAPMMeterService.Metric call) {
             assert registered.containsKey(name) : Strings.format("call for unregistered metric [{}]: [{}]", name, call);
             called.computeIfAbsent(Objects.requireNonNull(name), k -> new ArrayList<>()).add(call);
         }
     }
 
-    private final Map<INSTRUMENT, RegisteredMetric<DoubleMetricCall>> doubles;
-    private final Map<INSTRUMENT, RegisteredMetric<LongMetricCall>> longs;
+    private final Map<INSTRUMENT, RegisteredMetric> doubles;
+    private final Map<INSTRUMENT, RegisteredMetric> longs;
 
     MeterRecorder() {
         doubles = new HashMap<>(INSTRUMENT.values().length);
         longs = new HashMap<>(INSTRUMENT.values().length);
         for (var instrument : INSTRUMENT.values()) {
-            doubles.put(instrument, new RegisteredMetric<>(new HashMap<>(), new HashMap<>()));
-            longs.put(instrument, new RegisteredMetric<>(new HashMap<>(), new HashMap<>()));
+            doubles.put(instrument, new RegisteredMetric(new HashMap<>(), new HashMap<>()));
+            longs.put(instrument, new RegisteredMetric(new HashMap<>(), new HashMap<>()));
         }
     }
 
@@ -73,18 +68,18 @@ public class MeterRecorder {
     }
 
     void call(INSTRUMENT instrument, String name, double value, Map<String, Object> attributes) {
-        doubles.get(Objects.requireNonNull(instrument)).call(name, new DoubleMetricCall(value, attributes));
+        doubles.get(Objects.requireNonNull(instrument)).call(name, new TestAPMMeterService.Metric(value, attributes));
     }
 
     void call(INSTRUMENT instrument, String name, long value, Map<String, Object> attributes) {
-        longs.get(Objects.requireNonNull(instrument)).call(name, new LongMetricCall(value, attributes));
+        longs.get(Objects.requireNonNull(instrument)).call(name, new TestAPMMeterService.Metric(value, attributes));
     }
 
-    List<DoubleMetricCall> getDouble(INSTRUMENT instrument, String name) {
-        return doubles.get(Objects.requireNonNull(instrument)).called.get(Objects.requireNonNull(name));
+    List<TestAPMMeterService.Metric> getDouble(INSTRUMENT instrument, String name) {
+        return doubles.get(Objects.requireNonNull(instrument)).called.getOrDefault(Objects.requireNonNull(name), Collections.emptyList());
     }
 
-    List<LongMetricCall> getLong(INSTRUMENT instrument, String name) {
-        return longs.get(Objects.requireNonNull(instrument)).called.get(Objects.requireNonNull(name));
+    List<TestAPMMeterService.Metric> getLong(INSTRUMENT instrument, String name) {
+        return longs.get(Objects.requireNonNull(instrument)).called.getOrDefault(Objects.requireNonNull(name), Collections.emptyList());
     }
 }

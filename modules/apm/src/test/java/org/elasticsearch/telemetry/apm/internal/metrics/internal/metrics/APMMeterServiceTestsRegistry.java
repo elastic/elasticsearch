@@ -34,7 +34,7 @@ public class APMMeterServiceTestsRegistry extends ESTestCase {
         var settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
         apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel);
 
-        meter = ((APMMeterRegistry) apmMeter.getMeterRegistry()).getMeter();
+        meter = apmMeter.getMeterRegistry().getMeter();
         assertThat(meter, sameInstance(testOtel));
 
         // test explicitly disabled

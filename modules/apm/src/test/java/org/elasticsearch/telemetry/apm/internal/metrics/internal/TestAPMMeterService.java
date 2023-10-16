@@ -12,7 +12,24 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.telemetry.apm.internal.metrics.internal.metrics.APMMeterRegistry;
+import org.elasticsearch.telemetry.metric.DoubleCounter;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleGaugeObserver;
+import org.elasticsearch.telemetry.metric.DoubleHistogram;
+import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
+import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongGaugeObserver;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterService;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.telemetry.apm.internal.metrics.internal.MeterRecorder.INSTRUMENT;
 
 public class TestAPMMeterService implements MeterService {
     private final APMMeterRegistry meterRegistry;
@@ -37,12 +54,67 @@ public class TestAPMMeterService implements MeterService {
         }
     }
 
-    protected RecordingMeterProvider createRecordingMeter() {
+    public Meter getMeter() {
+        assert recordingMeter != null;
+        return recordingMeter;
+    }
+
+    public static class Metric {
+        final Number number;
+        final Map<String, Object> attributes;
+
+        public Metric(Number number, Map<String, Object> attributes) {
+            this.number = number;
+            this.attributes = attributes;
+        }
+
+        public Number getNumber() {
+            return number;
+        }
+
+        public Map<String, Object> getAttributes() {
+            return attributes;
+        }
+    }
+
+    public List<Metric> getMetrics(Instrument instrument, String name) {
+        Objects.requireNonNull(instrument);
+        if (instrument instanceof DoubleCounter) {
+            return recordingMeter.getRecorder().getDouble(INSTRUMENT.COUNTER, name);
+        } else if (instrument instanceof LongCounter) {
+            return recordingMeter.getRecorder().getLong(INSTRUMENT.COUNTER, name);
+        } else if (instrument instanceof DoubleUpDownCounter) {
+            return recordingMeter.getRecorder().getDouble(INSTRUMENT.UP_DOWN_COUNTER, name);
+        } else if (instrument instanceof LongUpDownCounter) {
+            return recordingMeter.getRecorder().getLong(INSTRUMENT.UP_DOWN_COUNTER, name);
+        } else if (instrument instanceof DoubleHistogram) {
+            return recordingMeter.getRecorder().getDouble(INSTRUMENT.HISTOGRAM, name);
+        } else if (instrument instanceof LongHistogram) {
+            return recordingMeter.getRecorder().getLong(INSTRUMENT.HISTOGRAM, name);
+        } else if (instrument instanceof DoubleGauge) {
+            return recordingMeter.getRecorder().getDouble(INSTRUMENT.GAUGE_OBSERVER, name);
+        } else if (instrument instanceof LongGauge) {
+            return recordingMeter.getRecorder().getLong(INSTRUMENT.GAUGE_OBSERVER, name);
+        } else if (instrument instanceof DoubleGaugeObserver) {
+            return recordingMeter.getRecorder().getDouble(INSTRUMENT.GAUGE_OBSERVER, name);
+        } else if (instrument instanceof LongGaugeObserver) {
+            return recordingMeter.getRecorder().getLong(INSTRUMENT.GAUGE_OBSERVER, name);
+        } else {
+            throw new IllegalArgumentException("unknown instrument [" + instrument.getClass().getName() + "]");
+        }
+    }
+
+    public void collectMetrics() {
+        assert recordingMeter != null;
+        recordingMeter.collectMetrics();
+    }
+
+    private RecordingMeterProvider createRecordingMeter() {
         assert this.enabled;
         return new RecordingMeterProvider();
     }
 
-    protected Meter createNoopMeter() {
+    private Meter createNoopMeter() {
         return OpenTelemetry.noop().getMeter("noop");
     }
 }

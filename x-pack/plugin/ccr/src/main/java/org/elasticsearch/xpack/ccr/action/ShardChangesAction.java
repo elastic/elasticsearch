@@ -363,7 +363,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
                 actionFilters,
                 indexNameExpressionResolver,
                 Request::new,
-                ThreadPool.Names.SEARCH
+                threadPool.executor(ThreadPool.Names.SEARCH)
             );
             this.indicesService = indicesService;
         }

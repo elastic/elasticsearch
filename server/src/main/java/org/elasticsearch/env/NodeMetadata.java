@@ -8,6 +8,7 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
@@ -112,22 +113,22 @@ public final class NodeMetadata {
         assert (nodeVersion.equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
 
-        if (nodeVersion.before(Version.CURRENT.minimumCompatibilityVersion())) {
+        if (NodeMetadata.isNodeVersionWireCompatible(nodeVersion.toString()) == false) {
             throw new IllegalStateException(
                 "cannot upgrade a node from version ["
                     + nodeVersion
                     + "] directly to version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "], "
                     + "upgrade to version ["
-                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + Build.current().minWireCompatVersion()
                     + "] first."
             );
         }
 
         if (nodeVersion.after(Version.CURRENT)) {
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]"
+                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Build.current().version() + "]"
             );
         }
     }
@@ -219,4 +220,21 @@ public final class NodeMetadata {
     }
 
     public static final MetadataStateFormat<NodeMetadata> FORMAT = new NodeMetadataStateFormat(false);
+
+    /**
+     * Check whether a node version is compatible with the current minimum transport version.
+     * @param version A version identifier as a string
+     * @throws IllegalArgumentException if version is not a valid transport version identifier
+     * @return true if the version is compatible, false otherwise
+     */
+    // visible for testing
+    static boolean isNodeVersionWireCompatible(String version) {
+        try {
+            Version esVersion = Version.fromString(version);
+            return esVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Cannot parse [" + version + "] as a transport version identifier", e);
+        }
+    }
+
 }

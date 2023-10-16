@@ -50,6 +50,18 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public final class MlIndexAndAlias {
 
+    /**
+     * ML managed index mappings used to be updated based on the product version.
+     * They are now updated based on per-index mappings versions. However, older
+     * nodes will still look for a product version in the mappings metadata, so
+     * we have to put <em>something</em> in that field that will allow the older
+     * node to realise that the mappings are ahead of what it knows about. The
+     * easiest solution is to hardcode 8.11.0 in this field, because any node
+     * from 8.10.0 onwards should be using per-index mappings versions to determine
+     * whether mappings are up-to-date.
+     */
+    public static final String BWC_MAPPINGS_VERSION = "8.11.0";
+
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
 
     // Visible for testing

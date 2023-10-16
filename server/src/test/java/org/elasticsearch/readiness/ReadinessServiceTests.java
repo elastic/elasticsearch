@@ -159,8 +159,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         // mocking a cluster change event, with a master down
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
-                DiscoveryNodes.builder()
-                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2"))
+                DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
             )
             .build();
 
@@ -193,8 +192,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
-                DiscoveryNodes.builder()
-                    .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2"))
+                DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
             )
             .build();
 

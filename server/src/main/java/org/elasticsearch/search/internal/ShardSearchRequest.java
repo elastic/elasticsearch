@@ -204,6 +204,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         );
     }
 
+    @SuppressWarnings("this-escape")
     public ShardSearchRequest(
         OriginalIndices originalIndices,
         ShardId shardId,
@@ -246,6 +247,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.forceSyntheticSource = forceSyntheticSource;
     }
 
+    @SuppressWarnings("this-escape")
     public ShardSearchRequest(ShardSearchRequest clone) {
         this.shardId = clone.shardId;
         this.shardRequestIndex = clone.shardRequestIndex;

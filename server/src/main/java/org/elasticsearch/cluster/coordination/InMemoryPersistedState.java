@@ -14,6 +14,7 @@ public class InMemoryPersistedState implements CoordinationState.PersistedState 
     private long currentTerm;
     private ClusterState acceptedState;
 
+    @SuppressWarnings("this-escape")
     public InMemoryPersistedState(long term, ClusterState acceptedState) {
         this.currentTerm = term;
         this.acceptedState = acceptedState;

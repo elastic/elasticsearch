@@ -55,6 +55,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @param metadata  the files meta data
          * @param partSize     size of the single chunk
          */
+        @SuppressWarnings("this-escape")
         public FileInfo(String name, StoreFileMetadata metadata, @Nullable ByteSizeValue partSize) {
             this.name = Objects.requireNonNull(name);
             this.metadata = metadata;

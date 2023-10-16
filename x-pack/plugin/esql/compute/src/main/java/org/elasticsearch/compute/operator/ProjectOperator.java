@@ -9,58 +9,76 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
 
 import java.util.Arrays;
-import java.util.BitSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class ProjectOperator extends AbstractPageMappingOperator {
 
-    private final BitSet bs;
+    private final Set<Integer> pagesUsed;
+    private final int[] projection;
     private Block[] blocks;
 
-    public record ProjectOperatorFactory(BitSet mask) implements OperatorFactory {
+    public record ProjectOperatorFactory(List<Integer> projection) implements OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ProjectOperator(mask);
+            return new ProjectOperator(projection);
         }
 
         @Override
         public String describe() {
-            return "ProjectOperator[mask = " + mask + "]";
+            return "ProjectOperator[projection = " + projection + "]";
         }
     }
 
     /**
-     * Creates a project that applies the given mask (as a bitset).
+     * Creates an operator that applies the given projection, encoded as an integer list where
+     * the ordinal indicates the output order and the value, the backing channel that to be used.
+     * Given the input {a,b,c,d}, project {a,d,a} is encoded as {0,3,0}.
      *
-     * @param mask bitset mask for enabling/disabling blocks / columns inside a Page
+     * @param projection list of blocks to keep and their order.
      */
-    public ProjectOperator(BitSet mask) {
-        this.bs = mask;
+    public ProjectOperator(List<Integer> projection) {
+        this.pagesUsed = new HashSet<>(projection);
+        this.projection = projection.stream().mapToInt(Integer::intValue).toArray();
     }
 
     @Override
     protected Page process(Page page) {
-        if (page.getBlockCount() == 0) {
+        var blockCount = page.getBlockCount();
+        if (blockCount == 0) {
             return page;
         }
         if (blocks == null) {
-            blocks = new Block[bs.cardinality()];
+            blocks = new Block[projection.length];
         }
 
         Arrays.fill(blocks, null);
         int b = 0;
-        int positionCount = page.getPositionCount();
-        for (int i = bs.nextSetBit(0); i >= 0 && i < page.getBlockCount(); i = bs.nextSetBit(i + 1)) {
-            var block = page.getBlock(i);
+        for (int source : projection) {
+            if (source >= blockCount) {
+                throw new IllegalArgumentException(
+                    "Cannot project block with index [" + source + "] from a page with size [" + blockCount + "]"
+                );
+            }
+            var block = page.getBlock(source);
             blocks[b++] = block;
         }
-        return new Page(positionCount, blocks);
+        return page.newPageAndRelease(blocks);
     }
 
     @Override
     public String toString() {
-        return "ProjectOperator[mask = " + bs + ']';
+        return "ProjectOperator[projection = " + Arrays.toString(projection) + ']';
+    }
+
+    static void assertNotReleasing(List<Releasable> toRelease, Block toKeep) {
+        // verify by identity equality
+        assert toRelease.stream().anyMatch(r -> r == toKeep) == false
+            : "both releasing and keeping the same block: " + toRelease.stream().filter(r -> r == toKeep).toList();
     }
 }

@@ -54,6 +54,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
         private final boolean waitForCheckpoint;
         private Set<String> expandedIds;
 
+        @SuppressWarnings("this-escape")
         public Request(
             String id,
             boolean waitForCompletion,

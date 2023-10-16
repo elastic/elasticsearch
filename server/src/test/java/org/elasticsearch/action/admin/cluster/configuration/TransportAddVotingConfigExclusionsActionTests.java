@@ -8,8 +8,10 @@
 package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -514,17 +516,14 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
-        return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
+        return new ActionListenerResponseHandler<>(
+            ActionTestUtils.assertNoFailureListener(onResponse::accept),
+            in -> ActionResponse.Empty.INSTANCE,
+            TransportResponseHandler.TRANSPORT_WORKER
+        );
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {
-        return responseHandler(r -> { assert false : r; }, onException);
-    }
-
-    private TransportResponseHandler<ActionResponse.Empty> responseHandler(
-        Consumer<ActionResponse.Empty> onResponse,
-        Consumer<TransportException> onException
-    ) {
         return new TransportResponseHandler<>() {
             @Override
             public ActionResponse.Empty read(StreamInput in) {
@@ -538,7 +537,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
             @Override
             public void handleResponse(ActionResponse.Empty response) {
-                onResponse.accept(response);
+                assert false : response;
             }
 
             @Override

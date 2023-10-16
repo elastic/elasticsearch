@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Greatest}.
@@ -30,60 +32,71 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   }
 
   @Override
-  public Block eval(Page page) {
-    DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
-    for (int i = 0; i < valuesBlocks.length; i++) {
-      Block block = values[i].eval(page);
-      if (block.areAllValuesNull()) {
-        return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    Block.Ref[] valuesRefs = new Block.Ref[values.length];
+    try (Releasable valuesRelease = Releasables.wrap(valuesRefs)) {
+      DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
+      for (int i = 0; i < valuesBlocks.length; i++) {
+        valuesRefs[i] = values[i].eval(page);
+        Block block = valuesRefs[i].block();
+        if (block.areAllValuesNull()) {
+          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        }
+        valuesBlocks[i] = (DoubleBlock) block;
       }
-      valuesBlocks[i] = (DoubleBlock) block;
-    }
-    DoubleVector[] valuesVectors = new DoubleVector[values.length];
-    for (int i = 0; i < valuesBlocks.length; i++) {
-      valuesVectors[i] = valuesBlocks[i].asVector();
-      if (valuesVectors[i] == null) {
-        return eval(page.getPositionCount(), valuesBlocks);
+      DoubleVector[] valuesVectors = new DoubleVector[values.length];
+      for (int i = 0; i < valuesBlocks.length; i++) {
+        valuesVectors[i] = valuesBlocks[i].asVector();
+        if (valuesVectors[i] == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valuesBlocks));
+        }
       }
+      return Block.Ref.floating(eval(page.getPositionCount(), valuesVectors).asBlock());
     }
-    return eval(page.getPositionCount(), valuesVectors).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    double[] valuesValues = new double[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
-          result.appendNull();
-          continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      double[] valuesValues = new double[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
+            result.appendNull();
+            continue position;
+          }
         }
+        // unpack valuesBlocks into valuesValues
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          int o = valuesBlocks[i].getFirstValueIndex(p);
+          valuesValues[i] = valuesBlocks[i].getDouble(o);
+        }
+        result.appendDouble(Greatest.process(valuesValues));
       }
-      // unpack valuesBlocks into valuesValues
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getDouble(o);
-      }
-      result.appendDouble(Greatest.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    double[] valuesValues = new double[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack valuesVectors into valuesValues
-      for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getDouble(p);
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      double[] valuesValues = new double[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack valuesVectors into valuesValues
+        for (int i = 0; i < valuesVectors.length; i++) {
+          valuesValues[i] = valuesVectors[i].getDouble(p);
+        }
+        result.appendDouble(Greatest.process(valuesValues));
       }
-      result.appendDouble(Greatest.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
   public String toString() {
     return "GreatestDoubleEvaluator[" + "values=" + Arrays.toString(values) + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(() -> Releasables.close(values));
   }
 }

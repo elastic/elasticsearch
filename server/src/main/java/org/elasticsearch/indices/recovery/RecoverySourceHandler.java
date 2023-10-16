@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -422,11 +421,11 @@ public class RecoverySourceHandler {
             cancellableThreads.checkForCancel();
             ensureNotRelocatedPrimary(primary);
             action.accept(l2);
-        })), ThreadPool.Names.GENERIC);
+        })), primary.getThreadPool().generic());
     }
 
     static void runUnderPrimaryPermit(
-        CheckedRunnable<Exception> action,
+        Runnable action,
         IndexShard primary,
         CancellableThreads cancellableThreads,
         ActionListener<Void> listener
@@ -1260,7 +1259,7 @@ public class RecoverySourceHandler {
          */
         final SubscribableListener<Void> markInSyncStep = new SubscribableListener<>();
         runUnderPrimaryPermit(
-            () -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
+            () -> cancellableThreads.execute(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint)),
             shard,
             cancellableThreads,
             markInSyncStep

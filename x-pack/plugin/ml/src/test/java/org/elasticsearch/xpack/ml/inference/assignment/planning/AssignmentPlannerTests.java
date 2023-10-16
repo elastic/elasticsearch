@@ -361,6 +361,9 @@ public class AssignmentPlannerTests extends ESTestCase {
         Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(1100).getBytes(), 2, 1, Map.of(), 0);
         AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment1, deployment2))
             .computePlan();
+        assertThat(assignmentPlan.getRemainingNodeMemory("n_1"), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory("n_2"), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory("n_3"), greaterThanOrEqualTo(0L));
         {
             assertThat(assignmentPlan.assignments(deployment1).isPresent(), is(true));
             Map<Node, Integer> assignments = assignmentPlan.assignments(deployment1).get();
@@ -403,6 +406,8 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2"));
         assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
         assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_2", 1)));
+        assertThat(assignmentPlan.getRemainingNodeMemory("n_1"), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory("n_2"), greaterThanOrEqualTo(0L));
     }
 
     public void testGivenPreviouslyAssignedModels_CannotAllBeAllocated() {
@@ -419,7 +424,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
         Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0);
-        Deployment deployment2 = new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0);
         Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0);
 
         // First only start m_1
@@ -458,13 +463,21 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         // First, one node goes away.
         assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
+        assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
 
         // Then, a node double in memory size is added.
         assignmentPlan = new AssignmentPlanner(List.of(node1, node3), createModelsFromPlan(assignmentPlan)).computePlan();
+        assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node3.id()), greaterThanOrEqualTo(0L));
         // And another.
         assignmentPlan = new AssignmentPlanner(List.of(node1, node3, node4), createModelsFromPlan(assignmentPlan)).computePlan();
+        assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node3.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node4.id()), greaterThanOrEqualTo(0L));
         // Finally, the remaining smaller node is removed
         assignmentPlan = new AssignmentPlanner(List.of(node3, node4), createModelsFromPlan(assignmentPlan)).computePlan();
+        assertThat(assignmentPlan.getRemainingNodeMemory(node3.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node4.id()), greaterThanOrEqualTo(0L));
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
         assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2", "m_3"));
@@ -475,6 +488,33 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Assert that all cores are utilized
         assertThat(assignmentPlan.getRemainingNodeCores("n_1"), equalTo(0));
         assertThat(assignmentPlan.getRemainingNodeCores("n_2"), equalTo(0));
+    }
+
+    public void testGivenClusterResize_ShouldRemoveAllocatedModels() {
+        // Ensure that plan is removing previously allocated models if not enough memory is available
+        Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 1, 1, Map.of(), 0);
+
+        // Create a plan where all deployments are assigned at least once
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1, deployment2, deployment3))
+            .computePlan();
+        Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(assignmentPlan);
+        assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2", "m_3"));
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+        assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_2", 1)));
+        assertThat(indexedBasedPlan.get("m_3"), equalTo(Map.of("n_2", 1)));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node2.id()), greaterThanOrEqualTo(0L));
+
+        // Now the cluster starts getting resized. Ensure that resources are not over-allocated.
+        assignmentPlan = new AssignmentPlanner(List.of(node1), createModelsFromPlan(assignmentPlan)).computePlan();
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+        assertThat(assignmentPlan.getRemainingNodeMemory(node1.id()), greaterThanOrEqualTo(0L));
+        assertThat(assignmentPlan.getRemainingNodeCores(node1.id()), greaterThanOrEqualTo(0));
+
     }
 
     public static List<Deployment> createModelsFromPlan(AssignmentPlan plan) {

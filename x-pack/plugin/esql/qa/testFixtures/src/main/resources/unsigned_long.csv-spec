@@ -146,7 +146,6 @@ FROM ul_logs | WHERE bytes_in == bytes_out | EVAL deg = TO_DEGREES(bytes_in) | K
 16002960716282089759 | 9.169021087566165E20
 ;
 
-
 toRadians
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL rad = TO_RADIANS(bytes_in) | KEEP bytes_in, rad
 ;

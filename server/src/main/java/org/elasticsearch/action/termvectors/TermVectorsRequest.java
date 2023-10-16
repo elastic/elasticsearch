@@ -204,6 +204,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.filterSettings = other.filterSettings();
     }
 
+    @SuppressWarnings("this-escape")
     public TermVectorsRequest(MultiGetRequest.Item item) {
         super(item.index());
         this.id = item.id();

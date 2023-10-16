@@ -553,6 +553,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             this(Format.SEMI_STRUCTURED_TEXT);
         }
 
+        @SuppressWarnings("this-escape")
         public Builder(Format format) {
             setFormat(format);
         }

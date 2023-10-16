@@ -40,6 +40,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
      */
+    @SuppressWarnings("this-escape")
     public CommonStatsFlags(Flag... flags) {
         if (flags.length > 0) {
             clear();

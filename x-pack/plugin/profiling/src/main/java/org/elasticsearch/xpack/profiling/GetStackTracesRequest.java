@@ -41,6 +41,11 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     private Integer sampleSize;
 
+    // We intentionally don't expose this field via the REST API but we can control behavior within Elasticsearch.
+    // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
+    // sample counts by default and remove this flag.
+    private Boolean adjustSampleCount;
+
     public GetStackTracesRequest() {
         this(null, null);
     }
@@ -53,12 +58,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public GetStackTracesRequest(StreamInput in) throws IOException {
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
+        this.adjustSampleCount = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalInt(sampleSize);
+        out.writeOptionalBoolean(adjustSampleCount);
     }
 
     public Integer getSampleSize() {
@@ -67,6 +74,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public QueryBuilder getQuery() {
         return query;
+    }
+
+    public boolean isAdjustSampleCount() {
+        return Boolean.TRUE.equals(adjustSampleCount);
+    }
+
+    public void setAdjustSampleCount(Boolean adjustSampleCount) {
+        this.adjustSampleCount = adjustSampleCount;
     }
 
     public void parseXContent(XContentParser parser) throws IOException {

@@ -51,6 +51,7 @@ public class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
         return XContentMapValues.nodeIntegerValue(node);
     }
 
+    @SuppressWarnings("this-escape")
     public GeoHexGridAggregationBuilder(String name) {
         super(name);
         precision(DEFAULT_PRECISION);

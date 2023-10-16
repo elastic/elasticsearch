@@ -98,7 +98,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
             GetDataFrameAnalyticsStatsAction.Request::new,
             GetDataFrameAnalyticsStatsAction.Response::new,
             in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new),
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.client = client;
     }
@@ -370,7 +370,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         String failureReason = null;
         if (analyticsState == DataFrameAnalyticsState.FAILED) {
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) analyticsTask.getState();
-            failureReason = taskState.getReason();
+            failureReason = taskState != null ? taskState.getReason() : null;
         }
         DiscoveryNode node = null;
         String assignmentExplanation = null;

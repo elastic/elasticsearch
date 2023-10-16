@@ -125,7 +125,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         testIndices = testIndicesList.toArray(new String[0]);
 
         clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
-            .putTransportVersion("node01", TransportVersions.V_8_5_0)
+            .putCompatibilityVersions("node01", TransportVersions.V_8_5_0, Map.of())
             .build();
 
         transformTask = new Task(

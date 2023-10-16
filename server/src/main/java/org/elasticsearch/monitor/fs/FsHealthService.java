@@ -82,6 +82,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Setting.Property.Dynamic
     );
 
+    @SuppressWarnings("this-escape")
     public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
         this.threadPool = threadPool;
         this.enabled = ENABLED_SETTING.get(settings);

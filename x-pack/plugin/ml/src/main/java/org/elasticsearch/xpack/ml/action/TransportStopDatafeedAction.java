@@ -94,7 +94,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             StopDatafeedAction.Request::new,
             StopDatafeedAction.Response::new,
             StopDatafeedAction.Response::new,
-            MachineLearning.UTILITY_THREAD_POOL_NAME
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
         );
         this.threadPool = Objects.requireNonNull(threadPool);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
@@ -456,7 +456,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         }));
     }
 
-    private void sendResponseOrFailure(
+    private static void sendResponseOrFailure(
         String datafeedId,
         ActionListener<StopDatafeedAction.Response> listener,
         AtomicArray<Exception> failures

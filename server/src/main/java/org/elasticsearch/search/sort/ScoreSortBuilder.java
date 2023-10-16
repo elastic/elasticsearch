@@ -44,6 +44,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     /**
      * Build a ScoreSortBuilder default to descending sort order.
      */
+    @SuppressWarnings("this-escape")
     public ScoreSortBuilder() {
         // order defaults to desc when sorting on the _score
         order(SortOrder.DESC);
@@ -52,6 +53,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public ScoreSortBuilder(StreamInput in) throws IOException {
         order(SortOrder.readFromStream(in));
     }

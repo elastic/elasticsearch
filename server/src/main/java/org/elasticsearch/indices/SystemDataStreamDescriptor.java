@@ -12,9 +12,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 
 import java.util.List;
 import java.util.Map;
@@ -89,7 +87,6 @@ public class SystemDataStreamDescriptor {
         this.type = Objects.requireNonNull(type, "type must be specified");
         this.composableIndexTemplate = Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");
         this.componentTemplates = componentTemplates == null ? Map.of() : Map.copyOf(componentTemplates);
-        validateNoDownsamplingConfigured(composableIndexTemplate, componentTemplates);
         this.allowedElasticProductOrigins = Objects.requireNonNull(
             allowedElasticProductOrigins,
             "allowedElasticProductOrigins must not be null"
@@ -100,16 +97,6 @@ public class SystemDataStreamDescriptor {
         this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
 
         this.characterRunAutomaton = new CharacterRunAutomaton(buildAutomaton(backingIndexPatternForDataStream(this.dataStreamName)));
-    }
-
-    private void validateNoDownsamplingConfigured(
-        ComposableIndexTemplate composableIndexTemplate,
-        Map<String, ComponentTemplate> componentTemplates
-    ) {
-        DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(composableIndexTemplate, componentTemplates);
-        if (resolvedLifecycle != null && resolvedLifecycle.isEnabled() && resolvedLifecycle.getDownsamplingRounds() != null) {
-            throw new IllegalArgumentException("System data streams do not support downsampling as part of their lifecycle configuration");
-        }
     }
 
     public String getDataStreamName() {

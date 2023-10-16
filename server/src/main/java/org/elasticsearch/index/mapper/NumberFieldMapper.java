@@ -118,7 +118,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;
-        private final NumberType type;
+        public final NumberType type;
 
         private boolean allowMultipleValues = true;
         private final IndexVersion indexCreatedVersion;
@@ -143,6 +143,7 @@ public class NumberFieldMapper extends FieldMapper {
             return builder;
         }
 
+        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             NumberType type,

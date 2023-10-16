@@ -16,8 +16,10 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 
 public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
 
+    @SuppressWarnings("this-escape")
     public DefaultLocalClusterSpecBuilder() {
         super();
+        this.apply(c -> c.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         this.apply(new FipsEnabledClusterConfigProvider());
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());

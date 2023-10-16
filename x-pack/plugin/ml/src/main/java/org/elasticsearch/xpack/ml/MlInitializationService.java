@@ -85,6 +85,7 @@ public class MlInitializationService implements ClusterStateListener {
     }
 
     // For testing
+    @SuppressWarnings("this-escape")
     public MlInitializationService(
         Client client,
         ThreadPool threadPool,

@@ -642,6 +642,16 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 7.17.14
+      - label: 7.17.15 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.15#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.15
       - label: 8.0.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.0.0#bwcTest
         timeout_in_minutes: 300
@@ -1002,6 +1012,26 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.10.2
+      - label: 8.10.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.3
+      - label: 8.10.4 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.4#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.4
       - label: 8.11.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.11.0#bwcTest
         timeout_in_minutes: 300
@@ -1012,6 +1042,16 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.11.0
+      - label: 8.12.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.12.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: custom-32-98304
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.12.0
   - label: concurrent-search-tests
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true check
     timeout_in_minutes: 420
@@ -1114,6 +1154,73 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       diskSizeGb: 350
       machineType: custom-32-98304
+  - group: third-party tests
+    steps:
+      - label: third-party / azure-sas
+        command: |
+          export azure_storage_container=elasticsearch-ci-thirdparty-sas
+          export azure_storage_base_path=$BUILDKITE_BRANCH
+
+          .ci/scripts/run-gradle.sh azureThirdPartyTest
+        env:
+          USE_3RD_PARTY_AZURE_SAS_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+      - label: third-party / azure
+        command: |
+          export azure_storage_container=elasticsearch-ci-thirdparty
+          export azure_storage_base_path=$BUILDKITE_BRANCH
+
+          .ci/scripts/run-gradle.sh azureThirdPartyTest
+        env:
+          USE_3RD_PARTY_AZURE_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+      - label: third-party / gcs
+        command: |
+          export google_storage_bucket=elasticsearch-ci-thirdparty
+          export google_storage_base_path=$BUILDKITE_BRANCH
+
+          .ci/scripts/run-gradle.sh gcsThirdPartyTest
+        env:
+          USE_3RD_PARTY_GCS_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+      - label: third-party / geoip
+        command: |
+          .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
+      - label: third-party / s3
+        command: |
+          export amazon_s3_bucket=elasticsearch-ci.us-west-2
+          export amazon_s3_base_path=$BUILDKITE_BRANCH
+
+          .ci/scripts/run-gradle.sh s3ThirdPartyTest
+        env:
+          USE_3RD_PARTY_S3_CREDENTIALS: "true"
+        timeout_in_minutes: 30
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n2-standard-8
+          buildDirectory: /dev/shm/bk
   - label: Upload Snyk Dependency Graph
     command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
     env:

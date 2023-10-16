@@ -43,8 +43,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -112,7 +112,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -156,7 +156,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         return "Manages configuration for Fleet";
     }
 
-    private SystemIndexDescriptor fleetActionsSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetActionsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-actions.json", FLEET_ACTIONS_MAPPINGS_VERSION), XContentType.JSON);
 
@@ -174,7 +174,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetAgentsSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetAgentsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-agents.json", FLEET_AGENTS_MAPPINGS_VERSION), XContentType.JSON);
 
@@ -192,7 +192,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetEnrollmentApiKeysSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetEnrollmentApiKeysSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(
             loadTemplateSource("/fleet-enrollment-api-keys.json", FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION),
@@ -213,7 +213,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetSecretsSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetSecretsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-secrets.json", FLEET_SECRETS_MAPPINGS_VERSION), XContentType.JSON);
         return SystemIndexDescriptor.builder()
@@ -229,7 +229,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetPoliciesSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetPoliciesSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-policies.json", FLEET_POLICIES_MAPPINGS_VERSION), XContentType.JSON);
 
@@ -247,7 +247,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetPoliciesLeaderSystemIndexDescriptor() {
+    private static SystemIndexDescriptor fleetPoliciesLeaderSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-policies-leader.json", FLEET_POLICIES_LEADER_MAPPINGS_VERSION), XContentType.JSON);
 
@@ -265,7 +265,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetServersSystemIndexDescriptors() {
+    private static SystemIndexDescriptor fleetServersSystemIndexDescriptors() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-servers.json", FLEET_SERVERS_MAPPINGS_VERSION), XContentType.JSON);
 
@@ -283,7 +283,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemIndexDescriptor fleetArtifactsSystemIndexDescriptors() {
+    private static SystemIndexDescriptor fleetArtifactsSystemIndexDescriptors() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-artifacts.json", FLEET_ARTIFACTS_MAPPINGS_VERSION), XContentType.JSON);
 
@@ -301,7 +301,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
-    private SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
+    private static SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
         final String source = loadTemplateSource("/fleet-actions-results.json", FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION);
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, source)) {
             ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.parse(parser);
@@ -357,7 +357,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         }
     }
 
-    private String loadTemplateSource(String resource, int mappingsVersion) {
+    private static String loadTemplateSource(String resource, int mappingsVersion) {
         return TemplateUtils.loadTemplate(
             resource,
             Version.CURRENT.toString(),
@@ -369,7 +369,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
-            new ActionHandler<>(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.TransportAction.class),
+            new ActionHandler<>(GetGlobalCheckpointsAction.INSTANCE, GetGlobalCheckpointsAction.LocalAction.class),
             new ActionHandler<>(GetGlobalCheckpointsShardAction.INSTANCE, GetGlobalCheckpointsShardAction.TransportAction.class),
             new ActionHandler<>(GetSecretAction.INSTANCE, TransportGetSecretAction.class),
             new ActionHandler<>(PostSecretAction.INSTANCE, TransportPostSecretAction.class),

@@ -51,12 +51,14 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
      * Constructs a new term enum request against the provided indices. No indices provided means it will
      * run against all indices.
      */
+    @SuppressWarnings("this-escape")
     public TermsEnumRequest(String... indices) {
         super(indices);
         indicesOptions(DEFAULT_INDICES_OPTIONS);
         timeout(DEFAULT_TIMEOUT);
     }
 
+    @SuppressWarnings("this-escape")
     public TermsEnumRequest(TermsEnumRequest clone) {
         this.field = clone.field;
         this.string = clone.string;

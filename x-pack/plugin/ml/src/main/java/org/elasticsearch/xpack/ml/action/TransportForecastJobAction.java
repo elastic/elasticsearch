@@ -15,9 +15,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
@@ -73,7 +73,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
             ForecastJobAction.Request::new,
             ForecastJobAction.Response::new,
             // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             processManager
         );
         this.jobResultsProvider = jobResultsProvider;

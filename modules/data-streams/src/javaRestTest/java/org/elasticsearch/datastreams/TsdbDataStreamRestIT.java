@@ -50,7 +50,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             "template": {
                 "settings":{
                     "index": {
-                        "number_of_replicas": 0,
+                        "number_of_replicas": 1,
                         "number_of_shards": 2,
                         "mode": "time_series"
                     }
@@ -117,7 +117,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             "template": {
                 "settings":{
                     "index": {
-                        "number_of_replicas": 0,
+                        "number_of_replicas": 1,
                         "number_of_shards": 2
                     }
                 },
@@ -408,7 +408,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
         var responseBody = entityAsMap(response);
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(6));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_shards"), equalTo("2"));
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("0"));
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("1"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.start_time"), notNullValue());
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
@@ -629,7 +629,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
                     "settings":{
                         "index": {
                             "look_back_time": "24h",
-                            "number_of_replicas": 0,
+                            "number_of_replicas": 1,
                             "mode": "time_series"
                         }
                     },
@@ -695,7 +695,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
                 "template": {
                     "settings":{
                         "index": {
-                            "number_of_replicas": 0,
+                            "number_of_replicas": 1,
                             "number_of_shards": 4,
                             "mode": "time_series",
                             "routing_path": ["metricset", "k8s.pod.uid"],

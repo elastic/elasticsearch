@@ -49,8 +49,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
@@ -241,7 +241,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -426,7 +426,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 client.admin()
                     .cluster()
                     .prepareListTasks()
-                    .setActions(TransformField.TASK_NAME)
+                    .setActions(TransformField.TASK_NAME + "*")
                     .setWaitForCompletion(true)
                     .execute(ActionListener.wrap(listTransformTasks -> {
                         listTransformTasks.rethrowFailures("Waiting for transform tasks");

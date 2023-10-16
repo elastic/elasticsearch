@@ -322,10 +322,6 @@ setup:
 
 ---
 "text with synthetic source":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/99183"
-
   - do:
       indices.create:
         index: test2

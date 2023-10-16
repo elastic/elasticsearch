@@ -24,6 +24,7 @@ public class IndexPrimaryShardNotAllocatedException extends ElasticsearchExcepti
         super(in);
     }
 
+    @SuppressWarnings("this-escape")
     public IndexPrimaryShardNotAllocatedException(Index index) {
         super("primary not allocated post api");
         setIndex(index);

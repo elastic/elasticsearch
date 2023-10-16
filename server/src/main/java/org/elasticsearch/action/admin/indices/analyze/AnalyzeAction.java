@@ -91,6 +91,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
          *
          * @param index The text to analyze
          */
+        @SuppressWarnings("this-escape")
         public Request(String index) {
             this.index(index);
         }

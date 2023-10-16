@@ -109,6 +109,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     /**
      * Constructs a new text query.
      */
+    @SuppressWarnings("this-escape")
     public CombinedFieldsQueryBuilder(Object value, String... fields) {
         if (value == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires query value");

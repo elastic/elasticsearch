@@ -33,13 +33,16 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -90,7 +93,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -108,10 +111,12 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             registry.get().initialize();
             indexManager.get().initialize();
             dataStreamManager.get().initialize();
-            return List.of(registry.get(), indexManager.get(), dataStreamManager.get());
-        } else {
-            return Collections.emptyList();
         }
+        return Collections.singletonList(createLicenseChecker());
+    }
+
+    protected ProfilingLicenseChecker createLicenseChecker() {
+        return new ProfilingLicenseChecker(XPackPlugin::getSharedLicenseState);
     }
 
     public void updateCheckOutdatedIndices(boolean newValue) {
@@ -144,6 +149,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         handlers.add(new RestGetStatusAction());
         if (enabled) {
             handlers.add(new RestGetStackTracesAction());
+            handlers.add(new RestGetFlamegraphAction());
         }
         return Collections.unmodifiableList(handlers);
     }
@@ -177,7 +183,10 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
-            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
+            new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
+            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)
         );
     }
 

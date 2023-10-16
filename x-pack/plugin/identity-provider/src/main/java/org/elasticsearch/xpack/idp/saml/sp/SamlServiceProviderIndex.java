@@ -124,7 +124,7 @@ public class SamlServiceProviderIndex implements Closeable {
 
         public DocumentSupplier(DocumentVersion version, Supplier<SamlServiceProviderDocument> document) {
             this.version = version;
-            this.document = new CachedSupplier<>(document);
+            this.document = CachedSupplier.wrap(document);
         }
 
         public SamlServiceProviderDocument getDocument() {
@@ -332,7 +332,7 @@ public class SamlServiceProviderIndex implements Closeable {
         }));
     }
 
-    private SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
+    private static SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
         try (
             StreamInput in = source.streamInput();
             XContentParser parser = XContentType.JSON.xContent()

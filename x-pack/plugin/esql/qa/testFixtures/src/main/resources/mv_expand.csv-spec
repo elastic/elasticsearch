@@ -99,20 +99,31 @@ sum_a:long    | b:integer
 12555000      | 30
 ;
 
-expandAfterSort
-from employees | keep job_positions, emp_no | sort emp_no | mv_expand job_positions | limit 10;
+expandAfterSort1
+from employees | keep job_positions, emp_no | sort emp_no | mv_expand job_positions | limit 10 | sort job_positions;
 
    job_positions:keyword  |emp_no:integer     
 Accountant                |10001          
+Head Human Resources      |10004          
+Principal Support Engineer|10006          
+Reporting Analyst         |10004          
 Senior Python Developer   |10001          
 Senior Team Lead          |10002          
-null                      |10003          
 Support Engineer          |10004          
-Head Human Resources      |10004          
-Reporting Analyst         |10004          
 Tech Lead                 |10004          
 null                      |10005          
-Principal Support Engineer|10006          
+null                      |10003          
+;
+
+expandAfterSort2
+from employees | sort emp_no | mv_expand job_positions | keep job_positions, emp_no | limit 5;
+
+   job_positions:keyword  |emp_no:integer     
+Accountant             |10001          
+Senior Python Developer|10001          
+Senior Team Lead       |10002          
+null                   |10003          
+Head Human Resources   |10004
 ;
 
 expandWithMultiSort
@@ -168,6 +179,17 @@ emp_no:integer |  job_positions:keyword
 10098          |Architect      
 ;
 
+doubleSort_OnDifferentThan_MvExpandedFields
+from employees | sort emp_no | mv_expand job_positions | keep emp_no, job_positions, salary | sort salary, job_positions | limit 5;
+
+emp_no:integer |job_positions:keyword|salary:integer
+10004          |Head Human Resources |36174          
+10004          |Reporting Analyst    |36174          
+10004          |Support Engineer     |36174          
+10004          |Tech Lead            |36174          
+10002          |Senior Team Lead     |56371
+;
+
 doubleLimit_expandLimitLowerThanAvailable
 from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | limit 2;
 
@@ -194,4 +216,12 @@ emp_no:integer |  job_positions:keyword
 10004          |Support Engineer    
 10004          |Reporting Analyst   
 10004          |Head Human Resources
+;
+
+tripleLimit_WithWhere_InBetween_MvExpand_And_Limit
+from employees | where emp_no == 10004 | limit 1 | keep emp_no, job_positions | mv_expand job_positions | where job_positions LIKE "*a*" | limit 2 | where job_positions LIKE "*a*" | limit 3;
+
+emp_no:integer |  job_positions:keyword
+10004          |Head Human Resources
+10004          |Reporting Analyst
 ;

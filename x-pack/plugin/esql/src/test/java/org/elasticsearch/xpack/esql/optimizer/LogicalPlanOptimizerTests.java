@@ -889,7 +889,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(filter.child(), EsRelation.class);
     }
 
-    public void testCombineOrderByThroughMvExpand() {
+    /**
+     * Expected
+     * TopN[[Order[first_name{f}#170,ASC,LAST]],500[INTEGER]]
+     *  \_MvExpand[first_name{f}#170]
+     *    \_TopN[[Order[emp_no{f}#169,ASC,LAST]],500[INTEGER]]
+     *      \_EsRelation[test][avg_worked_seconds{f}#167, birth_date{f}#168, emp_n..]
+     */
+    public void testDontCombineOrderByThroughMvExpand() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
@@ -897,12 +904,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort first_name""");
 
         var topN = as(plan, TopN.class);
-        assertThat(orderNames(topN), contains("first_name", "emp_no"));
+        assertThat(orderNames(topN), contains("first_name"));
         var mvExpand = as(topN.child(), MvExpand.class);
-        as(mvExpand.child(), EsRelation.class);
+        topN = as(mvExpand.child(), TopN.class);
+        assertThat(orderNames(topN), contains("emp_no"));
+        as(topN.child(), EsRelation.class);
     }
 
-    public void testPushDownMvExpandPastProject() {
+    /**
+     * Expected
+     * Limit[500[INTEGER]]
+     *  \_MvExpand[x{r}#159]
+     *    \_EsqlProject[[first_name{f}#162 AS x]]
+     *      \_Limit[500[INTEGER]]
+     *        \_EsRelation[test][first_name{f}#162]
+     */
+    public void testCopyDefaultLimitPastMvExpand() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | rename first_name as x
@@ -910,12 +927,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | mv_expand x
             """);
 
-        var keep = as(plan, Project.class);
-        var limit = as(keep.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         var mvExpand = as(limit.child(), MvExpand.class);
-        assertThat(as(mvExpand.target(), FieldAttribute.class).name(), is("first_name"));
+        var keep = as(mvExpand.child(), EsqlProject.class);
+        var limitPastMvExpand = as(keep.child(), Limit.class);
+        assertThat(limitPastMvExpand.limit(), equalTo(limit.limit()));
+        as(limitPastMvExpand.child(), EsRelation.class);
     }
 
+    /**
+     * Expected
+     * Limit[10[INTEGER]]
+     *  \_MvExpand[first_name{f}#155]
+     *    \_EsqlProject[[first_name{f}#155, last_name{f}#156]]
+     *      \_Limit[1[INTEGER]]
+     *        \_EsRelation[test][first_name{f}#155, last_name{f}#156]
+     */
     public void testDontPushDownLimitPastMvExpand() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -924,12 +951,182 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | mv_expand first_name
             | limit 10""");
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
+        var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(10));
         var mvExpand = as(limit.child(), MvExpand.class);
-        limit = as(mvExpand.child(), Limit.class);
+        var project = as(mvExpand.child(), EsqlProject.class);
+        limit = as(project.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(1));
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * EsqlProject[[emp_no{f}#141, first_name{f}#142, languages{f}#143, lll{r}#132, salary{f}#147]]
+     *  \_TopN[[Order[salary{f}#147,DESC,FIRST], Order[first_name{f}#142,ASC,LAST]],5[INTEGER]]
+     *    \_Limit[5[INTEGER]]
+     *      \_MvExpand[salary{f}#147]
+     *        \_Eval[[languages{f}#143 + 5[INTEGER] AS lll]]
+     *          \_Filter[languages{f}#143 > 1[INTEGER]]
+     *            \_Limit[10[INTEGER]]
+     *              \_MvExpand[first_name{f}#142]
+     *                \_TopN[[Order[emp_no{f}#141,DESC,FIRST]],10[INTEGER]]
+     *                  \_Filter[emp_no{f}#141 &lt; 10006[INTEGER]]
+     *                    \_EsRelation[test][emp_no{f}#141, first_name{f}#142, languages{f}#1..]
+     */
+    public void testMultipleMvExpandWithSortAndLimit() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where emp_no <= 10006
+            | sort emp_no desc
+            | mv_expand first_name
+            | limit 10
+            | where languages > 1
+            | eval lll = languages + 5
+            | mv_expand salary
+            | limit 5
+            | sort first_name
+            | keep emp_no, first_name, languages, lll, salary
+            | sort salary desc""");
+
+        var keep = as(plan, EsqlProject.class);
+        var topN = as(keep.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(5));
+        var limit = as(topN.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(5));
+        var mvExp = as(limit.child(), MvExpand.class);
+        var eval = as(mvExp.child(), Eval.class);
+        var filter = as(eval.child(), Filter.class);
+        limit = as(filter.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(10));
+        mvExp = as(limit.child(), MvExpand.class);
+        topN = as(mvExp.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(10));
+        filter = as(topN.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * EsqlProject[[emp_no{f}#350, first_name{f}#351, salary{f}#352]]
+     *  \_TopN[[Order[salary{f}#352,ASC,LAST], Order[first_name{f}#351,ASC,LAST]],5[INTEGER]]
+     *    \_MvExpand[first_name{f}#351]
+     *      \_TopN[[Order[emp_no{f}#350,ASC,LAST]],5[INTEGER]]
+     *        \_EsRelation[employees][emp_no{f}#350, first_name{f}#351, salary{f}#352]
+     */
+    public void testPushDownLimitThroughMultipleSort_AfterMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | mv_expand first_name
+            | keep emp_no, first_name, salary
+            | sort salary, first_name
+            | limit 5""");
+
+        var keep = as(plan, EsqlProject.class);
+        var topN = as(keep.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(orderNames(topN), contains("salary", "first_name"));
+        var mvExp = as(topN.child(), MvExpand.class);
+        topN = as(mvExp.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(orderNames(topN), contains("emp_no"));
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * EsqlProject[[emp_no{f}#361, first_name{f}#362, salary{f}#363]]
+     *  \_TopN[[Order[first_name{f}#362,ASC,LAST]],5[INTEGER]]
+     *    \_TopN[[Order[salary{f}#363,ASC,LAST]],5[INTEGER]]
+     *      \_MvExpand[first_name{f}#362]
+     *        \_TopN[[Order[emp_no{f}#361,ASC,LAST]],5[INTEGER]]
+     *          \_EsRelation[employees][emp_no{f}#361, first_name{f}#362, salary{f}#363]
+     */
+    public void testPushDownLimitThroughMultipleSort_AfterMvExpand2() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | mv_expand first_name
+            | keep emp_no, first_name, salary
+            | sort salary
+            | limit 5
+            | sort first_name""");
+
+        var keep = as(plan, EsqlProject.class);
+        var topN = as(keep.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(orderNames(topN), contains("first_name"));
+        topN = as(topN.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(orderNames(topN), contains("salary"));
+        var mvExp = as(topN.child(), MvExpand.class);
+        topN = as(mvExp.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(5));
+        assertThat(orderNames(topN), contains("emp_no"));
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * Limit[5[INTEGER]]
+     *  \_Aggregate[[first_name{f}#232],[MAX(salary{f}#233) AS max_s, first_name{f}#232]]
+     *    \_Filter[ISNOTNULL(first_name{f}#232)]
+     *      \_MvExpand[first_name{f}#232]
+     *        \_TopN[[Order[emp_no{f}#231,ASC,LAST]],50[INTEGER]]
+     *          \_EsRelation[employees][emp_no{f}#231, first_name{f}#232, salary{f}#233]
+     */
+    public void testDontPushDownLimitPastAggregate_AndMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | limit 50
+            | mv_expand first_name
+            | keep emp_no, first_name, salary
+            | stats max_s = max(salary) by first_name
+            | where first_name is not null
+            | limit 5""");
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(5));
+        var agg = as(limit.child(), Aggregate.class);
+        var filter = as(agg.child(), Filter.class);
+        var mvExp = as(filter.child(), MvExpand.class);
+        var topN = as(mvExp.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(50));
+        assertThat(orderNames(topN), contains("emp_no"));
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * Limit[5[INTEGER]]
+     *  \_Aggregate[[first_name{f}#262],[MAX(salary{f}#263) AS max_s, first_name{f}#262]]
+     *    \_Filter[ISNOTNULL(first_name{f}#262)]
+     *      \_Limit[50[INTEGER]]
+     *        \_MvExpand[first_name{f}#262]
+     *          \_Limit[50[INTEGER]]
+     *            \_EsRelation[employees][emp_no{f}#261, first_name{f}#262, salary{f}#263]
+     */
+    public void testPushDown_TheRightLimit_PastMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | mv_expand first_name
+            | limit 50
+            | keep emp_no, first_name, salary
+            | stats max_s = max(salary) by first_name
+            | where first_name is not null
+            | limit 5""");
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(5));
+        var agg = as(limit.child(), Aggregate.class);
+        var filter = as(agg.child(), Filter.class);
+        limit = as(filter.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(50));
+        var mvExp = as(limit.child(), MvExpand.class);
+        limit = as(mvExp.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(50));
         as(limit.child(), EsRelation.class);
     }
 

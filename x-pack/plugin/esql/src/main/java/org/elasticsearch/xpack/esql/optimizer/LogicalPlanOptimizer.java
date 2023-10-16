@@ -127,7 +127,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PushDownEval(),
             new PushDownRegexExtract(),
             new PushDownEnrich(),
-            new PushDownMvExpand(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
             new PruneRedundantSortClauses()
@@ -382,11 +381,26 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
+                // limit after mv_expand or limit and sort after mv_expand (| mv_expand x | sort y | limit 5)
+                else if (unary instanceof MvExpand || (unary instanceof OrderBy orderBy && orderBy.child() instanceof MvExpand)) {
+                    MvExpand mvExpand = unary instanceof MvExpand mve ? mve : (MvExpand) (unary.child());
+                    Limit limitBeforeMvExpand = limitBeforeMvExpand(mvExpand);
+                    // if there is no "appropriate" limit before mv_expand, then push down a copy of the one after it so that:
+                    // - a possible TopN is properly built as low as possible in the tree (closed to Lucene)
+                    // - the input of mv_expand is as small as possible before it is expanded (less rows to inflate and occupy memory)
+                    if (limitBeforeMvExpand == null) {
+                        var duplicateLimit = new Limit(limit.source(), limit.limit(), mvExpand.child());
+                        if (unary instanceof OrderBy orderBy) {
+                            return limit.replaceChild(orderBy.replaceChild(mvExpand.replaceChild(duplicateLimit)));
+                        } else {
+                            return limit.replaceChild(mvExpand.replaceChild(duplicateLimit));
+                        }
+                    }
+                }
                 // check if there's a 'visible' descendant limit lower than the current one
                 // and if so, align the current limit since it adds no value
                 // this applies for cases such as | limit 1 | sort field | limit 10
-                // but NOT for mv_expand (ie | limit 1 | mv_expand x | limit 20) where we want that last "limit" to apply on expand results
-                else if (unary instanceof MvExpand == false) {
+                else {
                     Limit descendantLimit = descendantLimit(unary);
                     if (descendantLimit != null) {
                         var l1 = (int) limit.limit().fold();
@@ -407,6 +421,25 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
          */
         private static Limit descendantLimit(UnaryPlan unary) {
             UnaryPlan plan = unary;
+            while (plan instanceof Aggregate == false) {
+                if (plan instanceof Limit limit) {
+                    return limit;
+                } else if (plan instanceof MvExpand) {
+                    // the limit that applies to mv_expand shouldn't be changed
+                    // ie "| limit 1 | mv_expand x | limit 20" where we want that last "limit" to apply on expand results
+                    return null;
+                }
+                if (plan.child() instanceof UnaryPlan unaryPlan) {
+                    plan = unaryPlan;
+                } else {
+                    break;
+                }
+            }
+            return null;
+        }
+
+        private static Limit limitBeforeMvExpand(MvExpand mvExpand) {
+            UnaryPlan plan = mvExpand;
             while (plan instanceof Aggregate == false) {
                 if (plan instanceof Limit limit) {
                     return limit;
@@ -653,21 +686,6 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             }
 
             return re;
-        }
-    }
-
-    protected static class PushDownMvExpand extends OptimizerRules.OptimizerRule<MvExpand> {
-        @Override
-        protected LogicalPlan rule(MvExpand mve) {
-            LogicalPlan child = mve.child();
-
-            if (child instanceof OrderBy orderBy) {
-                return orderBy.replaceChild(mve.replaceChild(orderBy.child()));
-            } else if (child instanceof Project) {
-                return pushDownPastProject(mve);
-            }
-
-            return mve;
         }
     }
 

@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -256,6 +257,7 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, EsRelation.class, PlanNamedTypes::writeEsRelation, PlanNamedTypes::readEsRelation),
             of(LogicalPlan.class, Eval.class, PlanNamedTypes::writeEval, PlanNamedTypes::readEval),
             of(LogicalPlan.class, Enrich.class, PlanNamedTypes::writeEnrich, PlanNamedTypes::readEnrich),
+            of(LogicalPlan.class, EsqlProject.class, PlanNamedTypes::writeEsqlProject, PlanNamedTypes::readEsqlProject),
             of(LogicalPlan.class, Filter.class, PlanNamedTypes::writeFilter, PlanNamedTypes::readFilter),
             of(LogicalPlan.class, Grok.class, PlanNamedTypes::writeGrok, PlanNamedTypes::readGrok),
             of(LogicalPlan.class, Limit.class, PlanNamedTypes::writeLimit, PlanNamedTypes::readLimit),
@@ -794,6 +796,16 @@ public final class PlanNamedTypes {
     }
 
     static void writeProject(PlanStreamOutput out, Project project) throws IOException {
+        out.writeNoSource();
+        out.writeLogicalPlanNode(project.child());
+        writeNamedExpressions(out, project.projections());
+    }
+
+    static EsqlProject readEsqlProject(PlanStreamInput in) throws IOException {
+        return new EsqlProject(in.readSource(), in.readLogicalPlanNode(), readNamedExpressions(in));
+    }
+
+    static void writeEsqlProject(PlanStreamOutput out, EsqlProject project) throws IOException {
         out.writeNoSource();
         out.writeLogicalPlanNode(project.child());
         writeNamedExpressions(out, project.projections());

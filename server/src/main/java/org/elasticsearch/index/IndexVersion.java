@@ -128,7 +128,7 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT = def(8_500_002, Version.LUCENE_9_7_0);
     public static final IndexVersion UPGRADE_LUCENE_9_8 = def(8_500_003, Version.LUCENE_9_8_0);
 
-    public static final IndexVersion UPGRADE_TO_LUCENE_9_9 = registerIndexVersion(8_500_010, Version.LUCENE_9_9_0, "ee5ab2e6-4d8f-11ee-be56-0242ac120002");
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_9 = def(8_500_010, Version.LUCENE_9_9_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -38,6 +38,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
@@ -666,7 +667,8 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 cacheDir,
                 shardPath,
                 threadPool,
-                sharedBlobCacheService
+                sharedBlobCacheService,
+                Meter.NOOP
             ) {
                 @Override
                 protected IndexInputStats createIndexInputStats(long numFiles, long totalSize, long minSize, long maxSize) {

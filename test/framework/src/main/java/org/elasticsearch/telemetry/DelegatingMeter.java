@@ -16,13 +16,13 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-public class DelegatingMeter implements Meter {
+public class DelegatingMeter implements MeterRegistry {
 
-    private final Meter delegate;
+    private final MeterRegistry delegate;
 
-    public DelegatingMeter(Meter delegate) {
+    public DelegatingMeter(MeterRegistry delegate) {
         this.delegate = delegate;
     }
 

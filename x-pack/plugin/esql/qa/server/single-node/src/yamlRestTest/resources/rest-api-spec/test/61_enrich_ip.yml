@@ -64,6 +64,10 @@ setup:
           - { "@timestamp": "2023-06-24", "ip": "13.101.0.114", "message": "authentication failed" }
 ---
 "IP strings":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/99807"
+
   - do:
       esql.query:
         body:

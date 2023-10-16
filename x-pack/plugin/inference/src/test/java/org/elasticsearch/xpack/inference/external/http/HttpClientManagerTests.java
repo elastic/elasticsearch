@@ -90,7 +90,7 @@ public class HttpClientManagerTests extends ESTestCase {
         verify(threadPool).scheduleWithFixedDelay(any(Runnable.class), eq(evictionInterval), any());
     }
 
-    public void test_DoesNotStartANewEvictor_WithNewEvictionMaxIdle() throws InterruptedException {
+    public void test_DoesNotStartANewEvictor_WithNewEvictionMaxIdle() {
         var mockConnectionManager = mock(PoolingNHttpClientConnectionManager.class);
 
         Settings settings = Settings.builder()

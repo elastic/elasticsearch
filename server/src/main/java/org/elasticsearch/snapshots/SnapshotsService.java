@@ -364,6 +364,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     threadPool.absoluteTimeInMillis(),
                     repositoryData.getGenId(),
                     minCompatibleVersion(currentState.nodes().getMaxDataNodeCompatibleIndexVersion(), repositoryData, null)
+                // NB minCompatibleVersion iterates over all the snapshots in the current repositoryData, which probably should happen on a
+                // different thread. Also is the _current_ repositoryData the right thing to consider? The minimum repository format version
+                // can only advance during a snapshot delete which today is never concurrent to other writes, but a future version may allow
+                // for more concurrency between deletes and writes that breaks some assumptions in this area.
                 );
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, snapshots.withAddedEntry(newEntry)).build();
             }
@@ -2317,57 +2321,52 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return;
             }
             repositoriesService.repository(deleteEntry.repository())
-                .deleteSnapshots(
-                    snapshotIds,
-                    repositoryData.getGenId(),
-                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                    new SnapshotDeleteListener() {
+                .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new SnapshotDeleteListener() {
 
-                        private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
+                    private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
 
-                        @Override
-                        public void onDone() {
-                            logger.info("snapshots {} deleted", snapshotIds);
-                            doneFuture.onResponse(null);
-                        }
-
-                        @Override
-                        public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
-                            removeSnapshotDeletionFromClusterState(
-                                deleteEntry,
-                                updatedRepoData,
-                                listeners -> doneFuture.addListener(new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(Void unused) {
-                                        completeListenersIgnoringException(listeners, null);
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        // this should never be called, once updated repository metadata has been written to the
-                                        // repository and the delete been removed from the cluster state, we ignore any further failures
-                                        // and always complete the delete successfully
-                                        assert false : e;
-                                    }
-                                })
-                            );
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.debug(() -> "failed to complete snapshot deletion [" + deleteEntry + "]", e);
-                            submitUnbatchedTask(
-                                "remove snapshot deletion metadata after failed delete",
-                                new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
-                                    @Override
-                                    protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
-                                        failListenersIgnoringException(deleteListeners, e);
-                                    }
-                                }
-                            );
-                        }
+                    @Override
+                    public void onDone() {
+                        logger.info("snapshots {} deleted", snapshotIds);
+                        doneFuture.onResponse(null);
                     }
-                );
+
+                    @Override
+                    public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
+                        removeSnapshotDeletionFromClusterState(
+                            deleteEntry,
+                            updatedRepoData,
+                            listeners -> doneFuture.addListener(new ActionListener<>() {
+                                @Override
+                                public void onResponse(Void unused) {
+                                    completeListenersIgnoringException(listeners, null);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    // this should never be called, once updated repository metadata has been written to the
+                                    // repository and the delete been removed from the cluster state, we ignore any further failures
+                                    // and always complete the delete successfully
+                                    assert false : e;
+                                }
+                            })
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(() -> "failed to complete snapshot deletion [" + deleteEntry + "]", e);
+                        submitUnbatchedTask(
+                            "remove snapshot deletion metadata after failed delete",
+                            new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
+                                @Override
+                                protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
+                                    failListenersIgnoringException(deleteListeners, e);
+                                }
+                            }
+                        );
+                    }
+                });
         }
     }
 
@@ -3762,6 +3761,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             final Map<String, IndexId> indexIds = repositoryData.resolveNewIndices(indices, allIndices);
             final IndexVersion version = minCompatibleVersion(
+                // NB minCompatibleVersion iterates over all the snapshots in the current repositoryData, which probably should happen on a
+                // different thread. Also is the _current_ repositoryData the right thing to consider? The minimum repository format version
+                // can only advance during a snapshot delete which today is never concurrent to other writes, but a future version may allow
+                // for more concurrency between deletes and writes that breaks some assumptions in this area.
                 currentState.nodes().getMaxDataNodeCompatibleIndexVersion(),
                 repositoryData,
                 null

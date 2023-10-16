@@ -127,41 +127,50 @@ public class OrdinalsGroupingOperator implements Operator {
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         final int shardIndex = docVector.shards().getInt(0);
         final var source = sources.get(shardIndex);
-        if (docVector.singleSegmentNonDecreasing() && source.source() instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
-            final IntVector segmentIndexVector = docVector.segments();
-            assert segmentIndexVector.isConstant();
-            final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
-                new SegmentID(shardIndex, segmentIndexVector.getInt(0)),
-                k -> {
-                    try {
-                        final LeafReaderContext leafReaderContext = source.reader().leaves().get(k.segmentIndex);
-                        return new OrdinalSegmentAggregator(
-                            driverContext.blockFactory(),
-                            this::createGroupingAggregators,
-                            withOrdinals,
-                            leafReaderContext,
-                            bigArrays
-                        );
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+        boolean pagePassed = false;
+        try {
+            if (docVector.singleSegmentNonDecreasing() && source.source() instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
+                final IntVector segmentIndexVector = docVector.segments();
+                assert segmentIndexVector.isConstant();
+                final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
+                    new SegmentID(shardIndex, segmentIndexVector.getInt(0)),
+                    k -> {
+                        try {
+                            final LeafReaderContext leafReaderContext = source.reader().leaves().get(k.segmentIndex);
+                            return new OrdinalSegmentAggregator(
+                                driverContext.blockFactory(),
+                                this::createGroupingAggregators,
+                                withOrdinals,
+                                leafReaderContext,
+                                bigArrays
+                            );
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
                     }
-                }
-            );
-            ordinalAggregator.addInput(docVector.docs(), page);
-        } else {
-            if (valuesAggregator == null) {
-                int channelIndex = page.getBlockCount(); // extractor will append a new block at the end
-                valuesAggregator = new ValuesAggregator(
-                    sources,
-                    docChannel,
-                    groupingField,
-                    channelIndex,
-                    aggregatorFactories,
-                    maxPageSize,
-                    driverContext
                 );
+                pagePassed = true;
+                ordinalAggregator.addInput(docVector.docs(), page);
+            } else {
+                if (valuesAggregator == null) {
+                    int channelIndex = page.getBlockCount(); // extractor will append a new block at the end
+                    valuesAggregator = new ValuesAggregator(
+                        sources,
+                        docChannel,
+                        groupingField,
+                        channelIndex,
+                        aggregatorFactories,
+                        maxPageSize,
+                        driverContext
+                    );
+                }
+                pagePassed = true;
+                valuesAggregator.addInput(page);
             }
-            valuesAggregator.addInput(page);
+        } finally {
+            if (pagePassed == false) {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
         }
     }
 
@@ -392,9 +401,18 @@ public class OrdinalsGroupingOperator implements Operator {
 
         @Override
         public BitArray seenGroupIds(BigArrays bigArrays) {
-            BitArray seen = new BitArray(0, bigArrays);
-            seen.or(visitedOrds);
-            return seen;
+            final BitArray seen = new BitArray(0, bigArrays);
+            boolean success = false;
+            try {
+                // the or method can grow the `seen` bits
+                seen.or(visitedOrds);
+                success = true;
+                return seen;
+            } finally {
+                if (success == false) {
+                    Releasables.close(seen);
+                }
+            }
         }
 
         @Override

@@ -89,7 +89,7 @@ public class HttpRequestSenderFactory {
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService(threadPool.getThreadContext(), serviceName, manager.getHttpClient(), threadPool);
+            service = new HttpRequestExecutorService(serviceName, manager.getHttpClient(), threadPool);
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);

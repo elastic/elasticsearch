@@ -58,7 +58,9 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
                 continue;
             }
             IndexRoutingTable routingTable = latestState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null
+                || routingTable.allPrimaryShardsActive() == false
+                || routingTable.readyForSearch(latestState) == false) {
                 return false;
             }
         }

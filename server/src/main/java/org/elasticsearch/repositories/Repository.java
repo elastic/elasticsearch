@@ -139,13 +139,14 @@ public interface Repository extends LifecycleComponent {
      *
      * @param snapshotIds                  snapshot ids to delete
      * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
-     * @param repositoryFormatIndexVersion the version of repository format to use, indicating the layout of blobs (for bwc)
+     * @param minimumNodeVersion           the minimum {@link IndexVersion} across the nodes in the cluster, with which the repository
+     *                                     format must remain compatible
      * @param listener                     completion listener, see {@link SnapshotDeleteListener}.
      */
     void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
-        IndexVersion repositoryFormatIndexVersion,
+        IndexVersion minimumNodeVersion,
         SnapshotDeleteListener listener
     );
 

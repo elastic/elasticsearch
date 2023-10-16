@@ -131,7 +131,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            is("Failed to execute task because the http executor service [test_service] has shutdown")
+            is("Failed to enqueue task because the http executor service [test_service] has already shutdown")
         );
     }
 
@@ -194,5 +194,23 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
             thrownException.getMessage(),
             is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueNanos(1)))
         );
+    }
+
+    public void testSend_NotifiesTasksOfShutdown() {
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class), threadPool);
+
+        var listener = new PlainActionFuture<HttpResult>();
+        service.send(mock(HttpRequestBase.class), null, listener);
+        service.shutdown();
+        service.start();
+
+        var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to send request, queue service [test_service] has shutdown prior to executing request")
+        );
+        assertTrue(thrownException.isExecutorShutdown());
+        assertTrue(service.isTerminated());
     }
 }

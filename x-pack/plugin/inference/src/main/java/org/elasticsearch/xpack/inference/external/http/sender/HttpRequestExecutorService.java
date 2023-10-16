@@ -131,7 +131,10 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     private void rejectTask(HttpTask task) {
         try {
             task.onRejection(
-                new EsRejectedExecutionException(format("Failed to send request, queue service [%s] has shutdown", serviceName), true)
+                new EsRejectedExecutionException(
+                    format("Failed to send request, queue service [%s] has shutdown prior to executing request", serviceName),
+                    true
+                )
             );
         } catch (Exception e) {
             logger.warn(
@@ -186,7 +189,7 @@ class HttpRequestExecutorService extends AbstractExecutorService {
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-                format("Failed to execute task because the http executor service [%s] has shutdown", serviceName),
+                format("Failed to enqueue task because the http executor service [%s] has already shutdown", serviceName),
                 true
             );
 

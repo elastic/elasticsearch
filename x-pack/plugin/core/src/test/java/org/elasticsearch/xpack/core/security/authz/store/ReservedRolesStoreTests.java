@@ -3057,6 +3057,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "packetbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "winlogbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "endgame-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
@@ -3124,6 +3126,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "packetbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "winlogbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "endgame-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
@@ -3415,6 +3419,24 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.roleDescriptors().stream().map(RoleDescriptor::getName).collect(Collectors.toUnmodifiableSet()),
             equalTo(includedRoles)
         );
+    }
+
+    public void testEnrichUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("enrich_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
+        assertTrue(role.cluster().check("cluster:admin/xpack/enrich/put", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/enrich/execute", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/enrich/esql/resolve", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/enrich/esql/lookup", request, authentication));
+        assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
+        assertFalse(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")));
+        assertOnlyReadAllowed(role, ".enrich-foo");
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

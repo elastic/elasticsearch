@@ -7,6 +7,8 @@ setup:
       indices.create:
         index:  test
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               my_field1:

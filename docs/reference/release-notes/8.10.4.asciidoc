@@ -1,0 +1,21 @@
+[[release-notes-8.10.4]]
+== {es} version 8.10.4
+
+coming[8.10.4]
+
+Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
+
+[[bug-8.10.4]]
+[float]
+=== Bug fixes
+
+Search::
+* Search of remote clusters with no shards results in successful status {es-pull}100354[#100354]
+
+Snapshot/Restore::
+* Improve `RepositoryData` BwC {es-pull}100401[#100401]
+
+Transform::
+* Shutdown the task immediately when `force` == `true` {es-pull}100203[#100203]
+
+

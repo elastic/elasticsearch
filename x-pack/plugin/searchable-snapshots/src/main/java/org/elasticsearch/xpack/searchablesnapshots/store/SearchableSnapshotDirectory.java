@@ -427,7 +427,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     context,
                     inputStats,
                     cacheService.getRangeSize(),
-                    cacheService.getRecoveryRangeSize()
+                    cacheService.getRecoveryRangeSize(),
+                    cacheMissCounter
                 );
             }
         } else {

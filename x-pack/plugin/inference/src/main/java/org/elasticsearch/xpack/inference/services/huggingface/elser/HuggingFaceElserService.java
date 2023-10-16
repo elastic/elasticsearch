@@ -15,7 +15,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 
+import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIfNotEmptyMap;
@@ -34,7 +36,12 @@ public class HuggingFaceElserService implements InferenceService {
     }
 
     @Override
-    public HuggingFaceElserModel parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public HuggingFaceElserModel parseRequestConfig(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Set<String> platformArchitectures
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
         HuggingFaceElserServiceSettings serviceSettings = HuggingFaceElserServiceSettings.fromMap(serviceSettingsMap);
@@ -69,6 +76,11 @@ public class HuggingFaceElserService implements InferenceService {
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
+
+    }
+
+    @Override
+    public void close() throws IOException {
 
     }
 }

@@ -64,6 +64,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.junit.Before;
@@ -89,6 +90,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
@@ -1160,6 +1162,67 @@ public class IngestServiceTests extends ESTestCase {
             argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
         );
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testExecuteBulkRequestCallsDocumentParsingObserver() {
+        /*
+         * This test makes sure that for both insert and upsert requests, when we call executeBulkRequest DocumentParsingObserver is
+         * called using a non-null index name.
+         */
+        AtomicInteger setNameCalledCount = new AtomicInteger(0);
+        AtomicInteger closeCalled = new AtomicInteger(0);
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier = () -> new DocumentParsingObserver() {
+            @Override
+            public XContentParser wrapParser(XContentParser xContentParser) {
+                return xContentParser;
+            }
+
+            @Override
+            public void setIndexName(String indexName) {
+                assertNotNull(indexName);
+                setNameCalledCount.incrementAndGet();
+            }
+
+            @Override
+            public void close() {
+                closeCalled.incrementAndGet();
+            }
+        };
+        IngestService ingestService = createWithProcessors(
+            Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor()),
+            documentParsingObserverSupplier
+        );
+
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        UpdateRequest updateRequest = new UpdateRequest("_index", "_id1").upsert("{}", "{}");
+        updateRequest.upsertRequest().setPipeline("_id");
+        bulkRequest.add(updateRequest);
+        IndexRequest indexRequest = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_id1");
+        bulkRequest.add(indexRequest);
+        @SuppressWarnings("unchecked")
+        BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(
+            bulkRequest.numberOfActions(),
+            bulkRequest.requests(),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
+        assertThat(setNameCalledCount.get(), equalTo(2));
+        assertThat(closeCalled.get(), equalTo(2));
     }
 
     public void testExecuteSuccess() {
@@ -2530,6 +2593,13 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
+        return createWithProcessors(processors, () -> DocumentParsingObserver.EMPTY_INSTANCE);
+    }
+
+    private static IngestService createWithProcessors(
+        Map<String, Processor.Factory> processors,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+    ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -2539,7 +2609,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client, null, () -> DocumentParsingObserver.EMPTY_INSTANCE);
+        }), client, null, documentParsingObserverSupplier);
     }
 
     private CompoundProcessor mockCompoundProcessor() {

@@ -1572,7 +1572,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 unavailable primary shard.",
+                    "This cluster has 1 unavailable primary shard. This is a mounted shard and the original "
+                        + "shard is available, so there is no data loss.",
                     Map.of("unassigned_primaries", 1, "started_primaries", 1),
                     List.of(),
                     List.of(
@@ -1619,10 +1620,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         List.of(
                             new HealthIndicatorImpact(
                                 NAME,
-                                ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
+                                ShardsAvailabilityHealthIndicatorService.READ_ONLY_PRIMARY_UNASSIGNED_IMPACT_ID,
                                 1,
-                                "Cannot add data to 1 index [" + restoredIndex + "]. Searches might return incomplete results.",
-                                List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                                "Searching 1 index [" + restoredIndex + "] might return incomplete results.",
+                                List.of(ImpactArea.SEARCH)
                             )
                         ),
                         List.of(
@@ -1661,9 +1662,15 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                                 NAME,
                                 ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
                                 1,
-                                "Cannot add data to 2 indices [logs-2023.07.11-000024, restored-logs-2023.07.11-000024]."
-                                    + " Searches might return incomplete results.",
+                                "Cannot add data to 1 index [logs-2023.07.11-000024]." + " Searches might return incomplete results.",
                                 List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                            ),
+                            new HealthIndicatorImpact(
+                                NAME,
+                                ShardsAvailabilityHealthIndicatorService.READ_ONLY_PRIMARY_UNASSIGNED_IMPACT_ID,
+                                1,
+                                "Searching 1 index [restored-logs-2023.07.11-000024] might return incomplete results.",
+                                List.of(ImpactArea.SEARCH)
                             )
                         ),
                         List.of(

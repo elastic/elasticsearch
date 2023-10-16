@@ -8,8 +8,9 @@ beta::[]
 <titleabbrev>Search Application Search</titleabbrev>
 ++++
 
-Given specified query parameters, generates an Elasticsearch query to run using the search template associated with the
-search application. Any unspecified template parameters will be assigned their default values (if applicable).
+Given specified query parameters, generates and executes an Elasticsearch query using the search template associated
+with the search application.
+Any unspecified template parameters will be assigned their default values (if applicable).
 
 [[search-application-search-request]]
 ==== {api-request-title}
@@ -47,8 +48,7 @@ Search Application `<name>` does not exist.
 [[search-application-search-example]]
 ==== {api-examples-title}
 
-The following example performs a search against a search application called `my-app` that uses the search
-template:
+The following example executes a search against a search application called `my-app` that uses the search template:
 
 ////
 [source,console]
@@ -134,7 +134,7 @@ GET _application/search_application/my-app/
 }
 ----
 
-The following request will use the search template to generate & run an Elasticsearch query against the search
+The following request will use the search template to generate & execute an Elasticsearch query against the search
 application:
 
 [source,console]
@@ -168,7 +168,10 @@ The generated Elasticsearch query would look like:
 ----
 // TESTRESPONSE[skip:result of request not run in this document]
 
-The expected response is the search results from the Elasticsearch query that was generated & run.
+In this case, the `from` and `size` parameters are not specified in the request, so default values are pulled from the
+search template.
+
+The expected response is the search results from the Elasticsearch query that was generated & executed.
 The response format is the same as that used by the <<search-api-response-body,Elasticsearch Search API>>:
 
 [source,console-result]

@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -44,10 +45,6 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             super((String[]) null);
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -71,6 +68,11 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             }
             return true;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
+        }
     }
 
     public static class NodeRequest extends TransportRequest {
@@ -78,9 +80,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             super(in);
         }
 
-        public NodeRequest(Request request) {
-
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {

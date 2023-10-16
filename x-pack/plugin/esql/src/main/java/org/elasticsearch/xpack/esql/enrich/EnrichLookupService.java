@@ -140,7 +140,7 @@ public class EnrichLookupService {
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         ActionListener<Page> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
-        hasEnrichPrivilege(ActionListener.wrap(user -> {
+        hasEnrichPrivilege(ActionListener.wrap(ignored -> {
             ClusterState clusterState = clusterService.state();
             GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
                 .searchShards(clusterState, new String[] { index }, Map.of(), "_local");
@@ -170,7 +170,7 @@ public class EnrichLookupService {
         }, listener::onFailure));
     }
 
-    private void hasEnrichPrivilege(ActionListener<User> outListener) {
+    private void hasEnrichPrivilege(ActionListener<Void> outListener) {
         final Settings settings = clusterService.getSettings();
         if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             outListener.onResponse(null);
@@ -191,7 +191,7 @@ public class EnrichLookupService {
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         ActionListener<HasPrivilegesResponse> listener = outListener.delegateFailureAndWrap((l, resp) -> {
             if (resp.isCompleteMatch()) {
-                l.onResponse(user);
+                l.onResponse(null);
                 return;
             }
             String detailed = resp.getClusterPrivileges()

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.profiling;
 
 import java.util.Objects;
 
-public class FrameGroupID {
+public final class FrameGroupID {
     private static final char UNIX_PATH_SEPARATOR = '/';
+
+    private FrameGroupID() {}
 
     public static String getBasenameAndParent(String fullPath) {
         if (fullPath == null || fullPath.isEmpty()) {

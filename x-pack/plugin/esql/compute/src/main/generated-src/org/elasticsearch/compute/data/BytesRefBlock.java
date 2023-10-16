@@ -18,7 +18,7 @@ import java.io.IOException;
  * Block that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock, BytesRefArrayBlock, BytesRefVectorBlock {
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock {
 
     BytesRef NULL_VALUE = new BytesRef();
 
@@ -116,6 +116,9 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
      * equals method works properly across different implementations of the BytesRefBlock interface.
      */
     static boolean equals(BytesRefBlock block1, BytesRefBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

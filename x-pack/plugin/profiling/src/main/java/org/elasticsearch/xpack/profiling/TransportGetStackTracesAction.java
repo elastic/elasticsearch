@@ -88,6 +88,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     );
 
     private final NodeClient nodeClient;
+    private final ProfilingLicenseChecker licenseChecker;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Executor responseExecutor;
@@ -105,10 +106,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         TransportService transportService,
         ActionFilters actionFilters,
         NodeClient nodeClient,
+        ProfilingLicenseChecker licenseChecker,
         IndexNameExpressionResolver resolver
     ) {
         super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
+        this.licenseChecker = licenseChecker;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
@@ -120,6 +123,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     @Override
     protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
+        licenseChecker.requireSupportedLicense();
         long start = System.nanoTime();
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;

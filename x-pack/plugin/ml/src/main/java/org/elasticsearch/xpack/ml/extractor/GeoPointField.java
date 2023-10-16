@@ -40,7 +40,7 @@ public class GeoPointField extends DocValueField {
         return value;
     }
 
-    private String handleString(String geoString) {
+    private static String handleString(String geoString) {
         if (geoString.contains(",")) { // Entry is of the form "38.897676, -77.03653"
             return geoString.replace(" ", "");
         } else {

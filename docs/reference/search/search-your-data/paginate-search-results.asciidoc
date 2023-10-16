@@ -1,5 +1,5 @@
 [[paginate-search-results]]
-== Paginate search results
+=== Paginate search results
 
 By default, searches return the top 10 matching hits. To page through a larger
 set of results, you can use the <<search-search,search API>>'s `from` and `size`

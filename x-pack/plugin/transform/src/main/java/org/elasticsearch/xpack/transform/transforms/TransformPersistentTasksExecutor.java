@@ -162,7 +162,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null
+                || routingTable.allPrimaryShardsActive() == false
+                || routingTable.readyForSearch(clusterState) == false) {
                 unavailableIndices.add(index);
             }
         }
@@ -364,7 +366,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         };
     }
 
-    private void markAsFailed(TransformTask task, String reason) {
+    private static void markAsFailed(TransformTask task, String reason) {
         CountDownLatch latch = new CountDownLatch(1);
 
         task.fail(

@@ -164,7 +164,7 @@ public class AssignmentPlanner {
         return solvePreservingCurrentAssignments(new PreserveAllAllocations(nodes, deployments));
     }
 
-    private AssignmentPlan solvePreservingCurrentAssignments(AbstractPreserveAllocations preserveAllocations) {
+    private static AssignmentPlan solvePreservingCurrentAssignments(AbstractPreserveAllocations preserveAllocations) {
         List<Node> planNodes = preserveAllocations.nodesPreservingAllocations();
         List<AssignmentPlan.Deployment> planDeployments = preserveAllocations.modelsPreservingAllocations();
         logger.trace(() -> format("Nodes after applying allocation preserving strategy = %s", planNodes));

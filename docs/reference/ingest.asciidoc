@@ -448,11 +448,11 @@ configuration. See {fleet-guide}/install-standalone-elastic-agent.html[Install s
 
 [discrete]
 [[pipelines-in-enterprise-search]]
-=== Pipelines in Enterprise Search
+=== Pipelines for search indices
 
-When you create Elasticsearch indices for {enterprise-search-ref}/index.html[Enterprise Search^] use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or {enterprise-search-ref}/connectors.html[connectors^], these indices are automatically set up with specific ingest pipelines. 
+When you create Elasticsearch indices for search use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or {enterprise-search-ref}/connectors.html[connectors^], these indices are automatically set up with specific ingest pipelines.
 These processors help optimize your content for search.
-Refer to the {enterprise-search-ref}/ingest-pipelines.html[Enterprise Search documentation^] for more information.
+See <<ingest-pipeline-search>> for more information.
 
 [discrete]
 [[access-source-fields]]

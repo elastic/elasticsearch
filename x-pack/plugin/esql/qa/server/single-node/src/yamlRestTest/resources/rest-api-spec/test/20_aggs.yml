@@ -418,10 +418,6 @@ setup:
 
 ---
 "Test Eval With Null And Count":
-  - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/99826"
-
   - do:
       esql.query:
         body:

@@ -16,7 +16,7 @@ import java.io.IOException;
  * Vector that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, FilterIntVector, IntArrayVector, IntBigArrayVector {
+public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector {
 
     int getInt(int position);
 

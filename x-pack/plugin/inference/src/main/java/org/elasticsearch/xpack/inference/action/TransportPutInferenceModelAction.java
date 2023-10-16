@@ -11,28 +11,35 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     PutInferenceModelAction.Request,
@@ -40,6 +47,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
+    private final Client client;
 
     @Inject
     public TransportPutInferenceModelAction(
@@ -49,7 +57,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ModelRegistry modelRegistry,
-        InferenceServiceRegistry serviceRegistry
+        InferenceServiceRegistry serviceRegistry,
+        Client client
     ) {
         super(
             PutInferenceModelAction.NAME,
@@ -64,6 +73,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         );
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
+        this.client = client;
     }
 
     @Override
@@ -87,12 +97,42 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        var model = service.get().parseRequestConfig(request.getModelId(), request.getTaskType(), requestAsMap);
+        if (service.get().isInClusterService()) {
+            // Find the cluster platform as the service may need that
+            // information when creating the model
+            MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(ActionListener.wrap(architectures -> {
+                if (architectures.isEmpty() && clusterIsInElasticCloud(clusterService.getClusterSettings())) {
+                    parseAndStoreModel(
+                        service.get(),
+                        request.getModelId(),
+                        request.getTaskType(),
+                        requestAsMap,
+                        // In Elastic cloud ml nodes run on Linux x86
+                        Set.of("linux-x86_64"),
+                        listener
+                    );
+                } else {
+                    // The architecture field could be an empty set, the individual services will need to handle that
+                    parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, architectures, listener);
+                }
+            }, listener::onFailure), client, threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME));
+        } else {
+            // Not an in cluster service, it does not care about the cluster platform
+            parseAndStoreModel(service.get(), request.getModelId(), request.getTaskType(), requestAsMap, Set.of(), listener);
+        }
+    }
+
+    private void parseAndStoreModel(
+        InferenceService service,
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Set<String> platformArchitectures,
+        ActionListener<PutInferenceModelAction.Response> listener
+    ) {
+        var model = service.parseRequestConfig(modelId, taskType, config, platformArchitectures);
         // model is valid good to persist then start
-        this.modelRegistry.storeModel(
-            model,
-            ActionListener.wrap(r -> { startModel(service.get(), model, listener); }, listener::onFailure)
-        );
+        this.modelRegistry.storeModel(model, ActionListener.wrap(r -> { startModel(service, model, listener); }, listener::onFailure));
     }
 
     private static void startModel(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
@@ -120,5 +160,11 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     @Override
     protected ClusterBlockException checkBlock(PutInferenceModelAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    static boolean clusterIsInElasticCloud(ClusterSettings settings) {
+        // use a heuristic to determine if in Elastic cloud.
+        // One such heuristic is where USE_AUTO_MACHINE_MEMORY_PERCENT == true
+        return settings.get(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT);
     }
 }

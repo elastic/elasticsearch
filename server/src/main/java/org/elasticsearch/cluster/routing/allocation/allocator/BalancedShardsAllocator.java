@@ -369,40 +369,30 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         // Visible for testing
         static long getIndexDiskUsageInBytes(ClusterInfo clusterInfo, IndexMetadata indexMetadata) {
-            var forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
-            return forecastedShardSizeInBytes.isPresent()
-                ? forecastedShardSizeInBytes.getAsLong() * numberOfCopies(indexMetadata)
-                : getIndexDiskUsageInBytesFromClusterInfo(clusterInfo, indexMetadata);
-        }
-
-        private static long getIndexDiskUsageInBytesFromClusterInfo(ClusterInfo clusterInfo, IndexMetadata indexMetadata) {
+            final long forecastedShardSize = indexMetadata.getForecastedShardSizeInBytes().orElse(-1L);
             long totalSizeInBytes = 0;
             int shardCount = 0;
             for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
                 final ShardId shardId = new ShardId(indexMetadata.getIndex(), shard);
-
-                final Long primaryShardSize = clusterInfo.getShardSize(shardId, true);
-                if (primaryShardSize != null) {
+                final long primaryShardSize = Math.max(forecastedShardSize, clusterInfo.getShardSize(shardId, true, -1L));
+                if (primaryShardSize != -1L) {
                     totalSizeInBytes += primaryShardSize;
                     shardCount++;
                 }
-
-                final Long replicaShardSize = clusterInfo.getShardSize(shardId, false);
-                if (replicaShardSize != null) {
-                    totalSizeInBytes += (replicaShardSize * indexMetadata.getNumberOfReplicas());
+                final long replicaShardSize = Math.max(forecastedShardSize, clusterInfo.getShardSize(shardId, false, -1L));
+                if (replicaShardSize != -1L) {
+                    totalSizeInBytes += replicaShardSize * indexMetadata.getNumberOfReplicas();
                     shardCount += indexMetadata.getNumberOfReplicas();
                 }
             }
-
             if (shardCount == numberOfCopies(indexMetadata)) {
                 return totalSizeInBytes;
             }
-
             return shardCount == 0 ? 0 : (totalSizeInBytes / shardCount) * numberOfCopies(indexMetadata);
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
-            return indexMetadata.getForecastedShardSizeInBytes().orElseGet(() -> clusterInfo.getShardSize(shardRouting, 0L));
+            return Math.max(indexMetadata.getForecastedShardSizeInBytes().orElse(0L), clusterInfo.getShardSize(shardRouting, 0L));
         }
 
         private static int numberOfCopies(IndexMetadata indexMetadata) {

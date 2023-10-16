@@ -1,3 +1,10 @@
+---
+setup:
+  - skip:
+      version: "8.7.00 - 8.9.99"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
+---
 ecs style:
   - skip:
       version: " - 8.0.99"
@@ -419,7 +426,7 @@ nested fields:
 "Synthetic source":
   - skip:
       version: " - 8.9.99"
-      reason: "Synthetic source shows up in the mapping in 8.10 and on"
+      reason: Synthetic source shows up in the mapping in 8.10
 
   - do:
       indices.create:

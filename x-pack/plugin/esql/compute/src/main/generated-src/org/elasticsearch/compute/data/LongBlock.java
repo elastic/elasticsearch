@@ -17,7 +17,7 @@ import java.io.IOException;
  * Block that stores long values.
  * This class is generated. Do not edit it.
  */
-public sealed interface LongBlock extends Block permits FilterLongBlock, LongArrayBlock, LongVectorBlock {
+public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock {
 
     /**
      * Retrieves the long value stored at the given value index.
@@ -112,6 +112,9 @@ public sealed interface LongBlock extends Block permits FilterLongBlock, LongArr
      * equals method works properly across different implementations of the LongBlock interface.
      */
     static boolean equals(LongBlock block1, LongBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;

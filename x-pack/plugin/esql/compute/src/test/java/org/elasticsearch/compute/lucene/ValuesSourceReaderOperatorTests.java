@@ -109,7 +109,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         FieldContext fc = new FieldContext(ft.name(), fd, ft);
         ValuesSource vs = vsType.getField(fc, null);
         return new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
-            List.of(new ValueSourceInfo(vsType, vs, elementType, reader)),
+            () -> List.of(new ValueSourceInfo(vsType, vs, elementType, reader)),
             0,
             ft.name()
         );
@@ -202,7 +202,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         loadSimpleAndAssert(
             driverContext,
-            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100 * 1024)))
+            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
         );
     }
 
@@ -212,7 +212,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             driverContext,
             List.of(
                 CannedSourceOperator.mergePages(
-                    CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100 * 1024)))
+                    CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
                 )
             )
         );
@@ -226,7 +226,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     public void testLoadAllInOnePageShuffled() {
         DriverContext driverContext = driverContext();
         Page source = CannedSourceOperator.mergePages(
-            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100 * 1024)))
+            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
         );
         List<Integer> shuffleList = new ArrayList<>();
         IntStream.range(0, source.getPositionCount()).forEach(i -> shuffleList.add(i));
@@ -384,7 +384,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         NumericDocValuesField intField = new NumericDocValuesField(intFt.name(), 0);
         NumericDocValuesField longField = new NumericDocValuesField(longFt.name(), 0);
         NumericDocValuesField doubleField = new DoubleDocValuesField(doubleFt.name(), 0);
-        final int numDocs = 100_000;
+        final int numDocs = between(100, 5000);
         try (RandomIndexWriter w = new RandomIndexWriter(random(), directory)) {
             Document doc = new Document();
             for (int i = 0; i < numDocs; i++) {

@@ -715,16 +715,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance())).toList();
     }
 
-    /**
-     * Get a function that will take a {@link Settings} object and return a {@link PluginsService}.
-     * This function passes in an empty list of classpath plugins.
-     * @param environment The environment for the plugins service.
-     * @return A function for creating a plugins service.
-     */
-    public static Function<Settings, PluginsService> getPluginsServiceCtor(Environment environment) {
-        return settings -> new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
-    }
-
     static final LayerAndLoader createPluginModuleLayer(
         PluginBundle bundle,
         ClassLoader parentLoader,

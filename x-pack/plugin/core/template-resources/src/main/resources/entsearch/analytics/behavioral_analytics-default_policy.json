@@ -25,13 +25,13 @@
     },
     "delete": {
       "min_age": "180d",
-      "actions":{
+      "actions": {
         "delete": {}
       }
     }
   },
   "_meta": {
-    "description": "Built-in policy applied by default to behavioral analytics event data streams.",
+    "description": "DEPRECATED: Built-in policy applied by default to behavioral analytics event data streams. This should be deleted after all ILM-backed Behavioral Analytics indices are transitioned to DSL.",
     "managed": true
   }
 }

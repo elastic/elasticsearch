@@ -61,6 +61,7 @@ public class ShardSizeStatsReader {
     }
 
     public Map<ShardId, ShardSize> getAllShardSizes(TimeValue boostWindowInterval) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         var sizes = new HashMap<ShardId, ShardSize>();
         for (var indexService : indicesService) {
             for (var indexShard : indexService) {
@@ -78,6 +79,7 @@ public class ShardSizeStatsReader {
      */
     @Nullable
     public ShardSize getShardSize(ShardId shardId, TimeValue boostWindowInterval) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         var indexService = indicesService.indexService(shardId.getIndex());
         if (indexService != null) {
             var indexShard = indexService.getShardOrNull(shardId.id());

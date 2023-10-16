@@ -21,6 +21,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -49,6 +50,7 @@ public class GetShardSizeAction extends ActionType<GetShardSizeAction.Response> 
     public static class TransportGetShardSize extends TransportAction<Request, Response> {
 
         private final ShardSizeStatsReader reader;
+        private final ThreadPool threadPool;
 
         @Inject
         public TransportGetShardSize(
@@ -59,11 +61,16 @@ public class GetShardSizeAction extends ActionType<GetShardSizeAction.Response> 
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.reader = new ShardSizeStatsReader(threadPool, indicesService);
+            this.threadPool = threadPool;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            ActionListener.completeWith(listener, () -> new Response(reader.getShardSize(request.shardId, request.interactiveDataAge)));
+            // fork to generic thread pool because computing the shard size might access files on disk and trigger cache misses
+            // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+
+            var run = ActionRunnable.supply(listener, () -> new Response(reader.getShardSize(request.shardId, request.interactiveDataAge)));
+            threadPool.generic().execute(run);
         }
     }
 

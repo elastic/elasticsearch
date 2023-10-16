@@ -129,6 +129,7 @@ public class Analysis {
         entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
         entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
         entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
+        entry("_serbian_", SerbianAnalyzer.getDefaultStopSet()),
         entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
         entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
         entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),

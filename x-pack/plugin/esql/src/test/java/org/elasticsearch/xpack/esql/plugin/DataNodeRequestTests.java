@@ -182,4 +182,11 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         }
         return physical;
     }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
+    }
 }

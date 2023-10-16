@@ -1375,4 +1375,11 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
+    }
 }

@@ -145,4 +145,11 @@ public class PlanStreamInputTests extends ESTestCase {
             assertThat(sources.apply(planIn), equalTo(sources.apply(planOut)));
         }
     }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
+    }
 }

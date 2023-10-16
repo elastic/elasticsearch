@@ -27,6 +27,7 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -116,5 +117,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(barField.getName(), singletonMap(barField.getName(), barField));
         return fields;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
     }
 }

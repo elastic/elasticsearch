@@ -340,4 +340,11 @@ public class VerifierTests extends ESTestCase {
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());
     }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
+    }
 }

@@ -36,6 +36,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
@@ -290,5 +291,12 @@ public class FilterTests extends ESTestCase {
 
     private QueryBuilder filterQueryForTransportNodes(PhysicalPlan plan) {
         return PlannerUtils.detectFilter(plan, AT_TIMESTAMP);
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.BeforeClass;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
@@ -281,5 +282,12 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
         // System.out.println(localPlan);
         return localPlan;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
     }
 }

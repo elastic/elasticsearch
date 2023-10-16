@@ -1968,4 +1968,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         return new RLike(EMPTY, left, new RLikePattern(exp));
     }
 
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
+    }
 }

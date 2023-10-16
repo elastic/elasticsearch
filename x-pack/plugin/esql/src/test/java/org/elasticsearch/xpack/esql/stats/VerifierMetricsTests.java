@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DISSECT;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.EVAL;
@@ -195,5 +197,12 @@ public class VerifierMetricsTests extends ESTestCase {
         analyzer(mapping, verifier).analyze(parser.createStatement(esql));
 
         return metrics == null ? null : metrics.stats();
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        List<String> result = super.filteredWarnings();
+        result.add("No limit defined, adding default limit of [500]");
+        return result;
     }
 }

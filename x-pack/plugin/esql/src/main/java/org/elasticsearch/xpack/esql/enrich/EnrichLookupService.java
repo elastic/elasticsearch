@@ -180,7 +180,6 @@ public class EnrichLookupService {
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final User user = securityContext.getUser();
         if (user == null) {
-            assert false : "missing or unable to read authentication info on request";
             outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
             return;
         }

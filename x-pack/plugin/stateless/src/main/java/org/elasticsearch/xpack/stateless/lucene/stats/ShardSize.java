@@ -58,4 +58,14 @@ public record ShardSize(long interactiveSizeInBytes, long nonInteractiveSizeInBy
     public long totalSizeInBytes() {
         return interactiveSizeInBytes + nonInteractiveSizeInBytes;
     }
+
+    @Override
+    public String toString() {
+        return "[interactive_in_bytes="
+            + interactiveSizeInBytes
+            + ", non-interactive_in_bytes="
+            + nonInteractiveSizeInBytes
+            + ']'
+            + primaryTermGeneration;
+    }
 }

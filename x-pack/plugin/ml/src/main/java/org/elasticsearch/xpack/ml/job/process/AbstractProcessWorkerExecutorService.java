@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.job.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
@@ -112,7 +111,6 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
                     } catch (Exception e) {
                         logger.error(() -> "error handling process [" + processName + "] operation", e);
                     }
-                    EsExecutors.rethrowErrors(ThreadContext.unwrap(runnable));
                 } else if (shouldShutdownAfterCompletingWork.get()) {
                     running.set(false);
                 }

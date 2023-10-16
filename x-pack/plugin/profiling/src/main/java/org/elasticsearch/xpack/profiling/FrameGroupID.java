@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.Objects;
 
 public final class FrameGroupID {
@@ -15,7 +17,7 @@ public final class FrameGroupID {
     private FrameGroupID() {}
 
     public static String getBasenameAndParent(String fullPath) {
-        if (fullPath == null || fullPath.isEmpty()) {
+        if (Strings.isEmpty(fullPath)) {
             return fullPath;
         }
         int lastSeparatorIdx = fullPath.lastIndexOf(UNIX_PATH_SEPARATOR);
@@ -27,10 +29,10 @@ public final class FrameGroupID {
     }
 
     public static String create(String fileId, Integer addressOrLine, String exeFilename, String sourceFilename, String functionName) {
-        if (functionName.isEmpty()) {
+        if (Strings.isEmpty(functionName)) {
             return Integer.toString(Objects.hash(fileId, addressOrLine));
         }
-        if (sourceFilename.isEmpty()) {
+        if (Strings.isEmpty(sourceFilename)) {
             return Integer.toString(Objects.hash(fileId, functionName));
         }
         return Integer.toString(Objects.hash(exeFilename, functionName, getBasenameAndParent(sourceFilename)));

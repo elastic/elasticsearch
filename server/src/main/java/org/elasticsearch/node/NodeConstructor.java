@@ -1223,7 +1223,8 @@ class NodeConstructor {
             clusterService,
             bigArrays,
             xContentRegistry,
-            recoverySettings
+            recoverySettings,
+            telemetryProvider
         );
         repositoriesServiceReference.set(repositoriesModule.getRepositoryService());
 

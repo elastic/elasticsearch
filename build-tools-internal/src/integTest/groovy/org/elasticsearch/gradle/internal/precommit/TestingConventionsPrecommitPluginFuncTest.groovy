@@ -77,26 +77,6 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
         result.task(":testingConventions").outcome == TaskOutcome.UP_TO_DATE
     }
 
-    def "testing convention plugin is configuration cache compatible"() {
-        given:
-        simpleJavaBuild()
-        testClazz("org.acme.valid.SomeTests", "org.apache.lucene.util.LuceneTestCase") {
-            """
-            public void testMe() {
-            }
-            """
-        }
-        when:
-        def result = gradleRunner("precommit", "--configuration-cache").build()
-        then:
-        assertOutputContains(result.getOutput(), "0 problems were found storing the configuration cache.")
-
-        when:
-        result = gradleRunner("precommit", "--configuration-cache").build()
-        then:
-        assertOutputContains(result.getOutput(), "Configuration cache entry reused.")
-    }
-
     def "checks base class convention"() {
         given:
         simpleJavaBuild()

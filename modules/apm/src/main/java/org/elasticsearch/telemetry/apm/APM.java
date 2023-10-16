@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics;
+package org.elasticsearch.telemetry.apm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;

@@ -111,7 +111,7 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * This groups on 5000 columns which used to throw a {@link StackOverflowError}.
      */
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/100640")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100640")
     public void testGroupOnManyLongs() throws IOException {
         initManyLongs();
         Map<?, ?> map = XContentHelper.convertToMap(

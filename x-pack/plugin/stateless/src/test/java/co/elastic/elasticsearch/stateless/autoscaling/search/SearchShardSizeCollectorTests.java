@@ -69,14 +69,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-public class ShardSizesCollectorTests extends ESTestCase {
+public class SearchShardSizeCollectorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private ClusterSettings clusterSettings;
     private ShardSizeStatsClient statsClient;
     private ShardSizesPublisher publisher;
 
-    private ShardSizesCollector service;
+    private SearchShardSizeCollector service;
 
     private final PrimaryTermAndGeneration primaryTermGeneration = new PrimaryTermAndGeneration(
         randomNonNegativeLong(),
@@ -87,24 +87,24 @@ public class ShardSizesCollectorTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(ShardSizesCollectorTests.class.getName());
+        threadPool = new TestThreadPool(SearchShardSizeCollectorTests.class.getName());
         clusterSettings = new ClusterSettings(
             Settings.builder()
-                .put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
-                .put(ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofKb(10))
+                .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
+                .put(SearchShardSizeCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofKb(10))
                 .build(),
             Sets.addToCopy(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                 ServerlessSharedSettings.BOOST_WINDOW_SETTING,
-                ShardSizesCollector.PUSH_INTERVAL_SETTING,
-                ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING
+                SearchShardSizeCollector.PUSH_INTERVAL_SETTING,
+                SearchShardSizeCollector.PUSH_DELTA_THRESHOLD_SETTING
             )
         );
 
         statsClient = mock(ShardSizeStatsClient.class);
         publisher = mock(ShardSizesPublisher.class);
 
-        service = new ShardSizesCollector(clusterSettings, threadPool, statsClient, publisher, true);
+        service = new SearchShardSizeCollector(clusterSettings, threadPool, statsClient, publisher);
         service.setNodeId("search_node_1");
     }
 
@@ -121,7 +121,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var size = new ShardSize(1024, 1024, primaryTermGeneration);
 
         setUpShardSize(shardId, size);
-        service.detectShardSize(shardId);
+        service.collectShardSize(shardId);
         service.doStart();
 
         assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any()));
@@ -135,8 +135,8 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         setUpShardSize(shardId1, size);
         setUpShardSize(shardId2, size);
-        service.detectShardSize(shardId1);
-        service.detectShardSize(shardId2);
+        service.collectShardSize(shardId1);
+        service.collectShardSize(shardId2);
         service.doStart();
 
         assertBusy(
@@ -150,7 +150,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var size = new ShardSize(1024, 1024, primaryTermGeneration);
 
         setUpShardSize(shardId, size);
-        service.detectShardSize(shardId);
+        service.collectShardSize(shardId);
         service.doStart();
 
         assertBusy(() -> {
@@ -165,7 +165,7 @@ public class ShardSizesCollectorTests extends ESTestCase {
         var size = ShardSize.EMPTY;
 
         setUpShardSize(shardId, size);
-        service.detectShardSize(shardId);
+        service.collectShardSize(shardId);
         service.doStart();
 
         assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId, size)), any()));
@@ -185,11 +185,11 @@ public class ShardSizesCollectorTests extends ESTestCase {
 
         service.doStart();
         setUpShardSize(shardId1, size);
-        service.detectShardSize(shardId1);
+        service.collectShardSize(shardId1);
         assertBusy(() -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size)), any()));
 
         setUpShardSize(shardId2, size);
-        service.detectShardSize(shardId2);
+        service.collectShardSize(shardId2);
         assertBusy(
             () -> verify(publisher).publishSearchShardDiskUsage(eq("search_node_1"), eq(Map.of(shardId1, size, shardId2, size)), any())
         );
@@ -206,8 +206,8 @@ public class ShardSizesCollectorTests extends ESTestCase {
         setUpShardSize(shardId1, smallSize);
         setUpShardSize(shardId2, bigSize);
 
-        service.detectShardSize(shardId1);
-        service.detectShardSize(shardId2);
+        service.collectShardSize(shardId1);
+        service.collectShardSize(shardId2);
 
         assertBusy(() -> {
             // not publishing immediately after small change in shardId1
@@ -248,8 +248,8 @@ public class ShardSizesCollectorTests extends ESTestCase {
         clusterSettings.applySettings(
             Settings.builder()
                 .put(ServerlessSharedSettings.BOOST_WINDOW_SETTING.getKey(), TimeValue.timeValueDays(14))
-                .put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
-                .put(ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofKb(10))
+                .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(250))
+                .put(SearchShardSizeCollector.PUSH_DELTA_THRESHOLD_SETTING.getKey(), ByteSizeValue.ofKb(10))
                 .build()
         );
 

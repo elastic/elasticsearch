@@ -18,7 +18,7 @@
 package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.Stateless;
-import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesCollector;
+import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 
 import org.elasticsearch.ElasticsearchException;
@@ -51,7 +51,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     public static final ActionType<NewCommitNotificationResponse> TYPE = new ActionType<>(NAME, NewCommitNotificationResponse::new);
 
     private final IndicesService indicesService;
-    private final ShardSizesCollector shardSizesCollector;
+    private final ShardSizeCollector shardSizeCollector;
 
     @Inject
     public TransportNewCommitNotificationAction(
@@ -60,7 +60,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndicesService indicesService,
-        ShardSizesCollector shardSizesCollector
+        ShardSizeCollector shardSizeCollector
     ) {
         super(
             NAME,
@@ -72,7 +72,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indicesService = indicesService;
-        this.shardSizesCollector = shardSizesCollector;
+        this.shardSizeCollector = shardSizeCollector;
     }
 
     @Override
@@ -107,7 +107,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                     request.getCompoundCommit(),
                     listener.delegateFailure((l, v) -> ActionListener.completeWith(l, () -> {
                         shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
-                        shardSizesCollector.detectShardSize(shard.shardId());
+                        shardSizeCollector.collectShardSize(shard.shardId());
                         return new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations());
                     }))
                 );

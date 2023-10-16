@@ -108,6 +108,8 @@ password: `elastic-password`.
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 - In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
 - In order to use HTTPS: ./gradlew run --https
+- In order to start a mock logging APM server on port 9999 and configure ES cluster to connect to it,
+use `./gradlew run --with-apm-server`
 
 ==== Customizing the test cluster for ./gradlew run
 

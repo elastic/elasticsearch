@@ -42,11 +42,7 @@ public class MockApmServer {
      */
     public static void main(String[] args) throws IOException, InterruptedException {
         MockApmServer server = new MockApmServer();
-        logger.lifecycle("Apm server started on port:" + server.start());
-        server.blockUntilReady();
-        Thread.sleep(2_000_000L);
-        server.stop();
-        server.blockUntilStopped();
+        server.start();
     }
 
     private static volatile HttpServer instance;
@@ -122,32 +118,6 @@ public class MockApmServer {
                 instance = null;
             } catch (Exception e) {
                 e.printStackTrace();
-            }
-        }
-    }
-
-    /**
-     * Wait until the server is ready to accept messages
-     */
-    public void blockUntilReady() {
-        while (instance == null) {
-            try {
-                Thread.sleep(1L);
-            } catch (InterruptedException e) {
-                // do nothing, just enter the next sleep
-            }
-        }
-    }
-
-    /**
-     * Wait until the server is terminated
-     */
-    public void blockUntilStopped() {
-        while (instance != null) {
-            try {
-                Thread.sleep(1L);
-            } catch (InterruptedException e) {
-                // do nothing, just enter the next sleep
             }
         }
     }

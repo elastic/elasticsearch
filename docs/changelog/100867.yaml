@@ -1,5 +1,0 @@
-pr: 100867
-summary: '`TransportNodesAction` impls are local-only'
-area: Infra/Transport API
-type: tech debt
-issues: []

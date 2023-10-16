@@ -9,34 +9,28 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class HttpRequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -125,7 +119,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isTerminated());
     }
 
-    public void testExecute_AfterShutdown_Throws() {
+    public void testSend_AfterShutdown_Throws() {
         var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class), threadPool);
 
         service.shutdown();
@@ -141,7 +135,7 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         );
     }
 
-    public void testExecute_Throws_WhenQueueIsFull() {
+    public void testSend_Throws_WhenQueueIsFull() {
         var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class), threadPool, 1);
 
         service.send(mock(HttpRequestBase.class), null, new PlainActionFuture<>());
@@ -188,19 +182,17 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isShutdown());
     }
 
-    private static ClusterService mockClusterServiceEmpty() {
-        return mockClusterService(Settings.EMPTY);
-    }
+    public void testSend_CallsOnFailure_WhenRequestTimesOut() {
+        var service = new HttpRequestExecutorService(threadPool.getThreadContext(), "test_service", mock(HttpClient.class), threadPool);
 
-    private static ClusterService mockClusterService(Settings settings) {
-        var clusterService = mock(ClusterService.class);
+        var listener = new PlainActionFuture<HttpResult>();
+        service.send(mock(HttpRequestBase.class), TimeValue.timeValueNanos(1), listener);
 
-        var registeredSettings = Stream.concat(HttpClientManager.getSettings().stream(), HttpSettings.getSettings().stream())
-            .collect(Collectors.toSet());
+        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
-        var cSettings = new ClusterSettings(settings, registeredSettings);
-        when(clusterService.getClusterSettings()).thenReturn(cSettings);
-
-        return clusterService;
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueNanos(1)))
+        );
     }
 }

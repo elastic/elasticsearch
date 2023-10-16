@@ -19,16 +19,21 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createConnectionManager;
@@ -42,12 +47,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class RequestTaskTests extends ESTestCase {
+
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -131,13 +137,18 @@ public class RequestTaskTests extends ESTestCase {
         var httpClient = mock(HttpClient.class);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResponse> listener = (ActionListener<HttpResponse>) invocation.getArguments()[2];
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
             listener.onFailure(new ElasticsearchException("failed"));
             return Void.TYPE;
         }).when(httpClient).send(any(), any(), any());
 
-        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-        var spyListener = spy(listener);
+        @SuppressWarnings("unchecked")
+        ActionListener<HttpResult> listener = mock(ActionListener.class);
+        var calledOnFailureLatch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            calledOnFailureLatch.countDown();
+            return Void.TYPE;
+        }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
             mock(HttpRequestBase.class),
@@ -148,14 +159,135 @@ public class RequestTaskTests extends ESTestCase {
             listener
         );
 
-        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+        calledOnFailureLatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+
+        ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
+        verify(listener, times(1)).onFailure(argument.capture());
         assertThat(
-            thrownException.getMessage(),
+            argument.getValue().getMessage(),
             is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueMillis(1)))
         );
-        verify(spyListener, times(1)).onFailure(any());
 
         requestTask.doRun();
-        verifyNoMoreInteractions(spyListener);
+        verifyNoMoreInteractions(listener);
+    }
+
+    public void testRequest_DoesNotCallOnResponseAfterTimingOut() throws Exception {
+        var httpClient = mock(HttpClient.class);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            var result = new HttpResult(mock(HttpResponse.class), new byte[0]);
+            listener.onResponse(result);
+            return Void.TYPE;
+        }).when(httpClient).send(any(), any(), any());
+
+        @SuppressWarnings("unchecked")
+        ActionListener<HttpResult> listener = mock(ActionListener.class);
+        var calledOnFailureLatch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            calledOnFailureLatch.countDown();
+            return Void.TYPE;
+        }).when(listener).onFailure(any());
+
+        var requestTask = new RequestTask(
+            mock(HttpRequestBase.class),
+            httpClient,
+            HttpClientContext.create(),
+            TimeValue.timeValueMillis(1),
+            threadPool,
+            listener
+        );
+
+        calledOnFailureLatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+
+        ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
+        verify(listener, times(1)).onFailure(argument.capture());
+        assertThat(
+            argument.getValue().getMessage(),
+            is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueMillis(1)))
+        );
+
+        requestTask.doRun();
+        verifyNoMoreInteractions(listener);
+    }
+
+    public void testRequest_DoesNotCallOnFailureForTimeout_AfterAlreadyCallingOnFailure() throws Exception {
+        AtomicReference<Runnable> onTimeout = new AtomicReference<>();
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout);
+
+        var httpClient = mock(HttpClient.class);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            listener.onFailure(new ElasticsearchException("failed"));
+            return Void.TYPE;
+        }).when(httpClient).send(any(), any(), any());
+
+        @SuppressWarnings("unchecked")
+        ActionListener<HttpResult> listener = mock(ActionListener.class);
+
+        var requestTask = new RequestTask(
+            mock(HttpRequestBase.class),
+            httpClient,
+            HttpClientContext.create(),
+            TimeValue.timeValueMillis(1),
+            mockThreadPool,
+            listener
+        );
+
+        requestTask.doRun();
+
+        ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
+        verify(listener, times(1)).onFailure(argument.capture());
+        assertThat(argument.getValue().getMessage(), is("failed"));
+
+        onTimeout.get().run();
+        verifyNoMoreInteractions(listener);
+    }
+
+    public void testRequest_DoesNotCallOnFailureForTimeout_AfterAlreadyCallingOnResponse() throws Exception {
+        AtomicReference<Runnable> onTimeout = new AtomicReference<>();
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout);
+
+        var httpClient = mock(HttpClient.class);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            listener.onResponse(new HttpResult(mock(HttpResponse.class), new byte[0]));
+            return Void.TYPE;
+        }).when(httpClient).send(any(), any(), any());
+
+        @SuppressWarnings("unchecked")
+        ActionListener<HttpResult> listener = mock(ActionListener.class);
+
+        var requestTask = new RequestTask(
+            mock(HttpRequestBase.class),
+            httpClient,
+            HttpClientContext.create(),
+            TimeValue.timeValueMillis(1),
+            mockThreadPool,
+            listener
+        );
+
+        requestTask.doRun();
+
+        verify(listener, times(1)).onResponse(any());
+
+        onTimeout.get().run();
+        verifyNoMoreInteractions(listener);
+    }
+
+    private static ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
+        var mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.executor(any())).thenReturn(mock(ExecutorService.class));
+
+        doAnswer(invocation -> {
+            Runnable runnable = (Runnable) invocation.getArguments()[0];
+            onTimeoutRunnable.set(runnable);
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(mockThreadPool).schedule(any(Runnable.class), any(), any());
+
+        return mockThreadPool;
     }
 }

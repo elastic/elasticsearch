@@ -177,8 +177,8 @@ class HttpRequestExecutorService extends AbstractExecutorService {
      * Send the request at some point in the future.
      * @param request the http request to send
      * @param timeout the maximum time to wait for this request to complete (failing or successfully). Once the time elapses, the
-     *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}. If null, then the request will
-     *                wait forever
+     *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
+     *                If null, then the request will wait forever
      * @param listener an {@link ActionListener<HttpResult>} for the response or failure
      */
     public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {

@@ -395,11 +395,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         ) {
             @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually
-            }
-
-            @Override
             protected void snapshotFile(SnapshotShardContext context, BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
                 // Randomly fail some file snapshot tasks
                 if (randomBoolean()) {
@@ -421,7 +416,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             files.add(ShardSnapshotTaskRunnerTests.dummyFileInfo());
         }
         repository.snapshotFiles(context, files, allFilesUploadListener);
-        listenerCalled.get();
+        listenerCalled.get(10, TimeUnit.SECONDS);
     }
 
     public void testGetRepositoryDataThreadContext() {

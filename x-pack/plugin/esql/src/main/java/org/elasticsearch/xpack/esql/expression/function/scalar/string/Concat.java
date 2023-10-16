@@ -13,7 +13,6 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;

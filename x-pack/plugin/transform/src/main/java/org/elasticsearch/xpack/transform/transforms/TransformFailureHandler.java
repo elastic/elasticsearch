@@ -188,7 +188,7 @@ class TransformFailureHandler {
      * @param numFailureRetries the number of configured retries
      */
     private void handleElasticsearchException(ElasticsearchException elasticsearchException, boolean unattended, int numFailureRetries) {
-        if (unattended == false && ExceptionRootCauseFinder.IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
+        if (unattended == false && ExceptionRootCauseFinder.isExceptionIrrecoverable(elasticsearchException)) {
             String message = "task encountered irrecoverable failure: " + elasticsearchException.getDetailedMessage();
             fail(message);
         } else {

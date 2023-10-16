@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -192,4 +193,7 @@ public class ElserMlNodeService implements InferenceService {
     public String name() {
         return NAME;
     }
+
+    @Override
+    public void close() throws IOException {}
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -213,7 +214,10 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                         ActionListener.run(
-                            ActionListener.<RepositoryCleanupResult>wrap(result -> after(null, result), e -> after(e, null)),
+                            ActionListener.<DeleteResult>wrap(
+                                result -> after(null, new RepositoryCleanupResult(result)),
+                                e -> after(e, null)
+                            ),
                             l -> blobStoreRepository.cleanup(repositoryStateId, newState.nodes().getMaxDataNodeCompatibleIndexVersion(), l)
                         );
                     }

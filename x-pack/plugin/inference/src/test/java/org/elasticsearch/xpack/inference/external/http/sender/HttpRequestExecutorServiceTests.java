@@ -28,7 +28,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -162,16 +164,18 @@ public class HttpRequestExecutorServiceTests extends ESTestCase {
 
         doAnswer(invocation -> {
             service.shutdown();
-            throw new ElasticsearchException("failed");
+            throw new IllegalArgumentException("failed");
         }).when(httpClient).send(any(), any(), any());
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
 
-        service.send(mock(HttpRequestBase.class), null, listener);
+        var request = createHttpPost(0, "a", "b");
+        service.send(request, null, listener);
         service.start();
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is("failed"));
+        assertThat(thrownException.getMessage(), is(format("Failed to send request [%s]", request.getRequestLine())));
+        assertThat(thrownException.getCause(), instanceOf(IllegalArgumentException.class));
         assertTrue(service.isTerminated());
     }
 

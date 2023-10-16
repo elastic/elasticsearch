@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.cr
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.emptyHttpSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -112,7 +113,40 @@ public class RequestTaskTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is(format("Failed to send request [%s]", httpPost.getRequestLine())));
     }
 
-    public void testRequest_ReturnsTimeoutException() throws Exception {
+    public void testRequest_DoesNotCallOnFailureForTimeout_AfterSendThrowsIllegalArgumentException() throws Exception {
+        AtomicReference<Runnable> onTimeout = new AtomicReference<>();
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout);
+
+        var httpClient = mock(HttpClient.class);
+        doThrow(new IllegalArgumentException("failed")).when(httpClient).send(any(), any(), any());
+
+        var httpPost = createHttpPost(webServer.getPort(), "a", "b");
+
+        @SuppressWarnings("unchecked")
+        ActionListener<HttpResult> listener = mock(ActionListener.class);
+
+        var requestTask = new RequestTask(
+            httpPost,
+            httpClient,
+            HttpClientContext.create(),
+            TimeValue.timeValueMillis(1),
+            mockThreadPool,
+            listener
+        );
+
+        requestTask.doRun();
+
+        ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
+        verify(listener, times(1)).onFailure(argument.capture());
+        assertThat(argument.getValue().getMessage(), is(format("Failed to send request [%s]", httpPost.getRequestLine())));
+        assertThat(argument.getValue(), instanceOf(ElasticsearchException.class));
+        assertThat(argument.getValue().getCause(), instanceOf(IllegalArgumentException.class));
+
+        onTimeout.get().run();
+        verifyNoMoreInteractions(listener);
+    }
+
+    public void testRequest_ReturnsTimeoutException() {
         var httpClient = mock(HttpClient.class);
 
         PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -278,9 +312,10 @@ public class RequestTaskTests extends ESTestCase {
         verifyNoMoreInteractions(listener);
     }
 
-    private static ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
+    private ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
         var mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.executor(any())).thenReturn(mock(ExecutorService.class));
+        when(mockThreadPool.getThreadContext()).thenReturn(threadPool.getThreadContext());
 
         doAnswer(invocation -> {
             Runnable runnable = (Runnable) invocation.getArguments()[0];

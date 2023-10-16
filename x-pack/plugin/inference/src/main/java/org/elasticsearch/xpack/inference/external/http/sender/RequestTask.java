@@ -21,7 +21,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -34,11 +33,10 @@ class RequestTask extends HttpTask {
 
     private final HttpUriRequest request;
     private final ActionListener<HttpResult> listener;
-    private final HttpClient httpClient;
-    private final HttpClientContext context;
     private final Scheduler.Cancellable timeoutHandler;
     private final AtomicBoolean notified = new AtomicBoolean();
     private final TimeValue timeout;
+    private final Runnable command;
 
     RequestTask(
         HttpUriRequest request,
@@ -49,11 +47,18 @@ class RequestTask extends HttpTask {
         ActionListener<HttpResult> listener
     ) {
         this.request = Objects.requireNonNull(request);
-        this.httpClient = Objects.requireNonNull(httpClient);
         this.listener = Objects.requireNonNull(listener);
-        this.context = Objects.requireNonNull(context);
         this.timeout = timeout;
         this.timeoutHandler = startTimer(threadPool, timeout);
+        this.command = threadPool.getThreadContext()
+            .preserveContext(
+                new Command(
+                    Objects.requireNonNull(httpClient),
+                    this.request,
+                    Objects.requireNonNull(context),
+                    ActionListener.wrap(this::onSuccess, this::onFailure)
+                )
+            );
     }
 
     private Scheduler.Cancellable startTimer(ThreadPool threadPool, TimeValue timeout) {
@@ -92,14 +97,13 @@ class RequestTask extends HttpTask {
     }
 
     @Override
-    protected void doRun() throws Exception {
-        ActionListener<HttpResult> notificationListener = ActionListener.wrap(this::onSuccess, this::onFailure);
-
+    protected void doRun() {
         try {
-            httpClient.send(request, context, notificationListener);
-        } catch (IOException e) {
-            logger.warn(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);
-            listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
+            command.run();
+        } catch (Exception e) {
+            String message = format("Failed while executing request [%s]", request.getRequestLine());
+            logger.warn(message, e);
+            onFailure(new ElasticsearchException(message, e));
         }
     }
 
@@ -125,5 +129,20 @@ class RequestTask extends HttpTask {
                 return true;
             }
         };
+    }
+
+    private record Command(HttpClient httpClient, HttpUriRequest request, HttpClientContext context, ActionListener<HttpResult> listener)
+        implements
+            Runnable {
+
+        @Override
+        public void run() {
+            try {
+                httpClient.send(request, context, listener);
+            } catch (Exception e) {
+                logger.warn(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);
+                listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
+            }
+        }
     }
 }

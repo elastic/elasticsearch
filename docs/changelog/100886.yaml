@@ -1,0 +1,5 @@
+pr: 100886
+summary: Always use correct writable name for `TrainedModelAssignmentMetadata`
+area: Machine Learning
+type: bug
+issues: []

@@ -91,8 +91,7 @@ public class BuildTests extends ESTestCase {
 
     public void testSerializationQualifierBwc() throws IOException {
         var randomBuild = new WriteableBuild(randomBuild());
-        var combinedQualifierVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.BUILD_QUALIFIER_SEPARATED);
-        var serializationVersion = TransportVersionUtils.randomVersionBetween(random(), null, combinedQualifierVersion);
+        var serializationVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.BUILD_QUALIFIER_SEPARATED);
         var roundtrip = copyWriteable(randomBuild, writableRegistry(), WriteableBuild::new, serializationVersion);
         assertThat(roundtrip.build.version(), equalTo(randomBuild.build.version()));
         assertThat(roundtrip.build.qualifier(), equalTo(randomBuild.build.qualifier()));

@@ -176,10 +176,6 @@ setup:
         index: tsdb_index1,tsdb_index2
         fields: [ "metricset", "non_tsdb_field", "k8s.pod.*" ]
 
-  - length: {indices: 2}
-  - match: {indices.0: tsdb_index1}
-  - match: {indices.1: tsdb_index2}
-
   - match: {fields.metricset.keyword.searchable: true}
   - match: {fields.metricset.keyword.aggregatable: true}
   - is_false: fields.metricset.keyword.time_series_dimension

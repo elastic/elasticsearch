@@ -32,6 +32,12 @@ Query parameters used to generate the Elasticsearch query from the search templa
 application.
 If a parameter used in the search template is not specified in `params`, the parameter's default value will be used.
 
+[NOTE]
+====
+The search application can be configured to validate search template parameters.
+See the `dictionary` parameter in the <<put-search-application, put search application>> API for more information.
+====
+
 [[search-application-search-response-codes]]
 ==== {api-response-codes-title}
 

@@ -14,7 +14,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,7 +40,7 @@ public class HttpRequestSenderFactory {
      * A class for providing a more friendly interface for sending an {@link HttpUriRequest}. This leverages the queuing logic for sending
      * a request.
      */
-    public static final class HttpRequestSender implements Closeable {
+    public static final class HttpRequestSender implements Sender {
         private final ThreadPool threadPool;
         private final HttpClientManager manager;
         private final HttpRequestExecutorService service;

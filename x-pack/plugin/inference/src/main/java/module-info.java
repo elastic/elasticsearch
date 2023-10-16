@@ -10,7 +10,10 @@ module org.elasticsearch.xpack.inference {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
-
+    
+    requires com.fasterxml.jackson.annotation;
+    requires com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.databind;
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.logging.log4j;
     requires org.apache.httpcomponents.httpcore;

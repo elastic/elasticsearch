@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.io.IOException;
 import java.util.Map;
@@ -25,9 +28,10 @@ import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIf
 public class HuggingFaceElserService implements InferenceService {
     public static final String NAME = "hugging_face_elser";
 
-    // TODO add the http client here
-    public HuggingFaceElserService() {
+    private final Sender sender;
 
+    public HuggingFaceElserService(HttpRequestSenderFactory factory) {
+        sender = factory.createSender(name());
     }
 
     @Override
@@ -76,11 +80,11 @@ public class HuggingFaceElserService implements InferenceService {
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
-
+        sender.start();
     }
 
     @Override
     public void close() throws IOException {
-
+        IOUtils.closeWhileHandlingException(sender);
     }
 }

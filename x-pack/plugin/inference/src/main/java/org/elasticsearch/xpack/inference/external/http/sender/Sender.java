@@ -5,10 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.http;
+package org.elasticsearch.xpack.inference.external.http.sender;
+
+import org.apache.http.client.methods.HttpRequestBase;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.io.Closeable;
 
 public interface Sender extends Closeable {
     void start();
+
+    void send(HttpRequestBase request, ActionListener<HttpResult> listener);
 }

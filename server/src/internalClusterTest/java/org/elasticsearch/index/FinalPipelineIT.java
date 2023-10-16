@@ -140,8 +140,12 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         SearchResponse target = client().prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        try {
+            assertEquals(1, target.getHits().getTotalHits().value);
+            assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        } finally {
+            target.decRef();
+        }
     }
 
     public void testFinalPipelineOfNewDestinationIsInvoked() {
@@ -166,8 +170,12 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         SearchResponse target = client().prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertEquals(true, target.getHits().getAt(0).getSourceAsMap().get("final"));
+        try {
+            assertEquals(1, target.getHits().getTotalHits().value);
+            assertEquals(true, target.getHits().getAt(0).getSourceAsMap().get("final"));
+        } finally {
+            target.decRef();
+        }
     }
 
     public void testDefaultPipelineOfNewDestinationIsNotInvoked() {
@@ -192,8 +200,12 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         SearchResponse target = client().prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        try {
+            assertEquals(1, target.getHits().getTotalHits().value);
+            assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        } finally {
+            target.decRef();
+        }
     }
 
     public void testDefaultPipelineOfRerouteDestinationIsInvoked() {
@@ -218,8 +230,12 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
         SearchResponse target = client().prepareSearch("target").get();
-        assertEquals(1, target.getHits().getTotalHits().value);
-        assertTrue(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        try {
+            assertEquals(1, target.getHits().getTotalHits().value);
+            assertTrue(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+        } finally {
+            target.decRef();
+        }
     }
 
     public void testAvoidIndexingLoop() {

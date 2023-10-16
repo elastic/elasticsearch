@@ -499,6 +499,11 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         Stream<CanMatchShardResponse> getSuccessfulResults() {
             return Stream.empty();
         }
+
+        @Override
+        protected void closeInternal() {
+            // nothing to release
+        }
     }
 
     private GroupShardsIterator<SearchShardIterator> getIterator(

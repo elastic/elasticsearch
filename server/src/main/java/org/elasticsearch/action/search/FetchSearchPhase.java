@@ -74,6 +74,7 @@ final class FetchSearchPhase extends SearchPhase {
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
+        context.addReleasable(fetchResults::decRef);
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();

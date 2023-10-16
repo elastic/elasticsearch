@@ -44,4 +44,14 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     AtomicArray<Result> getAtomicArray() {
         return results;
     }
+
+    @Override
+    protected void closeInternal() {
+        for (int i = 0; i < results.length(); i++) {
+            var r = results.get(i);
+            if (r != null) {
+                r.decRef();
+            }
+        }
+    }
 }

@@ -561,17 +561,21 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        try {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
-        clearInterceptedActions();
-        assertIndicesSubset(
-            Arrays.asList(searchRequest.indices()),
-            SearchTransportService.QUERY_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME
-        );
-        // free context messages are not necessarily sent, but if they are, check their indices
-        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+            clearInterceptedActions();
+            assertIndicesSubset(
+                Arrays.asList(searchRequest.indices()),
+                SearchTransportService.QUERY_ACTION_NAME,
+                SearchTransportService.FETCH_ID_ACTION_NAME
+            );
+            // free context messages are not necessarily sent, but if they are, check their indices
+            assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void testSearchDfsQueryThenFetch() throws Exception {
@@ -590,18 +594,22 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
         SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().search(searchRequest).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        try {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
-        clearInterceptedActions();
-        assertIndicesSubset(
-            Arrays.asList(searchRequest.indices()),
-            SearchTransportService.DFS_ACTION_NAME,
-            SearchTransportService.QUERY_ID_ACTION_NAME,
-            SearchTransportService.FETCH_ID_ACTION_NAME
-        );
-        // free context messages are not necessarily sent, but if they are, check their indices
-        assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+            clearInterceptedActions();
+            assertIndicesSubset(
+                Arrays.asList(searchRequest.indices()),
+                SearchTransportService.DFS_ACTION_NAME,
+                SearchTransportService.QUERY_ID_ACTION_NAME,
+                SearchTransportService.FETCH_ID_ACTION_NAME
+            );
+            // free context messages are not necessarily sent, but if they are, check their indices
+            assertIndicesSubsetOptionalRequests(Arrays.asList(searchRequest.indices()), SearchTransportService.FREE_CONTEXT_ACTION_NAME);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {

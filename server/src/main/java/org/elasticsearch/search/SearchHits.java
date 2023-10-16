@@ -62,6 +62,9 @@ public final class SearchHits extends AbstractRefCounted implements Writeable, C
         @Nullable Object[] collapseValues
     ) {
         this.hits = hits;
+        for (SearchHit hit : hits) {
+            hit.incRef();
+        }
         this.totalHits = totalHits;
         this.maxScore = maxScore;
         this.sortFields = sortFields;

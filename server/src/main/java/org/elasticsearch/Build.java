@@ -303,8 +303,8 @@ public record Build(
         return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
-    /*@Override
+    @Override
     public String toString() {
         return displayString();
-    }*/
+    }
 }

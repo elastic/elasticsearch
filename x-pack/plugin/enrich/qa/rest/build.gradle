@@ -1,6 +1,7 @@
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 
 import org.elasticsearch.gradle.Version
@@ -17,6 +18,13 @@ restResources {
 
 dependencies {
   javaRestTestImplementation project(path: xpackModule('enrich:qa:common'))
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
+}
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
 }
 
 if (BuildParams.inFipsJvm){

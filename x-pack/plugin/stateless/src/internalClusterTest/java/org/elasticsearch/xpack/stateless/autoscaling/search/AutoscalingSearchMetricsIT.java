@@ -42,7 +42,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
 
         startMasterOnlyNode();
         startIndexNode();
-        startSearchNode(Settings.builder().put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+        startSearchNode(
+            Settings.builder().put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
 
         var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
 
@@ -71,7 +73,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
 
         startMasterOnlyNode();
         startIndexNode();
-        startSearchNode(Settings.builder().put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+        startSearchNode(
+            Settings.builder().put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
 
         var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
 
@@ -95,7 +99,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
 
         startMasterOnlyNode();
         startIndexNode();
-        startSearchNode(Settings.builder().put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+        startSearchNode(
+            Settings.builder().put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
 
         var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
 
@@ -134,7 +140,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
         var masterNode = startMasterNode();
         startMasterNode();
         startIndexNode();
-        startSearchNode(Settings.builder().put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+        startSearchNode(
+            Settings.builder().put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
 
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
@@ -179,7 +187,9 @@ public class AutoscalingSearchMetricsIT extends AbstractStatelessIntegTestCase {
     public void testIndicesWithUpdatedReplicasAreTakenIntoAccount() throws Exception {
         startMasterNode();
         startIndexNode();
-        startSearchNode(Settings.builder().put(ShardSizesCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+        startSearchNode(
+            Settings.builder().put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
 
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).build());

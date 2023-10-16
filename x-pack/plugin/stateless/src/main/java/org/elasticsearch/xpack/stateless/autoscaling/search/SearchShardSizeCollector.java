@@ -21,14 +21,13 @@ import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -53,9 +52,9 @@ import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTran
  * This service is responsible for collecting shard size changes on the search nodes
  * and periodically sending updates to the elected master
  */
-public class ShardSizesCollector implements ClusterStateListener {
+public class SearchShardSizeCollector extends AbstractLifecycleComponent implements ShardSizeCollector, ClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(ShardSizesCollector.class);
+    private static final Logger logger = LogManager.getLogger(SearchShardSizeCollector.class);
 
     public static final Setting<TimeValue> PUSH_INTERVAL_SETTING = Setting.timeSetting(
         "serverless.autoscaling.search_metrics.push_interval",
@@ -78,7 +77,6 @@ public class ShardSizesCollector implements ClusterStateListener {
     private final Executor executor;
     private final ShardSizeStatsClient shardSizeStatsClient;
     private final ShardSizesPublisher shardSizesPublisher;
-    private final boolean isSearchNode;
 
     private volatile TimeValue boostWindowInterval;
     private volatile TimeValue publishInterval;
@@ -89,7 +87,6 @@ public class ShardSizesCollector implements ClusterStateListener {
     private final PendingPublication pendingPublication = new PendingPublication();
     private final ConcurrentMap<ShardId, ShardSize> pastPublications = new ConcurrentHashMap<>();
 
-    private volatile TransportVersion minTransportVersion = TransportVersions.MINIMUM_COMPATIBLE;
     private volatile String nodeId;
 
     private class PendingPublication {
@@ -120,45 +117,20 @@ public class ShardSizesCollector implements ClusterStateListener {
         }
     }
 
-    public static ShardSizesCollector create(
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        ShardSizeStatsClient chardSizeStatsClient,
-        ShardSizesPublisher shardSizesPublisher,
-        boolean isSearchNode
-    ) {
-        var collector = new ShardSizesCollector(clusterSettings, threadPool, chardSizeStatsClient, shardSizesPublisher, isSearchNode);
-        clusterService.addLifecycleListener(new LifecycleListener() {
-            @Override
-            public void afterStart() {
-                collector.doStart();
-            }
-
-            @Override
-            public void beforeStop() {
-                collector.doStop();
-            }
-        });
-        clusterService.addListener(collector);
-        return collector;
-    }
-
-    public ShardSizesCollector(
+    public SearchShardSizeCollector(
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
         ShardSizeStatsClient shardSizeStatsClient,
-        ShardSizesPublisher shardSizesPublisher,
-        boolean isSearchNode
+        ShardSizesPublisher shardSizesPublisher
     ) {
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
         this.shardSizeStatsClient = shardSizeStatsClient;
         this.shardSizesPublisher = shardSizesPublisher;
-        this.isSearchNode = isSearchNode;
+
         clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> {
             this.boostWindowInterval = value;
-            if (isSearchNode && isStarted()) {
+            if (isStarted()) {
                 threadPool.generic().submit(this::publishAllNow);
             }
         });
@@ -166,15 +138,18 @@ public class ShardSizesCollector implements ClusterStateListener {
         clusterSettings.initializeAndWatch(PUSH_DELTA_THRESHOLD_SETTING, value -> this.significantSizeChangeThreshold = value);
     }
 
+    @Override
     protected void doStart() {
-        if (isSearchNode) {
-            scheduleNextDiffPublication();
-        }
+        scheduleNextDiffPublication();
     }
 
+    @Override
     protected void doStop() {
         publishTask = null;
     }
+
+    @Override
+    protected void doClose() {}
 
     private boolean isStarted() {
         return publishTask != null;
@@ -182,15 +157,10 @@ public class ShardSizesCollector implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (isSearchNode == false) {
-            return;
-        }
-        assert nodeId == null || nodeId.equals(event.state().nodes().getLocalNodeId());
+        assert assertNodeId(nodeId, event.state());
         if (nodeId == null) {
             setNodeId(event.state().nodes().getLocalNodeId());
         }
-        setMinTransportVersion(event.state().getMinTransportVersion());
-
         if (event.nodesDelta().masterNodeChanged()) {
             threadPool.generic().submit(this::publishAllNow);
         }
@@ -208,9 +178,13 @@ public class ShardSizesCollector implements ClusterStateListener {
         }
     }
 
-    // Visible for testing
-    void setMinTransportVersion(TransportVersion minTransportVersion) {
-        this.minTransportVersion = minTransportVersion;
+    private static boolean assertNodeId(final String nodeId, final ClusterState clusterState) {
+        if (nodeId != null) {
+            var localNode = clusterState.nodes().getLocalNode();
+            assert localNode.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName());
+            assert nodeId.equals(localNode.getId());
+        }
+        return true;
     }
 
     // Visible for testing
@@ -218,8 +192,8 @@ public class ShardSizesCollector implements ClusterStateListener {
         this.nodeId = nodeId;
     }
 
-    public void detectShardSize(ShardId shardId) {
-        assert isSearchNode : "Should be executed only on search nodes";
+    @Override
+    public void collectShardSize(ShardId shardId) {
         shardSizeStatsClient.getShardSize(shardId, boostWindowInterval, new ActionListener<>() {
             @Override
             public void onResponse(ShardSize shardSize) {
@@ -237,7 +211,6 @@ public class ShardSizesCollector implements ClusterStateListener {
     }
 
     private void publishAllNow() {
-        assert isSearchNode : "Should be executed only on search nodes";
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         if (nodeId == null) {
             return;

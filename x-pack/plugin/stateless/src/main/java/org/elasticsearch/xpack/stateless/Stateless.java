@@ -36,7 +36,8 @@ import co.elastic.elasticsearch.stateless.autoscaling.memory.PublishHeapMemoryMe
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.search.PublishShardSizesAction;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
-import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesCollector;
+import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
+import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.search.TransportPublishShardSizes;
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
@@ -148,6 +149,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -217,7 +219,7 @@ public class Stateless extends Plugin
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
-    private final SetOnce<ShardSizesCollector> shardSizesCollector = new SetOnce<>();
+    private final SetOnce<ShardSizeCollector> shardSizeCollector = new SetOnce<>();
     private final SetOnce<IndicesMappingSizeCollector> indicesMappingSizeCollector = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
     private final SetOnce<StatelessIndexSettingProvider> statelessIndexSettingProvider = new SetOnce<>();
@@ -434,21 +436,20 @@ public class Stateless extends Plugin
         );
         clusterService.addListener(ingestMetricService);
         components.add(ingestMetricService);
-        // search
-        var shardSizeStatsClient = new ShardSizeStatsClient(client);
-        var shardSizesPublisher = new ShardSizesPublisher(client);
-        var shardSizesCollector = setAndGet(
-            this.shardSizesCollector,
-            ShardSizesCollector.create(
+        final ShardSizeCollector shardSizeCollector;
+        if (hasSearchRole) {
+            var searchShardSizeCollector = new SearchShardSizeCollector(
                 clusterService.getClusterSettings(),
                 threadPool,
-                clusterService,
-                shardSizeStatsClient,
-                shardSizesPublisher,
-                hasSearchRole
-            )
-        );
-        components.add(shardSizesCollector);
+                new ShardSizeStatsClient(client),
+                new ShardSizesPublisher(client)
+            );
+            clusterService.addListener(searchShardSizeCollector);
+            shardSizeCollector = searchShardSizeCollector;
+        } else {
+            shardSizeCollector = ShardSizeCollector.NOOP;
+        }
+        components.add(new PluginComponentBinding<>(ShardSizeCollector.class, setAndGet(this.shardSizeCollector, shardSizeCollector)));
         var searchMetricsService = SearchMetricsService.create(
             clusterService.getClusterSettings(),
             threadPool,
@@ -548,8 +549,8 @@ public class Stateless extends Plugin
             IngestMetricsService.STALE_LOAD_WINDOW,
             IngestLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
-            ShardSizesCollector.PUSH_INTERVAL_SETTING,
-            ShardSizesCollector.PUSH_DELTA_THRESHOLD_SETTING,
+            SearchShardSizeCollector.PUSH_INTERVAL_SETTING,
+            SearchShardSizeCollector.PUSH_DELTA_THRESHOLD_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING,
@@ -620,10 +621,11 @@ public class Stateless extends Plugin
             });
         }
         if (hasSearchRole) {
+            final var collector = shardSizeCollector.get();
             indexModule.addIndexEventListener(new IndexEventListener() {
                 @Override
                 public void afterIndexShardStarted(IndexShard indexShard) {
-                    shardSizesCollector.get().detectShardSize(indexShard.shardId());
+                    collector.collectShardSize(indexShard.shardId());
                 }
             });
             indexModule.setDirectoryWrapper((in, shardRouting) -> {

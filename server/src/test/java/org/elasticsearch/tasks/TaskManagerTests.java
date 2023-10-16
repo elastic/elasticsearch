@@ -336,7 +336,12 @@ public class TaskManagerTests extends ESTestCase {
 
         final Task task = taskManager.registerAndExecute(
             "testType",
-            new TransportAction<ActionRequest, ActionResponse>("actionName", new ActionFilters(Set.of()), taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            new TransportAction<ActionRequest, ActionResponse>(
+                "actionName",
+                new ActionFilters(Set.of()),
+                taskManager,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            ) {
                 @Override
                 protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
                     listener.onResponse(new ActionResponse() {

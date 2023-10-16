@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.GetSnapshotInfoContext;
@@ -74,7 +75,7 @@ public class SLMGetExpiredSnapshotsAction extends ActionType<SLMGetExpiredSnapsh
 
         @Inject
         public LocalAction(TransportService transportService, RepositoriesService repositoriesService, ActionFilters actionFilters) {
-            super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
+            super(INSTANCE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.repositoriesService = repositoriesService;
             final var threadPool = transportService.getThreadPool();
             this.retentionExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);

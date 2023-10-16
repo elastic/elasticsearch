@@ -49,7 +49,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     /**
      * Use this method when the transport action should continue to run in the context of the current task
      */
-    public final void executeDirect(Task task, Request request, ActionListener<Response> listener) {
+    protected final void executeDirect(Task task, Request request, ActionListener<Response> listener) {
         handleExecution(task, request, listener, this::doExecute);
     }
 

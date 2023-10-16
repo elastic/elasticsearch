@@ -42,6 +42,9 @@ See the `dictionary` parameter in the <<put-search-application, put search appli
 [[search-application-render-query-response-codes]]
 ==== {api-response-codes-title}
 
+`400`::
+Invalid parameter passed to search template.
+
 `404`::
 Search Application `<name>` does not exist.
 

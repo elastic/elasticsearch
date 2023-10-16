@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Objects;
+
 public class FrameGroupIDTests extends ESTestCase {
     public void testEmptySourceFilename() {
         String given = FrameGroupID.getBasenameAndParent("");
@@ -36,34 +38,36 @@ public class FrameGroupIDTests extends ESTestCase {
     }
 
     public void testEmptyFunctionName() {
-        String frameGroupID = FrameGroupID.create("FEDCBA9876543210", 177863, "", "", "");
-        assertEquals("-226939920", frameGroupID);
+        String expected = Integer.toString(Objects.hash("FEDCBA9876543210", 177863));
+        String given = FrameGroupID.create("FEDCBA9876543210", 177863, "", "", "");
+        assertEquals(expected, given);
     }
 
     public void testFunctionNameAndEmptySourceFilename() {
-        String frameGroupID = FrameGroupID.create(
-            "FEDCBA9876543210",
-            6694,
-            "<main>",
-            "",
-            "void jdk.internal.misc.Unsafe.park(boolean, long)"
-        );
-        assertEquals("1523167754", frameGroupID);
+        String expected = Integer.toString(Objects.hash("FEDCBA9876543210", "void jdk.internal.misc.Unsafe.park(boolean, long)"));
+        String given = FrameGroupID.create("FEDCBA9876543210", 6694, "<main>", "", "void jdk.internal.misc.Unsafe.park(boolean, long)");
+        assertEquals(expected, given);
     }
 
     public void testFunctionNameAndSourceFilenameWithAbsolutePath() {
-        String frameGroupID = FrameGroupID.create("FEDCBA9876543210", 64, "main", "/usr/local/go/src/runtime/lock_futex.go", "futex_wake");
-        assertEquals("1422498024", frameGroupID);
+        String expected = Integer.toString(
+            Objects.hash("main", "futex_wake", FrameGroupID.getBasenameAndParent("/usr/local/go/src/runtime/lock_futex.go"))
+        );
+        String given = FrameGroupID.create("FEDCBA9876543210", 64, "main", "/usr/local/go/src/runtime/lock_futex.go", "futex_wake");
+        assertEquals(expected, given);
     }
 
     public void testFunctionNameAndSourceFilenameWithoutAbsolutePath() {
-        String frameGroupID = FrameGroupID.create(
+        String expected = Integer.toString(
+            Objects.hash("<main>", "void jdk.internal.misc.Unsafe.park(boolean, long)", FrameGroupID.getBasenameAndParent("bootstrap.java"))
+        );
+        String given = FrameGroupID.create(
             "FEDCBA9876543210",
             29338,
             "<main>",
             "bootstrap.java",
             "void jdk.internal.misc.Unsafe.park(boolean, long)"
         );
-        assertEquals("-685957655", frameGroupID);
+        assertEquals(expected, given);
     }
 }

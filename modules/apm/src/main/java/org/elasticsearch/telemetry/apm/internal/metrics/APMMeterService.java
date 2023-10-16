@@ -15,8 +15,8 @@ import io.opentelemetry.api.metrics.Meter;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
+import org.elasticsearch.telemetry.apm.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.APMTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterService;
 
 import java.security.AccessController;
